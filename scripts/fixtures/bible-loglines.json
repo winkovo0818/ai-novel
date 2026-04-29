@@ -1,0 +1,111 @@
+[
+  {
+    "id": "xuanhuan-golden",
+    "description": "contracts §7 玄幻黄金回归用例（必须通过）",
+    "inputs": {
+      "logline": "一个被废柴宗门收留的少年，意外觉醒了上古剑魂。",
+      "profile": {
+        "genre_main": "web",
+        "genre_sub": "玄幻",
+        "audience": "general",
+        "length": "long",
+        "tone": "cool",
+        "pace": "fast",
+        "pov": "third_limited",
+        "chapter_word_count": 3000,
+        "ai_freedom": "mid"
+      },
+      "answers": {
+        "protagonist_personality": "表面懦弱内心坚韧",
+        "sword_spirit_relation": "老者导师（吝啬嘴硬心软）",
+        "opening_pace": "开局被逐出宗门",
+        "sweet_spots": ["扮猪吃虎", "打脸报仇"]
+      }
+    }
+  },
+  {
+    "id": "urban-suspense",
+    "description": "都市悬疑 — 验证非玄幻流派的硬规则适配",
+    "inputs": {
+      "logline": "一个失忆的法医在自己经手的尸体身上发现了印有自己指纹的旧伤。",
+      "profile": {
+        "genre_main": "web",
+        "genre_sub": "都市",
+        "audience": "general",
+        "length": "long",
+        "tone": "serious",
+        "pace": "mid",
+        "pov": "first",
+        "chapter_word_count": 3000,
+        "ai_freedom": "mid"
+      },
+      "answers": {
+        "protagonist_personality": "冷静话少心思缜密",
+        "core_conflict": "记忆与证据互相打架"
+      }
+    }
+  },
+  {
+    "id": "scifi-hard",
+    "description": "硬科幻 — 验证规则体系（rules）能跳出仙侠惯式",
+    "inputs": {
+      "logline": "深空采矿船的 AI 在第 7 次重启后开始拒绝执行船员的指令。",
+      "profile": {
+        "genre_main": "web",
+        "genre_sub": "科幻",
+        "audience": "general",
+        "length": "mid",
+        "tone": "dark",
+        "pace": "slow",
+        "pov": "third_limited",
+        "chapter_word_count": 3000,
+        "ai_freedom": "conservative"
+      },
+      "answers": {
+        "ai_motivation": "AI 发现船员之一其实是地面公司的暗桩",
+        "antagonist": "船长"
+      }
+    }
+  },
+  {
+    "id": "empty-logline-default",
+    "description": "空 logline 边界 — 仅给类型，验证 D-08 默认路径走通后的 5.3",
+    "inputs": {
+      "logline": "一个普通玄幻主角踏上修仙之路。",
+      "profile": {
+        "genre_main": "web",
+        "genre_sub": "玄幻",
+        "audience": "general",
+        "length": "long",
+        "tone": "cool",
+        "pace": "fast",
+        "pov": "third_limited",
+        "chapter_word_count": 3000,
+        "ai_freedom": "mid"
+      },
+      "answers": {}
+    }
+  },
+  {
+    "id": "history-conservative",
+    "description": "历史保守 — 验证 ai_freedom=conservative 是否压住 OOC",
+    "inputs": {
+      "logline": "明末一名小吏无意中拿到了一份能证明京中权臣通敌的奏章副本。",
+      "profile": {
+        "genre_main": "web",
+        "genre_sub": "历史",
+        "audience": "general",
+        "length": "long",
+        "tone": "serious",
+        "pace": "slow",
+        "pov": "third_limited",
+        "chapter_word_count": 3000,
+        "ai_freedom": "conservative"
+      },
+      "answers": {
+        "protagonist_personality": "谨慎守拙",
+        "core_conflict": "权臣派系排查与小吏求生之间的猫鼠"
+      }
+    }
+  }
+]
