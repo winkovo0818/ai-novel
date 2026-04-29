@@ -50,9 +50,11 @@
 | API | Next.js Route Handlers |
 | Stream | SSE + `ReadableStream` + Node runtime |
 | DB | PostgreSQL + Prisma |
+| DB 部署 | 本地 PostgreSQL 16 + Docker Compose（决策 D-01） |
 | LLM | DeepSeek-V3 (`https://api.deepseek.com/v1`, model=`deepseek-chat`) |
 | Validation | zod |
-| JSON 增量解析 | `partial-json` |
+| JSON 增量解析 | `partial-json`（决策 D-05 含兜底策略） |
+| Test | vitest（决策 D-07） |
 | Lint/Format | eslint + prettier |
 
 ---
@@ -80,6 +82,9 @@
 8. 所有 LLM 调用结束后打印 token、耗时、成本
 9. 文件超过 300 行要拆，组件超过 150 行要拆
 10. 每个 Implementation Step 一个 commit，使用 Conventional Commits
+11. `lib/llm/client.ts`、`lib/stream/jsonStreamParser.ts`、`lib/validation/schemas.ts` 必须各有一组 vitest 单测（决策 D-07）
+12. 首字延迟目标 P95 < 3s，Bible 总耗时 P95 < 10s（决策 D-06）
+13. 匿名身份用 cookie sessionId，`Novel.user_id` 允许为空（决策 D-03）；重摆计数存服务端（决策 D-04）
 
 ---
 
@@ -87,7 +92,7 @@
 
 | 优先级 | 阶段 | 任务 | 目标 | 主要产物 | 依赖 | 验收标准 |
 | --- | --- | --- | --- | --- | --- | --- |
-| P0 | 0. 前置对齐 | 统一接口与 schema 约定 | 避免按过期文档返工 | 接口约定、字段映射说明 | 两份产品文档 | API 路径、Bible schema、状态机无歧义 |
+| P0 | 0. 契约冻结 | 产出 `docs/contracts.md` | 所有后续 Step 仅引用本文档，避免按过期文档返工 | `docs/contracts.md`（决策记录、API 路径、Bible schema、store shape、profile、fixture、Prompt 硬规则） | 两份产品文档 | `docs/contracts.md` §1–§10 全部完成且通过 review |
 | P0 | 1. 工程初始化 | 创建 Next.js 15 项目 | 建立可运行、可构建工程 | `app/`、`package.json`、`tsconfig.json`、ESLint/Tailwind 配置 | 无 | `npm run dev`、`npm run build` 可运行 |
 | P0 | 1. DeepSeek 探活 | 封装 LLM 客户端并打通健康检查 | 证明模型链路可用 | `lib/llm/client.ts`、`app/api/healthz/llm/route.ts`、`.env.example` | 工程初始化 | `/api/healthz/llm` 返回成功；控制台打印 token 与耗时 |
 | P0 | 2. Prisma + DB | 建立三张 MVP 表 | 打通会话、小说、Bible 草稿持久化 | `prisma/schema.prisma`、迁移文件、Prisma client | 工程初始化 | `prisma migrate dev` 成功；基础 CRUD 跑通 |
@@ -102,10 +107,10 @@
 | P1 | 5. Step 1 UI | 基础信息页 | 完成标题、类型、子类型输入 | `Step1Basic.tsx` | 状态机 | 表单校验与交互符合原型 |
 | P1 | 5. Step 2 UI | 一句话灵感页 | 支持输入、AI 推荐入口、跳过 | `Step2Logline.tsx` | 状态机 | mock 下可进入下一步或跳过 |
 | P1 | 5. Step 3 UI | 反向追问页 | 支持单选、多选、自定义与推荐项 | `Step3Questions.tsx` | 状态机 | mock 下可答题并推进 |
-| P1 | 6. API 7.1 | 创建会话 | 保存基础信息与默认 profile | `app/api/onboarding/sessions/route.ts` | DB、schema | 返回 `{ sessionId, defaultProfile }` |
-| P1 | 6. Prompt 5.1 + API 7.2 | logline 推荐 | 生成 5 个推荐 logline | `prompts/logline.ts`、`sessions/[id]/loglines/route.ts` | LLM、session | 返回 5 条有效推荐 |
-| P1 | 6. Prompt 5.2 + API 7.3 | 反向追问生成 | 生成 3–5 道问题 | `prompts/questions.ts`、`sessions/[id]/questions/route.ts` | LLM、session | 返回含 `recommended_index` 的问题列表 |
-| P1 | 6. 前端接真实 API | 替换 mock 数据 | 让 Step 1–3 走真实后端 | Step1/2/3 组件更新 | API 7.1/7.2/7.3 | 玄幻例子可生成问题 |
+| P1 | 6A. API 7.1 | 创建会话 | 保存基础信息与默认 profile | `app/api/onboarding/sessions/route.ts` | DB、schema | 返回 `{ sessionId, defaultProfile }` |
+| P1 | 6A. Prompt 5.1 + API 7.2 | logline 推荐 | 生成 5 个推荐 logline | `prompts/logline.ts`、`sessions/[id]/loglines/route.ts` | LLM、session | 返回 5 条有效推荐 |
+| P1 | 6A. Prompt 5.2 + API 7.3 | 反向追问生成 | 生成 3–5 道问题 | `prompts/questions.ts`、`sessions/[id]/questions/route.ts` | LLM、session | 返回含 `recommended_index` 的问题列表 |
+| P1 | 6B. 前端接真实 API | 替换 mock 数据 | 让 Step 1–3 走真实后端 | Step1/2/3 组件更新 | 6A 全部 | 玄幻 fixture（contracts §7）可生成问题 |
 | P1 | 7. Step 4 UI | 接入 SSE 流式结果 | 卡片逐张浮现，而不是一次性渲染 | `Step4Generating.tsx`、`BibleCard.tsx`、`CostBadge.tsx` | SSE API、状态机 | 8 秒内首字出现 |
 | P1 | 8. Step 5 UI | Bible Review 与编辑 | 支持编辑、重摆、保存、开写 | `Step5Review.tsx` | Step 4、状态机 | 草稿可编辑，按钮动作完整 |
 | P1 | 8. API 7.5 | 提交创建项目 | 保存 Novel 与 BibleDraft，跳转编辑器 | `finalize/route.ts`、`editor/[novelId]/page.tsx` | DB、Step 5 | `save_only` 与 `start_writing` 都能走通 |
@@ -140,6 +145,7 @@
 
 | 里程碑 | 完成标志 |
 | --- | --- |
+| M0 | `docs/contracts.md` §1–§10 冻结，所有决策 D-01 ~ D-08 入档 |
 | M1 | `/api/healthz/llm` 可成功调用 DeepSeek |
 | M2 | Prisma 迁移成功，三张表 CRUD 跑通 |
 | M3 | 5 条示例 logline 稳定生成有效 Bible JSON |
@@ -174,8 +180,11 @@
 | Prompt 5.3 输出结构漂移 | Bible 草稿不可用 | 离线先跑 5 条样例，严格 zod 校验 |
 | SSE 被中间层断开 | 生成半途失败 | 每 15s 发送心跳注释 |
 | 生成耗时过长 | 影响用户体验 | 首字优先、流式分段、15s 超时重试 |
-| 用户频繁重摆 | 成本失控 | 限制 `<=3` 次并提示调整 logline |
+| 用户频繁重摆 | 成本失控 | 限制 `<=3` 次并提示调整 logline；计数存服务端（D-04）防绕过 |
 | 类型不严导致前后端错位 | 构建失败或运行时错误 | 全链路 zod schema + strict TS |
+| `partial-json` 解析失败 | Step 4 卡住或白屏 | 回退到全文 `JSON.parse` 重试一次，仍失败发 `error` 事件 + 占位 Bible（D-05） |
+| 首字延迟口径不一致 | 验收争议 | 统一为 P95 < 3s 首字 / < 10s 总耗时（D-06） |
+| 匿名身份与鉴权迁移 | 接鉴权后历史 Novel 归属不清 | `Novel.user_id` 允许空，迁移时按 cookie sessionId 关联（D-03） |
 
 ---
 

@@ -305,6 +305,7 @@ http://localhost:3000/new
 | --- | --- |
 | [AI小说网站技术实现方案 v1.0.md](./AI%E5%B0%8F%E8%AF%B4%E7%BD%91%E7%AB%99%E6%8A%80%E6%9C%AF%E5%AE%9E%E7%8E%B0%E6%96%B9%E6%A1%88%20v1.0.md) | 整体产品与系统方案 |
 | [Onboarding向导原型设计 v0.1.md](./Onboarding%E5%90%91%E5%AF%BC%E5%8E%9F%E5%9E%8B%E8%AE%BE%E8%AE%A1%20v0.1.md) | Onboarding 交互、Prompt、API 契约 |
+| [docs/contracts.md](./docs/contracts.md) | **Step 0 契约冻结**：决策记录、API/Schema/Profile/Fixture/Prompt 硬规则 — 后续所有 Step 唯一引用源 |
 | [MVP任务规划表.md](./MVP%E4%BB%BB%E5%8A%A1%E8%A7%84%E5%88%92%E8%A1%A8.md) | 里程碑级任务总控 |
 | [Implementation Breakdown.md](./Implementation%20Breakdown.md) | 可执行级任务拆分 |
 

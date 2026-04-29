@@ -13,17 +13,22 @@
 
 ---
 
-## Step 0 前置对齐
+## Step 0 契约冻结
 
-| 子任务 | 输入 | 输出 | 完成判定 | 风险 |
+本 Step 的所有产物统一汇入 `docs/contracts.md`，**单文件单 PR**，不分散。
+
+| 子任务 | 输入 | 输出（contracts.md 对应章节） | 完成判定 | 风险 |
 | --- | --- | --- | --- | --- |
-| 0.1 冻结 API 路径 | doc#2 第 4/7 章 | 最终 API 路径表 | 全部采用 `/api/onboarding/sessions/...` | 旧路径描述混淆 |
-| 0.2 冻结 Bible schema | doc#2 第 5.3 | 最终字段表 | 明确中文 key 是否映射 | 中英文字段不一致 |
-| 0.3 冻结 Wizard 状态 shape | doc#2 第 6 章 | store state 定义草案 | Step 1–5 状态字段齐全 | 后续组件反复改 store |
-| 0.4 冻结 default profile 范围 | doc#1 Novel Profile | `defaultProfile` 最小字段集 | 仅保留 MVP 必需字段 | profile 过大拖慢接口 |
-| 0.5 冻结验收样例 | doc#2 第 3 章玄幻例子 | 样例输入文档 | 后续统一拿它回归 | 各阶段用不同样例 |
+| 0.1 冻结 API 路径 | doc#2 §4/§7 | §2.1 路径表 | 全部 `/api/onboarding/sessions/...`，含错误码表 | 旧路径描述混淆 |
+| 0.2 冻结 Bible schema | doc#2 §5.3 | §3 字段表 | 全英文 snake_case；`口头禅` → `catchphrase`；长度约束写死 | 中英文字段不一致 |
+| 0.3 冻结 Wizard state shape | doc#2 §6 | §5 store 定义 | Step 1–5 字段齐全；明确哪些 persist | 后续组件反复改 store |
+| 0.4 冻结 default profile | doc#1 Novel Profile | §4 NovelProfile 默认值 | 仅 9 个字段，其它全用默认 | profile 过大拖慢接口 |
+| 0.5 冻结验收 fixture | doc#2 §3 玄幻例子 | §7 fixture + 质检 checklist | Step 3/4/6B/10 全用同一组 | 各阶段用不同样例 |
+| 0.6 冻结数据库与启动方式 | 决策 D-01 | §1 + 后续 `.env.example` 注释 | 本地 PG 16 + Docker Compose 方案落定 | 实施时再改要返工 |
+| 0.7 冻结匿名身份与重摆计数 | 决策 D-03/D-04 | §1 + §6 Prisma schema | `Novel.user_id` 可空；`OnboardingSession.regeneration_count` 字段 | 接鉴权后归属不清 |
+| 0.8 冻结 partial-json 兜底与延迟口径 | 决策 D-05/D-06 | §1 + Step 4/9 风险表 | 失败回退路径明确；首字 P95 < 3s | 实施期反复调指标 |
 
-建议 commit：`docs: freeze onboarding api schema and acceptance fixtures`
+建议 commit：`docs: freeze onboarding contracts (api/schema/profile/fixture/decisions)`
 
 ---
 
@@ -39,6 +44,7 @@
 | 1.6 实现 LLM client | DeepSeek 协议 | `lib/llm/client.ts` | 支持 hello 调用 | SDK 兼容性 |
 | 1.7 健康检查路由 | client | `/api/healthz/llm` | 返回成功 JSON | Node runtime 配置错误 |
 | 1.8 日志格式验证 | healthz 调用 | 控制台日志样例 | 输出 req/resp/cost/took | usage 字段不稳定 |
+| 1.9 vitest 基线 | 项目根 | `vitest.config.ts` + 一条空 spec 跑通 | `npm run test` 退出码 0 | 后续 Step 难以补单测 |
 
 建议 commit：`feat: bootstrap app and add deepseek health check`
 
@@ -88,6 +94,8 @@
 | 4.7 加 SSE 心跳 | route | 心跳注释行 | 15s 一次 | 中间层断连 |
 | 4.8 加 stream 完成/异常收尾 | route | `done/error` 事件 | 异常时不悬挂连接 | abort 未处理 |
 | 4.9 终端验证脚本 | curl/EventSource | 验证命令 | 能观察事件顺序 | 只测通路没测内容 |
+| 4.10 partial-json 回归 | Step 3 产出的 5 条 Bible JSON | jsonStreamParser vitest 单测 | 5 条都能按节点 emit；中文字符不乱码 | partial-json 中文 corner case |
+| 4.11 解析失败兜底 | 决策 D-05 | 全文 `JSON.parse` 重试 + `error` 事件路径 | 故意喂入残缺 JSON 不卡死 | 半成品 Bible 污染 store |
 
 建议 commit：`feat: add streaming bible api with incremental parser`
 
@@ -111,22 +119,32 @@
 
 ---
 
-## Step 6 接真实 API 7.1/7.2/7.3
+## Step 6A 后端 API + Prompt（7.1 / 7.2 / 7.3）
+
+> Question schema 已在 contracts §5 冻结，本 Step 不再重复定稿。
 
 | 子任务 | 输入 | 输出 | 完成判定 | 风险 |
 | --- | --- | --- | --- | --- |
-| 6.1 Question schema 定稿 | Prompt 5.2 契约 | `QuestionSchema` | API/前端共用 | 题型结构不稳 |
-| 6.2 创建会话 API | Step1 输入 | `sessions/route.ts` | 返回 `sessionId` | `defaultProfile` 未定 |
-| 6.3 Logline prompt | 文档 5.1 | `prompts/logline.ts` | 满足 5 条约束 | 5 条变体不明显 |
-| 6.4 Logline API | `sessionId` | `loglines/route.ts` | 返回 5 条推荐 | `regenerate` 逻辑 |
-| 6.5 Questions prompt | 文档 5.2 | `prompts/questions.ts` | 含 `recommended_index` | 多选推荐规则 |
-| 6.6 Questions API | `logline` | `questions/route.ts` | 返回 3–5 题 | 输出结构漂移 |
-| 6.7 Step1 接真实 session | 前端 store | session 建立流程 | 首次进入后有 `sessionId` | 状态与 session 同步 |
-| 6.8 Step2 接真实 loglines | API 7.2 | UI 推荐替换 mock | 可再来 5 个 | 请求中状态 |
-| 6.9 Step3 接真实 questions | API 7.3 | UI 题目替换 mock | 可正常渲染推荐项 | 自定义值兼容 |
-| 6.10 玄幻例子回归 | 验收样例 | 测试记录 | 能走到 Step 4 前 | 联调时状态错位 |
+| 6A.1 创建会话 API | Step1 输入 | `sessions/route.ts` | 返回 `sessionId` 与 `defaultProfile` | profile 字段漂移 |
+| 6A.2 Logline prompt | 文档 5.1 | `prompts/logline.ts` | 满足 5 条约束 | 5 条变体不明显 |
+| 6A.3 Logline API | `sessionId` | `loglines/route.ts` | 返回 5 条推荐；`regenerate` 计数累加 | 计数与服务端不同步 |
+| 6A.4 Questions prompt | 文档 5.2 | `prompts/questions.ts` | 含 `recommended_index` | 多选推荐规则 |
+| 6A.5 Questions API | `logline` | `questions/route.ts` | 返回 3–5 题，全部通过 zod | 输出结构漂移 |
 
-建议 commit：`feat: connect onboarding inputs to session logline and question apis`
+建议 commit：`feat: implement onboarding session and ai recommendation apis`
+
+---
+
+## Step 6B 前端联调（替换 mock）
+
+| 子任务 | 输入 | 输出 | 完成判定 | 风险 |
+| --- | --- | --- | --- | --- |
+| 6B.1 Step1 接真实 session | 前端 store | session 建立流程 | 首次进入后有 `sessionId`；刷新仍在 | 状态与 session 同步 |
+| 6B.2 Step2 接真实 loglines | API 7.2 | UI 推荐替换 mock | 可「再来 5 个」；loading 态正确 | 请求中状态 |
+| 6B.3 Step3 接真实 questions | API 7.3 | UI 题目替换 mock | 可正常渲染推荐项；自定义值入 answers | 自定义值兼容 |
+| 6B.4 玄幻 fixture 回归 | contracts §7 | 跑完 Step1–3 的测试记录 | 能走到 Step 4 前；answers 完整 | 联调时状态错位 |
+
+建议 commit：`feat: connect onboarding wizard steps to real apis`
 
 ---
 
