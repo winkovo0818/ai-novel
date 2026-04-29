@@ -237,13 +237,13 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 ## 10. 启动方式
 
-当前仓库仍处于实现前期，但最终本地启动流程应保持为 3 步。
-
 ### 1. 安装依赖
 
 ```bash
 npm install
 ```
+
+`postinstall` 钩子会自动跑一次 `prisma generate`，无需手动执行。
 
 ### 2. 准备环境变量
 
@@ -253,12 +253,24 @@ cp .env.example .env.local
 
 然后填写：
 
-- `DATABASE_URL`
+- `DATABASE_URL`（与 `docker-compose.yml` 默认一致即可）
 - `DEEPSEEK_API_KEY`
 - `DEEPSEEK_BASE_URL`
 - `NEXT_PUBLIC_APP_URL`
 
-### 3. 启动开发环境
+### 3. 启动本地数据库（决策 D-01）
+
+需要本地装好 Docker。
+
+```bash
+npm run db:up         # 起本地 PostgreSQL 16
+npm run db:migrate    # 应用 Prisma 迁移（首次运行会创建迁移文件）
+npm run db:smoke      # （可选）跑三表 CRUD smoke 验证连通
+```
+
+如需重置：`npm run db:reset`（会清库重迁）；停库：`npm run db:down`。
+
+### 4. 启动开发环境
 
 ```bash
 npm run dev
@@ -269,6 +281,10 @@ npm run dev
 ```text
 http://localhost:3000/new
 ```
+
+### 健康检查
+
+打开 `http://localhost:3000/api/healthz/llm` 应返回 `{ ok: true, data: { reply, token_in, token_out, cost_cny, took_ms } }`，并在服务端控制台看到一行符合契约 §9 的 `[LLM] route=/api/healthz/llm ...` 日志。
 
 ---
 
