@@ -35,7 +35,7 @@ export interface ChatCompletionResult {
   model: string;
 }
 
-const DEFAULT_MODEL = "deepseek-chat";
+const DEFAULT_MODEL = process.env.DEEPSEEK_MODEL ?? "deepseek-chat";
 const DEFAULT_TIMEOUT_MS = 15_000;
 
 /** DeepSeek-V3 当前定价：输入 ¥0.001/1k token，输出 ¥0.002/1k token。如调价更新此处。 */
