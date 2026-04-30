@@ -211,6 +211,7 @@ ai-novel/
 
 ```env
 DATABASE_URL=postgresql://...
+DIRECT_URL=postgresql://...
 DEEPSEEK_API_KEY=sk-...
 DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
 DEEPSEEK_MODEL=deepseek-chat
@@ -221,7 +222,8 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 | 变量 | 说明 |
 | --- | --- |
-| `DATABASE_URL` | PostgreSQL 连接串，本地 Docker 或 Supabase 均可 |
+| `DATABASE_URL` | Prisma 运行时 PostgreSQL 连接串；Supabase 推荐使用 direct connection |
+| `DIRECT_URL` | Prisma migrate 直连串；Supabase 使用 direct connection，避免 pooler prepared statement 冲突 |
 | `DEEPSEEK_API_KEY` | DeepSeek API Key |
 | `DEEPSEEK_BASE_URL` | DeepSeek OpenAI 兼容 API 基地址 |
 | `DEEPSEEK_MODEL` | DeepSeek 模型名，默认 `deepseek-chat` |
@@ -255,9 +257,13 @@ cp .env.example .env.local
 
 然后填写：
 
-- `DATABASE_URL`（与 `docker-compose.yml` 默认一致即可）
+- `DATABASE_URL`（与 `docker-compose.yml` 默认一致即可；Supabase 推荐使用 direct connection）
+- `DIRECT_URL`（本地 Docker 可与 `DATABASE_URL` 相同；Supabase 使用 direct connection）
 - `DEEPSEEK_API_KEY`
 - `DEEPSEEK_BASE_URL`
+- `DEEPSEEK_MODEL`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `NEXT_PUBLIC_APP_URL`
 
 ### 3. 启动本地数据库（决策 D-01）
@@ -266,11 +272,11 @@ cp .env.example .env.local
 
 ```bash
 npm run db:up         # 起本地 PostgreSQL 16
-npm run db:migrate    # 应用 Prisma 迁移（首次运行会创建迁移文件）
-npm run db:smoke      # （可选）跑三表 CRUD smoke 验证连通
+npm run db:migrate    # 应用 Prisma 迁移（脚本会读取 .env.local）
+npm run db:smoke      # （可选）跑三表 CRUD smoke 验证连通（脚本会读取 .env.local）
 ```
 
-如果不用 Docker，可以直接把 `.env.local` 里的 `DATABASE_URL` 改成 Supabase 提供的 PostgreSQL 连接串，然后从 `npm run db:migrate` 开始执行。
+如果不用 Docker，可以直接把 `.env.local` 里的 `DATABASE_URL` 改成 Supabase 提供的 PostgreSQL 连接串，然后从 `npm run db:migrate` 开始执行。使用 Supabase + Prisma 时建议：`DATABASE_URL` 和 `DIRECT_URL` 都填 direct connection；本地 Docker 则两者可相同。
 
 如需重置：`npm run db:reset`（会清库重迁）；停库：`npm run db:down`。
 
