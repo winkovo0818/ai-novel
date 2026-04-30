@@ -4,7 +4,6 @@
  * 契约：
  * - 所有调用必须经过本模块，禁止业务代码自行 fetch 或 console.log token。
  *   日志格式由本模块统一输出（见 docs/contracts.md §9）。
- * - 流式调用见后续 Step 4（lib/stream/...），本文件只暴露非流式 chatCompletion。
  */
 
 export type ChatRole = "system" | "user" | "assistant";
@@ -33,6 +32,27 @@ export interface ChatCompletionResult {
   costCny: number;
   tookMs: number;
   model: string;
+}
+
+export interface ChatStreamOptions {
+  route: string;
+  messages: ChatMessage[];
+  model?: string;
+  temperature?: number;
+  timeoutMs?: number;
+}
+
+export interface ChatStreamResult {
+  content: string;
+  tokenIn: number;
+  tokenOut: number;
+  costCny: number;
+  tookMs: number;
+  model: string;
+}
+
+export interface ChatStreamCallbacks {
+  onDelta(delta: string): Promise<void> | void;
 }
 
 const DEFAULT_MODEL = process.env.DEEPSEEK_MODEL ?? "deepseek-chat";
@@ -75,6 +95,135 @@ interface DeepSeekResponse {
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
+interface DeepSeekStreamChunk {
+  choices?: Array<{ delta?: { content?: string } }>;
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
+}
+
+function getBaseUrl(): string {
+  return (
+    process.env.DEEPSEEK_BASE_URL?.replace(/\/+$/, "") ??
+    "https://api.deepseek.com/v1"
+  );
+}
+
+export async function streamChatCompletion(
+  opts: ChatStreamOptions,
+  callbacks: ChatStreamCallbacks,
+): Promise<ChatStreamResult> {
+  const start = Date.now();
+  const model = opts.model ?? DEFAULT_MODEL;
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
+  let status: "ok" | "err" = "ok";
+  let errCode: string | undefined;
+  let content = "";
+  let tokenIn = 0;
+  let tokenOut = 0;
+
+  try {
+    const apiKey = requireEnv("DEEPSEEK_API_KEY");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    let response: Response;
+    try {
+      response = await fetch(`${getBaseUrl()}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: opts.messages,
+          temperature: opts.temperature ?? 0.7,
+          stream: true,
+          stream_options: { include_usage: true },
+        }),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        errCode = "LLM_TIMEOUT";
+        throw new Error(`DeepSeek stream timed out after ${timeoutMs}ms`);
+      }
+      errCode = "NETWORK";
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      errCode = `HTTP_${response.status}`;
+      throw new Error(
+        `DeepSeek API error: ${response.status} ${text.slice(0, 500)}`,
+      );
+    }
+
+    if (!response.body) {
+      errCode = "EMPTY_STREAM";
+      throw new Error("DeepSeek stream response body is empty");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line.startsWith("data:")) continue;
+
+        const data = line.slice(5).trim();
+        if (data === "[DONE]") continue;
+
+        const chunk = JSON.parse(data) as DeepSeekStreamChunk;
+        const delta = chunk.choices?.[0]?.delta?.content ?? "";
+        if (delta) {
+          content += delta;
+          await callbacks.onDelta(delta);
+        }
+        tokenIn = chunk.usage?.prompt_tokens ?? tokenIn;
+        tokenOut = chunk.usage?.completion_tokens ?? tokenOut;
+      }
+    }
+
+    const result = {
+      content,
+      tokenIn,
+      tokenOut,
+      costCny: calcCostCny(tokenIn, tokenOut),
+      tookMs: Date.now() - start,
+      model,
+    };
+    return result;
+  } catch (err) {
+    status = "err";
+    if (!errCode) errCode = "UNKNOWN";
+    throw err;
+  } finally {
+    logLlmCall({
+      route: opts.route,
+      model,
+      tokenIn,
+      tokenOut,
+      costCny: calcCostCny(tokenIn, tokenOut),
+      tookMs: Date.now() - start,
+      status,
+      errCode,
+    });
+  }
+}
+
 export async function chatCompletion(
   opts: ChatCompletionOptions,
 ): Promise<ChatCompletionResult> {
@@ -88,9 +237,7 @@ export async function chatCompletion(
 
   try {
     const apiKey = requireEnv("DEEPSEEK_API_KEY");
-    const baseUrl =
-      process.env.DEEPSEEK_BASE_URL?.replace(/\/+$/, "") ??
-      "https://api.deepseek.com/v1";
+    const baseUrl = getBaseUrl();
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
