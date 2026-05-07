@@ -1,6 +1,6 @@
 # AI Novel
 
-一个面向中文长篇创作的 AI 写小说产品原型仓库。当前阶段已经打通 `/new` Onboarding 到 `/editor/[novelId]` 第一章草稿的最小写作闭环。
+一个面向中文长篇创作的 AI 写小说产品原型仓库。当前阶段已经打通 `/new` Onboarding 到 `/editor/[novelId]` 多章节草稿编辑的最小写作闭环。
 
 目标不是先做一个“大而全”的 AI 编辑器，而是先把下面这条主链路打通：
 
@@ -8,7 +8,7 @@
 2. 用户写 1-2 句话灵感，或让 AI 推荐 logline
 3. AI 反向追问 3-5 个关键选择题
 4. DeepSeek-V3 流式生成一份小说 Bible 草稿
-5. 用户调整、重摆、保存草稿，或进入写作页占位页
+5. 用户调整、重摆、保存 Bible，并进入写作页起草章节
 
 ---
 
@@ -21,13 +21,13 @@
 - [AI小说网站技术实现方案 v1.0.md](./AI%E5%B0%8F%E8%AF%B4%E7%BD%91%E7%AB%99%E6%8A%80%E6%9C%AF%E5%AE%9E%E7%8E%B0%E6%96%B9%E6%A1%88%20v1.0.md)
 - [Onboarding向导原型设计 v0.1.md](./Onboarding%E5%90%91%E5%AF%BC%E5%8E%9F%E5%9E%8B%E8%AE%BE%E8%AE%A1%20v0.1.md)
 
-当前仓库只落地其中的第一阶段 MVP：Onboarding 向导。
+当前仓库已经落地 Onboarding 向导，并提供最小可用的章节编辑器。
 
 ---
 
 ## 2. 本轮 MVP 目标
 
-本轮先做 Onboarding，并提供最小可用的第一章写作页。
+本轮先做 Onboarding，并提供最小可用的多章节写作页。
 
 ### 本轮要实现
 
@@ -41,8 +41,8 @@
 - 基础错误处理
 - LLM token、耗时、成本日志
 - README、录屏脚本与自测说明
-- `/editor/[novelId]` 第一章草稿编辑与保存
-- 基于 Bible/第一章节拍的 AI 章节正文 SSE 起草
+- `/editor/[novelId]` 多章节草稿编辑、保存、自动保存与状态流转
+- 基于 Bible、章节大纲和前文上下文的 AI 章节正文 SSE 起草
 
 ### 本轮不做
 
@@ -50,7 +50,7 @@
 - 移动端适配
 - i18n
 - 正式内容审核接入
-- 完整主编辑器、多章节管理、版本对比
+- 完整主编辑器、版本对比
 - 复杂章节记忆、全文一致性校验、RAG
 
 ---
@@ -86,7 +86,7 @@
 - 用户可编辑 Bible 草稿
 - 可重摆一份
 - 可保存草稿
-- 可进入 `/editor/[novelId]` 占位页
+- 可进入 `/editor/[novelId]` 多章节写作页
 
 ---
 
@@ -232,8 +232,8 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 | 变量 | 说明 |
 | --- | --- |
-| `DATABASE_URL` | Prisma 运行时 PostgreSQL 连接串；Supabase IPv4 可用 Shared Pooler |
-| `DIRECT_URL` | Prisma migrate 直连串；如果没有 direct connection，可暂用 Supabase Shared Pooler |
+| `DATABASE_URL` | Prisma 运行时 PostgreSQL 连接串；Supabase IPv4 可用 Session Pooler |
+| `DIRECT_URL` | Prisma migrate 连接串；如果没有 direct connection，可暂用 Supabase Session Pooler |
 | `DEEPSEEK_API_KEY` | DeepSeek API Key；`LLM_MOCK=1` 时可不填真实值 |
 | `DEEPSEEK_BASE_URL` | DeepSeek OpenAI 兼容 API 基地址 |
 | `DEEPSEEK_MODEL` | DeepSeek 模型名，默认 `deepseek-chat` |
@@ -265,13 +265,13 @@ npm install
 ### 2. 准备环境变量
 
 ```bash
-cp .env .env.local
+cp .env.example .env.local
 ```
 
 然后填写：
 
-- `DATABASE_URL`（与 `docker-compose.yml` 默认一致即可）
-- `DIRECT_URL`（本地 Docker 可与 `DATABASE_URL` 相同）
+- `DATABASE_URL`
+- `DIRECT_URL`
 - `DEEPSEEK_API_KEY`
 - `DEEPSEEK_BASE_URL`
 - `DEEPSEEK_MODEL`
@@ -280,14 +280,14 @@ cp .env .env.local
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `NEXT_PUBLIC_APP_URL`
 
-### 3. 启动本地数据库（决策 D-01）
+### 3. 准备数据库
 
-需要本地装好 Docker。
+如果使用本地 Docker PostgreSQL：
 
 ```bash
 npm run db:up         # 起本地 PostgreSQL 16
 npm run db:migrate    # 应用 Prisma 迁移（脚本会读取 .env.local）
-npm run db:smoke      # （可选）跑三表 CRUD smoke 验证连通（脚本会读取 .env.local）
+npm run db:smoke      # （可选）跑核心表 CRUD smoke 验证连通（脚本会读取 .env.local）
 ```
 
 如果使用 Supabase Session Pooler，请在 `.env.local` 中填写类似：
@@ -460,7 +460,7 @@ npm run smoke:onboarding
 - DeepSeek client、token/耗时/成本日志、timeout 自动重试一次
 - `partial-json` 增量解析与 Bible 解析失败占位回退
 - Step 5 字段级编辑与保存/开写跳转
-- `/editor/[novelId]` 第一章草稿编辑、AI 起草与自动保存
+- `/editor/[novelId]` 多章节草稿编辑、AI 起草、自动保存、完成/草稿状态流转
 - 内容审核 hook（当前 mock pass，可替换真实审核服务）
 
 当前验证结果：
@@ -475,4 +475,4 @@ npm run smoke:onboarding
 - 增加更细的 UI 自动化测试
 - 将内容审核 hook 替换为真实服务
 - 进一步优化 Step 4 的卡片动效与加载阶段提示
-- 增加多章节切换、章节状态流转和版本历史
+- 增加版本历史和全文一致性校验
