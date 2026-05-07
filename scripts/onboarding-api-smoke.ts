@@ -101,6 +101,19 @@ async function main() {
   assert(updated.content === generated, "chapter update should persist generated content");
   console.log("[smoke] chapter updated");
 
+  const novel = await getJson<{
+    id: string;
+    bible: { id: string; content: unknown } | null;
+    chapters: Array<{ id: string; chapter_index: number; content: string }>;
+  }>(`/api/novels/${finalized.novel_id}`);
+  assert(novel.id === finalized.novel_id, "novel get should return finalized novel");
+  assert(Boolean(novel.bible), "novel get should include bible");
+  assert(
+    novel.chapters.some((item) => item.id === chapter.id && item.content === generated),
+    "novel get should include updated chapter",
+  );
+  console.log(`[smoke] novel chapters=${novel.chapters.length}`);
+
   const generatedSecond = await streamChapterDraft(finalized.novel_id, {
     chapter_index: 2,
     title: bible.outline?.volume_1?.chapters?.[1]?.title ?? "第二章",
@@ -110,6 +123,15 @@ async function main() {
   console.log(`[smoke] chapter 2 generated chars=${generatedSecond.length}`);
 
   console.log("[smoke] ok");
+}
+
+async function getJson<T>(path: string): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`);
+  const json = (await response.json()) as ApiEnvelope<T>;
+  if (!response.ok || !json.ok || !json.data) {
+    throw new Error(`${path} failed: ${response.status} ${json.error?.code ?? "UNKNOWN"} ${json.error?.message ?? ""}`);
+  }
+  return json.data;
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
