@@ -76,10 +76,14 @@ async function main() {
       content: "烟雨夜，火房里只剩一盏将熄的灯。",
     },
   });
-  await prisma.chapterDraft.update({
+  const updatedChapter = await prisma.chapterDraft.update({
     where: { id: chapter.id },
-    data: { content: `${chapter.content}\n沈言听见剑魂第一次低语。` },
+    data: {
+      content: `${chapter.content}\n沈言听见剑魂第一次低语。`,
+      status: "done",
+    },
   });
+  if (updatedChapter.status !== "done") throw new Error("chapter status not updated");
   console.log(`[smoke] chapter draft: ${chapter.id}`);
 
   // 6) Cleanup（Cascade 会一并删 BibleDraft / ChapterDraft）
