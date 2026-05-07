@@ -36,6 +36,10 @@ export function EditorClient({ novelId, title, bible, initialChapters }: EditorC
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "drafting" | "error">("idle");
   const [message, setMessage] = useState<string>();
   const hasUnsavedChanges = chapterTitle !== savedTitle || content !== savedContent || chapterStatus !== savedStatus;
+  const totalChapters = bible.outline.volume_1.chapters.length;
+  const savedCount = chapters.length;
+  const doneCount = chapters.filter((chapter) => chapter.status === "done").length;
+  const characterCount = content.replace(/\s/g, "").length;
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -195,6 +199,11 @@ export function EditorClient({ novelId, title, bible, initialChapters }: EditorC
         <aside className="rounded-3xl border border-white/10 bg-white/5 p-5">
           <p className="text-sm text-neutral-400">Novel Bible</p>
           <h1 className="mt-2 text-2xl font-semibold">{title}</h1>
+          <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs">
+            <ProgressStat label="章节" value={`${totalChapters}`} />
+            <ProgressStat label="已存" value={`${savedCount}`} />
+            <ProgressStat label="完成" value={`${doneCount}`} />
+          </div>
           <section className="mt-6 grid gap-4 text-sm text-neutral-300">
             <BibleSection title="主角">
               <p className="font-medium text-white">{bible.characters.find((c) => c.role === "protagonist")?.name ?? "未命名"}</p>
@@ -251,6 +260,7 @@ export function EditorClient({ novelId, title, bible, initialChapters }: EditorC
                 第 {selectedIndex} 章 · {selectedOutline?.summary ?? "暂无章节梗概"}
                 {selectedDraft ? <span className="ml-2 text-emerald-700">已保存</span> : null}
                 {chapterStatus === "done" ? <span className="ml-2 text-blue-700">已完成</span> : null}
+                <span className="ml-2 text-neutral-400">{characterCount} 字</span>
               </p>
               <input
                 className="mt-1 w-full rounded-xl border border-transparent text-3xl font-semibold outline-none focus:border-neutral-300 md:min-w-[28rem]"
@@ -338,6 +348,15 @@ function parseSseBlock(block: string): StreamEvent | null {
   const data = block.match(/^data: (.+)$/m)?.[1];
   if (!event || !data) return null;
   return { event, data: JSON.parse(data) };
+}
+
+function ProgressStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-white/5 px-3 py-2">
+      <div className="text-lg font-semibold text-white">{value}</div>
+      <div className="mt-0.5 text-neutral-500">{label}</div>
+    </div>
+  );
 }
 
 function BibleSection({ title, children }: { title: string; children: React.ReactNode }) {

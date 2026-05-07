@@ -25,6 +25,9 @@ test("completes onboarding with mock LLM", async ({ page }) => {
 
   await expect(page).toHaveURL(/\/editor\//, { timeout: 30_000 });
   await expect(page.getByText("Chapter Draft")).toBeVisible();
+  await expect(page.getByText("章节", { exact: true })).toBeVisible();
+  await expect(page.getByText("已存", { exact: true })).toBeVisible();
+  await expect(page.getByText("完成", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "AI 起草第 1 章" }).click();
   await expect(page.getByText("AI 草稿已生成并保存")).toBeVisible({ timeout: 30_000 });
   await page.reload();
