@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type { BibleDraft } from "@/lib/validation/schemas";
 
@@ -53,7 +53,7 @@ export function EditorClient({ novelId, title, bible, initialChapters }: EditorC
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  async function persistChapter(nextContent: string, nextTitle = chapterTitle, nextStatus = chapterStatus) {
+  const persistChapter = useCallback(async (nextContent: string, nextTitle = chapterTitle, nextStatus = chapterStatus) => {
     const payload = {
       title: nextTitle,
       content: nextContent,
@@ -85,7 +85,26 @@ export function EditorClient({ novelId, title, bible, initialChapters }: EditorC
       return [...current, nextChapter].sort((a, b) => a.chapter_index - b.chapter_index);
     });
     return json.data as ChapterDraftView;
-  }
+  }, [chapterId, chapterStatus, chapterTitle, novelId, selectedIndex]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges || status === "saving" || status === "drafting" || !chapterTitle.trim()) return;
+
+    const timeout = window.setTimeout(async () => {
+      setStatus("saving");
+      setMessage("自动保存中...");
+      try {
+        await persistChapter(content, chapterTitle, chapterStatus);
+        setStatus("saved");
+        setMessage("已自动保存");
+      } catch (err) {
+        setStatus("error");
+        setMessage(err instanceof Error ? err.message : "自动保存失败");
+      }
+    }, 3_000);
+
+    return () => window.clearTimeout(timeout);
+  }, [chapterStatus, chapterTitle, content, hasUnsavedChanges, persistChapter, status]);
 
   function selectChapter(index: number) {
     if (index === selectedIndex) return;

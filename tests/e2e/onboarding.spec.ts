@@ -66,6 +66,9 @@ test("completes onboarding with mock LLM", async ({ page }) => {
   await expect(editor).toHaveValue("第二章测试草稿。");
   await expect(page.getByRole("button", { name: "恢复草稿" })).toBeVisible();
 
+  await editor.fill("第二章自动保存草稿。");
+  await expect(page.getByText("已自动保存")).toBeVisible({ timeout: 8_000 });
+
   await editor.fill("第二章快捷键保存草稿。");
   await page.keyboard.press("Control+S");
   await expect(page.getByText("草稿已保存")).toBeVisible();
