@@ -194,7 +194,17 @@ export function EditorClient({ novelId, title, bible, initialChapters }: EditorC
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 px-5 py-6 text-white">
+    <main
+      className="min-h-screen bg-neutral-950 px-5 py-6 text-white"
+      onKeyDown={(event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+          event.preventDefault();
+          if (status !== "saving" && status !== "drafting" && chapterTitle.trim()) {
+            void saveChapter();
+          }
+        }
+      }}
+    >
       <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[360px_1fr]">
         <aside className="rounded-3xl border border-white/10 bg-white/5 p-5">
           <p className="text-sm text-neutral-400">Novel Bible</p>

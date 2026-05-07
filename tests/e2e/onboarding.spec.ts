@@ -65,4 +65,8 @@ test("completes onboarding with mock LLM", async ({ page }) => {
   await page.getByRole("button", { name: /^2\./ }).click();
   await expect(editor).toHaveValue("第二章测试草稿。");
   await expect(page.getByRole("button", { name: "恢复草稿" })).toBeVisible();
+
+  await editor.fill("第二章快捷键保存草稿。");
+  await page.keyboard.press("Control+S");
+  await expect(page.getByText("草稿已保存")).toBeVisible();
 });
