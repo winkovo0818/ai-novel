@@ -467,6 +467,7 @@ npm run smoke:onboarding
 - `partial-json` 增量解析与 Bible 解析失败占位回退
 - Step 5 字段级编辑与保存/开写跳转
 - `/editor/[novelId]` 多章节草稿编辑、AI 起草、自动保存、完成/草稿状态流转
+- Supabase SSR session refresh 与可选用户归属记录；已有 `user_id` 的项目会做 API 访问隔离
 - 内容审核 hook（当前 mock pass，可替换真实审核服务）
 
 当前验证结果：
@@ -481,4 +482,5 @@ npm run smoke:onboarding
 - 增加更细的 UI 自动化测试
 - 将内容审核 hook 替换为真实服务
 - 进一步优化 Step 4 的卡片动效与加载阶段提示
+- 增加 Supabase RLS 策略与端到端登录态测试
 - 增加版本历史和全文一致性校验
