@@ -6,6 +6,7 @@ import {
   CreateSessionRequestSchema,
   CreateSessionResponseSchema,
 } from "@/lib/validation/schemas";
+import { getOptionalUserId } from "@/utils/supabase/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,8 +35,10 @@ export async function POST(request: Request) {
   const defaultProfile = buildDefaultProfile(input.genre_main, input.genre_sub);
 
   try {
+    const userId = await getOptionalUserId();
     const session = await prisma.onboardingSession.create({
       data: {
+        user_id: userId,
         title: input.title?.trim() || null,
         genre_main: input.genre_main,
         genre_sub: input.genre_sub,
