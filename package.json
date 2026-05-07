@@ -15,6 +15,7 @@
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:migrate": "dotenv -e .env.local -- prisma migrate dev",
+    "db:deploy": "dotenv -e .env.local -- prisma migrate deploy",
     "db:reset": "dotenv -e .env.local -- prisma migrate reset --force",
     "db:smoke": "dotenv -e .env.local -- tsx scripts/db-smoke-test.ts",
     "smoke:onboarding": "dotenv -e .env.local -- tsx scripts/onboarding-api-smoke.ts",

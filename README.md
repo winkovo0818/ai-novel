@@ -299,6 +299,12 @@ DIRECT_URL=postgresql://postgres.<PROJECT_REF>:<URL_ENCODED_PASSWORD>@aws-1-ap-n
 
 如果数据库密码包含 `@`、`?`、`!`、`#`、`%` 等特殊字符，必须先 URL encode，否则连接串会被解析错。真实密码只放 `.env.local`，不要提交。
 
+对 Supabase 或其他非本地环境应用已提交迁移时，使用：
+
+```bash
+npm run db:deploy
+```
+
 如需重置：`npm run db:reset`（会清库重迁）；停库：`npm run db:down`。
 
 ### 4. 启动开发环境
