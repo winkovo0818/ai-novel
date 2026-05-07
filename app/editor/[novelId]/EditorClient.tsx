@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type { BibleDraft } from "@/lib/validation/schemas";
+import { EditorSidebar } from "./EditorSidebar";
 
-interface ChapterDraftView {
+export interface ChapterDraftView {
   id: string;
   chapter_index: number;
   title: string;
@@ -36,9 +37,6 @@ export function EditorClient({ novelId, title, bible, initialChapters }: EditorC
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "drafting" | "error">("idle");
   const [message, setMessage] = useState<string>();
   const hasUnsavedChanges = chapterTitle !== savedTitle || content !== savedContent || chapterStatus !== savedStatus;
-  const totalChapters = bible.outline.volume_1.chapters.length;
-  const savedCount = chapters.length;
-  const doneCount = chapters.filter((chapter) => chapter.status === "done").length;
   const characterCount = content.replace(/\s/g, "").length;
 
   useEffect(() => {
@@ -225,61 +223,14 @@ export function EditorClient({ novelId, title, bible, initialChapters }: EditorC
       }}
     >
       <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[360px_1fr]">
-        <aside className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <p className="text-sm text-neutral-400">Novel Bible</p>
-          <h1 className="mt-2 text-2xl font-semibold">{title}</h1>
-          <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs">
-            <ProgressStat label="章节" value={`${totalChapters}`} />
-            <ProgressStat label="已存" value={`${savedCount}`} />
-            <ProgressStat label="完成" value={`${doneCount}`} />
-          </div>
-          <section className="mt-6 grid gap-4 text-sm text-neutral-300">
-            <BibleSection title="主角">
-              <p className="font-medium text-white">{bible.characters.find((c) => c.role === "protagonist")?.name ?? "未命名"}</p>
-              <p className="mt-1">{bible.characters.find((c) => c.role === "protagonist")?.motivation}</p>
-            </BibleSection>
-            <BibleSection title="世界规则">
-              <ul className="list-inside list-disc space-y-1">
-                {bible.world.rules.map((rule) => <li key={rule}>{rule}</li>)}
-              </ul>
-            </BibleSection>
-            <BibleSection title="第一章节拍">
-              <ol className="list-inside list-decimal space-y-2">
-                {bible.first_chapter_beats.map((beat) => (
-                  <li key={beat.beat}>
-                    <span className="text-white">{beat.scene}</span>
-                    <p className="ml-5 text-neutral-400">{beat.purpose}</p>
-                  </li>
-                ))}
-              </ol>
-            </BibleSection>
-            <BibleSection title="首卷章节">
-              <div className="grid gap-2">
-                {bible.outline.volume_1.chapters.map((chapter) => (
-                  <button
-                    key={chapter.index}
-                    className={chapter.index === selectedIndex
-                      ? "rounded-xl border border-white/30 bg-white/15 p-3 text-left"
-                      : "rounded-xl border border-transparent bg-white/5 p-3 text-left hover:bg-white/10"}
-                    disabled={status === "drafting" || status === "saving"}
-                    onClick={() => selectChapter(chapter.index)}
-                  >
-                    <p className="text-white">
-                      {chapter.index}. {chapter.title}
-                      {chapters.some((draft) => draft.chapter_index === chapter.index) ? (
-                        <span className="ml-2 rounded-full bg-emerald-400/15 px-2 py-0.5 text-xs text-emerald-200">已存</span>
-                      ) : null}
-                      {chapters.some((draft) => draft.chapter_index === chapter.index && draft.status === "done") ? (
-                        <span className="ml-2 rounded-full bg-blue-400/15 px-2 py-0.5 text-xs text-blue-200">完成</span>
-                      ) : null}
-                    </p>
-                    <p className="mt-1 text-xs text-neutral-400">{chapter.summary}</p>
-                  </button>
-                ))}
-              </div>
-            </BibleSection>
-          </section>
-        </aside>
+        <EditorSidebar
+          title={title}
+          bible={bible}
+          chapters={chapters}
+          selectedIndex={selectedIndex}
+          isBusy={status === "drafting" || status === "saving"}
+          onSelectChapter={selectChapter}
+        />
 
         <section className="rounded-3xl border border-white/10 bg-white p-5 text-neutral-950">
           <div className="flex flex-col gap-3 border-b border-neutral-200 pb-5 md:flex-row md:items-center md:justify-between">
@@ -377,22 +328,4 @@ function parseSseBlock(block: string): StreamEvent | null {
   const data = block.match(/^data: (.+)$/m)?.[1];
   if (!event || !data) return null;
   return { event, data: JSON.parse(data) };
-}
-
-function ProgressStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-white/5 px-3 py-2">
-      <div className="text-lg font-semibold text-white">{value}</div>
-      <div className="mt-0.5 text-neutral-500">{label}</div>
-    </div>
-  );
-}
-
-function BibleSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-2xl bg-white/5 p-4">
-      <h2 className="text-sm font-semibold text-neutral-400">{title}</h2>
-      <div className="mt-3">{children}</div>
-    </section>
-  );
 }
