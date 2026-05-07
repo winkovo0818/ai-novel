@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { readSse } from "@/lib/stream/readSse";
 import type { BibleDraft } from "@/lib/validation/schemas";
 import { EditorSidebar } from "./EditorSidebar";
+import { EditorToolbar } from "./EditorToolbar";
 
 export interface ChapterDraftView {
   id: string;
@@ -234,55 +235,27 @@ export function EditorClient({ novelId, title, bible, initialChapters }: EditorC
         />
 
         <section className="rounded-3xl border border-white/10 bg-white p-5 text-neutral-950">
-          <div className="flex flex-col gap-3 border-b border-neutral-200 pb-5 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-medium text-neutral-500">Chapter Draft</p>
-              <p className="mt-1 text-sm text-neutral-500">
-                第 {selectedIndex} 章 · {selectedOutline?.summary ?? "暂无章节梗概"}
-                {selectedDraft ? <span className="ml-2 text-emerald-700">已保存</span> : null}
-                {chapterStatus === "done" ? <span className="ml-2 text-blue-700">已完成</span> : null}
-                <span className="ml-2 text-neutral-400">{characterCount} 字</span>
-              </p>
-              <input
-                className="mt-1 w-full rounded-xl border border-transparent text-3xl font-semibold outline-none focus:border-neutral-300 md:min-w-[28rem]"
-                value={chapterTitle}
-                onChange={(event) => {
-                  setChapterTitle(event.target.value);
-                  if (status === "saved") setStatus("idle");
-                }}
-              />
-            </div>
-            <div className="flex items-center gap-3">
-              {message ? <span className={status === "error" ? "text-sm text-red-600" : "text-sm text-neutral-500"}>{message}</span> : null}
-              {hasUnsavedChanges && status !== "saving" && status !== "drafting" ? (
-                <span className="text-sm text-amber-600">有未保存修改</span>
-              ) : null}
-              <button
-                className="rounded-2xl border border-neutral-300 px-5 py-3 font-medium text-neutral-700 disabled:opacity-50"
-                disabled={status === "drafting" || status === "saving" || !chapterTitle.trim()}
-                onClick={draftChapter}
-              >
-                {status === "drafting" ? "起草中..." : `AI 起草第 ${selectedIndex} 章`}
-              </button>
-              <button
-                className="rounded-2xl border border-neutral-300 px-5 py-3 font-medium text-neutral-700 disabled:opacity-50"
-                disabled={status === "saving" || status === "drafting" || !chapterTitle.trim()}
-                onClick={() => {
-                  setChapterStatus((current) => current === "done" ? "draft" : "done");
-                  if (status === "saved") setStatus("idle");
-                }}
-              >
-                {chapterStatus === "done" ? "恢复草稿" : "标记完成"}
-              </button>
-              <button
-                className="rounded-2xl bg-neutral-950 px-5 py-3 font-medium text-white disabled:opacity-50"
-                disabled={status === "saving" || status === "drafting" || !chapterTitle.trim()}
-                onClick={saveChapter}
-              >
-                {status === "saving" ? "保存中..." : "保存草稿"}
-              </button>
-            </div>
-          </div>
+          <EditorToolbar
+            selectedIndex={selectedIndex}
+            summary={selectedOutline?.summary}
+            chapterTitle={chapterTitle}
+            chapterStatus={chapterStatus}
+            isSaved={Boolean(selectedDraft)}
+            characterCount={characterCount}
+            status={status}
+            message={message}
+            hasUnsavedChanges={hasUnsavedChanges}
+            onTitleChange={(nextTitle) => {
+              setChapterTitle(nextTitle);
+              if (status === "saved") setStatus("idle");
+            }}
+            onDraftChapter={draftChapter}
+            onToggleStatus={() => {
+              setChapterStatus((current) => current === "done" ? "draft" : "done");
+              if (status === "saved") setStatus("idle");
+            }}
+            onSave={saveChapter}
+          />
 
           <textarea
             className="mt-5 min-h-[65vh] w-full resize-none rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-base leading-8 outline-none focus:border-neutral-950"
