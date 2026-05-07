@@ -1,9 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { BibleDraft, NovelProfile } from "@/lib/validation/schemas";
 
 const streamChatCompletionWithRetry = vi.fn();
 const findUnique = vi.fn();
+const getOptionalUserId = vi.fn();
 
 vi.mock("@/lib/llm/client", () => ({
   streamChatCompletionWithRetry,
@@ -13,6 +14,10 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     novel: { findUnique },
   },
+}));
+
+vi.mock("@/utils/supabase/auth", () => ({
+  getOptionalUserId,
 }));
 
 const profile: NovelProfile = {
@@ -66,10 +71,16 @@ const bible: BibleDraft = {
 };
 
 describe("POST /api/novels/[id]/chapters/draft", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getOptionalUserId.mockResolvedValue(null);
+  });
+
   it("emits an SSE error event when the LLM times out", async () => {
     const { POST } = await import("./route");
     findUnique.mockResolvedValue({
       id: "novel-1",
+      user_id: null,
       profile,
       bible: { content: bible },
       chapters: [],
@@ -89,6 +100,31 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
     expect(text).toContain("event: error");
     expect(text).toContain('"code":"LLM_TIMEOUT"');
     expect(text).toContain('"retryable":true');
+  });
+
+  it("hides a user-owned novel from a different user", async () => {
+    const { POST } = await import("./route");
+    findUnique.mockResolvedValue({
+      id: "novel-1",
+      user_id: "owner-1",
+      profile,
+      bible: { content: bible },
+      chapters: [],
+    });
+    getOptionalUserId.mockResolvedValue("owner-2");
+
+    const response = await POST(
+      new Request("http://localhost/api/novels/novel-1/chapters/draft", {
+        method: "POST",
+        body: JSON.stringify({ chapter_index: 1, title: "第1章" }),
+      }),
+      { params: Promise.resolve({ id: "novel-1" }) },
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(json.error.code).toBe("NOVEL_NOT_FOUND");
+    expect(streamChatCompletionWithRetry).not.toHaveBeenCalled();
   });
 });
 

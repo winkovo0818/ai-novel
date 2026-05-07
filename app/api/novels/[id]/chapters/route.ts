@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
+import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { BibleDraftSchema, CreateChapterDraftRequestSchema } from "@/lib/validation/schemas";
+import { getOptionalUserId } from "@/utils/supabase/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,6 +22,11 @@ export async function POST(request: Request, context: RouteContext) {
   const novel = await prisma.novel.findUnique({ where: { id }, include: { bible: true } });
   if (!novel || !novel.bible) {
     return jsonError("NOVEL_NOT_FOUND", "Novel or Bible draft not found", false, 404);
+  }
+
+  const userId = await getOptionalUserId();
+  if (!canAccessOwnerResource(novel.user_id, userId)) {
+    return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
   }
 
   const bible = BibleDraftSchema.safeParse(novel.bible.content);

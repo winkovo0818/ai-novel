@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { canAccessOwnerResource } from "@/lib/auth/ownership";
+import { getOptionalUserId } from "@/utils/supabase/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +20,21 @@ export async function GET(_request: Request, context: RouteContext) {
   });
 
   if (!novel) {
+    return Response.json(
+      {
+        ok: false,
+        error: {
+          code: "NOVEL_NOT_FOUND",
+          message: "Novel not found",
+          retryable: false,
+        },
+      },
+      { status: 404 },
+    );
+  }
+
+  const userId = await getOptionalUserId();
+  if (!canAccessOwnerResource(novel.user_id, userId)) {
     return Response.json(
       {
         ok: false,

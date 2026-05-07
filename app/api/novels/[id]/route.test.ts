@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const findUnique = vi.fn();
+const getOptionalUserId = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -8,15 +9,21 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/utils/supabase/auth", () => ({
+  getOptionalUserId,
+}));
+
 describe("GET /api/novels/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getOptionalUserId.mockResolvedValue(null);
   });
 
   it("returns a novel with bible and chapters for editor hydration", async () => {
     const { GET } = await import("./route");
     const novel = {
       id: "novel-1",
+      user_id: null,
       title: "逆魂纪",
       bible: { id: "bible-1", content: { meta: { suggested_title: "逆魂纪" } } },
       chapters: [
@@ -39,6 +46,20 @@ describe("GET /api/novels/[id]", () => {
         chapters: { orderBy: { chapter_index: "asc" } },
       },
     });
+  });
+
+  it("hides a user-owned novel from a different user", async () => {
+    const { GET } = await import("./route");
+    findUnique.mockResolvedValue({ id: "novel-1", user_id: "owner-1", bible: null, chapters: [] });
+    getOptionalUserId.mockResolvedValue("owner-2");
+
+    const response = await GET(new Request("http://localhost/api/novels/novel-1"), {
+      params: Promise.resolve({ id: "novel-1" }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(json.error.code).toBe("NOVEL_NOT_FOUND");
   });
 
   it("returns NOVEL_NOT_FOUND when the novel is missing", async () => {
