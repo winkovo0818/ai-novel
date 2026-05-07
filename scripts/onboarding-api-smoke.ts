@@ -122,6 +122,14 @@ async function main() {
   assert(generatedSecond.length > 20, "second chapter generation should return content");
   console.log(`[smoke] chapter 2 generated chars=${generatedSecond.length}`);
 
+  await expectPostFailure(`/api/novels/${finalized.novel_id}/chapters`, {
+    chapter_index: 99,
+    title: "越界章节",
+    content: "不应保存。",
+    status: "draft",
+  }, "INVALID_INPUT");
+  console.log("[smoke] invalid chapter rejected");
+
   console.log("[smoke] ok");
 }
 
@@ -145,6 +153,17 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
     throw new Error(`${path} failed: ${response.status} ${json.error?.code ?? "UNKNOWN"} ${json.error?.message ?? ""}`);
   }
   return json.data;
+}
+
+async function expectPostFailure(path: string, body: unknown, code: string): Promise<void> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json = (await response.json()) as ApiEnvelope<unknown>;
+  assert(!response.ok && !json.ok, `${path} should fail`);
+  assert(json.error?.code === code, `${path} should fail with ${code}`);
 }
 
 async function patchJson<T>(path: string, body: unknown): Promise<T> {

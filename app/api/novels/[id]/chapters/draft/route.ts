@@ -45,6 +45,10 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const input = parsed.data;
+  if (!bible.data.outline.volume_1.chapters.some((chapter) => chapter.index === input.chapter_index)) {
+    return jsonError("INVALID_INPUT", "Chapter index is not in the Bible outline", false, 400);
+  }
+
   const previousContext = novel.chapters
     .filter((chapter) => chapter.chapter_index < input.chapter_index && chapter.content.trim())
     .map((chapter) => formatPreviousChapter(chapter.chapter_index, chapter.title, chapter.content))

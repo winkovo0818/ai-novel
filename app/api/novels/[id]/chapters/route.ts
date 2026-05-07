@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { CreateChapterDraftRequestSchema } from "@/lib/validation/schemas";
+import { BibleDraftSchema, CreateChapterDraftRequestSchema } from "@/lib/validation/schemas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,9 +17,17 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("INVALID_INPUT", "Invalid chapter draft request", false, 400);
   }
 
-  const novel = await prisma.novel.findUnique({ where: { id } });
-  if (!novel) {
-    return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
+  const novel = await prisma.novel.findUnique({ where: { id }, include: { bible: true } });
+  if (!novel || !novel.bible) {
+    return jsonError("NOVEL_NOT_FOUND", "Novel or Bible draft not found", false, 404);
+  }
+
+  const bible = BibleDraftSchema.safeParse(novel.bible.content);
+  if (!bible.success) {
+    return jsonError("INVALID_INPUT", "Novel Bible is invalid", false, 400);
+  }
+  if (!bible.data.outline.volume_1.chapters.some((chapter) => chapter.index === parsed.data.chapter_index)) {
+    return jsonError("INVALID_INPUT", "Chapter index is not in the Bible outline", false, 400);
   }
 
   try {
