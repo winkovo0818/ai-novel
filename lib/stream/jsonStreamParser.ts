@@ -105,7 +105,7 @@ export function collectBibleEvents(
     if (!chapter.success) break;
     events.push({
       event: "outline_chapter",
-      data: { ...chapter.data, index: i },
+      data: chapter.data,
     });
     cursor.outlineChapters = i + 1;
   }

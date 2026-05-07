@@ -252,23 +252,39 @@ function mergeBibleEvent(draft: Partial<BibleDraft> | undefined, item: StreamEve
 
   if (item.event === "meta") next.meta = item.data as BibleDraft["meta"];
   if (item.event === "world") next.world = item.data as BibleDraft["world"];
-  if (item.event === "character") next.characters = upsertIndexed(next.characters, item.data);
+  if (item.event === "character") next.characters = upsertEventIndexed(next.characters, item.data);
   if (item.event === "outline_chapter") {
+    const chapter = item.data as BibleDraft["outline"]["volume_1"]["chapters"][number];
     next.outline = {
       volume_1: {
-        ...(next.outline?.volume_1 ?? { name: "", theme: "", chapter_count_estimate: 0 }),
-        chapters: upsertIndexed(next.outline?.volume_1?.chapters, item.data),
+        ...(next.outline?.volume_1 ?? {
+          name: "开篇卷",
+          theme: "首卷成长与核心冲突",
+          chapter_count_estimate: 8,
+        }),
+        chapters: upsertAt(
+          next.outline?.volume_1?.chapters,
+          Math.max(0, chapter.index - 1),
+          chapter,
+        ),
       },
     };
   }
-  if (item.event === "first_chapter_beat") next.first_chapter_beats = upsertIndexed(next.first_chapter_beats, item.data);
+  if (item.event === "first_chapter_beat") {
+    const { index, ...beat } = item.data as BibleDraft["first_chapter_beats"][number] & { index: number };
+    next.first_chapter_beats = upsertAt(next.first_chapter_beats, index, beat);
+  }
 
   return next;
 }
 
-function upsertIndexed<T>(current: T[] | undefined, raw: unknown): T[] {
+function upsertEventIndexed<T>(current: T[] | undefined, raw: unknown): T[] {
   const { index, ...value } = raw as T & { index: number };
+  return upsertAt(current, index, value as T);
+}
+
+function upsertAt<T>(current: T[] | undefined, index: number, value: T): T[] {
   const next = [...(current ?? [])];
-  next[index] = value as T;
+  next[index] = value;
   return next.filter(Boolean);
 }

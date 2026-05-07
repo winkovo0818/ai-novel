@@ -28,7 +28,9 @@ export async function mockStreamChatCompletion(
   opts: ChatStreamOptions,
   callbacks: ChatStreamCallbacks,
 ): Promise<ChatStreamResult> {
-  const content = JSON.stringify(mockBibleDraft());
+  const content = opts.route.includes("/chapters/draft")
+    ? mockChapterDraftText()
+    : JSON.stringify(mockBibleDraft());
   const chunkSize = 96;
 
   for (let i = 0; i < content.length; i += chunkSize) {
@@ -43,6 +45,16 @@ export async function mockStreamChatCompletion(
     tookMs: 1,
     model: opts.model ?? "mock-deepseek-chat",
   };
+}
+
+function mockChapterDraftText(): string {
+  return [
+    "雨夜压在柴饦峰上，火房里的柴烟像一条灰蛇，沿着破瓦缝慢慢钻出去。",
+    "沈言蹲在灶前，把最后一根湿柴塞进火膛，袖口下的旧疤被火光照得发亮。外头执事的脚步声越来越近，他却只低着头，像往常一样装作什么都没听见。",
+    "门被一脚踹开时，冷雨卷进来，火苗伏低了一瞬。执事把一枚黑色木牌摔到他脚边，说三日后的宗门考核，火房杂役也要上场。",
+    "沈言抬头，眼神仍旧怯弱。可就在他指尖碰到木牌的瞬间，后山裂井方向传来一声只有他能听见的剑鸣。",
+    "那声音苍老、讥诮，又像等了他很多年：‘小子，你再装下去，就真要死在这里了。’",
+  ].join("\n\n");
 }
 
 function mockJsonForRoute(route: string): unknown {

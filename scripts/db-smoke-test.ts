@@ -1,5 +1,5 @@
 /**
- * CRUD smoke test — 跑通三张表的增/读/改/删。
+ * CRUD smoke test — 跑通 MVP 核心表的增/读/改/删。
  *
  * 前置：
  *   1. docker compose up -d        # 起本地 PG（决策 D-01）
@@ -67,7 +67,22 @@ async function main() {
     `[smoke] created novel: ${novel.id} bible: ${novel.bible.id}`,
   );
 
-  // 5) Cleanup（Cascade 会一并删 BibleDraft）
+  // 5) Create + update ChapterDraft
+  const chapter = await prisma.chapterDraft.create({
+    data: {
+      novel_id: novel.id,
+      chapter_index: 1,
+      title: "第一章",
+      content: "烟雨夜，火房里只剩一盏将熄的灯。",
+    },
+  });
+  await prisma.chapterDraft.update({
+    where: { id: chapter.id },
+    data: { content: `${chapter.content}\n沈言听见剑魂第一次低语。` },
+  });
+  console.log(`[smoke] chapter draft: ${chapter.id}`);
+
+  // 6) Cleanup（Cascade 会一并删 BibleDraft / ChapterDraft）
   await prisma.novel.delete({ where: { id: novel.id } });
   await prisma.onboardingSession.delete({ where: { id: session.id } });
   console.log("[smoke] cleanup: ok");

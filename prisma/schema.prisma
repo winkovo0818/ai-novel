@@ -1,10 +1,11 @@
 // Prisma schema — Onboarding MVP
 // 字段定义来源：docs/contracts.md §6（不要在此处偏离）
 //
-// 三张核心表：
+// 核心表：
 //   OnboardingSession  向导会话与中间结果（含服务端重摆计数，决策 D-04）
 //   Novel              finalize 后正式创建的小说项目（user_id 可空，决策 D-03）
 //   BibleDraft         保存生成完成或编辑后的 Bible 草稿
+//   ChapterDraft       主编辑器中的章节草稿（阶段 2）
 
 generator client {
   provider = "prisma-client-js"
@@ -45,6 +46,7 @@ model Novel {
   created_at DateTime @default(now())
 
   bible BibleDraft?
+  chapters ChapterDraft[]
 
   @@index([user_id])
 }
@@ -57,4 +59,20 @@ model BibleDraft {
   version    Int      @default(1)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+}
+
+model ChapterDraft {
+  id            String   @id @default(uuid())
+  novel_id      String
+  novel         Novel    @relation(fields: [novel_id], references: [id], onDelete: Cascade)
+  chapter_index Int
+  title         String
+  content       String   @default("")
+  status        String   @default("draft")
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  @@unique([novel_id, chapter_index])
+  @@index([novel_id])
+  @@index([status])
 }

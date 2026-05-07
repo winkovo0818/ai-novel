@@ -73,12 +73,61 @@ async function main() {
   );
   assert(Boolean(finalized.novel_id), "novel_id should be returned");
   console.log(`[smoke] finalized=${finalized.editor_url}`);
+
+  const chapter = await postJson<{ id: string; content: string }>(
+    `/api/novels/${finalized.novel_id}/chapters`,
+    {
+      chapter_index: 1,
+      title: bible.outline?.volume_1?.chapters?.[0]?.title ?? "第一章",
+      content: "烟雨夜，火房里只剩一盏将熄的灯。",
+      status: "draft",
+    },
+  );
+  assert(Boolean(chapter.id), "chapter id should be returned");
+  console.log(`[smoke] chapter=${chapter.id}`);
+
+  const generated = await streamChapterDraft(finalized.novel_id, {
+    chapter_index: 1,
+    title: bible.outline?.volume_1?.chapters?.[0]?.title ?? "第一章",
+    existing_content: "",
+  });
+  assert(generated.includes("沈言"), "generated chapter should include protagonist name");
+  console.log(`[smoke] chapter generated chars=${generated.length}`);
+
+  const updated = await patchJson<{ id: string; content: string }>(
+    `/api/chapters/${chapter.id}`,
+    { content: generated },
+  );
+  assert(updated.content === generated, "chapter update should persist generated content");
+  console.log("[smoke] chapter updated");
+
+  const generatedSecond = await streamChapterDraft(finalized.novel_id, {
+    chapter_index: 2,
+    title: bible.outline?.volume_1?.chapters?.[1]?.title ?? "第二章",
+    existing_content: "",
+  });
+  assert(generatedSecond.length > 20, "second chapter generation should return content");
+  console.log(`[smoke] chapter 2 generated chars=${generatedSecond.length}`);
+
   console.log("[smoke] ok");
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json = (await response.json()) as ApiEnvelope<T>;
+  if (!response.ok || !json.ok || !json.data) {
+    throw new Error(`${path} failed: ${response.status} ${json.error?.code ?? "UNKNOWN"} ${json.error?.message ?? ""}`);
+  }
+  return json.data;
+}
+
+async function patchJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
@@ -121,6 +170,34 @@ async function streamBible(sessionId: string, body: unknown): Promise<Partial<Bi
   return draft;
 }
 
+async function streamChapterDraft(novelId: string, body: unknown): Promise<string> {
+  const response = await fetch(`${BASE_URL}/api/novels/${novelId}/chapters/draft`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok || !response.body) {
+    throw new Error(`chapter draft stream failed: HTTP ${response.status}`);
+  }
+
+  let content = "";
+  let done = false;
+  await readSse(response.body, (event) => {
+    if (event.event === "chapter_delta") {
+      const data = event.data as { delta?: string };
+      content += data.delta ?? "";
+    }
+    if (event.event === "error") {
+      const data = event.data as { code?: string; message?: string };
+      throw new Error(`chapter draft error: ${data.code ?? "UNKNOWN"} ${data.message ?? ""}`);
+    }
+    if (event.event === "done") done = true;
+  });
+
+  assert(done, "chapter draft stream should emit done");
+  return content;
+}
+
 async function readSse(body: ReadableStream<Uint8Array>, onEvent: (event: StreamEvent) => void) {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -152,22 +229,28 @@ function mergeBibleEvent(draft: Partial<BibleDraft>, item: StreamEvent) {
   if (item.event === "world") draft.world = item.data as BibleDraft["world"];
   if (item.event === "character") draft.characters = upsertIndexed(draft.characters, item.data);
   if (item.event === "outline_chapter") {
+    const chapter = item.data as BibleDraft["outline"]["volume_1"]["chapters"][number];
     draft.outline = {
       volume_1: {
         ...(draft.outline?.volume_1 ?? { name: "开篇卷", theme: "待定", chapter_count_estimate: 8 }),
-        chapters: upsertIndexed(draft.outline?.volume_1?.chapters, item.data),
+        chapters: upsertAt(draft.outline?.volume_1?.chapters, Math.max(0, chapter.index - 1), chapter),
       },
     };
   }
   if (item.event === "first_chapter_beat") {
-    draft.first_chapter_beats = upsertIndexed(draft.first_chapter_beats, item.data);
+    const { index, ...beat } = item.data as BibleDraft["first_chapter_beats"][number] & { index: number };
+    draft.first_chapter_beats = upsertAt(draft.first_chapter_beats, index, beat);
   }
 }
 
 function upsertIndexed<T>(current: T[] | undefined, raw: unknown): T[] {
   const { index, ...value } = raw as T & { index: number };
+  return upsertAt(current, index, value as T);
+}
+
+function upsertAt<T>(current: T[] | undefined, index: number, value: T): T[] {
   const next = [...(current ?? [])];
-  next[index] = value as T;
+  next[index] = value;
   return next.filter(Boolean);
 }
 

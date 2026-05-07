@@ -189,7 +189,7 @@ export const BibleStreamRequestSchema = z.object({
 });
 
 export const FinalizeRequestSchema = z.object({
-  bible_draft: BibleDraftSchema.optional(),
+  bible_draft: z.unknown().optional(),
   profile: NovelProfileSchema,
   action: z.enum(["start_writing", "save_only"]),
 });
@@ -198,4 +198,23 @@ export const FinalizeResponseSchema = z.object({
   novel_id: z.string().uuid(),
   editor_url: z.string(),
   action: z.enum(["start_writing", "save_only"]),
+});
+
+export const CreateChapterDraftRequestSchema = z.object({
+  chapter_index: z.number().int().min(1),
+  title: z.string().min(1).max(120),
+  content: z.string().max(80_000).default(""),
+  status: z.enum(["draft", "done"]).default("draft"),
+});
+
+export const UpdateChapterDraftRequestSchema = z.object({
+  title: z.string().min(1).max(120).optional(),
+  content: z.string().max(80_000).optional(),
+  status: z.enum(["draft", "done"]).optional(),
+});
+
+export const GenerateChapterDraftRequestSchema = z.object({
+  chapter_index: z.number().int().min(1).default(1),
+  title: z.string().min(1).max(120),
+  existing_content: z.string().max(80_000).optional(),
 });

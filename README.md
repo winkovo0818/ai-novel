@@ -1,6 +1,6 @@
 # AI Novel
 
-一个面向中文长篇创作的 AI 写小说产品原型仓库。当前阶段聚焦第一批用户最先接触到的入口体验：`/new` Onboarding 向导。
+一个面向中文长篇创作的 AI 写小说产品原型仓库。当前阶段已经打通 `/new` Onboarding 到 `/editor/[novelId]` 第一章草稿的最小写作闭环。
 
 目标不是先做一个“大而全”的 AI 编辑器，而是先把下面这条主链路打通：
 
@@ -27,7 +27,7 @@
 
 ## 2. 本轮 MVP 目标
 
-本轮只做 Onboarding，不做完整写作平台。
+本轮先做 Onboarding，并提供最小可用的第一章写作页。
 
 ### 本轮要实现
 
@@ -41,6 +41,8 @@
 - 基础错误处理
 - LLM token、耗时、成本日志
 - README、录屏脚本与自测说明
+- `/editor/[novelId]` 第一章草稿编辑与保存
+- 基于 Bible/第一章节拍的 AI 章节正文 SSE 起草
 
 ### 本轮不做
 
@@ -48,8 +50,8 @@
 - 移动端适配
 - i18n
 - 正式内容审核接入
-- 完整主编辑器
-- Bible 之外的业务表
+- 完整主编辑器、多章节管理、版本对比
+- 复杂章节记忆、全文一致性校验、RAG
 
 ---
 
@@ -173,7 +175,7 @@ ai-novel/
 
 ## 7. API 设计范围
 
-本轮涉及以下 5 个 API：
+本轮涉及以下 API：
 
 | 接口 | 说明 |
 | --- | --- |
@@ -182,6 +184,10 @@ ai-novel/
 | `POST /api/onboarding/sessions/:id/questions` | 生成 3-5 条反向追问 |
 | `POST /api/onboarding/sessions/:id/bible` | SSE 流式生成 Bible |
 | `POST /api/onboarding/sessions/:id/finalize` | 保存草稿或创建项目 |
+| `GET /api/novels/:id` | 获取 Novel、Bible 与章节草稿 |
+| `POST /api/novels/:id/chapters` | 创建或更新指定章节草稿 |
+| `PATCH /api/chapters/:id` | 更新章节标题、正文或状态 |
+| `POST /api/novels/:id/chapters/draft` | SSE 流式起草章节正文 |
 
 说明：
 
@@ -193,15 +199,16 @@ ai-novel/
 
 ## 8. 数据模型范围
 
-本轮只保留 3 张核心表：
+本轮保留 4 张核心表：
 
 | 表 | 用途 |
 | --- | --- |
 | `OnboardingSession` | 保存当前用户在向导阶段的输入与中间结果 |
 | `Novel` | 保存正式创建出来的小说项目 |
 | `BibleDraft` | 保存生成完成或编辑后的 Bible 草稿 |
+| `ChapterDraft` | 保存章节标题、正文与草稿状态 |
 
-本轮不引入更多业务表，避免在入口体验阶段过早扩散设计复杂度。
+除 `ChapterDraft` 外不引入更多业务表，避免在入口体验阶段过早扩散设计复杂度。
 
 ---
 
@@ -216,6 +223,8 @@ DEEPSEEK_API_KEY=sk-...
 DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
 DEEPSEEK_MODEL=deepseek-chat
 # LLM_MOCK=1
+NEXT_PUBLIC_SUPABASE_URL=https://xyvfqqeagcbarpznenjs.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
@@ -223,12 +232,14 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 | 变量 | 说明 |
 | --- | --- |
-| `DATABASE_URL` | Prisma 运行时 PostgreSQL 连接串 |
-| `DIRECT_URL` | Prisma migrate 直连串；本地 Docker 可与 `DATABASE_URL` 相同 |
+| `DATABASE_URL` | Prisma 运行时 PostgreSQL 连接串；Supabase IPv4 可用 Shared Pooler |
+| `DIRECT_URL` | Prisma migrate 直连串；如果没有 direct connection，可暂用 Supabase Shared Pooler |
 | `DEEPSEEK_API_KEY` | DeepSeek API Key；`LLM_MOCK=1` 时可不填真实值 |
 | `DEEPSEEK_BASE_URL` | DeepSeek OpenAI 兼容 API 基地址 |
 | `DEEPSEEK_MODEL` | DeepSeek 模型名，默认 `deepseek-chat` |
 | `LLM_MOCK` | 可选。设为 `1` 或 `true` 时使用本地确定性 mock，不调用 DeepSeek |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase 项目 URL，用于 Auth/SSR client |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key，用于 Auth/SSR client |
 | `NEXT_PUBLIC_APP_URL` | 当前应用对外访问地址 |
 
 建议另外在本地创建：
@@ -254,7 +265,7 @@ npm install
 ### 2. 准备环境变量
 
 ```bash
-cp .env.example .env.local
+cp .env .env.local
 ```
 
 然后填写：
@@ -265,6 +276,8 @@ cp .env.example .env.local
 - `DEEPSEEK_BASE_URL`
 - `DEEPSEEK_MODEL`
 - `LLM_MOCK`（可选；本地无 key 时可设为 `1`）
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `NEXT_PUBLIC_APP_URL`
 
 ### 3. 启动本地数据库（决策 D-01）
@@ -277,7 +290,14 @@ npm run db:migrate    # 应用 Prisma 迁移（脚本会读取 .env.local）
 npm run db:smoke      # （可选）跑三表 CRUD smoke 验证连通（脚本会读取 .env.local）
 ```
 
-如果不用 Docker，可以直接把 `.env.local` 里的 `DATABASE_URL` 和 `DIRECT_URL` 改成你自己的 PostgreSQL 连接串，然后从 `npm run db:migrate` 开始执行。
+如果使用 Supabase Session Pooler，请在 `.env.local` 中填写类似：
+
+```env
+DATABASE_URL=postgresql://postgres.<PROJECT_REF>:<URL_ENCODED_PASSWORD>@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require
+DIRECT_URL=postgresql://postgres.<PROJECT_REF>:<URL_ENCODED_PASSWORD>@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require
+```
+
+如果数据库密码包含 `@`、`?`、`!`、`#`、`%` 等特殊字符，必须先 URL encode，否则连接串会被解析错。真实密码只放 `.env.local`，不要提交。
 
 如需重置：`npm run db:reset`（会清库重迁）；停库：`npm run db:down`。
 
@@ -312,6 +332,7 @@ npm run smoke:onboarding
 - 生成反向追问
 - 通过 POST SSE 生成 Bible
 - finalize 创建 Novel 与 BibleDraft
+- 创建章节草稿、AI 起草第一章、保存生成正文
 
 默认情况下该脚本会调用 DeepSeek，需 `.env.local` 中有真实 `DEEPSEEK_API_KEY`，并会产生少量调用成本。若只想验证本地链路，可在 `.env.local` 设置 `LLM_MOCK=1`，此时不会调用 DeepSeek。
 
@@ -370,7 +391,9 @@ npm run smoke:onboarding
 6. Step 5 编辑标题、角色、世界观、大纲或第一章节拍
 7. 点击“保存草稿”，验证 finalize API 可保存 Bible
 8. 点击“重摆一版”，验证次数计数；第 4 次会被拦截
-9. 点击“开始写作”，进入 `/editor/[novelId]` 占位页
+9. 点击“开始写作”，进入 `/editor/[novelId]`
+10. 点击“AI 起草第一章”，观察正文流式进入编辑器并自动保存
+11. 刷新页面，验证第一章草稿可恢复
 
 建议录屏时同时展示：
 
@@ -437,7 +460,7 @@ npm run smoke:onboarding
 - DeepSeek client、token/耗时/成本日志、timeout 自动重试一次
 - `partial-json` 增量解析与 Bible 解析失败占位回退
 - Step 5 字段级编辑与保存/开写跳转
-- `/editor/[novelId]` 占位页
+- `/editor/[novelId]` 第一章草稿编辑、AI 起草与自动保存
 - 内容审核 hook（当前 mock pass，可替换真实审核服务）
 
 当前验证结果：
@@ -445,10 +468,11 @@ npm run smoke:onboarding
 - `npm run typecheck` 通过
 - `npm run test` 通过
 - `npm run build` 通过
-- `npm run smoke:onboarding` 可用于真实 API 主链路 smoke
+- `npm run smoke:onboarding` 可用于真实 API 主链路 smoke，覆盖章节起草与保存
 
 仍可继续增强的部分：
 
 - 增加更细的 UI 自动化测试
 - 将内容审核 hook 替换为真实服务
 - 进一步优化 Step 4 的卡片动效与加载阶段提示
+- 增加多章节切换、章节状态流转和版本历史

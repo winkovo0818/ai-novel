@@ -4,6 +4,7 @@ export type SseEventName =
   | "world"
   | "outline_chapter"
   | "first_chapter_beat"
+  | "chapter_delta"
   | "done"
   | "error";
 

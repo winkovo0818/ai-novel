@@ -27,7 +27,10 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("SESSION_NOT_FOUND", "Onboarding session not found", false, 404);
   }
 
-  const draftResult = BibleDraftSchema.safeParse(parsed.data.bible_draft ?? session.bible_draft);
+  const submittedDraft = BibleDraftSchema.safeParse(parsed.data.bible_draft);
+  const draftResult = submittedDraft.success
+    ? submittedDraft
+    : BibleDraftSchema.safeParse(session.bible_draft);
   if (!draftResult.success) {
     return jsonError("INVALID_INPUT", "Bible draft is missing or invalid", true, 400);
   }
