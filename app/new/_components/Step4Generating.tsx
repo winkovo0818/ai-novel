@@ -15,6 +15,7 @@ type StreamEvent = {
 export function Step4Generating() {
   const store = useWizardStore();
   const [events, setEvents] = useState<StreamEvent[]>([]);
+  const phase = getStreamPhase(store.bible_draft, store.status);
 
   async function start() {
     if (store.regeneration_count >= 3) {
@@ -90,6 +91,19 @@ export function Step4Generating() {
           </button>
         </div>
 
+        <div className="rounded-3xl border border-neutral-200 bg-white p-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-neutral-500">生成阶段</p>
+              <p className="mt-1 text-lg font-semibold text-neutral-950">{phase.label}</p>
+            </div>
+            <span className="rounded-full bg-neutral-100 px-3 py-1 text-sm text-neutral-600">{phase.percent}%</span>
+          </div>
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-neutral-100">
+            <div className="h-full rounded-full bg-neutral-950 transition-all" style={{ width: `${phase.percent}%` }} />
+          </div>
+        </div>
+
         <BibleStreamCards draft={store.bible_draft} eventsCount={events.length} />
 
         <details className="rounded-2xl border border-neutral-200 bg-neutral-950 p-4 text-white">
@@ -106,6 +120,16 @@ export function Step4Generating() {
       </div>
     </StepShell>
   );
+}
+
+function getStreamPhase(draft: Partial<BibleDraft> | undefined, status: string) {
+  if (status === "done") return { label: "生成完成，正在进入审阅", percent: 100 };
+  if (!draft?.meta) return { label: "等待标题与题名方案", percent: 8 };
+  if (!draft.characters?.length) return { label: "正在生成人物卡", percent: 22 };
+  if (!draft.world) return { label: "正在生成世界观与规则", percent: 42 };
+  if (!draft.outline?.volume_1?.chapters?.length) return { label: "正在生成首卷大纲", percent: 62 };
+  if (!draft.first_chapter_beats?.length) return { label: "正在生成第一章节拍", percent: 82 };
+  return { label: "收尾校验与保存草稿", percent: 95 };
 }
 
 function BibleStreamCards({ draft, eventsCount }: { draft?: Partial<BibleDraft>; eventsCount: number }) {

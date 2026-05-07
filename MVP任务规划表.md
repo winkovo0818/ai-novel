@@ -2,6 +2,8 @@
 
 ## 一、项目目标
 
+> 当前状态（2026-05-07）：Onboarding MVP 端到端闭环已实现。`/new` 可创建 session、生成 logline/追问、通过 SSE 生成 Bible、在 Step 5 审阅编辑并 finalize 到 `/editor/[novelId]` 占位页。已补 `LLM_MOCK`、API smoke 脚本和 Playwright e2e 基线；真实 smoke 仍依赖可用 PostgreSQL 与 DeepSeek key。
+
 在现有整体产品方案基础上，优先落地用户入口体验：一个 5 步 Onboarding 向导，让用户只用 1–2 句话灵感，即可在 3 分钟内拿到一份可用的小说 Bible 草稿，并能继续保存或进入写作。
 
 本轮目标不是做完整写作平台，而是先把以下闭环打通：

@@ -10,6 +10,7 @@ import { StepShell } from "./StepShell";
 export function Step5Review() {
   const router = useRouter();
   const store = useWizardStore();
+  const validationIssues = getBibleValidationIssues(store.bible_draft);
 
   async function finalize(action: "save_only" | "start_writing") {
     if (!store.session_id || !store.default_profile) {
@@ -17,23 +18,23 @@ export function Step5Review() {
       return;
     }
 
-    const validation = BibleDraftSchema.safeParse(store.bible_draft);
-    if (!validation.success) {
-      const first = validation.error.errors[0];
+    if (validationIssues.length > 0) {
       store.setError({
         step: 5,
-        message: `Bible 草稿还不满足保存要求：${first?.path.join(".") || "root"} ${first?.message ?? "invalid"}`,
+        message: `Bible 草稿还不满足保存要求：${validationIssues[0]}`,
         retryable: false,
       });
       return;
     }
+
+    const validation = BibleDraftSchema.parse(store.bible_draft);
 
     store.setStatus("loading");
     const response = await fetch(`/api/onboarding/sessions/${store.session_id}/finalize`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        bible_draft: validation.data,
+        bible_draft: validation,
         profile: store.default_profile,
         action,
       }),
@@ -66,6 +67,7 @@ export function Step5Review() {
         ) : (
           <FallbackNotice />
         )}
+        {validationIssues.length > 0 ? <ValidationPanel issues={validationIssues} /> : null}
         <div className="flex flex-wrap gap-3">
           <button className="rounded-2xl border border-neutral-300 px-5 py-3 font-medium" onClick={regenerate}>
             重摆一版（{store.regeneration_count}/3）
@@ -80,6 +82,27 @@ export function Step5Review() {
       </div>
     </StepShell>
   );
+}
+
+function ValidationPanel({ issues }: { issues: string[] }) {
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+      <p className="font-medium">保存前需要处理：</p>
+      <ul className="mt-2 list-inside list-disc space-y-1">
+        {issues.map((issue) => <li key={issue}>{issue}</li>)}
+      </ul>
+    </div>
+  );
+}
+
+function getBibleValidationIssues(draft: Partial<BibleDraft> | undefined): string[] {
+  const parsed = BibleDraftSchema.safeParse(draft);
+  if (parsed.success) return [];
+
+  return parsed.error.errors.slice(0, 5).map((error) => {
+    const path = error.path.join(".") || "Bible";
+    return `${path}: ${error.message}`;
+  });
 }
 
 function BibleReviewCards({
