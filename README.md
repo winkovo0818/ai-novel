@@ -215,6 +215,7 @@ DIRECT_URL=postgresql://...
 DEEPSEEK_API_KEY=sk-...
 DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
 DEEPSEEK_MODEL=deepseek-chat
+# LLM_MOCK=1
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
@@ -222,11 +223,12 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 | 变量 | 说明 |
 | --- | --- |
-| `DATABASE_URL` | Prisma 运行时 PostgreSQL 连接串；Supabase 推荐使用 direct connection |
-| `DIRECT_URL` | Prisma migrate 直连串；Supabase 使用 direct connection，避免 pooler prepared statement 冲突 |
-| `DEEPSEEK_API_KEY` | DeepSeek API Key |
+| `DATABASE_URL` | Prisma 运行时 PostgreSQL 连接串 |
+| `DIRECT_URL` | Prisma migrate 直连串；本地 Docker 可与 `DATABASE_URL` 相同 |
+| `DEEPSEEK_API_KEY` | DeepSeek API Key；`LLM_MOCK=1` 时可不填真实值 |
 | `DEEPSEEK_BASE_URL` | DeepSeek OpenAI 兼容 API 基地址 |
 | `DEEPSEEK_MODEL` | DeepSeek 模型名，默认 `deepseek-chat` |
+| `LLM_MOCK` | 可选。设为 `1` 或 `true` 时使用本地确定性 mock，不调用 DeepSeek |
 | `NEXT_PUBLIC_APP_URL` | 当前应用对外访问地址 |
 
 建议另外在本地创建：
@@ -262,6 +264,7 @@ cp .env.example .env.local
 - `DEEPSEEK_API_KEY`
 - `DEEPSEEK_BASE_URL`
 - `DEEPSEEK_MODEL`
+- `LLM_MOCK`（可选；本地无 key 时可设为 `1`）
 - `NEXT_PUBLIC_APP_URL`
 
 ### 3. 启动本地数据库（决策 D-01）
@@ -274,7 +277,7 @@ npm run db:migrate    # 应用 Prisma 迁移（脚本会读取 .env.local）
 npm run db:smoke      # （可选）跑三表 CRUD smoke 验证连通（脚本会读取 .env.local）
 ```
 
-如果不用 Docker，可以直接把 `.env.local` 里的 `DATABASE_URL` 改成 Supabase 提供的 PostgreSQL 连接串，然后从 `npm run db:migrate` 开始执行。使用 Supabase + Prisma 时建议：`DATABASE_URL` 和 `DIRECT_URL` 都填 direct connection；本地 Docker 则两者可相同。
+如果不用 Docker，可以直接把 `.env.local` 里的 `DATABASE_URL` 和 `DIRECT_URL` 改成你自己的 PostgreSQL 连接串，然后从 `npm run db:migrate` 开始执行。
 
 如需重置：`npm run db:reset`（会清库重迁）；停库：`npm run db:down`。
 
@@ -310,7 +313,7 @@ npm run smoke:onboarding
 - 通过 POST SSE 生成 Bible
 - finalize 创建 Novel 与 BibleDraft
 
-注意：该脚本会调用 DeepSeek，需 `.env.local` 中有真实 `DEEPSEEK_API_KEY`，并会产生少量调用成本。
+默认情况下该脚本会调用 DeepSeek，需 `.env.local` 中有真实 `DEEPSEEK_API_KEY`，并会产生少量调用成本。若只想验证本地链路，可在 `.env.local` 设置 `LLM_MOCK=1`，此时不会调用 DeepSeek。
 
 ---
 

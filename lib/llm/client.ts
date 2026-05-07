@@ -6,6 +6,12 @@
  *   日志格式由本模块统一输出（见 docs/contracts.md §9）。
  */
 
+import {
+  isLlmMockEnabled,
+  mockChatCompletion,
+  mockStreamChatCompletion,
+} from "./mock";
+
 export type ChatRole = "system" | "user" | "assistant";
 
 export interface ChatMessage {
@@ -122,6 +128,14 @@ export async function streamChatCompletion(
   let tokenOut = 0;
 
   try {
+    if (isLlmMockEnabled()) {
+      const result = await mockStreamChatCompletion(opts, callbacks);
+      content = result.content;
+      tokenIn = result.tokenIn;
+      tokenOut = result.tokenOut;
+      return result;
+    }
+
     const apiKey = requireEnv("DEEPSEEK_API_KEY");
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -249,6 +263,11 @@ export async function chatCompletion(
   let result: ChatCompletionResult | undefined;
 
   try {
+    if (isLlmMockEnabled()) {
+      result = await mockChatCompletion(opts);
+      return result;
+    }
+
     const apiKey = requireEnv("DEEPSEEK_API_KEY");
     const baseUrl = getBaseUrl();
 
