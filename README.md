@@ -482,5 +482,4 @@ npm run smoke:onboarding
 - 增加更细的 UI 自动化测试
 - 将内容审核 hook 替换为真实服务
 - 进一步优化 Step 4 的卡片动效与加载阶段提示
-- 增加 Supabase RLS 策略与端到端登录态测试
 - 增加版本历史和全文一致性校验
