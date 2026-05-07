@@ -257,13 +257,11 @@ cp .env.example .env.local
 
 然后填写：
 
-- `DATABASE_URL`（与 `docker-compose.yml` 默认一致即可；Supabase 推荐使用 direct connection）
-- `DIRECT_URL`（本地 Docker 可与 `DATABASE_URL` 相同；Supabase 使用 direct connection）
+- `DATABASE_URL`（与 `docker-compose.yml` 默认一致即可）
+- `DIRECT_URL`（本地 Docker 可与 `DATABASE_URL` 相同）
 - `DEEPSEEK_API_KEY`
 - `DEEPSEEK_BASE_URL`
 - `DEEPSEEK_MODEL`
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `NEXT_PUBLIC_APP_URL`
 
 ### 3. 启动本地数据库（决策 D-01）
@@ -295,6 +293,24 @@ http://localhost:3000/new
 ### 健康检查
 
 打开 `http://localhost:3000/api/healthz/llm` 应返回 `{ ok: true, data: { reply, token_in, token_out, cost_cny, took_ms } }`，并在服务端控制台看到一行符合契约 §9 的 `[LLM] route=/api/healthz/llm ...` 日志。
+
+### Onboarding API Smoke
+
+在另一个终端保持 `npm run dev` 运行后，可执行：
+
+```bash
+npm run smoke:onboarding
+```
+
+该脚本会调用真实本地服务，依次验证：
+
+- 创建 session
+- 生成 logline 推荐
+- 生成反向追问
+- 通过 POST SSE 生成 Bible
+- finalize 创建 Novel 与 BibleDraft
+
+注意：该脚本会调用 DeepSeek，需 `.env.local` 中有真实 `DEEPSEEK_API_KEY`，并会产生少量调用成本。
 
 ---
 
@@ -345,13 +361,13 @@ http://localhost:3000/new
 2. Step 1 选择：
    - 类型大类：网文
    - 子类型：玄幻
-3. Step 2 输入玄幻 logline 示例
-4. Step 3 选择推荐问题答案
-5. Step 4 观察 Bible 卡片逐步生成
-6. Step 5 编辑一个字段
-7. 点击“保存草稿”
-8. 再次点击“重摆一份”，验证次数限制逻辑
-9. 点击“开始写第 1 章”，进入 `/editor/[novelId]`
+3. Step 2 输入玄幻 logline 示例，或点击“AI 推荐 5 条”后选择一条
+4. Step 3 点击“生成反向追问”，确认/调整推荐答案
+5. Step 4 点击“开始生成”，观察 SSE 事件逐步出现
+6. Step 5 编辑标题、角色、世界观、大纲或第一章节拍
+7. 点击“保存草稿”，验证 finalize API 可保存 Bible
+8. 点击“重摆一版”，验证次数计数；第 4 次会被拦截
+9. 点击“开始写作”，进入 `/editor/[novelId]` 占位页
 
 建议录屏时同时展示：
 
@@ -372,12 +388,14 @@ http://localhost:3000/new
 - `npm run dev` 后访问 `/new`，5 步全部能走通
 - 文档中的玄幻例子能成功产出一份 Bible
 - Step 4 在 8 秒内出现首字
-- Step 4 卡片逐张浮现，而不是一次性全部出现
-- 主动断网后 Step 4 报错，恢复网络后可重试
+- Step 4 SSE 事件逐步出现，而不是等待最终响应
+- 主动断网后 Step 4 报错，恢复网络后可重新点击生成
 - “重摆一份”点击第 4 次时出现提示
 - 控制台能看到每次 LLM 调用的 token 与耗时
-- `npm run build` 0 type error
-- `npm run build` 0 eslint error
+- `npm run typecheck` 通过
+- `npm run test` 通过
+- `npm run build` 0 type error / 0 eslint error
+- `npm run smoke:onboarding` 可在本地 dev server 上跑通主 API 链路
 - README 中能看到环境变量和启动 3 步
 
 ---
@@ -408,18 +426,26 @@ http://localhost:3000/new
 
 ## 16. 当前状态
 
-当前仓库处于“文档与实施规划已完成，代码实现尚未开始”的阶段。
+当前仓库已经具备 Onboarding MVP 的端到端最小闭环：
 
-已经完成的内容：
+- `/new` 5 步 Wizard
+- Zustand + localStorage 持久化
+- 创建 session、logline 推荐、反向追问、Bible SSE、finalize API
+- DeepSeek client、token/耗时/成本日志、timeout 自动重试一次
+- `partial-json` 增量解析与 Bible 解析失败占位回退
+- Step 5 字段级编辑与保存/开写跳转
+- `/editor/[novelId]` 占位页
+- 内容审核 hook（当前 mock pass，可替换真实审核服务）
 
-- 产品方案文档整理
-- Onboarding 原型文档整理
-- 里程碑级任务规划
-- 执行级任务拆分
-- README 项目说明
+当前验证结果：
 
-下一步应从 Step 1 开始：
+- `npm run typecheck` 通过
+- `npm run test` 通过
+- `npm run build` 通过
+- `npm run smoke:onboarding` 可用于真实 API 主链路 smoke
 
-- 初始化脚手架
-- 打通 DeepSeek health check
-- 确认控制台日志格式
+仍可继续增强的部分：
+
+- 增加更细的 UI 自动化测试
+- 将内容审核 hook 替换为真实服务
+- 进一步优化 Step 4 的卡片动效与加载阶段提示

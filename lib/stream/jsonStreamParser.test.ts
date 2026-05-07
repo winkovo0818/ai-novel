@@ -3,6 +3,7 @@ import {
   collectBibleEvents,
   createBibleEventCursor,
   tryParseBibleDraft,
+  tryParsePartialBibleDraft,
 } from "./jsonStreamParser";
 import type { BibleDraft } from "@/lib/validation/schemas";
 
@@ -100,6 +101,15 @@ describe("tryParseBibleDraft", () => {
   });
 });
 
+describe("tryParsePartialBibleDraft", () => {
+  it("parses partial JSON before the full Bible is complete", () => {
+    const partial = '{"meta":{"suggested_title":"逆魂纪","alternative_titles":["剑魂歌","裁逆者","柴门主"]},"characters":[{"role":"protagonist"';
+    const draft = tryParsePartialBibleDraft(partial);
+
+    expect(draft?.meta?.suggested_title).toBe("逆魂纪");
+  });
+});
+
 describe("collectBibleEvents", () => {
   it("emits each complete node once", () => {
     const draft = validDraft();
@@ -129,5 +139,19 @@ describe("collectBibleEvents", () => {
       "first_chapter_beat",
     ]);
     expect(second).toEqual([]);
+  });
+
+  it("emits valid completed nodes from a partial draft", () => {
+    const draft = validDraft();
+    const partial: Partial<BibleDraft> = {
+      meta: draft.meta,
+      characters: [draft.characters[0]!, { role: "mentor" } as never],
+    };
+    const cursor = createBibleEventCursor();
+
+    expect(collectBibleEvents(partial, cursor).map((event) => event.event)).toEqual([
+      "meta",
+      "character",
+    ]);
   });
 });

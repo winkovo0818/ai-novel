@@ -224,6 +224,19 @@ export async function streamChatCompletion(
   }
 }
 
+export async function streamChatCompletionWithRetry(
+  opts: ChatStreamOptions,
+  callbacks: ChatStreamCallbacks,
+  retries = 1,
+): Promise<ChatStreamResult> {
+  try {
+    return await streamChatCompletion(opts, callbacks);
+  } catch (err) {
+    if (retries <= 0 || !isTimeoutError(err)) throw err;
+    return streamChatCompletion(opts, callbacks);
+  }
+}
+
 export async function chatCompletion(
   opts: ChatCompletionOptions,
 ): Promise<ChatCompletionResult> {
@@ -309,4 +322,20 @@ export async function chatCompletion(
       errCode,
     });
   }
+}
+
+export async function chatCompletionWithRetry(
+  opts: ChatCompletionOptions,
+  retries = 1,
+): Promise<ChatCompletionResult> {
+  try {
+    return await chatCompletion(opts);
+  } catch (err) {
+    if (retries <= 0 || !isTimeoutError(err)) throw err;
+    return chatCompletion(opts);
+  }
+}
+
+function isTimeoutError(err: unknown): boolean {
+  return err instanceof Error && /timed out/i.test(err.message);
 }

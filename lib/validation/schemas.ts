@@ -124,11 +124,20 @@ export const BeatSchema = z.object({
   purpose: z.string().min(1),
 });
 
-export const BibleDraftSchema = z.object({
-  meta: z.object({
+export const BibleMetaSchema = z.object({
     suggested_title: z.string().min(2).max(8),
     alternative_titles: z.array(z.string().min(2).max(8)).length(3),
-  }),
+});
+
+export const BibleWorldSchema = z.object({
+  setting_summary: z.string().min(40).max(180),
+  factions: z.array(FactionSchema).min(2).max(4),
+  rules: z.array(z.string().min(1).max(40)).min(2).max(4),
+  geography: z.array(z.string().min(1)).min(2).max(4),
+});
+
+export const BibleDraftSchema = z.object({
+  meta: BibleMetaSchema,
   characters: z
     .array(CharacterSchema)
     .min(3)
@@ -137,12 +146,7 @@ export const BibleDraftSchema = z.object({
       (chars) => chars.filter((c) => c.role === "protagonist").length === 1,
       { message: "characters must contain exactly 1 protagonist" },
     ),
-  world: z.object({
-    setting_summary: z.string().min(40).max(180),
-    factions: z.array(FactionSchema).min(2).max(4),
-    rules: z.array(z.string().min(1).max(40)).min(2).max(4),
-    geography: z.array(z.string().min(1)).min(2).max(4),
-  }),
+  world: BibleWorldSchema,
   outline: z.object({
     volume_1: z.object({
       name: z.string().min(2).max(8),
@@ -165,6 +169,11 @@ export const CreateSessionRequestSchema = z.object({
   genre_sub: z.string().min(1).max(12),
 });
 
+export const CreateSessionResponseSchema = z.object({
+  session_id: z.string().uuid(),
+  default_profile: NovelProfileSchema,
+});
+
 export const LoglineRequestSchema = z.object({
   regenerate: z.boolean().optional(),
 });
@@ -180,7 +189,13 @@ export const BibleStreamRequestSchema = z.object({
 });
 
 export const FinalizeRequestSchema = z.object({
-  bible_draft: BibleDraftSchema,
+  bible_draft: BibleDraftSchema.optional(),
   profile: NovelProfileSchema,
+  action: z.enum(["start_writing", "save_only"]),
+});
+
+export const FinalizeResponseSchema = z.object({
+  novel_id: z.string().uuid(),
+  editor_url: z.string(),
   action: z.enum(["start_writing", "save_only"]),
 });

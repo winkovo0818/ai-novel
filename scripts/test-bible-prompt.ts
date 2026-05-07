@@ -21,7 +21,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { config as loadEnv } from "dotenv";
 
-import { chatCompletion } from "../lib/llm/client";
+import { chatCompletionWithRetry } from "../lib/llm/client";
 import { buildBiblePrompt } from "../lib/llm/prompts/bible";
 import {
   BibleDraftSchema,
@@ -68,7 +68,7 @@ async function main() {
 
     let rawContent = "";
     try {
-      const result = await chatCompletion({
+      const result = await chatCompletionWithRetry({
         route: `/scripts/test-bible-prompt#${fx.id}`,
         messages,
         responseFormat: "json_object",

@@ -1,4 +1,14 @@
-import { BibleDraftSchema, type BibleDraft } from "@/lib/validation/schemas";
+import { parse, Allow } from "partial-json";
+
+import {
+  BeatSchema,
+  BibleDraftSchema,
+  BibleMetaSchema,
+  BibleWorldSchema,
+  ChapterSchema,
+  CharacterSchema,
+  type BibleDraft,
+} from "@/lib/validation/schemas";
 
 export type BibleStreamEvent =
   | { event: "meta"; data: BibleDraft["meta"] }
@@ -44,46 +54,74 @@ export function tryParseBibleDraft(buffer: string): BibleDraft | null {
   }
 }
 
+export function tryParsePartialBibleDraft(buffer: string): Partial<BibleDraft> | null {
+  const trimmed = stripJsonFence(buffer).trim();
+  if (!trimmed) return null;
+
+  try {
+    const parsed = parse(trimmed, Allow.STR | Allow.ARR | Allow.OBJ) as unknown;
+    return typeof parsed === "object" && parsed !== null
+      ? (parsed as Partial<BibleDraft>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function collectBibleEvents(
-  draft: BibleDraft,
+  draft: Partial<BibleDraft>,
   cursor: BibleEventCursor,
 ): BibleStreamEvent[] {
   const events: BibleStreamEvent[] = [];
 
-  if (!cursor.meta) {
-    events.push({ event: "meta", data: draft.meta });
+  const meta = BibleMetaSchema.safeParse(draft.meta);
+  if (!cursor.meta && meta.success) {
+    events.push({ event: "meta", data: meta.data });
     cursor.meta = true;
   }
 
-  for (let i = cursor.characters; i < draft.characters.length; i++) {
+  const characters = Array.isArray(draft.characters) ? draft.characters : [];
+  for (let i = cursor.characters; i < characters.length; i++) {
+    const character = CharacterSchema.safeParse(characters[i]);
+    if (!character.success) break;
     events.push({
       event: "character",
-      data: { ...draft.characters[i]!, index: i },
+      data: { ...character.data, index: i },
     });
+    cursor.characters = i + 1;
   }
-  cursor.characters = draft.characters.length;
 
-  if (!cursor.world) {
-    events.push({ event: "world", data: draft.world });
+  const world = BibleWorldSchema.safeParse(draft.world);
+  if (!cursor.world && world.success) {
+    events.push({ event: "world", data: world.data });
     cursor.world = true;
   }
 
-  const chapters = draft.outline.volume_1.chapters;
+  const chapters = Array.isArray(draft.outline?.volume_1?.chapters)
+    ? draft.outline.volume_1.chapters
+    : [];
   for (let i = cursor.outlineChapters; i < chapters.length; i++) {
+    const chapter = ChapterSchema.safeParse(chapters[i]);
+    if (!chapter.success) break;
     events.push({
       event: "outline_chapter",
-      data: { ...chapters[i]!, index: i },
+      data: { ...chapter.data, index: i },
     });
+    cursor.outlineChapters = i + 1;
   }
-  cursor.outlineChapters = chapters.length;
 
-  for (let i = cursor.firstChapterBeats; i < draft.first_chapter_beats.length; i++) {
+  const beats = Array.isArray(draft.first_chapter_beats)
+    ? draft.first_chapter_beats
+    : [];
+  for (let i = cursor.firstChapterBeats; i < beats.length; i++) {
+    const beat = BeatSchema.safeParse(beats[i]);
+    if (!beat.success) break;
     events.push({
       event: "first_chapter_beat",
-      data: { ...draft.first_chapter_beats[i]!, index: i },
+      data: { ...beat.data, index: i },
     });
+    cursor.firstChapterBeats = i + 1;
   }
-  cursor.firstChapterBeats = draft.first_chapter_beats.length;
 
   return events;
 }

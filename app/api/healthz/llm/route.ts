@@ -1,4 +1,4 @@
-import { chatCompletion } from "@/lib/llm/client";
+import { chatCompletionWithRetry } from "@/lib/llm/client";
 
 export const runtime = "nodejs";
 // 始终调用 LLM，不要被构建期或边缘缓存掉
@@ -8,7 +8,7 @@ const ROUTE = "/api/healthz/llm";
 
 export async function GET() {
   try {
-    const result = await chatCompletion({
+    const result = await chatCompletionWithRetry({
       route: ROUTE,
       messages: [
         {

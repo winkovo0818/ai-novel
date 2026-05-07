@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { chatCompletion } from "./client";
+import { chatCompletion, chatCompletionWithRetry } from "./client";
 
 const ORIG_KEY = process.env.DEEPSEEK_API_KEY;
 
@@ -19,6 +19,31 @@ describe("lib/llm/client", () => {
 
   it("exports chatCompletion as a function", () => {
     expect(typeof chatCompletion).toBe("function");
+  });
+
+  it("retries chatCompletion once on timeout", async () => {
+    process.env.DEEPSEEK_API_KEY = "test-key";
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new DOMException("The operation was aborted", "AbortError"))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: "ok" } }],
+            usage: { prompt_tokens: 1, completion_tokens: 1 },
+          }),
+          { status: 200 },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await chatCompletionWithRetry({
+      route: "/test",
+      messages: [{ role: "user", content: "ping" }],
+    });
+
+    expect(result.content).toBe("ok");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("throws when DEEPSEEK_API_KEY is missing", async () => {

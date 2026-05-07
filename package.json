@@ -15,17 +15,18 @@
     "db:migrate": "dotenv -e .env.local -- prisma migrate dev",
     "db:reset": "dotenv -e .env.local -- prisma migrate reset --force",
     "db:smoke": "dotenv -e .env.local -- tsx scripts/db-smoke-test.ts",
+    "smoke:onboarding": "dotenv -e .env.local -- tsx scripts/onboarding-api-smoke.ts",
     "prompt:bible": "tsx scripts/test-bible-prompt.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",
-    "@supabase/ssr": "^0.10.2",
-    "@supabase/supabase-js": "^2.105.1",
     "next": "^15.1.6",
+    "partial-json": "^0.1.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
