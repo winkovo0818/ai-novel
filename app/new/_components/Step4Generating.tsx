@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
 
 import { useWizardStore } from "@/lib/store/wizardStore";
 import type { BibleDraft } from "@/lib/validation/schemas";
@@ -77,7 +78,7 @@ export function Step4Generating() {
   }
 
   return (
-    <StepShell eyebrow="Step 4" title="流式生成 Bible 草稿" description="后端通过 POST SSE 返回事件；当前会逐条显示收到的节点。">
+    <StepShell eyebrow="Step 4" title="流式生成 Bible 草稿" description="卡片会随着 SSE 节点逐张浮现；生成完成后自动进入审阅。">
       <div className="grid gap-5">
         <div className="flex flex-wrap gap-3">
           <button className="rounded-2xl bg-neutral-950 px-5 py-3 font-medium text-white disabled:opacity-50" disabled={store.status === "streaming"} onClick={start}>
@@ -89,17 +90,108 @@ export function Step4Generating() {
           </button>
         </div>
 
-        <div className="grid gap-3">
-          {events.length === 0 ? <p className="rounded-2xl border border-dashed border-neutral-300 p-6 text-neutral-500">等待生成事件...</p> : null}
-          {events.map((item, index) => (
-            <article key={`${item.event}-${index}`} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-              <p className="text-sm font-semibold text-neutral-500">{item.event}</p>
-              <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap text-xs text-neutral-800">{JSON.stringify(item.data, null, 2)}</pre>
-            </article>
-          ))}
-        </div>
+        <BibleStreamCards draft={store.bible_draft} eventsCount={events.length} />
+
+        <details className="rounded-2xl border border-neutral-200 bg-neutral-950 p-4 text-white">
+          <summary className="cursor-pointer text-sm font-medium">查看 SSE 原始事件（{events.length}）</summary>
+          <div className="mt-4 grid max-h-96 gap-3 overflow-auto">
+            {events.map((item, index) => (
+              <article key={`${item.event}-${index}`} className="rounded-xl bg-white/10 p-3">
+                <p className="text-xs font-semibold text-neutral-300">{item.event}</p>
+                <pre className="mt-2 whitespace-pre-wrap text-xs text-neutral-100">{JSON.stringify(item.data, null, 2)}</pre>
+              </article>
+            ))}
+          </div>
+        </details>
       </div>
     </StepShell>
+  );
+}
+
+function BibleStreamCards({ draft, eventsCount }: { draft?: Partial<BibleDraft>; eventsCount: number }) {
+  if (!draft || eventsCount === 0) {
+    return (
+      <div className="rounded-3xl border border-dashed border-neutral-300 bg-white p-8 text-neutral-500">
+        等待第一张 Bible 卡片...
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4">
+      {draft.meta ? (
+        <StreamCard label="Meta" title={draft.meta.suggested_title} tone="dark">
+          <p>{draft.meta.alternative_titles.join(" / ")}</p>
+        </StreamCard>
+      ) : null}
+
+      {draft.characters?.length ? (
+        <section className="grid gap-3 md:grid-cols-3">
+          {draft.characters.map((character, index) => (
+            <StreamCard key={`${character.name}-${index}`} label={character.role} title={character.name}>
+              <p>{character.personality}</p>
+              <p className="mt-3 rounded-xl bg-neutral-100 p-3">“{character.catchphrase}”</p>
+            </StreamCard>
+          ))}
+        </section>
+      ) : null}
+
+      {draft.world ? (
+        <StreamCard label="World" title="世界观核心">
+          <p>{draft.world.setting_summary}</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {draft.world.rules.map((rule) => <span key={rule} className="rounded-full bg-neutral-100 px-3 py-1 text-sm">{rule}</span>)}
+          </div>
+        </StreamCard>
+      ) : null}
+
+      {draft.outline?.volume_1?.chapters?.length ? (
+        <StreamCard label="Outline" title={draft.outline.volume_1.name || "首卷大纲"}>
+          <div className="grid gap-3">
+            {draft.outline.volume_1.chapters.map((chapter) => (
+              <div key={chapter.index} className="rounded-xl bg-neutral-50 p-4">
+                <p className="font-medium">{chapter.index}. {chapter.title}</p>
+                <p className="mt-1 text-sm text-neutral-600">{chapter.summary}</p>
+              </div>
+            ))}
+          </div>
+        </StreamCard>
+      ) : null}
+
+      {draft.first_chapter_beats?.length ? (
+        <StreamCard label="Beats" title="第一章节拍">
+          <div className="grid gap-3 md:grid-cols-2">
+            {draft.first_chapter_beats.map((beat) => (
+              <div key={beat.beat} className="rounded-xl bg-neutral-50 p-4">
+                <p className="font-medium">Beat {beat.beat}: {beat.scene}</p>
+                <p className="mt-1 text-sm text-neutral-600">{beat.purpose}</p>
+              </div>
+            ))}
+          </div>
+        </StreamCard>
+      ) : null}
+    </div>
+  );
+}
+
+function StreamCard({
+  label,
+  title,
+  tone = "light",
+  children,
+}: {
+  label: string;
+  title: string;
+  tone?: "light" | "dark";
+  children: ReactNode;
+}) {
+  const dark = tone === "dark";
+  return (
+    <article className={`animate-in rounded-3xl border p-5 shadow-sm ${dark ? "border-neutral-900 bg-neutral-950 text-white" : "border-neutral-200 bg-white text-neutral-950"}`}>
+      <p className={`text-xs font-semibold uppercase tracking-wide ${dark ? "text-neutral-400" : "text-neutral-500"}`}>{label}</p>
+      <h3 className="mt-2 text-xl font-semibold">{title}</h3>
+      <div className={`mt-3 text-sm ${dark ? "text-neutral-300" : "text-neutral-700"}`}>{children}</div>
+    </article>
   );
 }
 

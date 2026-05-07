@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
 
 import { useWizardStore } from "@/lib/store/wizardStore";
-import type { BibleDraft } from "@/lib/validation/schemas";
+import { BibleDraftSchema, type BibleDraft } from "@/lib/validation/schemas";
 import { StepShell } from "./StepShell";
 
 export function Step5Review() {
@@ -16,12 +17,23 @@ export function Step5Review() {
       return;
     }
 
+    const validation = BibleDraftSchema.safeParse(store.bible_draft);
+    if (!validation.success) {
+      const first = validation.error.errors[0];
+      store.setError({
+        step: 5,
+        message: `Bible 草稿还不满足保存要求：${first?.path.join(".") || "root"} ${first?.message ?? "invalid"}`,
+        retryable: false,
+      });
+      return;
+    }
+
     store.setStatus("loading");
     const response = await fetch(`/api/onboarding/sessions/${store.session_id}/finalize`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        bible_draft: store.bible_draft,
+        bible_draft: validation.data,
         profile: store.default_profile,
         action,
       }),
@@ -89,6 +101,36 @@ function BibleReviewCards({
     onChange({ ...draft, characters });
   }
 
+  function addCharacter() {
+    const characters = draft.characters ?? [];
+    if (characters.length >= 5) return;
+    onChange({
+      ...draft,
+      characters: [
+        ...characters,
+        {
+          role: "hidden",
+          name: "新角色",
+          age: "待定",
+          appearance: "外貌待补",
+          personality: "性格待补",
+          catchphrase: "我会记住这件事。",
+          abilities: ["待补能力"],
+          goals: "短期目标待补，长期目标待补。",
+          motivation: "动机待补，需要与主线冲突有关。",
+          secrets: ["待揭示秘密"],
+          relations: [],
+        },
+      ],
+    });
+  }
+
+  function removeCharacter(index: number) {
+    const characters = draft.characters ?? [];
+    if (characters.length <= 3) return;
+    onChange({ ...draft, characters: characters.filter((_, i) => i !== index) });
+  }
+
   function updateWorld(patch: Partial<BibleDraft["world"]>) {
     if (!draft.world) return;
     onChange({ ...draft, world: { ...draft.world, ...patch } });
@@ -104,12 +146,71 @@ function BibleReviewCards({
     onChange({ ...draft, outline: { volume_1: { ...volume, chapters } } });
   }
 
+  function addChapter() {
+    const volume = draft.outline?.volume_1;
+    if (!volume || volume.chapters.length >= 12) return;
+    const nextIndex = volume.chapters.length + 1;
+    onChange({
+      ...draft,
+      outline: {
+        volume_1: {
+          ...volume,
+          chapters: [
+            ...volume.chapters,
+            {
+              index: nextIndex,
+              title: `第${nextIndex}章`,
+              summary: "新增章节梗概，补充冲突推进、人物选择和后续伏笔，保存前可继续细化。",
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  function removeChapter(index: number) {
+    const volume = draft.outline?.volume_1;
+    if (!volume || volume.chapters.length <= 8) return;
+    const chapters = volume.chapters
+      .filter((_, i) => i !== index)
+      .map((chapter, i) => ({ ...chapter, index: i + 1 }));
+    onChange({ ...draft, outline: { volume_1: { ...volume, chapters } } });
+  }
+
   function updateBeat(index: number, patch: Partial<BibleDraft["first_chapter_beats"][number]>) {
     const beats = [...(draft.first_chapter_beats ?? [])];
     const current = beats[index];
     if (!current) return;
     beats[index] = { ...current, ...patch };
     onChange({ ...draft, first_chapter_beats: beats });
+  }
+
+  function addBeat() {
+    const beats = draft.first_chapter_beats ?? [];
+    if (beats.length >= 8) return;
+    const nextBeat = beats.length + 1;
+    onChange({
+      ...draft,
+      first_chapter_beats: [
+        ...beats,
+        {
+          beat: nextBeat,
+          scene: "新增场景",
+          purpose: "新增节拍目的，补充本章情绪、信息或冲突推进。",
+        },
+      ],
+    });
+  }
+
+  function removeBeat(index: number) {
+    const beats = draft.first_chapter_beats ?? [];
+    if (beats.length <= 5) return;
+    onChange({
+      ...draft,
+      first_chapter_beats: beats
+        .filter((_, i) => i !== index)
+        .map((beat, i) => ({ ...beat, beat: i + 1 })),
+    });
   }
 
   return (
@@ -139,13 +240,19 @@ function BibleReviewCards({
       <section className="grid gap-3 md:grid-cols-3">
         {(draft.characters ?? []).map((character, index) => (
           <article key={`${character.name}-${index}`} className="rounded-2xl border border-neutral-200 bg-white p-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{character.role}</p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">{character.role}</p>
+              <SmallButton disabled={(draft.characters ?? []).length <= 3} onClick={() => removeCharacter(index)}>删除</SmallButton>
+            </div>
             <TextField className="mt-2 text-lg font-semibold" value={character.name} onChange={(value) => updateCharacter(index, { name: value })} />
             <TextArea className="mt-3" value={character.personality} onChange={(value) => updateCharacter(index, { personality: value })} />
             <TextField className="mt-3" value={character.catchphrase} onChange={(value) => updateCharacter(index, { catchphrase: value })} />
             <TextArea className="mt-3" value={character.motivation} onChange={(value) => updateCharacter(index, { motivation: value })} />
           </article>
         ))}
+        <button className="rounded-2xl border border-dashed border-neutral-300 p-5 text-sm font-medium text-neutral-500 hover:border-neutral-950 hover:text-neutral-950 disabled:opacity-40" disabled={(draft.characters ?? []).length >= 5} onClick={addCharacter}>
+          + 新增角色（{draft.characters?.length ?? 0}/5）
+        </button>
       </section>
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-5">
@@ -155,25 +262,41 @@ function BibleReviewCards({
       </section>
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-5">
-        <p className="text-sm font-medium text-neutral-500">首卷大纲</p>
-        <h4 className="mt-2 text-lg font-semibold">{draft.outline?.volume_1?.name ?? "未命名卷"}</h4>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-neutral-500">首卷大纲</p>
+            <h4 className="mt-2 text-lg font-semibold">{draft.outline?.volume_1?.name ?? "未命名卷"}</h4>
+          </div>
+          <SmallButton disabled={(draft.outline?.volume_1?.chapters.length ?? 0) >= 12} onClick={addChapter}>新增章节</SmallButton>
+        </div>
         <div className="mt-4 grid gap-3">
-          {(draft.outline?.volume_1?.chapters ?? []).map((chapter) => (
+          {(draft.outline?.volume_1?.chapters ?? []).map((chapter, index) => (
             <div key={chapter.index} className="rounded-xl bg-neutral-50 p-4">
-              <TextField value={chapter.title} onChange={(value) => updateChapter(chapter.index - 1, { title: value })} />
-              <TextArea className="mt-2" value={chapter.summary} onChange={(value) => updateChapter(chapter.index - 1, { summary: value })} />
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-neutral-500">{chapter.index}</span>
+                <TextField value={chapter.title} onChange={(value) => updateChapter(index, { title: value })} />
+                <SmallButton disabled={(draft.outline?.volume_1?.chapters.length ?? 0) <= 8} onClick={() => removeChapter(index)}>删除</SmallButton>
+              </div>
+              <TextArea className="mt-2" value={chapter.summary} onChange={(value) => updateChapter(index, { summary: value })} />
             </div>
           ))}
         </div>
       </section>
 
       <section className="rounded-2xl border border-neutral-200 bg-white p-5">
-        <p className="text-sm font-medium text-neutral-500">第一章节拍</p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-medium text-neutral-500">第一章节拍</p>
+          <SmallButton disabled={(draft.first_chapter_beats?.length ?? 0) >= 8} onClick={addBeat}>新增节拍</SmallButton>
+        </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          {(draft.first_chapter_beats ?? []).map((beat) => (
+          {(draft.first_chapter_beats ?? []).map((beat, index) => (
             <div key={beat.beat} className="rounded-xl bg-neutral-50 p-4">
-              <TextField value={beat.scene} onChange={(value) => updateBeat(beat.beat - 1, { scene: value })} />
-              <TextArea className="mt-2" value={beat.purpose} onChange={(value) => updateBeat(beat.beat - 1, { purpose: value })} />
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-neutral-500">{beat.beat}</span>
+                <TextField value={beat.scene} onChange={(value) => updateBeat(index, { scene: value })} />
+                <SmallButton disabled={(draft.first_chapter_beats?.length ?? 0) <= 5} onClick={() => removeBeat(index)}>删除</SmallButton>
+              </div>
+              <TextArea className="mt-2" value={beat.purpose} onChange={(value) => updateBeat(index, { purpose: value })} />
             </div>
           ))}
         </div>
@@ -184,6 +307,27 @@ function BibleReviewCards({
         <pre className="mt-4 max-h-96 overflow-auto text-xs">{JSON.stringify(draft, null, 2)}</pre>
       </details>
     </div>
+  );
+}
+
+function SmallButton({
+  disabled,
+  onClick,
+  children,
+}: {
+  disabled?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      className="shrink-0 rounded-full border border-neutral-300 px-3 py-1 text-xs font-medium text-neutral-600 hover:border-neutral-950 hover:text-neutral-950 disabled:opacity-40"
+      disabled={disabled}
+      onClick={onClick}
+      type="button"
+    >
+      {children}
+    </button>
   );
 }
 
