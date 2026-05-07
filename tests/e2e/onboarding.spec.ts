@@ -40,6 +40,9 @@ test("completes onboarding with mock LLM", async ({ page }) => {
 
   await page.getByRole("button", { name: /^2\./ }).click();
   await expect(editor).toHaveValue("");
+  await page.getByRole("button", { name: "AI 起草第 2 章" }).click();
+  await expect(page.getByText("AI 草稿已生成并保存")).toBeVisible({ timeout: 30_000 });
+  await expect(editor).toHaveValue(/沈言/, { timeout: 30_000 });
   await editor.fill("第二章未保存草稿。");
   page.once("dialog", async (dialog) => {
     expect(dialog.message()).toContain("未保存修改");
