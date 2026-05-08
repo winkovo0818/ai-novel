@@ -104,15 +104,17 @@ model LlmModel {
 }
 
 model ChapterVersion {
-  id          String   @id @default(uuid())
-  chapter_id  String
-  chapter     ChapterDraft @relation(fields: [chapter_id], references: [id], onDelete: Cascade)
-  title       String
-  content     String
-  status      String   @default("draft")
-  source      String   @default("manual")
-  created_at  DateTime @default(now())
+  id           String   @id @default(uuid())
+  chapter_id   String
+  chapter      ChapterDraft @relation(fields: [chapter_id], references: [id], onDelete: Cascade)
+  title        String
+  content      String
+  content_hash String?
+  status       String   @default("draft")
+  source       String   @default("manual")
+  created_at   DateTime @default(now())
 
   @@index([chapter_id])
   @@index([created_at])
+  @@index([chapter_id, content_hash])
 }

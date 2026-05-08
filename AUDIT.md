@@ -45,9 +45,9 @@
 
 | # | 优先级 | 问题 | 证据 | 修复方向 |
 |---|---|---|---|---|
-| S1 | P0 | **RLS 已启用但未真正生效到业务查询** | `prisma/migrations/20260508010000_enable_rls/migration.sql` 已启用 RLS；`lib/db.ts` 有 `setRlsUser`，但业务查询未包事务调用 | 二选一：要么为每个请求建立带 `SET LOCAL app.current_user_id` 的事务边界；要么删除/禁用 RLS，明确只依赖应用层 ownership。不要保留“看似有 RLS”的假安全 |
-| S2 | P0 | **`setRlsUser` 使用 `$executeRawUnsafe` 字符串拼接** | `lib/db.ts:22` | 如果保留 RLS，改成参数化 `$executeRaw`，并把调用放到事务内 |
-| S3 | P0 | **LLM 模型配置仍无管理员边界，api_key 明文存储且全用户共享** | `app/api/llm-models/route.ts` 只要求登录；`prisma/schema.prisma` 中 `api_key String` | MVP 阶段至少限制为 admin-only；下一步再做 per-user/provider 配置和加密存储 |
+| ~~S1~~ | 已落地 | **RLS 决策**：禁用 RLS，明确依赖应用层 ownership | migration `20260508050000_disable_rls` 已 DROP 所有策略并 DISABLE ROW LEVEL SECURITY；`lib/db.ts` 已删除 `setRlsUser` helper | 完成（2026-05-08）。当前版本明确以 `lib/auth/ownership.ts` + SSR/API guard 作为唯一隔离层 |
+| ~~S2~~ | 已落地 | **`setRlsUser` 字符串拼接** | 已随 RLS 决策一并删除 | 完成（2026-05-08） |
+| ~~S3~~ | 部分落地 | **LLM 模型配置 admin-only**（api_key 加密存储仍待办） | `app/api/llm-models/**` 已接入 `adminGuardResponse`；管理员通过 `ADMIN_USER_IDS` / `ADMIN_EMAILS` 环境变量配置；`/models` 页面对非管理员显示无权限提示 | admin 边界完成（2026-05-08）。下一步：per-user/provider 配置 + api_key 加密 |
 | S4 | P1 | **限流只覆盖章节起草** | `isRateLimited` 仅在 `app/api/novels/[id]/chapters/draft/route.ts` 使用 | 给 `bible`、`loglines`、`questions`、`consistency`、`summarize`、`llm-models` 扩面；生产改 Redis/Supabase RPC |
 | S5 | P1 | **章节保存和章节起草输入缺内容审核** | `moderateContent` 目前主要用于 onboarding bible/finalize | 至少在章节标记 `done`、AI 起草请求、导出前审核 |
 
@@ -90,8 +90,8 @@
 
 | # | 优先级 | 缺口 | 证据/备注 | 修复方向 |
 |---|---|---|---|---|
-| P1 | P0 | **schema 限制无法写长篇** | `ChapterSchema.index` 限 1-20，`chapters.min(8).max(12)`，只有 `volume_1` | 放宽章节上限；支持多卷；不要让 onboarding outline 限死整本书 |
-| P2 | P0 | **`ChapterVersion` 无节流，autosave 会制造大量版本** | `app/api/chapters/[id]/route.ts` 每次 PATCH 都创建版本 | 按内容 hash + 时间窗去重；仅手动保存/状态切换/AI 覆盖创建重要版本；设置每章版本上限 |
+| ~~P1~~ | 部分落地（多卷未做） | **schema 限制无法写长篇** | `ChapterSchema.index` 已放宽到 1-1000；`volume_1.chapters` 上限 50；`POST /api/novels/[id]/chapters` 与 `/draft` 不再因不在 outline 中拒绝 | 完成 2026-05-08。多卷支持留作后续（建议在 Milestone B 一并改 schema）。 |
+| ~~P2~~ | 已落地 | **`ChapterVersion` 已节流** | PATCH `/api/chapters/[id]` 默认 `source=autosave` 不创建版本；只有 `manual` / `ai` / 状态切换创建版本；按 content_hash 去重；每章保留 50 条 | 完成 2026-05-08。客户端 `useChapterEditor` 自动保存→`autosave`，手动保存→`manual`，AI 起草→`ai`。 |
 | P3 | P1 | **Bible 编辑能力不足** | finalize 后编辑器侧栏基本只读 | 增加角色/世界规则/大纲编辑入口，并保存回 `BibleDraft` 或新结构表 |
 | P4 | P1 | **profile 字段影响 prompt 不充分** | `ai_freedom`、`audience` 等未完整映射到温度、审核、风格策略 | 建立 profile -> generation policy 映射，集中管理 temperature、字数、自由度、审核等级 |
 | P5 | P1 | **一致性检查不是闭环** | 用户手动点“逻辑审计”，结果只展示，不影响写作流程 | AI 起草后可选自动 Critic；严重冲突提示回炉或生成修订建议 |
@@ -116,7 +116,7 @@
 | # | 优先级 | 问题 | 建议 |
 |---|---|---|---|
 | UX1 | P1 | `window.confirm` 用于切章/起草/删除 | 改成自定义 modal/toast，避免浏览器原生弹窗打断写作 |
-| UX2 | P1 | 自动保存和版本历史耦合，造成保存频率与版本膨胀 | 与 P2 一起处理：autosave 只更新草稿，重要节点才写版本 |
+| ~~UX2~~ | 已落地 | 自动保存和版本历史已解耦 | autosave 只更新草稿；手动保存/AI 起草/状态切换才写版本（2026-05-08） |
 | UX3 | P2 | SSE 中断不可续传 | 先增加“重试并保留已生成内容”；之后再做 stream resume |
 | UX4 | P2 | 错误恢复弱 | onboarding 和编辑器关键错误增加重试按钮 |
 | UX5 | P2 | 编辑器缺基础写作工具 | 查找/替换、字数目标、章节目标进度优先于花哨 AI 按钮 |
@@ -126,7 +126,7 @@
 
 ## 九、测试缺口
 
-- 增加 ownership 负向测试：用户 B 访问用户 A 的 novel/chapter/session 应返回 404/401。
+- ~~增加 ownership 负向测试~~：已新增 `summarize` / `versions` / `consistency` 三条路径的负向测试（2026-05-08）。`novels/[id]`、`chapters/[id]`、`novels/[id]/chapters`、`chapters/draft` 此前已覆盖。`onboarding/sessions/**` 仍待补。
 - 为 `consistency`、`summarize`、`versions`、`llm-models`、`onboarding/finalize` 补 API 单测。
 - 如果保留 RLS，增加迁移级/集成级 RLS 测试；如果删除 RLS，文档明确应用层 ownership 是唯一隔离层。
 - 为 autosave + version throttling 增加回归测试，防止版本表爆炸。
@@ -138,10 +138,10 @@
 
 ### P0：先让系统安全且不会自毁
 
-1. **RLS 决策与修复**：保留就事务化 + 参数化；不保留就删除迁移和 `setRlsUser`，避免假安全。
-2. **锁定 LLM 模型配置权限**：`/models` 先改 admin-only，避免任意登录用户写入共享 API key。
-3. **解除长篇 schema 限制**：放宽 `ChapterSchema.index`、支持多卷/更多章节，避免产品目标和代码硬冲突。
-4. **修复 autosave/版本爆炸**：版本创建节流、内容去重、版本数量上限。
+1. ~~**RLS 决策与修复**~~：已完成（2026-05-08）。新增 `20260508050000_disable_rls` migration，删除 `setRlsUser`，确认只依赖应用层 ownership。
+2. ~~**锁定 LLM 模型配置权限**~~：已完成（2026-05-08）。`/api/llm-models/**` 全部走 `adminGuardResponse`，使用 `ADMIN_USER_IDS` / `ADMIN_EMAILS` 环境变量；`/models` 页面对非管理员显示提示。
+3. ~~**解除长篇 schema 限制**~~：单卷限制已解除（2026-05-08）。多卷支持仍待办。
+4. ~~**修复 autosave/版本爆炸**~~：已完成 2026-05-08。`source` 字段区分 autosave/manual/ai/status_change；md5 去重；每章 50 条上限。
 
 ### P1：把 MVP 推成可持续写作工具
 
@@ -171,11 +171,11 @@
 
 ### Milestone A：安全与长篇解锁
 
-- RLS 去留决策并落地。
-- `/models` admin-only。
-- schema 支持长篇/多卷。
-- autosave 与版本历史解耦。
-- 给核心越权路径补负向测试。
+- RLS 去留决策并落地。**[已完成 2026-05-08]** 选择禁用，新增 `20260508050000_disable_rls`，移除 `setRlsUser`。
+- `/models` admin-only。**[已完成 2026-05-08]** 新增 `lib/auth/admin.ts`、`adminGuardResponse`，单测覆盖 401/403/200。
+- schema 支持长篇/多卷。**[部分完成 2026-05-08]** index 上限改为 1000，volume_1 章节上限改为 50，outline 外章节可创建/起草；多卷待后续 milestone。
+- autosave 与版本历史解耦。**[已完成 2026-05-08]** 默认 autosave 不创建版本，hash 去重 + 50 条上限。
+- 给核心越权路径补负向测试。**[已完成 2026-05-08]** 新增 summarize/versions/consistency 三条 ownership 负向测试。
 
 完成标准：可以让真实用户登录试用，不会越权、不容易烧 key、不因 autosave 打爆版本表。
 

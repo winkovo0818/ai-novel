@@ -1,18 +1,12 @@
 import { prisma } from "@/lib/db";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { adminGuardResponse } from "@/lib/auth/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  try {
-    await getRequiredUserId();
-  } catch {
-    return Response.json(
-      { ok: false, error: { code: "UNAUTHORIZED", message: "Login required", retryable: false } },
-      { status: 401 },
-    );
-  }
+  const denied = await adminGuardResponse();
+  if (denied) return denied;
 
   const models = await prisma.llmModel.findMany({
     orderBy: [{ is_default: "desc" }, { created_at: "asc" }],
@@ -22,14 +16,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  try {
-    await getRequiredUserId();
-  } catch {
-    return Response.json(
-      { ok: false, error: { code: "UNAUTHORIZED", message: "Login required", retryable: false } },
-      { status: 401 },
-    );
-  }
+  const denied = await adminGuardResponse();
+  if (denied) return denied;
 
   const body = await request.json().catch(() => null);
   const { name, provider, base_url, api_key, model } = body ?? {};

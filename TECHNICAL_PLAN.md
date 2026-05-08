@@ -20,6 +20,9 @@
 
 ### A1. RLS 决策与落地
 
+> **状态：已完成（2026-05-08）** — 新增 `prisma/migrations/20260508050000_disable_rls` 显式 DROP 策略并 DISABLE RLS；删除 `lib/db.ts` 中的 `setRlsUser`。当前版本明确依赖应用层 ownership。
+
+
 当前问题：`prisma/migrations/20260508010000_enable_rls/migration.sql` 已启用 RLS，但业务查询没有在事务中调用 `setRlsUser`，所以 RLS 实际不可依赖。
 
 推荐实现：短期删除或禁用 RLS，明确应用层 ownership 是当前隔离边界。
@@ -46,6 +49,9 @@
 
 ### A2. LLM 模型配置权限收口
 
+> **状态：已完成（2026-05-08）** — 新增 `lib/auth/admin.ts`（`isAdminUser` / `checkAdmin` / `adminGuardResponse`），所有 `/api/llm-models/**` 路由统一调用；`/models` 页面对 403 显示无权限提示；admin 通过 `ADMIN_USER_IDS` / `ADMIN_EMAILS` 环境变量配置。
+
+
 当前问题：`app/api/llm-models/route.ts` 只要求登录，任何用户都可能写入全局共享模型配置和 API key。
 
 推荐实现：MVP 阶段改成 admin-only。
@@ -68,6 +74,9 @@
 
 ### A3. 长篇 schema 解锁
 
+> **状态：单卷限制已完成（2026-05-08）** — `ChapterSchema.index` max → 1000；`volume_1.chapters` max → 50；`POST /api/novels/[id]/chapters` 与 `/chapters/draft` 不再因 outline 缺失而拒绝；prompt 对未规划章节使用前文摘要 fallback。多卷支持暂未做（schema 仍只有 `volume_1`），见后续 milestone。
+
+
 当前问题：`ChapterSchema.index` 限制 1-20，`volume_1.chapters` 限制 8-12，和长篇产品目标冲突。
 
 推荐实现：把 onboarding 生成的大纲视为“首卷种子”，不要让它限制整本书。
@@ -89,6 +98,9 @@ API 调整：
 ---
 
 ### A4. Autosave 与版本历史解耦
+
+> **状态：已完成（2026-05-08）** — `UpdateChapterDraftRequestSchema` 增加 `source` 字段（默认 `autosave`）；PATCH `/api/chapters/[id]` 仅在 `manual` / `ai` / 状态切换时写 `ChapterVersion`，按 md5 content_hash 去重，每章保留最近 50 条。`useChapterEditor` 已分别传 `autosave` / `manual` / `ai`。新增 migration `20260508060000_chapter_version_hash` 加 `content_hash` 列与索引。
+
 
 当前问题：`PATCH /api/chapters/[id]` 每次保存都会创建 `ChapterVersion`，3 秒 autosave 会制造大量版本。
 

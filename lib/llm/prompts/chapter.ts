@@ -35,7 +35,7 @@ export function buildChapterPrompt(input: ChapterPromptInput): ChatMessage[] {
 章节：第 ${input.chapterIndex} 章《${input.title}》
 
 章节大纲：
-${chapter?.summary ?? "按第一章节拍展开。"}
+${chapter?.summary ?? (input.chapterIndex === 1 ? "按第一章节拍展开。" : "本章未预设大纲，请基于前文摘要推进新的冲突或发现。")}
 
 前文上下文（按章节顺序；用于承接，不要重复）：
 ${input.previousContext?.trim() || "无"}

@@ -86,18 +86,29 @@ describe("POST /api/novels/[id]/chapters", () => {
     }));
   });
 
-  it("rejects a chapter outside the Bible outline", async () => {
+  it("accepts an unplanned chapter outside the Bible outline", async () => {
     const { POST } = await import("./route");
+    const chapter = {
+      id: "chapter-99",
+      novel_id: "novel-1",
+      chapter_index: 99,
+      title: "未规划章节",
+      content: "正文",
+      status: "draft",
+    };
     findUnique.mockResolvedValue({ id: "novel-1", user_id: "user-1", bible: { content: bible } });
+    upsert.mockResolvedValue(chapter);
 
-    const response = await POST(request({ chapter_index: 99, title: "越界章节", content: "正文", status: "draft" }), {
+    const response = await POST(request({ chapter_index: 99, title: "未规划章节", content: "正文", status: "draft" }), {
       params: Promise.resolve({ id: "novel-1" }),
     });
     const json = await response.json();
 
-    expect(response.status).toBe(400);
-    expect(json.error.code).toBe("INVALID_INPUT");
-    expect(upsert).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(json).toEqual({ ok: true, data: chapter });
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { novel_id_chapter_index: { novel_id: "novel-1", chapter_index: 99 } },
+    }));
   });
 
   it("hides a user-owned novel from a different user", async () => {

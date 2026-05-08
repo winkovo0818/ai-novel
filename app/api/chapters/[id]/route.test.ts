@@ -4,12 +4,20 @@ const update = vi.fn();
 const deleteFn = vi.fn();
 const findUnique = vi.fn();
 const createVersion = vi.fn();
+const findFirstVersion = vi.fn();
+const findManyVersion = vi.fn();
+const deleteManyVersion = vi.fn();
 const getRequiredUserId = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     chapterDraft: { findUnique, update, delete: deleteFn },
-    chapterVersion: { create: createVersion },
+    chapterVersion: {
+      create: createVersion,
+      findFirst: findFirstVersion,
+      findMany: findManyVersion,
+      deleteMany: deleteManyVersion,
+    },
   },
 }));
 
@@ -21,16 +29,18 @@ describe("PATCH /api/chapters/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getRequiredUserId.mockResolvedValue("user-1");
+    findFirstVersion.mockResolvedValue(null);
+    findManyVersion.mockResolvedValue([]);
   });
 
-  it("updates chapter content and status", async () => {
+  it("updates chapter content and status, creating a status_change version on autosave", async () => {
     const { PATCH } = await import("./route");
     const chapter = {
       id: "chapter-1",
       content: "正文",
       status: "done",
     };
-    findUnique.mockResolvedValue({ id: "chapter-1", novel: { user_id: "user-1" } });
+    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", novel: { user_id: "user-1" } });
     update.mockResolvedValue(chapter);
 
     const response = await PATCH(request({ content: "正文", status: "done" }), {
@@ -43,6 +53,89 @@ describe("PATCH /api/chapters/[id]", () => {
     expect(update).toHaveBeenCalledWith({
       where: { id: "chapter-1" },
       data: { content: "正文", status: "done" },
+    });
+    expect(createVersion).toHaveBeenCalledTimes(1);
+    expect(createVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ chapter_id: "chapter-1", source: "status_change" }),
+      }),
+    );
+  });
+
+  it("does NOT create a version on default (autosave) content-only PATCH", async () => {
+    const { PATCH } = await import("./route");
+    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", novel: { user_id: "user-1" } });
+    update.mockResolvedValue({ id: "chapter-1", content: "new", status: "draft" });
+
+    const response = await PATCH(request({ content: "new" }), {
+      params: Promise.resolve({ id: "chapter-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(createVersion).not.toHaveBeenCalled();
+  });
+
+  it("creates a version when source=manual is provided", async () => {
+    const { PATCH } = await import("./route");
+    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", novel: { user_id: "user-1" } });
+    update.mockResolvedValue({ id: "chapter-1", content: "new", status: "draft" });
+
+    await PATCH(request({ content: "new", source: "manual" }), {
+      params: Promise.resolve({ id: "chapter-1" }),
+    });
+
+    expect(createVersion).toHaveBeenCalledTimes(1);
+    expect(createVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ source: "manual" }),
+      }),
+    );
+  });
+
+  it("creates a version when source=ai is provided", async () => {
+    const { PATCH } = await import("./route");
+    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", novel: { user_id: "user-1" } });
+    update.mockResolvedValue({ id: "chapter-1", content: "ai-out", status: "draft" });
+
+    await PATCH(request({ content: "ai-out", source: "ai" }), {
+      params: Promise.resolve({ id: "chapter-1" }),
+    });
+
+    expect(createVersion).toHaveBeenCalledTimes(1);
+    expect(createVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ source: "ai" }),
+      }),
+    );
+  });
+
+  it("skips version creation when latest version has the same content_hash", async () => {
+    const { PATCH } = await import("./route");
+    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "same", status: "draft", novel: { user_id: "user-1" } });
+    update.mockResolvedValue({ id: "chapter-1", content: "new", status: "draft" });
+    const { createHash } = await import("node:crypto");
+    const sameHash = createHash("md5").update("same").digest("hex");
+    findFirstVersion.mockResolvedValue({ content_hash: sameHash });
+
+    await PATCH(request({ content: "new", source: "manual" }), {
+      params: Promise.resolve({ id: "chapter-1" }),
+    });
+
+    expect(createVersion).not.toHaveBeenCalled();
+  });
+
+  it("prunes oldest versions beyond the per-chapter cap", async () => {
+    const { PATCH } = await import("./route");
+    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", novel: { user_id: "user-1" } });
+    update.mockResolvedValue({ id: "chapter-1", content: "new", status: "draft" });
+    findManyVersion.mockResolvedValue([{ id: "old-1" }, { id: "old-2" }]);
+
+    await PATCH(request({ content: "new", source: "manual" }), {
+      params: Promise.resolve({ id: "chapter-1" }),
+    });
+
+    expect(deleteManyVersion).toHaveBeenCalledWith({
+      where: { id: { in: ["old-1", "old-2"] } },
     });
   });
 

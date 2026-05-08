@@ -104,9 +104,24 @@ describe("BibleDraftSchema", () => {
     expect(r.success).toBe(false);
   });
 
-  it("rejects when chapters length > 12", () => {
+  it("accepts up to 50 chapters in volume_1 outline", () => {
     const draft = validBibleDraft();
-    const extra = Array.from({ length: 5 }, (_, i) => ({
+    const extra = Array.from({ length: 40 }, (_, i) => ({
+      index: 11 + i,
+      title: `第${11 + i}章`,
+      summary: "扩展章节用以测试上限，长度需要超过最低字数限制以避免误判。",
+    }));
+    draft.outline.volume_1.chapters = [
+      ...draft.outline.volume_1.chapters,
+      ...extra,
+    ];
+    const r = BibleDraftSchema.safeParse(draft);
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects when chapters length > 50", () => {
+    const draft = validBibleDraft();
+    const extra = Array.from({ length: 45 }, (_, i) => ({
       index: 11 + i,
       title: `第${11 + i}章`,
       summary: "扩展章节用以触发越界，长度需要超过最低字数限制以避免误判。",

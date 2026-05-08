@@ -22,6 +22,7 @@ export default function ModelsPage() {
   const [models, setModels] = useState<LlmModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [forbidden, setForbidden] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -36,6 +37,10 @@ export default function ModelsPage() {
       const res = await fetch("/api/llm-models");
       if (res.status === 401) {
         window.location.href = "/login";
+        return;
+      }
+      if (res.status === 403) {
+        setForbidden(true);
         return;
       }
       const json = await res.json();
@@ -106,6 +111,24 @@ export default function ModelsPage() {
     if (!confirm("确定删除此模型配置？")) return;
     await fetch(`/api/llm-models/${id}`, { method: "DELETE" });
     fetchModels();
+  }
+
+  if (forbidden) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-secondary/20 custom-scrollbar">
+        <div className="p-8 md:p-12 lg:p-16 max-w-3xl mx-auto min-h-full">
+          <PageHeader
+            title="模型基础设施"
+            description="该模块仅对管理员开放。"
+          />
+          <div className="card bg-white border-border-subtle">
+            <p className="text-text-secondary">
+              当前账号没有访问 LLM 模型配置的权限。请联系管理员。
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

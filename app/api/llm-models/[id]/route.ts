@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { adminGuardResponse } from "@/lib/auth/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,14 +9,8 @@ interface RouteContext {
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
-  try {
-    await getRequiredUserId();
-  } catch {
-    return Response.json(
-      { ok: false, error: { code: "UNAUTHORIZED", message: "Login required", retryable: false } },
-      { status: 401 },
-    );
-  }
+  const denied = await adminGuardResponse();
+  if (denied) return denied;
 
   const { id } = await context.params;
   const body = await request.json().catch(() => null);
@@ -47,14 +41,8 @@ export async function PATCH(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
-  try {
-    await getRequiredUserId();
-  } catch {
-    return Response.json(
-      { ok: false, error: { code: "UNAUTHORIZED", message: "Login required", retryable: false } },
-      { status: 401 },
-    );
-  }
+  const denied = await adminGuardResponse();
+  if (denied) return denied;
 
   const { id } = await context.params;
   await prisma.llmModel.delete({ where: { id } });

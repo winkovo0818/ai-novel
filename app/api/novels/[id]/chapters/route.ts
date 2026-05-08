@@ -38,9 +38,6 @@ export async function POST(request: Request, context: RouteContext) {
   if (!bible.success) {
     return jsonError("INVALID_INPUT", "Novel Bible is invalid", false, 400);
   }
-  if (!bible.data.outline.volume_1.chapters.some((chapter) => chapter.index === parsed.data.chapter_index)) {
-    return jsonError("INVALID_INPUT", "Chapter index is not in the Bible outline", false, 400);
-  }
 
   try {
     const chapter = await prisma.chapterDraft.upsert({

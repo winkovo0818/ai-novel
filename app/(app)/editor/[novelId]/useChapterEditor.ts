@@ -64,12 +64,12 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  const persistChapter = useCallback(async (nextContent: string, nextTitle = chapterTitle, nextStatus = chapterStatus) => {
+  const persistChapter = useCallback(async (nextContent: string, nextTitle = chapterTitle, nextStatus = chapterStatus, source: "autosave" | "manual" | "ai" = "autosave") => {
     const payload = {
       title: nextTitle,
       content: nextContent,
       status: nextStatus,
-      ...(chapterId ? {} : { chapter_index: selectedIndex }),
+      ...(chapterId ? { source } : { chapter_index: selectedIndex }),
     };
     const response = await fetch(
       chapterId ? `/api/chapters/${chapterId}` : `/api/novels/${novelId}/chapters`,
@@ -115,7 +115,7 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
       setStatus("saving");
       setMessage("自动保存中...");
       try {
-        await persistChapter(content, chapterTitle, chapterStatus);
+        await persistChapter(content, chapterTitle, chapterStatus, "autosave");
         setStatus("saved");
         setMessage("已自动保存");
       } catch (err) {
@@ -156,7 +156,7 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
     setMessage(undefined);
 
     try {
-      await persistChapter(content);
+      await persistChapter(content, chapterTitle, chapterStatus, "manual");
       setStatus("saved");
       setMessage("草稿已保存");
     } catch (err) {
@@ -223,7 +223,7 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
         throw new Error("AI 未返回章节正文");
       }
 
-      await persistChapter(generated);
+      await persistChapter(generated, chapterTitle, chapterStatus, "ai");
       setStatus("saved");
       setMessage("AI 草稿已生成并保存");
     } catch (err) {
