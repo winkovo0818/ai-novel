@@ -1,6 +1,7 @@
 import { buildBiblePrompt } from "@/lib/llm/prompts/bible";
 import { streamChatCompletionWithRetry } from "@/lib/llm/client";
 import { prisma } from "@/lib/db";
+import { authorizeOnboardingSession } from "@/lib/auth/onboardingAccess";
 import { moderateContent, stringifyForModeration } from "@/lib/moderation/moderate";
 import { sseEncode, sseHeartbeat } from "@/lib/stream/sseEncode";
 import {
@@ -40,20 +41,21 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  const session = await prisma.onboardingSession.findUnique({ where: { id } });
-  if (!session) {
+  const access = await authorizeOnboardingSession(id);
+  if (!access.ok) {
     return Response.json(
       {
         ok: false,
         error: {
-          code: "SESSION_NOT_FOUND",
-          message: "Onboarding session not found",
+          code: access.code,
+          message: access.message,
           retryable: false,
         },
       },
-      { status: 404 },
+      { status: access.status },
     );
   }
+  const { session } = access;
 
   if (session.regeneration_count >= 3) {
     return Response.json(

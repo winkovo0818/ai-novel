@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { authorizeOnboardingSession } from "@/lib/auth/onboardingAccess";
 import { chatCompletionWithRetry } from "@/lib/llm/client";
 import { buildQuestionsPrompt } from "@/lib/llm/prompts/questions";
 import {
@@ -25,10 +26,11 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("INVALID_INPUT", "Invalid questions request", false, 400);
   }
 
-  const session = await prisma.onboardingSession.findUnique({ where: { id } });
-  if (!session) {
-    return jsonError("SESSION_NOT_FOUND", "Onboarding session not found", false, 404);
+  const access = await authorizeOnboardingSession(id);
+  if (!access.ok) {
+    return jsonError(access.code, access.message, false, access.status);
   }
+  const { session } = access;
 
   const profile = buildDefaultProfile(
     session.genre_main as Parameters<typeof buildDefaultProfile>[0],

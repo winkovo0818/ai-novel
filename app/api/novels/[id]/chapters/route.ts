@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { BibleDraftSchema, CreateChapterDraftRequestSchema } from "@/lib/validation/schemas";
-import { getOptionalUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/utils/supabase/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +24,12 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("NOVEL_NOT_FOUND", "Novel or Bible draft not found", false, 404);
   }
 
-  const userId = await getOptionalUserId();
+  let userId: string;
+  try {
+    userId = await getRequiredUserId();
+  } catch {
+    return jsonError("UNAUTHORIZED", "Login required", false, 401);
+  }
   if (!canAccessOwnerResource(novel.user_id, userId)) {
     return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
   }

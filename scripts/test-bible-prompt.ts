@@ -2,7 +2,7 @@
  * Bible Prompt 5.3 离线调试脚本。
  *
  * 前置：
- *   .env.local 含真实 DEEPSEEK_API_KEY
+ *   .env 含真实 DEEPSEEK_API_KEY
  *
  * 运行：
  *   npm run prompt:bible
@@ -42,8 +42,8 @@ interface Fixture {
 const FIXTURES_PATH = path.join("scripts", "fixtures", "bible-loglines.json");
 const TMP_DIR = "tmp";
 
-// 优先加载 .env.local，其次 .env
-loadEnv({ path: ".env.local" });
+// 优先加载 .env，其次 .env
+loadEnv({ path: ".env" });
 loadEnv();
 
 async function main() {

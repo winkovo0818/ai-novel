@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { authorizeOnboardingSession } from "@/lib/auth/onboardingAccess";
 import { moderateContent, stringifyForModeration } from "@/lib/moderation/moderate";
 import {
   BibleDraftSchema,
@@ -22,10 +23,11 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("INVALID_INPUT", "Invalid finalize request", false, 400);
   }
 
-  const session = await prisma.onboardingSession.findUnique({ where: { id } });
-  if (!session) {
-    return jsonError("SESSION_NOT_FOUND", "Onboarding session not found", false, 404);
+  const access = await authorizeOnboardingSession(id);
+  if (!access.ok) {
+    return jsonError(access.code, access.message, false, access.status);
   }
+  const { userId, session } = access;
 
   const submittedDraft = BibleDraftSchema.safeParse(parsed.data.bible_draft);
   const draftResult = submittedDraft.success
@@ -53,7 +55,7 @@ export async function POST(request: Request, context: RouteContext) {
     const novel = await prisma.$transaction(async (tx) => {
       const created = await tx.novel.create({
         data: {
-          user_id: session.user_id,
+          user_id: userId,
           title: session.title?.trim() || draft.meta.suggested_title,
           profile: parsed.data.profile,
           session_id: session.id,

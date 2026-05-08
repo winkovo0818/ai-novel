@@ -8,7 +8,8 @@ import {
   GenerateChapterDraftRequestSchema,
   NovelProfileSchema,
 } from "@/lib/validation/schemas";
-import { getOptionalUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/utils/supabase/auth";
+import { isRateLimited } from "@/lib/auth/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,14 +34,22 @@ export async function POST(request: Request, context: RouteContext) {
     where: { id },
     include: {
       bible: true,
-      chapters: { orderBy: { chapter_index: "asc" } },
+      chapters: { orderBy: { chapter_index: "asc" }, include: { summary: true } },
     },
   });
   if (!novel || !novel.bible) {
     return jsonError("NOVEL_NOT_FOUND", "Novel or Bible draft not found", false, 404);
   }
 
-  const userId = await getOptionalUserId();
+  let userId: string;
+  try {
+    userId = await getRequiredUserId();
+  } catch {
+    return jsonError("UNAUTHORIZED", "Login required", false, 401);
+  }
+  if (isRateLimited(userId, ROUTE)) {
+    return jsonError("RATE_LIMITED", "Too many requests, please try again later", false, 429);
+  }
   if (!canAccessOwnerResource(novel.user_id, userId)) {
     return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
   }
@@ -58,7 +67,12 @@ export async function POST(request: Request, context: RouteContext) {
 
   const previousContext = novel.chapters
     .filter((chapter) => chapter.chapter_index < input.chapter_index && chapter.content.trim())
-    .map((chapter) => formatPreviousChapter(chapter.chapter_index, chapter.title, chapter.content))
+    .map((chapter) => {
+      if (chapter.summary) {
+        return `第 ${chapter.chapter_index} 章《${chapter.title}》：${chapter.summary.summary}`;
+      }
+      return formatPreviousChapter(chapter.chapter_index, chapter.title, chapter.content);
+    })
     .join("\n\n");
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {

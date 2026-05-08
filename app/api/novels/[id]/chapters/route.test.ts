@@ -4,7 +4,7 @@ import type { BibleDraft } from "@/lib/validation/schemas";
 
 const findUnique = vi.fn();
 const upsert = vi.fn();
-const getOptionalUserId = vi.fn();
+const getRequiredUserId = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -14,7 +14,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/utils/supabase/auth", () => ({
-  getOptionalUserId,
+  getRequiredUserId,
 }));
 
 const bible: BibleDraft = {
@@ -58,7 +58,7 @@ const bible: BibleDraft = {
 describe("POST /api/novels/[id]/chapters", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getOptionalUserId.mockResolvedValue(null);
+    getRequiredUserId.mockResolvedValue("user-1");
   });
 
   it("upserts a chapter inside the Bible outline", async () => {
@@ -71,7 +71,7 @@ describe("POST /api/novels/[id]/chapters", () => {
       content: "正文",
       status: "draft",
     };
-    findUnique.mockResolvedValue({ id: "novel-1", user_id: null, bible: { content: bible } });
+    findUnique.mockResolvedValue({ id: "novel-1", user_id: "user-1", bible: { content: bible } });
     upsert.mockResolvedValue(chapter);
 
     const response = await POST(request({ chapter_index: 1, title: "第1章", content: "正文", status: "draft" }), {
@@ -88,7 +88,7 @@ describe("POST /api/novels/[id]/chapters", () => {
 
   it("rejects a chapter outside the Bible outline", async () => {
     const { POST } = await import("./route");
-    findUnique.mockResolvedValue({ id: "novel-1", user_id: null, bible: { content: bible } });
+    findUnique.mockResolvedValue({ id: "novel-1", user_id: "user-1", bible: { content: bible } });
 
     const response = await POST(request({ chapter_index: 99, title: "越界章节", content: "正文", status: "draft" }), {
       params: Promise.resolve({ id: "novel-1" }),
@@ -103,7 +103,7 @@ describe("POST /api/novels/[id]/chapters", () => {
   it("hides a user-owned novel from a different user", async () => {
     const { POST } = await import("./route");
     findUnique.mockResolvedValue({ id: "novel-1", user_id: "owner-1", bible: { content: bible } });
-    getOptionalUserId.mockResolvedValue("owner-2");
+    getRequiredUserId.mockResolvedValue("owner-2");
 
     const response = await POST(request({ chapter_index: 1, title: "第1章", content: "正文", status: "draft" }), {
       params: Promise.resolve({ id: "novel-1" }),
@@ -113,6 +113,20 @@ describe("POST /api/novels/[id]/chapters", () => {
     expect(response.status).toBe(404);
     expect(json.error.code).toBe("NOVEL_NOT_FOUND");
     expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const { POST } = await import("./route");
+    findUnique.mockResolvedValue({ id: "novel-1", user_id: null, bible: { content: bible } });
+    getRequiredUserId.mockRejectedValue(new Error("UNAUTHORIZED"));
+
+    const response = await POST(request({ chapter_index: 1, title: "第1章", content: "正文", status: "draft" }), {
+      params: Promise.resolve({ id: "novel-1" }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(json.error.code).toBe("UNAUTHORIZED");
   });
 });
 

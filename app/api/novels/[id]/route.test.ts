@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const findUnique = vi.fn();
-const getOptionalUserId = vi.fn();
+const getRequiredUserId = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -10,20 +10,20 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/utils/supabase/auth", () => ({
-  getOptionalUserId,
+  getRequiredUserId,
 }));
 
 describe("GET /api/novels/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getOptionalUserId.mockResolvedValue(null);
+    getRequiredUserId.mockResolvedValue("user-1");
   });
 
   it("returns a novel with bible and chapters for editor hydration", async () => {
     const { GET } = await import("./route");
     const novel = {
       id: "novel-1",
-      user_id: null,
+      user_id: "user-1",
       title: "逆魂纪",
       bible: { id: "bible-1", content: { meta: { suggested_title: "逆魂纪" } } },
       chapters: [
@@ -51,7 +51,7 @@ describe("GET /api/novels/[id]", () => {
   it("hides a user-owned novel from a different user", async () => {
     const { GET } = await import("./route");
     findUnique.mockResolvedValue({ id: "novel-1", user_id: "owner-1", bible: null, chapters: [] });
-    getOptionalUserId.mockResolvedValue("owner-2");
+    getRequiredUserId.mockResolvedValue("owner-2");
 
     const response = await GET(new Request("http://localhost/api/novels/novel-1"), {
       params: Promise.resolve({ id: "novel-1" }),
@@ -60,6 +60,32 @@ describe("GET /api/novels/[id]", () => {
 
     expect(response.status).toBe(404);
     expect(json.error.code).toBe("NOVEL_NOT_FOUND");
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const { GET } = await import("./route");
+    findUnique.mockResolvedValue({ id: "novel-1", user_id: null, bible: null, chapters: [] });
+    getRequiredUserId.mockRejectedValue(new Error("UNAUTHORIZED"));
+
+    const response = await GET(new Request("http://localhost/api/novels/novel-1"), {
+      params: Promise.resolve({ id: "novel-1" }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(json.error.code).toBe("UNAUTHORIZED");
+  });
+
+  it("allows access to anonymous novel when authenticated", async () => {
+    const { GET } = await import("./route");
+    findUnique.mockResolvedValue({ id: "novel-1", user_id: null, bible: null, chapters: [] });
+
+    const response = await GET(new Request("http://localhost/api/novels/novel-1"), {
+      params: Promise.resolve({ id: "novel-1" }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
   });
 
   it("returns NOVEL_NOT_FOUND when the novel is missing", async () => {

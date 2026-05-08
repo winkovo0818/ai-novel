@@ -4,7 +4,7 @@ import type { BibleDraft, NovelProfile } from "@/lib/validation/schemas";
 
 const streamChatCompletionWithRetry = vi.fn();
 const findUnique = vi.fn();
-const getOptionalUserId = vi.fn();
+const getRequiredUserId = vi.fn();
 
 vi.mock("@/lib/llm/client", () => ({
   streamChatCompletionWithRetry,
@@ -17,7 +17,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/utils/supabase/auth", () => ({
-  getOptionalUserId,
+  getRequiredUserId,
 }));
 
 const profile: NovelProfile = {
@@ -73,14 +73,14 @@ const bible: BibleDraft = {
 describe("POST /api/novels/[id]/chapters/draft", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    getOptionalUserId.mockResolvedValue(null);
+    getRequiredUserId.mockResolvedValue("user-1");
   });
 
   it("emits an SSE error event when the LLM times out", async () => {
     const { POST } = await import("./route");
     findUnique.mockResolvedValue({
       id: "novel-1",
-      user_id: null,
+      user_id: "user-1",
       profile,
       bible: { content: bible },
       chapters: [],
@@ -111,7 +111,7 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
       bible: { content: bible },
       chapters: [],
     });
-    getOptionalUserId.mockResolvedValue("owner-2");
+    getRequiredUserId.mockResolvedValue("owner-2");
 
     const response = await POST(
       new Request("http://localhost/api/novels/novel-1/chapters/draft", {
@@ -125,6 +125,30 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
     expect(response.status).toBe(404);
     expect(json.error.code).toBe("NOVEL_NOT_FOUND");
     expect(streamChatCompletionWithRetry).not.toHaveBeenCalled();
+  });
+
+  it("returns 401 when not authenticated", async () => {
+    const { POST } = await import("./route");
+    findUnique.mockResolvedValue({
+      id: "novel-1",
+      user_id: null,
+      profile,
+      bible: { content: bible },
+      chapters: [],
+    });
+    getRequiredUserId.mockRejectedValue(new Error("UNAUTHORIZED"));
+
+    const response = await POST(
+      new Request("http://localhost/api/novels/novel-1/chapters/draft", {
+        method: "POST",
+        body: JSON.stringify({ chapter_index: 1, title: "第1章" }),
+      }),
+      { params: Promise.resolve({ id: "novel-1" }) },
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(json.error.code).toBe("UNAUTHORIZED");
   });
 });
 

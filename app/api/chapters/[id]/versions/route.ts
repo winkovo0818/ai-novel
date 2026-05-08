@@ -11,24 +11,15 @@ interface RouteContext {
 
 export async function GET(_request: Request, context: RouteContext) {
   const { id } = await context.params;
-  const novel = await prisma.novel.findUnique({
+
+  const chapter = await prisma.chapterDraft.findUnique({
     where: { id },
-    include: {
-      bible: true,
-      chapters: { orderBy: { chapter_index: "asc" } },
-    },
+    include: { novel: { select: { user_id: true } } },
   });
 
-  if (!novel) {
+  if (!chapter) {
     return Response.json(
-      {
-        ok: false,
-        error: {
-          code: "NOVEL_NOT_FOUND",
-          message: "Novel not found",
-          retryable: false,
-        },
-      },
+      { ok: false, error: { code: "CHAPTER_NOT_FOUND", message: "Chapter not found", retryable: false } },
       { status: 404 },
     );
   }
@@ -42,19 +33,19 @@ export async function GET(_request: Request, context: RouteContext) {
       { status: 401 },
     );
   }
-  if (!canAccessOwnerResource(novel.user_id, userId)) {
+
+  if (!canAccessOwnerResource(chapter.novel.user_id, userId)) {
     return Response.json(
-      {
-        ok: false,
-        error: {
-          code: "NOVEL_NOT_FOUND",
-          message: "Novel not found",
-          retryable: false,
-        },
-      },
+      { ok: false, error: { code: "CHAPTER_NOT_FOUND", message: "Chapter not found", retryable: false } },
       { status: 404 },
     );
   }
 
-  return Response.json({ ok: true, data: novel });
+  const versions = await prisma.chapterVersion.findMany({
+    where: { chapter_id: id },
+    orderBy: { created_at: "desc" },
+    take: 50,
+  });
+
+  return Response.json({ ok: true, data: versions });
 }

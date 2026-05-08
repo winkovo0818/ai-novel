@@ -3,7 +3,7 @@
  *
  * Prerequisites:
  *   1. npm run db:up && npm run db:migrate
- *   2. DEEPSEEK_API_KEY is configured in .env.local
+ *   2. DEEPSEEK_API_KEY is configured in .env
  *   3. npm run dev (or npm run build && npm run start)
  *
  * Run:
@@ -14,7 +14,7 @@ import { config as loadEnv } from "dotenv";
 
 import type { BibleDraft } from "../lib/validation/schemas";
 
-loadEnv({ path: ".env.local" });
+loadEnv({ path: ".env" });
 loadEnv();
 
 const BASE_URL = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/+$/, "");
