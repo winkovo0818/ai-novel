@@ -4,25 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 
 import { readSse } from "@/lib/stream/readSse";
 import type { BibleDraft } from "@/lib/validation/schemas";
-import { EditorSidebar } from "./EditorSidebar";
-import { EditorToolbar } from "./EditorToolbar";
+import type { ChapterDraftView } from "./EditorClient";
 
-export interface ChapterDraftView {
-  id: string;
-  chapter_index: number;
-  title: string;
-  content: string;
-  status: string;
-}
-
-interface EditorClientProps {
+interface UseChapterEditorOptions {
   novelId: string;
-  title: string;
   bible: BibleDraft;
   initialChapters: ChapterDraftView[];
 }
 
-export function EditorClient({ novelId, title, bible, initialChapters }: EditorClientProps) {
+export function useChapterEditor({ novelId, bible, initialChapters }: UseChapterEditorOptions) {
   const firstChapter = bible.outline.volume_1.chapters[0];
   const firstDraft = initialChapters.find((chapter) => chapter.chapter_index === 1);
   const [chapters, setChapters] = useState(initialChapters);
@@ -212,62 +202,53 @@ export function EditorClient({ novelId, title, bible, initialChapters }: EditorC
     }
   }
 
-  return (
-    <main
-      className="min-h-screen bg-neutral-950 px-5 py-6 text-white"
-      onKeyDown={(event) => {
-        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-          event.preventDefault();
-          if (status !== "saving" && status !== "drafting" && chapterTitle.trim()) {
-            void saveChapter();
-          }
-        }
-      }}
-    >
-      <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[360px_1fr]">
-        <EditorSidebar
-          title={title}
-          bible={bible}
-          chapters={chapters}
-          selectedIndex={selectedIndex}
-          isBusy={status === "drafting" || status === "saving"}
-          onSelectChapter={selectChapter}
-        />
+  async function deleteChapter() {
+    if (!chapterId) return;
+    if (!window.confirm(`确定删除第 ${selectedIndex} 章「${chapterTitle}」吗？此操作不可撤销。`)) return;
 
-        <section className="rounded-3xl border border-white/10 bg-white p-5 text-neutral-950">
-          <EditorToolbar
-            selectedIndex={selectedIndex}
-            summary={selectedOutline?.summary}
-            chapterTitle={chapterTitle}
-            chapterStatus={chapterStatus}
-            isSaved={Boolean(selectedDraft)}
-            characterCount={characterCount}
-            status={status}
-            message={message}
-            hasUnsavedChanges={hasUnsavedChanges}
-            onTitleChange={(nextTitle) => {
-              setChapterTitle(nextTitle);
-              if (status === "saved") setStatus("idle");
-            }}
-            onDraftChapter={draftChapter}
-            onToggleStatus={() => {
-              setChapterStatus((current) => current === "done" ? "draft" : "done");
-              if (status === "saved") setStatus("idle");
-            }}
-            onSave={saveChapter}
-          />
+    try {
+      const response = await fetch(`/api/chapters/${chapterId}`, { method: "DELETE" });
+      const json = await response.json();
 
-          <textarea
-            className="mt-5 min-h-[65vh] w-full resize-none rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-base leading-8 outline-none focus:border-neutral-950"
-            placeholder={`从这里开始写第 ${selectedIndex} 章。你可以参考左侧 Bible 和章节梗概。`}
-            value={content}
-            onChange={(event) => {
-              setContent(event.target.value);
-              if (status === "saved") setStatus("idle");
-            }}
-          />
-        </section>
-      </div>
-    </main>
-  );
+      if (!json.ok) {
+        throw new Error(json.error?.message ?? "删除失败");
+      }
+
+      setChapters((current) => current.filter((c) => c.id !== chapterId));
+      setChapterId(undefined);
+      setContent("");
+      setChapterTitle(selectedOutline?.title ?? `第 ${selectedIndex} 章`);
+      setChapterStatus("draft");
+      setSavedTitle(selectedOutline?.title ?? `第 ${selectedIndex} 章`);
+      setSavedContent("");
+      setSavedStatus("draft");
+      setStatus("idle");
+      setMessage("章节已删除");
+    } catch (err) {
+      setStatus("error");
+      setMessage(err instanceof Error ? err.message : "删除失败");
+    }
+  }
+
+  return {
+    chapters,
+    selectedIndex,
+    selectedDraft,
+    selectedOutline,
+    chapterTitle,
+    setChapterTitle,
+    content,
+    setContent,
+    chapterStatus,
+    setChapterStatus,
+    status,
+    setStatus,
+    message,
+    hasUnsavedChanges,
+    characterCount,
+    selectChapter,
+    saveChapter,
+    draftChapter,
+    deleteChapter,
+  };
 }

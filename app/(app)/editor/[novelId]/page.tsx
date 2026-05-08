@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/db";
+import { canAccessOwnerResource } from "@/lib/auth/ownership";
+import { getRequiredUserId } from "@/utils/supabase/auth";
 import { BibleDraftSchema } from "@/lib/validation/schemas";
 import { EditorClient } from "./EditorClient";
 
@@ -10,6 +12,14 @@ interface PageProps {
 
 export default async function EditorPlaceholderPage({ params }: PageProps) {
   const { novelId } = await params;
+
+  let userId: string;
+  try {
+    userId = await getRequiredUserId();
+  } catch {
+    notFound();
+  }
+
   const novel = await prisma.novel.findUnique({
     where: { id: novelId },
     include: {
@@ -19,6 +29,7 @@ export default async function EditorPlaceholderPage({ params }: PageProps) {
   });
 
   if (!novel || !novel.bible) notFound();
+  if (!canAccessOwnerResource(novel.user_id, userId)) notFound();
 
   const bible = BibleDraftSchema.safeParse(novel.bible.content);
   if (!bible.success) notFound();

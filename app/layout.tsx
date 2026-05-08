@@ -1,17 +1,42 @@
 import type { Metadata } from "next";
+import { NextIntlClientProvider } from "next-intl";
+import { getMessages } from "next-intl/server";
+import { Geist, Geist_Mono, Noto_Serif_SC } from "next/font/google";
 import "./globals.css";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+const notoSerif = Noto_Serif_SC({
+  variable: "--font-serif",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "700"],
+});
 
 export const metadata: Metadata = {
   title: "AI Novel",
-  description: "AI 协同写小说平台 — Onboarding MVP",
+  description: "AI 协同写小说平台 — 专业创作工作台",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const messages = await getMessages();
+
   return (
     <html lang="zh-CN">
-      <body className="antialiased">{children}</body>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${notoSerif.variable} antialiased`}>
+        <NextIntlClientProvider messages={messages}>
+          {children}
+        </NextIntlClientProvider>
+      </body>
     </html>
   );
 }
