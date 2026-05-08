@@ -1,4 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+vi.mock("@/lib/db", () => ({
+  prisma: {
+    llmModel: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
+  },
+}));
+
 import { chatCompletion, chatCompletionWithRetry, streamChatCompletion } from "./client";
 
 const ORIG_KEY = process.env.DEEPSEEK_API_KEY;

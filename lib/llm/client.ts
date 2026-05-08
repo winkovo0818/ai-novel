@@ -4,8 +4,11 @@
  * 契约：
  * - 所有调用必须经过本模块，禁止业务代码自行 fetch 或 console.log token。
  *   日志格式由本模块统一输出（见 docs/contracts.md §9）。
+ * - 模型配置优先从 LlmModel 表读取（is_default=true && is_enabled=true），
+ *   找不到时回退到 DEEPSEEK_* 环境变量；DB 不可达时也回退。
  */
 
+import { prisma } from "@/lib/db";
 import {
   isLlmMockEnabled,
   mockChatCompletion,
@@ -113,12 +116,53 @@ function getBaseUrl(): string {
   );
 }
 
+interface ResolvedModelConfig {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
+/**
+ * Resolve which provider/model to call. Prefers a DB-configured default row
+ * (so users can manage credentials via /models without redeploying), and falls
+ * back to DEEPSEEK_* env vars if the DB is unavailable or no row is enabled.
+ *
+ * The lookup is wrapped in a 500ms timeout so a slow / unreachable DB never
+ * blocks an LLM call — env fallback wins in that case.
+ */
+async function resolveModelConfig(opts: { model?: string }): Promise<ResolvedModelConfig> {
+  try {
+    const lookup = prisma.llmModel.findFirst({
+      where: { is_default: true, is_enabled: true },
+      orderBy: { created_at: "asc" },
+    });
+    const row = await Promise.race([
+      lookup,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 500)),
+    ]);
+    if (row) {
+      return {
+        baseUrl: row.base_url.replace(/\/+$/, ""),
+        apiKey: row.api_key,
+        model: opts.model ?? row.model,
+      };
+    }
+  } catch {
+    // Fall through to env-based config.
+  }
+  return {
+    baseUrl: getBaseUrl(),
+    apiKey: requireEnv("DEEPSEEK_API_KEY"),
+    model: opts.model ?? DEFAULT_MODEL,
+  };
+}
+
 export async function streamChatCompletion(
   opts: ChatStreamOptions,
   callbacks: ChatStreamCallbacks,
 ): Promise<ChatStreamResult> {
   const start = Date.now();
-  const model = opts.model ?? DEFAULT_MODEL;
+  let model = opts.model ?? DEFAULT_MODEL;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   let status: "ok" | "err" = "ok";
@@ -136,13 +180,15 @@ export async function streamChatCompletion(
       return result;
     }
 
-    const apiKey = requireEnv("DEEPSEEK_API_KEY");
+    const config = await resolveModelConfig({ model: opts.model });
+    model = config.model;
+    const apiKey = config.apiKey;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     let response: Response;
     try {
-      response = await fetch(`${getBaseUrl()}/chat/completions`, {
+      response = await fetch(`${config.baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -255,7 +301,7 @@ export async function chatCompletion(
   opts: ChatCompletionOptions,
 ): Promise<ChatCompletionResult> {
   const start = Date.now();
-  const model = opts.model ?? DEFAULT_MODEL;
+  let model = opts.model ?? DEFAULT_MODEL;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   let status: "ok" | "err" = "ok";
@@ -268,8 +314,10 @@ export async function chatCompletion(
       return result;
     }
 
-    const apiKey = requireEnv("DEEPSEEK_API_KEY");
-    const baseUrl = getBaseUrl();
+    const config = await resolveModelConfig({ model: opts.model });
+    model = config.model;
+    const apiKey = config.apiKey;
+    const baseUrl = config.baseUrl;
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
