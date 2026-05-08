@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { readSse } from "@/lib/stream/readSse";
+import { getAllChapters } from "@/lib/validation/schemas";
 import type { BibleDraft } from "@/lib/validation/schemas";
 import type { ChapterDraftView } from "./EditorClient";
 
@@ -34,12 +35,13 @@ export interface ChapterVersionView {
 }
 
 export function useChapterEditor({ novelId, bible, initialChapters }: UseChapterEditorOptions) {
-  const firstChapter = bible.outline.volume_1.chapters[0];
+  const allOutlineChapters = getAllChapters(bible);
+  const firstChapter = allOutlineChapters[0];
   const firstDraft = initialChapters.find((chapter) => chapter.chapter_index === 1);
   const [chapters, setChapters] = useState(initialChapters);
   const [selectedIndex, setSelectedIndex] = useState(1);
   const selectedDraft = chapters.find((chapter) => chapter.chapter_index === selectedIndex);
-  const selectedOutline = bible.outline.volume_1.chapters.find((chapter) => chapter.index === selectedIndex) ?? firstChapter;
+  const selectedOutline = allOutlineChapters.find((chapter) => chapter.index === selectedIndex) ?? firstChapter;
   const [chapterId, setChapterId] = useState(firstDraft?.id);
   const [chapterTitle, setChapterTitle] = useState(firstDraft?.title ?? firstChapter?.title ?? "第一章");
   const [content, setContent] = useState(firstDraft?.content ?? "");
@@ -134,7 +136,7 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
     }
 
     const draft = chapters.find((chapter) => chapter.chapter_index === index);
-    const outline = bible.outline.volume_1.chapters.find((chapter) => chapter.index === index);
+    const outline = allOutlineChapters.find((chapter) => chapter.index === index);
     const nextTitle = draft?.title ?? outline?.title ?? `第 ${index} 章`;
     const nextContent = draft?.content ?? "";
     const nextStatus = draft?.status === "done" ? "done" : "draft";

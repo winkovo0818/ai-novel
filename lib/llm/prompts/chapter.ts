@@ -1,4 +1,5 @@
 import type { ChatMessage } from "../client";
+import { getAllChapters } from "../../validation/schemas";
 import type { BibleDraft, NovelProfile } from "../../validation/schemas";
 
 export interface ChapterPromptInput {
@@ -12,7 +13,7 @@ export interface ChapterPromptInput {
 
 export function buildChapterPrompt(input: ChapterPromptInput): ChatMessage[] {
   const protagonist = input.bible.characters.find((c) => c.role === "protagonist");
-  const chapter = input.bible.outline.volume_1.chapters.find(
+  const chapter = getAllChapters(input.bible).find(
     (item) => item.index === input.chapterIndex,
   );
 

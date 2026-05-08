@@ -1,3 +1,4 @@
+import { getVolumes } from "@/lib/validation/schemas";
 import type { BibleDraft } from "@/lib/validation/schemas";
 import type { ChapterDraftView } from "./EditorClient";
 
@@ -18,7 +19,8 @@ export function EditorSidebar({
   isBusy,
   onSelectChapter,
 }: EditorSidebarProps) {
-  const totalChapters = bible.outline.volume_1.chapters.length;
+  const volumes = getVolumes(bible);
+  const totalChapters = volumes.reduce((sum, v) => sum + v.chapters.length, 0);
   const savedCount = chapters.length;
   const doneCount = chapters.filter((chapter) => chapter.status === "done").length;
 
@@ -41,7 +43,16 @@ export function EditorSidebar({
       <nav className="flex-1 overflow-y-auto p-12 custom-scrollbar">
         <div className="space-y-4">
           <div className="px-12 py-8 text-[10px] font-bold text-text-muted uppercase tracking-[0.2em]">章节目录 / UNITS</div>
-          {bible.outline.volume_1.chapters.map((chapter) => {
+          {volumes.flatMap((volume, volumeIdx) => [
+            volumes.length > 1 ? (
+              <div
+                key={`vol-${volumeIdx}`}
+                className="px-12 pt-12 pb-4 text-[10px] font-bold text-text-muted uppercase tracking-[0.2em] border-t border-border-subtle"
+              >
+                第 {volumeIdx + 1} 卷 / {volume.name}
+              </div>
+            ) : null,
+            ...volume.chapters.map((chapter) => {
             const draft = chapters.find((d) => d.chapter_index === chapter.index);
             const isSelected = chapter.index === selectedIndex;
             return (
@@ -71,7 +82,8 @@ export function EditorSidebar({
                 </p>
               </button>
             );
-          })}
+          }),
+          ])}
         </div>
       </nav>
 

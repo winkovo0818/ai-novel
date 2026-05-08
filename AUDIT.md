@@ -90,7 +90,7 @@
 
 | # | 优先级 | 缺口 | 证据/备注 | 修复方向 |
 |---|---|---|---|---|
-| ~~P1~~ | 部分落地（多卷未做） | **schema 限制无法写长篇** | `ChapterSchema.index` 已放宽到 1-1000；`volume_1.chapters` 上限 50；`POST /api/novels/[id]/chapters` 与 `/draft` 不再因不在 outline 中拒绝 | 完成 2026-05-08。多卷支持留作后续（建议在 Milestone B 一并改 schema）。 |
+| ~~P1~~ | 已落地 | **schema 限制无法写长篇** | `ChapterSchema.index` 已放宽到 1-1000；`volume_1.chapters` 上限 50；`outline.volumes[]` 支持追加多卷；`POST /api/novels/[id]/chapters` 与 `/draft` 不再因不在 outline 中拒绝 | 完成 2026-05-08。 |
 | ~~P2~~ | 已落地 | **`ChapterVersion` 已节流** | PATCH `/api/chapters/[id]` 默认 `source=autosave` 不创建版本；只有 `manual` / `ai` / 状态切换创建版本；按 content_hash 去重；每章保留 50 条 | 完成 2026-05-08。客户端 `useChapterEditor` 自动保存→`autosave`，手动保存→`manual`，AI 起草→`ai`。 |
 | P3 | P1 | **Bible 编辑能力不足** | finalize 后编辑器侧栏基本只读 | 增加角色/世界规则/大纲编辑入口，并保存回 `BibleDraft` 或新结构表 |
 | P4 | P1 | **profile 字段影响 prompt 不充分** | `ai_freedom`、`audience` 等未完整映射到温度、审核、风格策略 | 建立 profile -> generation policy 映射，集中管理 temperature、字数、自由度、审核等级 |
@@ -173,7 +173,7 @@
 
 - RLS 去留决策并落地。**[已完成 2026-05-08]** 选择禁用，新增 `20260508050000_disable_rls`，移除 `setRlsUser`。
 - `/models` admin-only。**[已完成 2026-05-08]** 新增 `lib/auth/admin.ts`、`adminGuardResponse`，单测覆盖 401/403/200。
-- schema 支持长篇/多卷。**[部分完成 2026-05-08]** index 上限改为 1000，volume_1 章节上限改为 50，outline 外章节可创建/起草；多卷待后续 milestone。
+- schema 支持长篇/多卷。**[已完成 2026-05-08]** index 上限改为 1000，volume_1 章节上限改为 50，outline 外章节可创建/起草；新增 `volumes` 数组支持多卷，编辑器侧栏按卷分组渲染。
 - autosave 与版本历史解耦。**[已完成 2026-05-08]** 默认 autosave 不创建版本，hash 去重 + 50 条上限。
 - 给核心越权路径补负向测试。**[已完成 2026-05-08]** 新增 summarize/versions/consistency 三条 ownership 负向测试。
 

@@ -136,6 +136,20 @@ export const BibleWorldSchema = z.object({
   geography: z.array(z.string().min(1)).min(2).max(4),
 });
 
+export const VolumeSchema = z.object({
+  name: z.string().min(2).max(20),
+  theme: z.string().min(1),
+  chapter_count_estimate: z.number().int().min(1),
+  chapters: z.array(ChapterSchema).min(0).max(200),
+});
+export type Volume = z.infer<typeof VolumeSchema>;
+
+/**
+ * Onboarding still produces `volume_1` as the seed volume. Additional volumes
+ * may be appended into the optional `volumes` array (Bible editor or future
+ * milestones). Consumers should iterate via `getVolumes()` / `getAllChapters()`
+ * rather than reading `volume_1` directly.
+ */
 export const BibleDraftSchema = z.object({
   meta: BibleMetaSchema,
   characters: z
@@ -148,16 +162,27 @@ export const BibleDraftSchema = z.object({
     ),
   world: BibleWorldSchema,
   outline: z.object({
-    volume_1: z.object({
+    volume_1: VolumeSchema.extend({
       name: z.string().min(2).max(8),
-      theme: z.string().min(1),
       chapter_count_estimate: z.number().int().min(8),
       chapters: z.array(ChapterSchema).min(8).max(50),
     }),
+    volumes: z.array(VolumeSchema).max(20).optional(),
   }),
   first_chapter_beats: z.array(BeatSchema).min(5).max(8),
 });
 export type BibleDraft = z.infer<typeof BibleDraftSchema>;
+
+/** Iterate all volumes: legacy volume_1 first, then any extra volumes. */
+export function getVolumes(bible: BibleDraft): Volume[] {
+  const extra = bible.outline.volumes ?? [];
+  return [bible.outline.volume_1, ...extra];
+}
+
+/** Flat list of all planned chapters across every volume. */
+export function getAllChapters(bible: BibleDraft) {
+  return getVolumes(bible).flatMap((v) => v.chapters);
+}
 
 // ──────────────────────────────────────────────────
 // API 入参（contracts §2.2）

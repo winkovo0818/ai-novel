@@ -74,7 +74,7 @@
 
 ### A3. 长篇 schema 解锁
 
-> **状态：单卷限制已完成（2026-05-08）** — `ChapterSchema.index` max → 1000；`volume_1.chapters` max → 50；`POST /api/novels/[id]/chapters` 与 `/chapters/draft` 不再因 outline 缺失而拒绝；prompt 对未规划章节使用前文摘要 fallback。多卷支持暂未做（schema 仍只有 `volume_1`），见后续 milestone。
+> **状态：已完成（2026-05-08）** — `ChapterSchema.index` max → 1000；`volume_1.chapters` max → 50；`outline.volumes` 数组支持追加多卷；`POST /api/novels/[id]/chapters` 与 `/chapters/draft` 不再因 outline 缺失而拒绝；prompt 与编辑器侧栏走 `getAllChapters()` / `getVolumes()` helper，跨卷列章。
 
 
 当前问题：`ChapterSchema.index` 限制 1-20，`volume_1.chapters` 限制 8-12，和长篇产品目标冲突。

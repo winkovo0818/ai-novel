@@ -24,7 +24,8 @@ AI 协同写小说平台，支持 5 步生成 Bible 草稿 + 多章节 AI 写作
 ### 账号与安全
 - 登录 / 注册 / 密码重置
 - API 鉴权（未登录 401）
-- 数据库 Row Level Security
+- 应用层 ownership 隔离（每个 API/SSR 路由调用 `canAccessOwnerResource`，不依赖 DB RLS）
+- LLM 模型配置 admin-only（见下方 §1.1）
 - LLM 内容审核 + 本地关键词过滤
 
 ---
@@ -58,8 +59,24 @@ cp .env.example .env
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase 项目 URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` |
+| `ADMIN_USER_IDS` | 管理员 Supabase user ID 列表（逗号分隔），可访问 `/models` 与 `/api/llm-models/**` |
+| `ADMIN_EMAILS` | 管理员邮箱列表（逗号分隔，大小写不敏感），作用同上 |
 
 **可选**：`LLM_MOCK=1` 开启本地 mock，不调用 DeepSeek。
+
+### 1.1 管理员与 LLM 模型配置
+
+`/models` 页面与 `/api/llm-models/**` 路由仅对管理员开放，避免任意登录用户写入共享 API key。判定方式：
+
+- `ADMIN_USER_IDS=uuid1,uuid2`：把 Supabase 用户 ID 列在这里。
+- `ADMIN_EMAILS=alice@example.com,bob@example.com`：邮箱大小写不敏感。
+
+任一命中即视为管理员。两个变量都不设时，没有任何账号能访问模型配置（默认安全）。
+
+获取你的 Supabase user ID：登录后访问 `/profile`，或在 Supabase Dashboard 的 Auth → Users 中查找。
+
+普通用户访问 `/models` 会看到无权限提示；API 返回 `403 FORBIDDEN`。
+
 
 ### 数据库
 ```bash

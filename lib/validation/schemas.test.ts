@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  BibleDraftSchema,
+  BibleDraftSchema, getAllChapters,
   CharacterSchema,
   QuestionSchema,
   NovelProfileSchema,
@@ -222,3 +222,42 @@ describe("CharacterSchema", () => {
     expect(CharacterSchema.safeParse(c).success).toBe(false);
   });
 });
+
+describe("BibleDraftSchema multi-volume", () => {
+  it("accepts an outline with extra volumes appended", () => {
+    const draft = validBibleDraft() as ReturnType<typeof validBibleDraft> & { outline: { volumes: unknown[] } };
+    draft.outline.volumes = [
+      {
+        name: "次卷",
+        theme: "新冲突",
+        chapter_count_estimate: 3,
+        chapters: [
+          { index: 21, title: "第21章", summary: "次卷开场，主角踏入新地图，长度需要超过最低字数限制。" },
+          { index: 22, title: "第22章", summary: "次卷推进，旧伙伴重逢，引出更大谜团并埋下伏笔。" },
+          { index: 23, title: "第23章", summary: "次卷小高潮，揭开第一卷遗留的疑点，但带出新威胁。" },
+        ],
+      },
+    ];
+    const r = BibleDraftSchema.safeParse(draft);
+    expect(r.success).toBe(true);
+  });
+
+  it("getAllChapters flattens chapters across all volumes", () => {
+    const draft = validBibleDraft() as ReturnType<typeof validBibleDraft> & { outline: { volumes: unknown[] } };
+    draft.outline.volumes = [
+      {
+        name: "次卷",
+        theme: "新冲突",
+        chapter_count_estimate: 1,
+        chapters: [
+          { index: 21, title: "第21章", summary: "次卷开场，主角踏入新地图，长度需要超过最低字数限制。" },
+        ],
+      },
+    ];
+    const parsed = BibleDraftSchema.parse(draft);
+    const chapters = getAllChapters(parsed);
+    expect(chapters.length).toBe(parsed.outline.volume_1.chapters.length + 1);
+    expect(chapters.some((c) => c.index === 21)).toBe(true);
+  });
+});
+
