@@ -1,19 +1,23 @@
 # 项目进度
 
-> 最后更新：2026-05-08
-> 当前分支：main
-> 最新提交：`f35121c docs: document API ownership checks`
+> 最后更新：2026-05-09  
+> 当前口径：以当前工作区代码、文档审阅和实际验证命令为准。  
+> 详细任务与风险台账见：`TASKS.md`。
 
 ---
 
 ## 一、总体判断
 
 | 阶段 | 进度 | 说明 |
-| --- | --- | --- |
-| Onboarding MVP | 95% | `/new` 5 步流程完整可跑，API + UI + 测试均已覆盖 |
-| 多章节写作 MVP | 85% | 编辑器已支持多章节、AI 起草、自动保存、状态流转 |
-| 安全上线准备 | 70% | 已有 API ownership 隔离，缺登录 UI、内容审核 |
-| 正式产品化 | 35% | 缺版本历史、全文一致性、内容审核、长篇记忆/RAG |
+| --- | ---: | --- |
+| Onboarding MVP | 85-90% | `/new` 5 步开书、Bible SSE、Step5 Review、Finalize 已形成主闭环 |
+| 多章节写作 MVP | 75-85% | 多章节编辑、保存、AI 起草、删除、版本历史、Critic、State Diff 已实现 |
+| 安全上线准备 | 55-65% | 已有 Supabase Auth、ownership、admin-only；但 LLM key 明文、public LLM health check、生产限流仍是风险 |
+| 长篇记忆/Agent | 35-50% | Story State、分层摘要、MemoryChunk、Critic 有雏形；RAG 和 Agent 编排仍非生产级 |
+| 工程可交付性 | 45-55% | Vitest 通过；当前 typecheck/build/lint 因 `next-intl` 依赖状态失败 |
+| 正式产品化 | 30-40% | 缺导出、用量/配额、生产健康检查、写作工具、UI 低噪声重设计 |
+
+核心结论：项目具备可演示 MVP，但当前不能标记为“全部完成”或“可生产上线”。下一阶段应优先恢复 `npm run verify`、修复 LLM 成本/密钥风险，并把长篇记忆闭环做扎实。
 
 ---
 
@@ -32,7 +36,7 @@
 - Finalize 创建 Novel + BibleDraft（`POST /api/onboarding/sessions/:id/finalize`）
 - Finalize 支持 fallback 到服务端 BibleDraft
 
-### 多章节编辑器
+### 多章节编辑器与写作闭环
 
 - `/editor/[novelId]` 多章节写作页
 - 左侧 Bible 侧栏（主角、世界规则、第一章节拍、首卷章节列表）
@@ -49,6 +53,12 @@
 - 浏览器关闭前未保存提醒
 - 字数统计、已存/完成/总章节进度统计
 - 编辑器组件拆分：EditorSidebar、EditorToolbar、EditorClient
+- 章节删除、版本历史、autosave 与版本解耦
+- Bible 编辑器
+- State Diff 生成、展示、确认、回写 Bible
+- AI 起草后自动 Critic，严重冲突阻止静默覆盖
+- Chapter Context Builder 接入 story_state、摘要和 retrieved memories
+- 分层摘要模型与 MemoryChunk/RAG 雏形
 
 ### API 层
 
@@ -64,6 +74,11 @@
 - `Novel` — 小说项目
 - `BibleDraft` — Bible 草稿
 - `ChapterDraft` — 章节草稿（novel_id + chapter_index 唯一约束）
+- `ChapterVersion` — 章节历史快照
+- `ChapterSummary` — 章节摘要
+- `VolumeSummary` / `NovelSummary` — 分层摘要
+- `MemoryChunk` — 记忆切块与 embedding
+- `LlmModel` — 管理员模型配置
 
 ### LLM 与 Mock
 
@@ -83,7 +98,7 @@
 
 ### 测试
 
-- Unit/API tests：10 files / 41 tests passed
+- Unit/API tests：当前实测 24 files / 127 tests passed
   - `lib/stream/sseEncode.test.ts`
   - `lib/stream/readSse.test.ts`
   - `lib/stream/jsonStreamParser.test.ts`
@@ -102,8 +117,8 @@
 
 ### CI/CD
 
-- `.github/workflows/ci.yml` — GitHub Actions 跑 `npm run verify`
-- `npm run verify` — typecheck + test + build 一键验证
+- `.github/workflows/ci.yml` — 当前工作区存在，但 `.github/` 显示未跟踪，需确认提交后才会在 GitHub 生效
+- `npm run verify` — typecheck + test + build；当前因 `next-intl` 依赖状态导致 typecheck/build 失败
 - `npm run db:deploy` — Prisma migrate deploy（Supabase/生产用）
 
 ### 文档
@@ -113,29 +128,22 @@
 
 ---
 
-## 三、未完成项
+## 三、未完成项与风险需求
 
-### 高优先级
+完整任务表、风险说明、技术实现方案和验收标准已迁移到 `TASKS.md`。当前最高优先级如下：
 
-- **登录/注册 UI** — 当前只记录用户 ID，无完整登录流程
-- **内容审核替换** — 当前仍是 mock pass
-
-### 中优先级
-
-- **章节版本历史** — 当前只有最新版本
-- **全文一致性校验** — 长篇小说跨章节一致性
-- **长篇记忆/RAG** — 基于已有章节生成后续内容
-- **Playwright E2E 进 CI** — 当前只在本地跑
-- **删除章节功能** — 当前只能创建和编辑
-- **编辑器组件进一步拆分** — `EditorClient` 仍较大
-
-### 低优先级
-
-- **移动端适配**
-- **i18n**
-- **正式部署配置和线上验证**
-- **Step4 卡片动效优化**
-- **用户 profile 管理页**
+| 优先级 | 任务 | 原因 |
+| --- | --- | --- |
+| P0 | 修复 `typecheck/build/lint` 失败 | 当前 `npm run verify` 不通过，项目不可交付 |
+| P0 | 提交并启用 CI 工作流 | `.github/` 当前未跟踪，CI 可能未真正生效 |
+| P0 | 保护 `/api/healthz/llm` | 公开接口可真实调用 LLM，存在刷成本风险 |
+| P0 | LLM API key 加密存储与脱敏返回 | 当前 `LlmModel.api_key` 明文字段，API 返回完整 row |
+| P1 | 生产级限流 | 当前内存 Map 限流不适合多实例和 serverless |
+| P1 | 内容审核策略化 | LLM 审核失败 fail-open，生产风险较高 |
+| P1 | ownership 负向测试补齐 | RLS 已禁用，必须用测试守住应用层隔离 |
+| P1 | LLM 用量统计与配额 | 目前成本只 console.log，无法控成本或计费 |
+| P1 | 章节改稿后的摘要/索引级联刷新 | 长篇记忆可能使用过期信息 |
+| P2 | 导出 Markdown/TXT/docx/epub | 真实作者使用闭环缺失 |
 
 ---
 
@@ -143,29 +151,54 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| `app/new/page.tsx` | Onboarding 入口 |
-| `app/new/_components/Step4Generating.tsx` | Bible 流式生成 UI |
-| `app/new/_components/Step5Review.tsx` | Bible 审阅编辑 |
-| `app/editor/[novelId]/page.tsx` | 编辑器 server loader |
-| `app/editor/[novelId]/EditorClient.tsx` | 编辑器核心状态和逻辑 |
-| `app/editor/[novelId]/EditorSidebar.tsx` | Bible 侧栏和章节列表 |
-| `app/editor/[novelId]/EditorToolbar.tsx` | 编辑器工具栏 |
+| `app/(app)/new/page.tsx` | Onboarding 入口 |
+| `app/(app)/new/_components/Step4Generating.tsx` | Bible 流式生成 UI |
+| `app/(app)/new/_components/Step5Review.tsx` | Bible 审阅编辑 |
+| `app/(app)/editor/[novelId]/page.tsx` | 编辑器 server loader |
+| `app/(app)/editor/[novelId]/EditorClient.tsx` | 编辑器主 UI 编排 |
+| `app/(app)/editor/[novelId]/useChapterEditor.ts` | 编辑器状态机、保存、起草、版本、审校 |
+| `app/(app)/editor/[novelId]/EditorSidebar.tsx` | Bible 侧栏和章节列表 |
+| `app/(app)/editor/[novelId]/EditorToolbar.tsx` | 编辑器工具栏 |
+| `app/(app)/editor/[novelId]/AIPanel.tsx` | AI 起草、逻辑审计、状态追踪入口 |
+| `app/(app)/editor/[novelId]/BibleEditorPanel.tsx` | Bible 编辑器 |
+| `app/(app)/editor/[novelId]/CriticPanel.tsx` | 起草后 Critic 冲突展示 |
+| `app/(app)/editor/[novelId]/StateDiffPanel.tsx` | State Diff 确认回写 UI |
+| `app/(app)/editor/[novelId]/VersionsModal.tsx` | 章节版本历史弹窗 |
 | `app/api/onboarding/sessions/route.ts` | 创建 session |
 | `app/api/onboarding/sessions/[id]/bible/route.ts` | Bible SSE 流式生成 |
 | `app/api/onboarding/sessions/[id]/finalize/route.ts` | Finalize 创建 Novel |
 | `app/api/novels/[id]/route.ts` | 获取 Novel 数据 |
+| `app/api/novels/[id]/bible/route.ts` | Bible 更新 API |
 | `app/api/novels/[id]/chapters/route.ts` | 创建/更新章节 |
 | `app/api/novels/[id]/chapters/draft/route.ts` | 章节 SSE 起草 |
+| `app/api/novels/[id]/chapters/critic/route.ts` | 起草后 Critic API |
+| `app/api/novels/[id]/consistency/route.ts` | 全文一致性检查 |
+| `app/api/novels/[id]/summaries/refresh/route.ts` | 分层摘要刷新 |
 | `app/api/chapters/[id]/route.ts` | 更新章节 |
+| `app/api/chapters/[id]/versions/route.ts` | 章节版本历史 |
+| `app/api/chapters/[id]/summarize/route.ts` | 章节摘要生成 |
+| `app/api/chapters/[id]/state-diff/route.ts` | State Diff 生成 |
+| `app/api/chapters/[id]/index/route.ts` | MemoryChunk 索引 |
+| `app/api/llm-models/route.ts` | LLM 模型配置列表和创建 |
 | `lib/llm/client.ts` | DeepSeek 客户端 |
 | `lib/llm/mock.ts` | Mock LLM |
+| `lib/llm/embeddings.ts` | Embedding API 封装 |
 | `lib/llm/prompts/bible.ts` | Bible 生成 prompt |
 | `lib/llm/prompts/chapter.ts` | 章节生成 prompt |
+| `lib/llm/prompts/critic.ts` | Critic prompt |
+| `lib/llm/prompts/stateDiff.ts` | State Diff prompt |
+| `lib/agent/chapterContext.ts` | 章节上下文编排 |
+| `lib/agent/summaries.ts` | 分层摘要刷新 |
+| `lib/agent/chunking.ts` | MemoryChunk 切块和索引 |
+| `lib/agent/retrieval.ts` | RAG 检索雏形 |
 | `lib/stream/sseEncode.ts` | SSE 编码 |
 | `lib/stream/readSse.ts` | SSE 读取工具 |
 | `lib/stream/jsonStreamParser.ts` | 增量 JSON 解析 |
 | `lib/validation/schemas.ts` | 全链路 zod schema |
+| `lib/validation/stateDiffMerge.ts` | State Diff 合并逻辑 |
 | `lib/auth/ownership.ts` | 用户归属校验 |
+| `lib/auth/rateLimit.ts` | 内存限流器 |
+| `lib/auth/admin.ts` | 管理员判定 |
 | `utils/supabase/server.ts` | Supabase server client |
 | `utils/supabase/auth.ts` | 可选用户 ID 获取 |
 | `prisma/schema.prisma` | 数据模型 |

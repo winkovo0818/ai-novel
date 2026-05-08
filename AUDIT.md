@@ -61,10 +61,10 @@
 
 | 层级 | 当前状态 | 缺口 | 下一步 |
 |---|---|---|---|
-| L1 Story Bible | 有 `BibleDraft.content` JSON，包含角色、世界、首卷大纲、第一章节拍 | 字段浅，缺角色当前状态、位置、关系、道具、伏笔、时间线；编辑器中基本只读 | 拆出可编辑实体表或结构化 JSON 子区：CharacterState、PlotThread、TimelineEvent、WorldRule、Item/Clue |
-| L2 分层摘要 | 有 `ChapterSummary`，章节完成后可后台生成摘要 | 没有卷摘要、全书梗概、状态变更摘要；摘要不会级联重算；手动改稿后状态不可靠 | 新增 `NovelSummary` / `VolumeSummary`，建立“章节摘要 -> 卷摘要 -> 全书梗概”的刷新策略 |
+| L1 Story Bible | 有 `BibleDraft.content` JSON，包含角色、世界、首卷大纲、第一章节拍 | 字段浅 | 已支持 Bible 编辑器（2026-05-08），可编辑角色/世界规则/大纲 |
+| L2 分层摘要 | 已落地 v1（2026-05-08） | 级联刷新策略（dirty 检测）仍待更精细调优 | 新增 `NovelSummary` / `VolumeSummary`，prompt 只注入梗概+卷摘要+最近5章，不再拼接全部摘要 |
 | L3 RAG / Hybrid Search | 基本没有。无 embedding、无 pgvector、无 BM25、无 reranker | 起草时只是拼接所有前文章摘要或截断原文，不是真检索 | 新增 `MemoryChunk` + embedding；按章节/场景切块；实现关键词 + 向量混合检索；起草时只注入相关片段 |
-| L4 实时状态机 | 没有 | 章节完成后不会 diff 角色状态/伏笔/时间推进，也不会回写 Bible | 新增 State Tracker：章节完成后输出结构化 `state_diff`，人工确认后回写 Bible/状态表 |
+| L4 实时状态机 | 已落地 v1（2026-05-08） | 还需让 draft prompt 显式消费 story_state | State Tracker v1 已支持：LLM 生成 `state_diff`，人工确认后回写 Bible `story_state` |
 
 阶段目标不要一口气做完整 RAG。推荐先做“章节摘要 + 状态 diff + 可编辑 Bible”闭环，再做向量库。
 
@@ -78,9 +78,9 @@
 |---|---|---|---|
 | 大纲 Agent | 未独立存在 | 不能按当前状态动态生成 Beat Sheet | 第 2 阶段实现：先用章节大纲 + 当前状态生成本章 Beat Sheet |
 | 检索 Agent | 未实现 | 没有 query 构建、检索、rerank、引用片段 | 第 4 阶段实现：先基于摘要检索，再接 embedding |
-| 写作 Agent | 已有 | `buildChapterPrompt` 是核心写作 Agent，但上下文来源单薄 | 保留，改为吃 Agent Orchestrator 组装后的上下文包 |
-| Critic Agent | 有手动一致性检查 | 不参与生成闭环；不通过不会回炉；检查只截断每章 600 字 | 第 3 阶段接入：起草后自动校验，严重问题阻止直接覆盖或提示重写 |
-| State Updater | 未实现 | 不会从章节提取状态变更 | 第 2 阶段实现：章节完成后生成 `state_diff`，人工确认后回写 |
+| 写作 Agent | 已有，已升级 | `buildChapterPrompt` 已接入 `buildChapterContext()`，开始消费 `story_state` | 保留，后续接入检索结果 |
+| Critic Agent | 已落地 v1 | 只检查单章，不涉及跨章一致性；不自动回炉 | Critic v1 已支持：起草后自动校验，critical/major 冲突阻止静默覆盖 |
+| State Updater | 已落地 v1 | 还需让 draft prompt 显式消费 story_state | State Updater v1 已支持：LLM 生成 `state_diff`，人工确认后回写 Bible |
 
 建议新增一个轻量编排层，而不是马上做复杂 agent 框架：`buildChapterContext()` 负责调用摘要、检索、状态、Bible 切片，再交给写作 prompt。
 
@@ -92,7 +92,7 @@
 |---|---|---|---|---|
 | ~~P1~~ | 已落地 | **schema 限制无法写长篇** | `ChapterSchema.index` 已放宽到 1-1000；`volume_1.chapters` 上限 50；`outline.volumes[]` 支持追加多卷；`POST /api/novels/[id]/chapters` 与 `/draft` 不再因不在 outline 中拒绝 | 完成 2026-05-08。 |
 | ~~P2~~ | 已落地 | **`ChapterVersion` 已节流** | PATCH `/api/chapters/[id]` 默认 `source=autosave` 不创建版本；只有 `manual` / `ai` / 状态切换创建版本；按 content_hash 去重；每章保留 50 条 | 完成 2026-05-08。客户端 `useChapterEditor` 自动保存→`autosave`，手动保存→`manual`，AI 起草→`ai`。 |
-| P3 | P1 | **Bible 编辑能力不足** | finalize 后编辑器侧栏基本只读 | 增加角色/世界规则/大纲编辑入口，并保存回 `BibleDraft` 或新结构表 |
+| ~~P3~~ | 已落地 | **Bible 编辑能力不足** | finalize 后编辑器侧栏基本只读 | 完成 2026-05-08。新增 `PATCH /api/novels/[id]/bible` + `BibleEditorPanel`，支持编辑角色、世界规则、章节大纲。 |
 | P4 | P1 | **profile 字段影响 prompt 不充分** | `ai_freedom`、`audience` 等未完整映射到温度、审核、风格策略 | 建立 profile -> generation policy 映射，集中管理 temperature、字数、自由度、审核等级 |
 | P5 | P1 | **一致性检查不是闭环** | 用户手动点“逻辑审计”，结果只展示，不影响写作流程 | AI 起草后可选自动 Critic；严重冲突提示回炉或生成修订建议 |
 | P6 | P2 | **没有导出** | design 有导出，代码无实现 | 先做 Markdown/TXT，再做 docx/epub |
@@ -145,11 +145,13 @@
 
 ### P1：把 MVP 推成可持续写作工具
 
-5. **章节完成后的记忆闭环 v1**：完成章摘要后生成 `state_diff`，用户确认后更新 Bible/状态 JSON。
-6. **Bible 可编辑**：在编辑器中编辑角色、规则、大纲，并影响下一次生成。
-7. **Critic 接入写作闭环**：起草后自动做轻量一致性检查，冲突时给出修订建议或一键回炉。
-8. **限流和审核扩面**：覆盖所有高成本/高风险 LLM 路由。
-9. **profile 策略化**：将 `ai_freedom`、`audience`、`pace`、`chapter_word_count` 统一映射到 prompt 和参数。
+5. ~~**章节完成后的记忆闭环 v1**~~：已完成 2026-05-08。新增 `StoryStateV1` + `StateDiff` + `POST /api/chapters/[id]/state-diff` + `applyStateDiff()`，用户确认后回写 Bible。
+6. ~~**Bible 可编辑**~~：已完成 2026-05-08。新增 `PATCH /api/novels/[id]/bible` + `BibleEditorPanel`。
+7. ~~**Critic 接入写作闭环**~~：已完成 2026-05-08。新增 `POST /api/novels/[id]/chapters/critic`，AI 起草后自动审校，critical/major 冲突阻止静默覆盖。
+8. ~~**`buildChapterContext()` 编排层**~~：已完成 2026-05-08。`draft/route.ts` 已接入，`buildChapterPrompt` 已消费 `story_state`。
+9. ~~**分层摘要**~~：已完成 2026-05-08。新增 `VolumeSummary` + `NovelSummary` + `refreshSummaries()`，prompt 只注入梗概+卷摘要+最近5章。
+10. **限流和审核扩面**：覆盖所有高成本/高风险 LLM 路由。
+11. **profile 策略化**：将 `ai_freedom`、`audience`、`pace`、`chapter_word_count` 统一映射到 prompt 和参数。
 
 ### P2：实现真正的长篇记忆
 
@@ -181,25 +183,25 @@
 
 ### Milestone B：记忆闭环 v1
 
-- Bible 编辑器。
+- ~~Bible 编辑器~~。✅ 已完成 2026-05-08。
 - 章摘要稳定生成和重算。
-- `state_diff` 生成、展示、确认、回写。
-- 章节起草 prompt 使用当前状态切片。
+- ~~`state_diff` 生成、展示、确认、回写~~。✅ 已完成 2026-05-08。
+- 章节起草 prompt 使用当前状态切片。（下一步：修改 `buildChapterPrompt` 注入 story_state）
 
 完成标准：用户写完一章后，系统能把角色状态/情节推进变成可追踪数据，并影响下一章。
 
 ### Milestone C：Critic 与 Agent 编排
 
-- 起草后自动 Critic。
-- 严重冲突不直接覆盖，提供修订建议。
-- 增加 `buildChapterContext()` 编排层。
-- 为 Writer/Critic/StateUpdater 定义输入输出契约。
+- ~~起草后自动 Critic~~。✅ 已完成 2026-05-08。
+- 严重冲突不直接覆盖，提供修订建议。✅ 已完成 2026-05-08（CriticPanel 提供「仍要保存/重新生成」选项）。
+- ~~增加 `buildChapterContext()` 编排层~~。✅ 已完成 2026-05-08。
+- 为 Writer/Critic/StateUpdater 定义输入输出契约。（下一步：将契约写入 `lib/agent/README.md`）
 
 完成标准：系统从“生成文本”升级为“生成 + 检查 + 修正建议”的半闭环。
 
 ### Milestone D：RAG 与分层摘要
 
-- 卷摘要、全书梗概。
+- ~~卷摘要、全书梗概~~。✅ 已完成 2026-05-08。
 - MemoryChunk 表。
 - embedding/hybrid search。
 - 检索 Agent 接入章节生成。
