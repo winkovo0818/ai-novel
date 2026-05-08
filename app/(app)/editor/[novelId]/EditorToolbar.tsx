@@ -15,6 +15,7 @@ interface EditorToolbarProps {
   onToggleStatus(): void;
   onSave(): void;
   onDeleteChapter(): void;
+  onOpenVersions(): void;
 }
 
 export function EditorToolbar({
@@ -22,10 +23,12 @@ export function EditorToolbar({
   chapterTitle,
   chapterStatus,
   status,
+  isSaved,
   onTitleChange,
   onToggleStatus,
   onSave,
   onDeleteChapter,
+  onOpenVersions,
 }: EditorToolbarProps) {
   const isBusy = status === "drafting" || status === "saving";
 
@@ -81,6 +84,17 @@ export function EditorToolbar({
               </svg>
             )}
             <span>保存原稿</span>
+          </button>
+
+          <button
+            onClick={onOpenVersions}
+            disabled={!isSaved}
+            className="p-2.5 text-text-secondary hover:text-primary hover:bg-primary/5 rounded-lg transition-all border border-transparent hover:border-primary/20 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={isSaved ? "查看历史版本" : "保存后才有历史版本"}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
           </button>
 
           <button

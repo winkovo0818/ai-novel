@@ -12,6 +12,27 @@ interface UseChapterEditorOptions {
   initialChapters: ChapterDraftView[];
 }
 
+export interface ConsistencyIssue {
+  type: string;
+  chapter: number;
+  description: string;
+}
+
+export interface ConsistencyResult {
+  consistent: boolean;
+  issues?: ConsistencyIssue[];
+}
+
+export interface ChapterVersionView {
+  id: string;
+  chapter_id: string;
+  title: string;
+  content: string;
+  status: string;
+  source: string;
+  created_at: string;
+}
+
 export function useChapterEditor({ novelId, bible, initialChapters }: UseChapterEditorOptions) {
   const firstChapter = bible.outline.volume_1.chapters[0];
   const firstDraft = initialChapters.find((chapter) => chapter.chapter_index === 1);
@@ -74,6 +95,16 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
       if (exists) return current.map((chapter) => chapter.id === nextChapter.id ? nextChapter : chapter);
       return [...current, nextChapter].sort((a, b) => a.chapter_index - b.chapter_index);
     });
+
+    // F1: When a chapter is marked done with substantive content, refresh its
+    // summary in the background so the next chapter's RAG context uses it.
+    if (nextStatus === "done" && nextContent.trim().length >= 100) {
+      const targetId = json.data.id as string;
+      void fetch(`/api/chapters/${targetId}/summarize`, { method: "POST" }).catch(() => {
+        // Background — surface failures only via server logs.
+      });
+    }
+
     return json.data as ChapterDraftView;
   }, [chapterId, chapterStatus, chapterTitle, novelId, selectedIndex]);
 
@@ -230,6 +261,67 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
     }
   }
 
+  // ────────────────────────────────────────────────
+  // F2: full-novel consistency check
+  // ────────────────────────────────────────────────
+  const [consistencyRunning, setConsistencyRunning] = useState(false);
+  const [consistencyResult, setConsistencyResult] = useState<ConsistencyResult>();
+  const [consistencyError, setConsistencyError] = useState<string>();
+
+  async function runConsistency() {
+    setConsistencyRunning(true);
+    setConsistencyError(undefined);
+    setConsistencyResult(undefined);
+    try {
+      const response = await fetch(`/api/novels/${novelId}/consistency`, { method: "POST" });
+      const json = await response.json();
+      if (!json.ok) {
+        throw new Error(json.error?.message ?? "一致性检查失败");
+      }
+      setConsistencyResult(json.data as ConsistencyResult);
+    } catch (err) {
+      setConsistencyError(err instanceof Error ? err.message : "一致性检查失败");
+    } finally {
+      setConsistencyRunning(false);
+    }
+  }
+
+  // ────────────────────────────────────────────────
+  // F3: chapter version history
+  // ────────────────────────────────────────────────
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [versions, setVersions] = useState<ChapterVersionView[]>([]);
+  const [versionsError, setVersionsError] = useState<string>();
+
+  async function openVersions() {
+    if (!chapterId) {
+      setVersionsError("章节尚未保存，暂无历史版本");
+      setVersionsOpen(true);
+      setVersions([]);
+      return;
+    }
+    setVersionsOpen(true);
+    setVersionsLoading(true);
+    setVersionsError(undefined);
+    try {
+      const response = await fetch(`/api/chapters/${chapterId}/versions`);
+      const json = await response.json();
+      if (!json.ok) {
+        throw new Error(json.error?.message ?? "加载历史失败");
+      }
+      setVersions(json.data as ChapterVersionView[]);
+    } catch (err) {
+      setVersionsError(err instanceof Error ? err.message : "加载历史失败");
+    } finally {
+      setVersionsLoading(false);
+    }
+  }
+
+  function closeVersions() {
+    setVersionsOpen(false);
+  }
+
   return {
     chapters,
     selectedIndex,
@@ -250,5 +342,15 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
     saveChapter,
     draftChapter,
     deleteChapter,
+    consistencyRunning,
+    consistencyResult,
+    consistencyError,
+    runConsistency,
+    versionsOpen,
+    versionsLoading,
+    versions,
+    versionsError,
+    openVersions,
+    closeVersions,
   };
 }

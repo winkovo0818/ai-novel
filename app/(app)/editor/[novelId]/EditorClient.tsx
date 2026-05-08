@@ -121,6 +121,7 @@ export function EditorClient({ novelId, title, bible, initialChapters }: EditorC
               }}
               onSave={editor.saveChapter}
               onDeleteChapter={editor.deleteChapter}
+              onOpenVersions={editor.openVersions}
             />
 
             <div className="mt-16 relative">
@@ -186,7 +187,7 @@ export function EditorClient({ novelId, title, bible, initialChapters }: EditorC
                 <AIActionBtn label="全文续写" icon="⚡" onClick={editor.draftChapter} disabled={editor.status === "drafting"} />
                 <AIActionBtn label="文本润色" icon="✨" />
                 <AIActionBtn label="扩充细节" icon="📝" />
-                <AIActionBtn label="逻辑审计" icon="🔍" />
+                <AIActionBtn label="逻辑审计" icon="🔍" onClick={editor.runConsistency} disabled={editor.consistencyRunning} />
               </div>
             </section>
 
@@ -214,6 +215,49 @@ export function EditorClient({ novelId, title, bible, initialChapters }: EditorC
                 ))}
               </div>
             </section>
+
+            {(editor.consistencyRunning || editor.consistencyResult || editor.consistencyError) && (
+              <section className="animate-fade-in-up">
+                <h3 className="text-[10px] font-bold text-text-muted uppercase tracking-[0.2em] mb-4 opacity-70">逻辑审计报告</h3>
+                {editor.consistencyRunning && (
+                  <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 text-xs text-primary flex items-center gap-2">
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    AI 正在审阅全文一致性...
+                  </div>
+                )}
+                {!editor.consistencyRunning && editor.consistencyError && (
+                  <div className="p-4 rounded-xl bg-red-50 border border-red-100 text-xs text-red-600">
+                    {editor.consistencyError}
+                  </div>
+                )}
+                {!editor.consistencyRunning && editor.consistencyResult?.consistent && (
+                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-xs text-emerald-700 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    暂未发现矛盾
+                  </div>
+                )}
+                {!editor.consistencyRunning && editor.consistencyResult && !editor.consistencyResult.consistent && (
+                  <ul className="space-y-2">
+                    {(editor.consistencyResult.issues ?? []).map((issue, i) => (
+                      <li key={i} className="p-4 rounded-xl bg-amber-50 border border-amber-100 text-xs text-amber-800">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="px-2 py-0.5 bg-amber-200/60 text-amber-900 rounded-full font-bold uppercase tracking-wider text-[9px]">
+                            {issue.type}
+                          </span>
+                          <span className="font-bold">第 {issue.chapter} 章</span>
+                        </div>
+                        <p className="leading-relaxed text-amber-900/80">{issue.description}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
 
             {editor.message && (
               <div className={`p-4 rounded-xl text-xs font-bold animate-slide ${
@@ -253,6 +297,72 @@ export function EditorClient({ novelId, title, bible, initialChapters }: EditorC
           </div>
         </div>
       </aside>
+
+      {editor.versionsOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-6"
+          onClick={editor.closeVersions}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-6 border-b border-border-subtle">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted opacity-70">
+                  Chapter {String(editor.selectedIndex).padStart(2, "0")}
+                </p>
+                <h3 className="text-lg font-serif font-bold text-text-primary">历史版本</h3>
+              </div>
+              <button
+                onClick={editor.closeVersions}
+                className="p-2 hover:bg-secondary rounded-lg text-text-muted transition-colors"
+                aria-label="关闭"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-3">
+              {editor.versionsLoading && (
+                <div className="text-center py-12 text-sm text-text-muted">加载中...</div>
+              )}
+              {!editor.versionsLoading && editor.versionsError && (
+                <div className="p-4 rounded-xl bg-red-50 border border-red-100 text-sm text-red-600">
+                  {editor.versionsError}
+                </div>
+              )}
+              {!editor.versionsLoading && !editor.versionsError && editor.versions.length === 0 && (
+                <div className="text-center py-12 text-sm text-text-muted">暂无历史版本</div>
+              )}
+              {!editor.versionsLoading && editor.versions.map((version) => (
+                <article key={version.id} className="border border-border-subtle rounded-xl p-5 hover:border-border-strong transition-colors">
+                  <header className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-text-primary">{version.title}</span>
+                      <span className="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border bg-secondary text-text-secondary border-border-strong">
+                        {version.source}
+                      </span>
+                      {version.status === "done" && (
+                        <span className="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          done
+                        </span>
+                      )}
+                    </div>
+                    <time className="text-[11px] text-text-muted">
+                      {new Date(version.created_at).toLocaleString()}
+                    </time>
+                  </header>
+                  <p className="text-[13px] text-text-secondary leading-relaxed line-clamp-4 whitespace-pre-wrap">
+                    {version.content || "（空）"}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
