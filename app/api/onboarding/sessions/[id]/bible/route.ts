@@ -2,6 +2,7 @@ import { buildBiblePrompt } from "@/lib/llm/prompts/bible";
 import { streamChatCompletionWithRetry } from "@/lib/llm/client";
 import { prisma } from "@/lib/db";
 import { authorizeOnboardingSession } from "@/lib/auth/onboardingAccess";
+import { isRateLimited } from "@/lib/auth/rateLimit";
 import { moderateContent, stringifyForModeration } from "@/lib/moderation/moderate";
 import { sseEncode, sseHeartbeat } from "@/lib/stream/sseEncode";
 import {
@@ -55,7 +56,21 @@ export async function POST(request: Request, context: RouteContext) {
       { status: access.status },
     );
   }
-  const { session } = access;
+  const { userId, session } = access;
+
+  if (isRateLimited(userId, ROUTE)) {
+    return Response.json(
+      {
+        ok: false,
+        error: {
+          code: "RATE_LIMITED",
+          message: "Too many requests, please try again later",
+          retryable: false,
+        },
+      },
+      { status: 429 },
+    );
+  }
 
   if (session.regeneration_count >= 3) {
     return Response.json(

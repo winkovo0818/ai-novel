@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { authorizeOnboardingSession } from "@/lib/auth/onboardingAccess";
+import { isRateLimited } from "@/lib/auth/rateLimit";
 import { chatCompletionWithRetry } from "@/lib/llm/client";
 import { buildQuestionsPrompt } from "@/lib/llm/prompts/questions";
 import {
@@ -30,7 +31,11 @@ export async function POST(request: Request, context: RouteContext) {
   if (!access.ok) {
     return jsonError(access.code, access.message, false, access.status);
   }
-  const { session } = access;
+  const { userId, session } = access;
+
+  if (isRateLimited(userId, ROUTE)) {
+    return jsonError("RATE_LIMITED", "Too many requests, please try again later", false, 429);
+  }
 
   const profile = buildDefaultProfile(
     session.genre_main as Parameters<typeof buildDefaultProfile>[0],

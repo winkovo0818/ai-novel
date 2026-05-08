@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
+import { isRateLimited } from "@/lib/auth/rateLimit";
 import { chatCompletion } from "@/lib/llm/client";
 import { buildConsistencyPrompt } from "@/lib/llm/prompts/consistency";
 import { BibleDraftSchema, NovelProfileSchema } from "@/lib/validation/schemas";
@@ -36,6 +37,10 @@ export async function POST(_request: Request, context: RouteContext) {
 
   if (!canAccessOwnerResource(novel.user_id, userId)) {
     return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
+  }
+
+  if (isRateLimited(userId, "/api/novels/:id/consistency")) {
+    return jsonError("RATE_LIMITED", "Too many requests, please try again later", false, 429);
   }
 
   const bible = BibleDraftSchema.safeParse(novel.bible.content);

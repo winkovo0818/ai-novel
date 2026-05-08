@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
+import { isRateLimited } from "@/lib/auth/rateLimit";
 import { chatCompletion } from "@/lib/llm/client";
 import { buildSummarizePrompt } from "@/lib/llm/prompts/summarize";
 import { getRequiredUserId } from "@/utils/supabase/auth";
@@ -32,6 +33,10 @@ export async function POST(_request: Request, context: RouteContext) {
 
   if (!canAccessOwnerResource(chapter.novel.user_id, userId)) {
     return jsonError("CHAPTER_NOT_FOUND", "Chapter not found", false, 404);
+  }
+
+  if (isRateLimited(userId, "/api/chapters/:id/summarize")) {
+    return jsonError("RATE_LIMITED", "Too many requests, please try again later", false, 429);
   }
 
   if (!chapter.content.trim()) {
