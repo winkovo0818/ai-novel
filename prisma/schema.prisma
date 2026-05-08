@@ -56,7 +56,6 @@ model BibleDraft {
   novel_id   String   @unique
   novel      Novel    @relation(fields: [novel_id], references: [id], onDelete: Cascade)
   content    Json
-  version    Int      @default(1)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 }
@@ -72,7 +71,48 @@ model ChapterDraft {
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
+  versions ChapterVersion[]
+  summary  ChapterSummary?
+
   @@unique([novel_id, chapter_index])
   @@index([novel_id])
   @@index([status])
+}
+
+model ChapterSummary {
+  id          String   @id @default(uuid())
+  chapter_id  String   @unique
+  chapter     ChapterDraft @relation(fields: [chapter_id], references: [id], onDelete: Cascade)
+  summary     String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+}
+
+model LlmModel {
+  id           String   @id @default(uuid())
+  name         String
+  provider     String   @default("deepseek")
+  base_url     String
+  api_key      String
+  model        String
+  is_default   Boolean  @default(false)
+  is_enabled   Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@unique([provider, model])
+}
+
+model ChapterVersion {
+  id          String   @id @default(uuid())
+  chapter_id  String
+  chapter     ChapterDraft @relation(fields: [chapter_id], references: [id], onDelete: Cascade)
+  title       String
+  content     String
+  status      String   @default("draft")
+  source      String   @default("manual")
+  created_at  DateTime @default(now())
+
+  @@index([chapter_id])
+  @@index([created_at])
 }
