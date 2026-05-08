@@ -1,21 +1,68 @@
 import type { ChatMessage } from "../client";
-import { getAllChapters } from "../../validation/schemas";
-import type { BibleDraft, NovelProfile } from "../../validation/schemas";
+import type { NovelProfile } from "../../validation/schemas";
+import type { ChapterContext } from "../../agent/chapterContext";
 
 export interface ChapterPromptInput {
-  bible: BibleDraft;
+  context: ChapterContext;
   profile: NovelProfile;
-  chapterIndex: number;
-  title: string;
   existingContent?: string;
-  previousContext?: string;
+}
+
+function buildStoryStateSection(context: ChapterContext): string {
+  if (!context.storyState) return "";
+  const lines: string[] = ["\n当前运行时状态（必须保持连贯）：\n"];
+
+  if (context.storyState.characters && context.storyState.characters.length > 0) {
+    lines.push("角色当前状态：");
+    for (const char of context.storyState.characters) {
+      const parts: string[] = [];
+      if (char.current_location) parts.push(`位置：${char.current_location}`);
+      if (char.current_goal) parts.push(`目标：${char.current_goal}`);
+      if (char.emotional_state) parts.push(`情绪：${char.emotional_state}`);
+      if (char.known_secrets && char.known_secrets.length > 0) parts.push(`已知秘密：${char.known_secrets.join("、")}`);
+      if (char.relationship_notes && char.relationship_notes.length > 0) parts.push(`关系：${char.relationship_notes.join("、")}`);
+      lines.push(`- ${char.name}：${parts.join("；")}`);
+    }
+  }
+
+  if (context.storyState.plot_threads && context.storyState.plot_threads.length > 0) {
+    lines.push("\n活跃线索：");
+    for (const thread of context.storyState.plot_threads) {
+      lines.push(`- ${thread.title}（${thread.status}）${thread.notes ? "：" + thread.notes : ""}`);
+    }
+  }
+
+  if (context.storyState.timeline && context.storyState.timeline.length > 0) {
+    const lastEvent = context.storyState.timeline[context.storyState.timeline.length - 1];
+    lines.push(`\n最新时间线事件（第 ${lastEvent.chapter_index} 章）：${lastEvent.event}${lastEvent.impact ? "；影响：" + lastEvent.impact : ""}`);
+  }
+
+  return lines.join("\n");
 }
 
 export function buildChapterPrompt(input: ChapterPromptInput): ChatMessage[] {
-  const protagonist = input.bible.characters.find((c) => c.role === "protagonist");
-  const chapter = getAllChapters(input.bible).find(
-    (item) => item.index === input.chapterIndex,
-  );
+  const { context, profile, existingContent } = input;
+  const bible = context.bible;
+  const protagonist = bible.characters.find((c) => c.role === "protagonist");
+  const chapterIndex = context.outline.chapterIndex;
+  const previousContext = context.previousSummaries.map((s) => s.summary).join("\n\n");
+
+  const storyStateSection = buildStoryStateSection(context);
+
+  const tieredSummarySection: string[] = [];
+  if (context.novelSummary) {
+    tieredSummarySection.push(`全书梗概：\n${context.novelSummary}`);
+  }
+  if (context.volumeSummary) {
+    tieredSummarySection.push(`当前卷摘要：\n${context.volumeSummary}`);
+  }
+  const tieredSummaryText = tieredSummarySection.length > 0
+    ? `\n${tieredSummarySection.join("\n\n")}\n`
+    : "";
+
+  const memorySection = context.retrievedMemories.length > 0
+    ? `相关历史片段（仅用于参考，不要直接复述）：\n${context.retrievedMemories.map((m) => `- [来源：${m.source}] ${m.text}`).join("\n")}\n`
+    : "";
 
   return [
     {
@@ -25,41 +72,42 @@ export function buildChapterPrompt(input: ChapterPromptInput): ChatMessage[] {
 硬规则：
 - 只输出正文，不要 Markdown 标题，不要解释。
 - 不得违反世界规则和人物动机。
-- 第 ${input.chapterIndex} 章必须承接前文，不要重写已经发生过的剧情。
-- 保持 ${input.profile.pov} 视角、${input.profile.tone} 调性、${input.profile.pace} 节奏。
-- 目标字数接近 ${input.profile.chapter_word_count} 字；MVP 可先输出较短但完整的开篇片段。
+- 第 ${chapterIndex} 章必须承接前文，不要重写已经发生过的剧情。
+- 保持 ${profile.pov} 视角、${profile.tone} 调性、${profile.pace} 节奏。
+- 目标字数接近 ${profile.chapter_word_count} 字；MVP 可先输出较短但完整的开篇片段。
 - 避免裸露、色情、违反中国法律的内容。`,
     },
     {
       role: "user",
-      content: `小说标题：${input.bible.meta.suggested_title}
-章节：第 ${input.chapterIndex} 章《${input.title}》
+      content: `小说标题：${bible.meta.suggested_title}
+章节：第 ${chapterIndex} 章《${context.outline.title}》
 
 章节大纲：
-${chapter?.summary ?? (input.chapterIndex === 1 ? "按第一章节拍展开。" : "本章未预设大纲，请基于前文摘要推进新的冲突或发现。")}
-
-前文上下文（按章节顺序；用于承接，不要重复）：
-${input.previousContext?.trim() || "无"}
-
+${context.outline.summary ?? (chapterIndex === 1 ? "按第一章节拍展开。" : "本章未预设大纲，请基于前文摘要推进新的冲突或发现。")}
+${tieredSummaryText}
+近 ${context.previousSummaries.length} 章摘要（用于直接承接）：
+${previousContext.trim() || "无"}
+${memorySection}
 主角：
 - 姓名：${protagonist?.name ?? "主角"}
 - 性格：${protagonist?.personality ?? "待定"}
 - 动机：${protagonist?.motivation ?? "待定"}
 
 世界观：
-${input.bible.world.setting_summary}
+${bible.world.setting_summary}
 
 世界规则：
-${input.bible.world.rules.map((rule) => `- ${rule}`).join("\n")}
+${bible.world.rules.map((rule) => `- ${rule}`).join("\n")}
+${storyStateSection}
 
-${input.chapterIndex === 1 ? `第一章节拍：
-${input.bible.first_chapter_beats.map((beat) => `${beat.beat}. ${beat.scene}：${beat.purpose}`).join("\n")}` : `本章写作要求：
+${chapterIndex === 1 ? `第一章节拍：
+${bible.first_chapter_beats.map((beat) => `${beat.beat}. ${beat.scene}：${beat.purpose}`).join("\n")}` : `本章写作要求：
 - 以“章节大纲”为主，不套用第一章节拍。
-- 承接前文上下文，推进新的冲突或发现。
+- 承接近 ${context.previousSummaries.length} 章摘要，推进新的冲突或发现。
 - 保持章节结尾有继续阅读的牵引。`}
 
 已有正文（如有，续写并融合，不要重复）：
-${input.existingContent?.trim() || "无"}
+${existingContent?.trim() || "无"}
 
 现在开始输出章节正文。`,
     },

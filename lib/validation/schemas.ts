@@ -145,6 +145,63 @@ export const VolumeSchema = z.object({
 export type Volume = z.infer<typeof VolumeSchema>;
 
 /**
+ * StoryStateV1 — runtime state tracked on top of the static Bible.
+ * Kept inside BibleDraft.content as an optional field (short-term);
+ * may be extracted to dedicated tables in later milestones.
+ */
+export const StoryStateV1Schema = z.object({
+  characters: z.array(z.object({
+    name: z.string().min(1),
+    current_location: z.string().optional(),
+    current_goal: z.string().optional(),
+    emotional_state: z.string().optional(),
+    known_secrets: z.array(z.string()).optional(),
+    relationship_notes: z.array(z.string()).optional(),
+  })).optional(),
+  timeline: z.array(z.object({
+    chapter_index: z.number().int().min(1),
+    event: z.string().min(1),
+    impact: z.string().optional(),
+  })).optional(),
+  plot_threads: z.array(z.object({
+    id: z.string().min(1),
+    title: z.string().min(1),
+    status: z.enum(["open", "progressing", "resolved"]),
+    introduced_in: z.number().int().min(1).optional(),
+    resolved_in: z.number().int().min(1).optional(),
+    notes: z.string().optional(),
+  })).optional(),
+});
+export type StoryStateV1 = z.infer<typeof StoryStateV1Schema>;
+
+/**
+ * StateDiff — output from the State Updater Agent (B2).
+ * Describes what changed in a single chapter relative to the existing state.
+ */
+export const StateDiffSchema = z.object({
+  character_updates: z.array(z.object({
+    name: z.string().min(1),
+    changes: z.record(z.string()),
+    confidence: z.enum(["low", "medium", "high"]),
+  })).default([]),
+  timeline_events: z.array(z.object({
+    event: z.string().min(1),
+    impact: z.string().optional(),
+  })).default([]),
+  plot_thread_updates: z.array(z.object({
+    title: z.string().min(1),
+    status: z.enum(["open", "progressing", "resolved"]),
+    notes: z.string().optional(),
+  })).default([]),
+  new_entities: z.array(z.object({
+    type: z.enum(["character", "location", "item", "rule"]),
+    name: z.string().min(1),
+    description: z.string().min(1),
+  })).default([]),
+});
+export type StateDiff = z.infer<typeof StateDiffSchema>;
+
+/**
  * Onboarding still produces `volume_1` as the seed volume. Additional volumes
  * may be appended into the optional `volumes` array (Bible editor or future
  * milestones). Consumers should iterate via `getVolumes()` / `getAllChapters()`
@@ -170,6 +227,7 @@ export const BibleDraftSchema = z.object({
     volumes: z.array(VolumeSchema).max(20).optional(),
   }),
   first_chapter_beats: z.array(BeatSchema).min(5).max(8),
+  story_state: StoryStateV1Schema.optional(),
 });
 export type BibleDraft = z.infer<typeof BibleDraftSchema>;
 
@@ -244,3 +302,8 @@ export const GenerateChapterDraftRequestSchema = z.object({
   title: z.string().min(1).max(120),
   existing_content: z.string().max(80_000).optional(),
 });
+
+export const BibleUpdateRequestSchema = z.object({
+  content: BibleDraftSchema,
+});
+export type BibleUpdateRequest = z.infer<typeof BibleUpdateRequestSchema>;

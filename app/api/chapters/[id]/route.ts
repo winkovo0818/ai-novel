@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
+import { moderateContent, stringifyForModeration } from "@/lib/moderation/moderate";
 import { UpdateChapterDraftRequestSchema } from "@/lib/validation/schemas";
 import { getRequiredUserId } from "@/utils/supabase/auth";
 
@@ -47,6 +48,25 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
     if (!canAccessOwnerResource(existing.novel.user_id, userId)) {
       return jsonError("CHAPTER_NOT_FOUND", "Chapter draft not found", false, 404);
+    }
+
+    // Moderate content when marking as done (publishing) or on manual saves with content.
+    const isPublishing = updateData.status === "done" && existing.status !== "done";
+    const hasContent = (updateData.content ?? existing.content).trim().length > 0;
+    if ((isPublishing || source === "manual") && hasContent) {
+      const text = stringifyForModeration({
+        title: updateData.title ?? existing.title,
+        content: updateData.content ?? existing.content,
+      });
+      const moderation = await moderateContent({ route: "/api/chapters/:id", text });
+      if (!moderation.allowed) {
+        return jsonError(
+          moderation.code ?? "MODERATION_BLOCKED",
+          moderation.reason ?? "Content blocked by moderation",
+          false,
+          400,
+        );
+      }
     }
 
     const chapter = await prisma.chapterDraft.update({ where: { id }, data: updateData });

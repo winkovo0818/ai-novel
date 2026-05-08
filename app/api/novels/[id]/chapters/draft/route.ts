@@ -1,15 +1,19 @@
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
+import { isRateLimited } from "@/lib/auth/rateLimit";
+import { moderateContent, stringifyForModeration } from "@/lib/moderation/moderate";
 import { streamChatCompletionWithRetry } from "@/lib/llm/client";
 import { buildChapterPrompt } from "@/lib/llm/prompts/chapter";
+import { buildChapterContext } from "@/lib/agent/chapterContext";
+import { retrieveMemories } from "@/lib/agent/retrieval";
 import { sseEncode, sseHeartbeat } from "@/lib/stream/sseEncode";
 import {
   BibleDraftSchema,
   GenerateChapterDraftRequestSchema,
   NovelProfileSchema,
+  getVolumes,
 } from "@/lib/validation/schemas";
 import { getRequiredUserId } from "@/utils/supabase/auth";
-import { isRateLimited } from "@/lib/auth/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,6 +39,8 @@ export async function POST(request: Request, context: RouteContext) {
     include: {
       bible: true,
       chapters: { orderBy: { chapter_index: "asc" }, include: { summary: true } },
+      volume_summaries: { orderBy: { volume_index: "asc" } },
+      novel_summary: true,
     },
   });
   if (!novel || !novel.bible) {
@@ -62,15 +68,50 @@ export async function POST(request: Request, context: RouteContext) {
 
   const input = parsed.data;
 
-  const previousContext = novel.chapters
-    .filter((chapter) => chapter.chapter_index < input.chapter_index && chapter.content.trim())
-    .map((chapter) => {
-      if (chapter.summary) {
-        return `第 ${chapter.chapter_index} 章《${chapter.title}》：${chapter.summary.summary}`;
-      }
-      return formatPreviousChapter(chapter.chapter_index, chapter.title, chapter.content);
-    })
-    .join("\n\n");
+  // Content moderation: reject drafts with inappropriate input prompts.
+  const inputModeration = await moderateContent({
+    route: ROUTE,
+    text: stringifyForModeration({ title: input.title, existing_content: input.existing_content }),
+  });
+  if (!inputModeration.allowed) {
+    return jsonError(
+      inputModeration.code ?? "MODERATION_BLOCKED",
+      inputModeration.reason ?? "Content blocked by moderation",
+      false,
+      400,
+    );
+  }
+
+  // Determine which volume the current chapter belongs to
+  const volumes = getVolumes(bible.data);
+  let currentVolumeIndex = 0;
+  let chaptersSeen = 0;
+  for (let i = 0; i < volumes.length; i++) {
+    chaptersSeen += volumes[i].chapters.length;
+    if (input.chapter_index <= chaptersSeen) {
+      currentVolumeIndex = i;
+      break;
+    }
+  }
+
+  const volumeSummary = novel.volume_summaries.find(
+    (vs) => vs.volume_index === currentVolumeIndex,
+  )?.summary;
+
+  // Retrieve relevant memories (RAG v2)
+  let retrievedMemories: Array<{ source: string; text: string; reason: string }> = [];
+  try {
+    retrievedMemories = await retrieveMemories(id, bible.data, input.chapter_index, 5);
+  } catch {
+    // Fail-open: if retrieval fails, proceed without memories
+  }
+
+  const chapterContext = buildChapterContext(bible.data, novel.chapters, input.chapter_index, {
+    novelSummary: novel.novel_summary?.summary,
+    volumeSummary,
+    retrievedMemories,
+  });
+
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let heartbeat: ReturnType<typeof setInterval> | undefined;
@@ -86,12 +127,9 @@ export async function POST(request: Request, context: RouteContext) {
           {
             route: ROUTE,
             messages: buildChapterPrompt({
-              bible: bible.data,
+              context: chapterContext,
               profile: profile.data,
-              chapterIndex: input.chapter_index,
-              title: input.title,
               existingContent: input.existing_content,
-              previousContext,
             }),
             temperature: 0.75,
             timeoutMs: 60_000,
@@ -103,6 +141,24 @@ export async function POST(request: Request, context: RouteContext) {
             },
           },
         );
+
+        // Best-effort output moderation: if the full generated text is blocked,
+        // emit an error instead of "done". The client may have already seen
+        // deltas; this prevents persisting harmful content server-side.
+        const outputModeration = await moderateContent({
+          route: ROUTE,
+          text: content,
+        });
+        if (!outputModeration.allowed) {
+          send(
+            sseEncode("error", {
+              code: outputModeration.code ?? "MODERATION_BLOCKED",
+              message: outputModeration.reason ?? "Generated content blocked by moderation",
+              retryable: false,
+            }),
+          );
+          return;
+        }
 
         send(
           sseEncode("done", {
@@ -132,12 +188,6 @@ export async function POST(request: Request, context: RouteContext) {
       "X-Accel-Buffering": "no",
     },
   });
-}
-
-function formatPreviousChapter(index: number, title: string, content: string) {
-  const normalized = content.replace(/\s+/g, " ").trim();
-  const excerpt = normalized.length > 900 ? `${normalized.slice(0, 900)}...` : normalized;
-  return `第 ${index} 章《${title}》：${excerpt}`;
 }
 
 function jsonError(code: string, message: string, retryable: boolean, status: number) {

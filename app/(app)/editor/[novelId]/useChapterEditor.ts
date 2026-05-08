@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { readSse } from "@/lib/stream/readSse";
 import { getAllChapters } from "@/lib/validation/schemas";
-import type { BibleDraft } from "@/lib/validation/schemas";
+import type { BibleDraft, StateDiff } from "@/lib/validation/schemas";
 import type { ChapterDraftView } from "./EditorClient";
 
 interface UseChapterEditorOptions {
@@ -99,10 +99,13 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
     });
 
     // F1: When a chapter is marked done with substantive content, refresh its
-    // summary in the background so the next chapter's RAG context uses it.
+    // summary and index it for RAG in the background.
     if (nextStatus === "done" && nextContent.trim().length >= 100) {
       const targetId = json.data.id as string;
       void fetch(`/api/chapters/${targetId}/summarize`, { method: "POST" }).catch(() => {
+        // Background — surface failures only via server logs.
+      });
+      void fetch(`/api/chapters/${targetId}/index`, { method: "POST" }).catch(() => {
         // Background — surface failures only via server logs.
       });
     }
@@ -225,6 +228,16 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
         throw new Error("AI 未返回章节正文");
       }
 
+      // C2: auto-critic after generation
+      setMessage("AI 草稿已生成，正在审校...");
+      const criticStatus = await runCritic(generated);
+
+      if (criticStatus === "blocked") {
+        setStatus("idle");
+        setMessage("审校发现问题，请确认后保存");
+        return;
+      }
+
       await persistChapter(generated, chapterTitle, chapterStatus, "ai");
       setStatus("saved");
       setMessage("AI 草稿已生成并保存");
@@ -324,6 +337,100 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
     setVersionsOpen(false);
   }
 
+  // ────────────────────────────────────────────────
+  // B2: state diff (chapter completion tracking)
+  // ────────────────────────────────────────────────
+  const [stateDiffOpen, setStateDiffOpen] = useState(false);
+  const [stateDiffLoading, setStateDiffLoading] = useState(false);
+  const [stateDiff, setStateDiff] = useState<StateDiff>();
+  const [stateDiffError, setStateDiffError] = useState<string>();
+
+  async function generateStateDiff() {
+    if (!chapterId) {
+      setStateDiffError("章节尚未保存，无法分析状态变更");
+      setStateDiffOpen(true);
+      return;
+    }
+    setStateDiffOpen(true);
+    setStateDiffLoading(true);
+    setStateDiffError(undefined);
+    setStateDiff(undefined);
+    try {
+      const response = await fetch(`/api/chapters/${chapterId}/state-diff`, { method: "POST" });
+      const json = await response.json();
+      if (!json.ok) {
+        throw new Error(json.error?.message ?? "状态分析失败");
+      }
+      setStateDiff(json.data as StateDiff);
+    } catch (err) {
+      setStateDiffError(err instanceof Error ? err.message : "状态分析失败");
+    } finally {
+      setStateDiffLoading(false);
+    }
+  }
+
+  function closeStateDiff() {
+    setStateDiffOpen(false);
+  }
+
+  // ────────────────────────────────────────────────
+  // C2: auto-critic after AI draft
+  // ────────────────────────────────────────────────
+  const [criticOpen, setCriticOpen] = useState(false);
+  const [criticLoading, setCriticLoading] = useState(false);
+  const [criticResult, setCriticResult] = useState<{ consistent: boolean; issues: Array<{ type: string; severity: string; description: string; suggestion?: string }> }>();
+  const [criticError, setCriticError] = useState<string>();
+  const [pendingDraftContent, setPendingDraftContent] = useState<string>();
+
+  async function runCritic(draftContent: string) {
+    setCriticLoading(true);
+    setCriticError(undefined);
+    setCriticResult(undefined);
+    try {
+      const response = await fetch(`/api/novels/${novelId}/chapters/critic`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chapter_index: selectedIndex,
+          content: draftContent,
+        }),
+      });
+      const json = await response.json();
+      if (!json.ok) {
+        throw new Error(json.error?.message ?? "审校失败");
+      }
+      setCriticResult(json.data);
+      const hasCritical = json.data.issues?.some((issue: { severity: string }) => issue.severity === "critical" || issue.severity === "major");
+      if (hasCritical) {
+        setCriticOpen(true);
+        setPendingDraftContent(draftContent);
+        return "blocked" as const;
+      }
+      return "passed" as const;
+    } catch (err) {
+      setCriticError(err instanceof Error ? err.message : "审校失败");
+      // On critic failure, allow save to proceed (fail-open for UX)
+      return "passed" as const;
+    } finally {
+      setCriticLoading(false);
+    }
+  }
+
+  async function acceptCritic() {
+    setCriticOpen(false);
+    if (pendingDraftContent) {
+      await persistChapter(pendingDraftContent, chapterTitle, chapterStatus, "ai");
+      setStatus("saved");
+      setMessage("AI 草稿已生成并保存");
+      setPendingDraftContent(undefined);
+    }
+  }
+
+  function closeCritic() {
+    setCriticOpen(false);
+    setPendingDraftContent(undefined);
+  }
+
   return {
     chapters,
     selectedIndex,
@@ -354,5 +461,17 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
     versionsError,
     openVersions,
     closeVersions,
+    stateDiffOpen,
+    stateDiffLoading,
+    stateDiff,
+    stateDiffError,
+    generateStateDiff,
+    closeStateDiff,
+    criticOpen,
+    criticLoading,
+    criticResult,
+    criticError,
+    acceptCritic,
+    closeCritic,
   };
 }

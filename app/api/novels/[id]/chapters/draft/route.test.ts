@@ -84,6 +84,8 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
       profile,
       bible: { content: bible },
       chapters: [],
+      volume_summaries: [],
+      novel_summary: null,
     });
     streamChatCompletionWithRetry.mockRejectedValue(new Error("DeepSeek stream timed out after 60000ms"));
 
@@ -110,6 +112,8 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
       profile,
       bible: { content: bible },
       chapters: [],
+      volume_summaries: [],
+      novel_summary: null,
     });
     getRequiredUserId.mockResolvedValue("owner-2");
 
@@ -135,6 +139,8 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
       profile,
       bible: { content: bible },
       chapters: [],
+      volume_summaries: [],
+      novel_summary: null,
     });
     getRequiredUserId.mockRejectedValue(new Error("UNAUTHORIZED"));
 

@@ -1,28 +1,50 @@
+"use client";
+
+import { useState } from "react";
 import { getVolumes } from "@/lib/validation/schemas";
 import type { BibleDraft } from "@/lib/validation/schemas";
 import type { ChapterDraftView } from "./EditorClient";
+import { BibleEditorPanel } from "./BibleEditorPanel";
 
 interface EditorSidebarProps {
+  novelId: string;
   title: string;
   bible: BibleDraft;
   chapters: ChapterDraftView[];
   selectedIndex: number;
   isBusy: boolean;
   onSelectChapter(index: number): void;
+  onBibleUpdate(updated: BibleDraft): void;
 }
 
 export function EditorSidebar({
+  novelId,
   title,
   bible,
   chapters,
   selectedIndex,
   isBusy,
   onSelectChapter,
+  onBibleUpdate,
 }: EditorSidebarProps) {
+  const [view, setView] = useState<"chapters" | "bible">("chapters");
   const volumes = getVolumes(bible);
   const totalChapters = volumes.reduce((sum, v) => sum + v.chapters.length, 0);
   const savedCount = chapters.length;
   const doneCount = chapters.filter((chapter) => chapter.status === "done").length;
+
+  if (view === "bible") {
+    return (
+      <BibleEditorPanel
+        novelId={novelId}
+        bible={bible}
+        onUpdate={(updated) => {
+          onBibleUpdate(updated);
+        }}
+        onBack={() => setView("chapters")}
+      />
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-surface">
@@ -59,8 +81,8 @@ export function EditorSidebar({
               <button
                 key={chapter.index}
                 className={`group w-full text-left p-12 rounded-sm transition-all duration-200 ${
-                  isSelected 
-                    ? "bg-primary/5 border border-primary/20" 
+                  isSelected
+                    ? "bg-primary/5 border border-primary/20"
                     : "hover:bg-secondary border border-transparent"
                 }`}
                 disabled={isBusy}
@@ -88,7 +110,10 @@ export function EditorSidebar({
       </nav>
 
       <div className="p-16 border-t border-border-subtle bg-secondary/10">
-        <button className="w-full btn-secondary text-xs font-bold py-10 gap-8">
+        <button
+          className="w-full btn-secondary text-xs font-bold py-10 gap-8"
+          onClick={() => setView("bible")}
+        >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
           </svg>

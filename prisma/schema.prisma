@@ -47,6 +47,9 @@ model Novel {
 
   bible BibleDraft?
   chapters ChapterDraft[]
+  volume_summaries VolumeSummary[]
+  novel_summary NovelSummary?
+  memory_chunks MemoryChunk[]
 
   @@index([user_id])
 }
@@ -117,4 +120,43 @@ model ChapterVersion {
   @@index([chapter_id])
   @@index([created_at])
   @@index([chapter_id, content_hash])
+}
+
+model VolumeSummary {
+  id              String   @id @default(uuid())
+  novel_id        String
+  novel           Novel    @relation(fields: [novel_id], references: [id], onDelete: Cascade)
+  volume_index    Int
+  summary         String
+  covered_chapters String[]
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  @@unique([novel_id, volume_index])
+  @@index([novel_id])
+}
+
+model NovelSummary {
+  id         String   @id @default(uuid())
+  novel_id   String   @unique
+  novel      Novel    @relation(fields: [novel_id], references: [id], onDelete: Cascade)
+  summary    String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+model MemoryChunk {
+  id         String   @id @default(uuid())
+  novel_id   String
+  novel      Novel    @relation(fields: [novel_id], references: [id], onDelete: Cascade)
+  chapter_id String?
+  chunk_type String   @default("scene")
+  text       String
+  embedding  Float[]
+  metadata   Json?
+  created_at DateTime @default(now())
+
+  @@index([novel_id])
+  @@index([novel_id, chunk_type])
+  @@index([chapter_id])
 }

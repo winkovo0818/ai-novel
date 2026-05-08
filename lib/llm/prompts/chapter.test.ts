@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildChapterPrompt } from "./chapter";
 import type { BibleDraft, NovelProfile } from "../../validation/schemas";
+import type { ChapterContext } from "../../agent/chapterContext";
 
 const profile: NovelProfile = {
   genre_main: "web",
@@ -92,9 +93,21 @@ const bible: BibleDraft = {
   ],
 };
 
+function makeContext(overrides: Partial<ChapterContext> = {}): ChapterContext {
+  const mergedBible = overrides.bible ?? bible;
+  return {
+    bible: mergedBible,
+    storyState: mergedBible.story_state,
+    outline: { chapterIndex: 1, title: "第1章", summary: mergedBible.outline.volume_1.chapters[0].summary },
+    previousSummaries: [],
+    retrievedMemories: [],
+    ...overrides,
+  };
+}
+
 describe("buildChapterPrompt", () => {
   it("uses first chapter beats for chapter one", () => {
-    const messages = buildChapterPrompt({ bible, profile, chapterIndex: 1, title: "第1章" });
+    const messages = buildChapterPrompt({ context: makeContext(), profile });
     const userContent = messages[1]?.content ?? "";
 
     expect(userContent).toContain("第一章节拍");
@@ -103,17 +116,43 @@ describe("buildChapterPrompt", () => {
 
   it("uses previous context instead of first chapter beats for later chapters", () => {
     const messages = buildChapterPrompt({
-      bible,
+      context: makeContext({
+        outline: { chapterIndex: 2, title: "第2章", summary: bible.outline.volume_1.chapters[1].summary },
+        previousSummaries: [{ chapterIndex: 1, title: "第1章", summary: "第 1 章《第1章》：沈言在雨夜听见剑魂。" }],
+      }),
       profile,
-      chapterIndex: 2,
-      title: "第2章",
-      previousContext: "第 1 章《第1章》：沈言在雨夜听见剑魂。",
     });
     const userContent = messages[1]?.content ?? "";
 
-    expect(userContent).toContain("前文上下文");
+    expect(userContent).toContain("近 1 章摘要");
     expect(userContent).toContain("沈言在雨夜听见剑魂");
     expect(userContent).toContain("不套用第一章节拍");
     expect(userContent).not.toContain("雨夜火房");
+  });
+
+  it("injects story_state when present", () => {
+    const context = makeContext({
+      bible: {
+        ...bible,
+        story_state: {
+          characters: [{ name: "沈言", current_location: "柴饦峰", emotional_state: "愤怒" }],
+          plot_threads: [{ id: "t1", title: "复仇", status: "open" as const }],
+        },
+      },
+    });
+    const messages = buildChapterPrompt({ context, profile });
+    const userContent = messages[1]?.content ?? "";
+
+    expect(userContent).toContain("当前运行时状态");
+    expect(userContent).toContain("柴饦峰");
+    expect(userContent).toContain("愤怒");
+    expect(userContent).toContain("复仇");
+  });
+
+  it("omits story_state section when absent", () => {
+    const messages = buildChapterPrompt({ context: makeContext(), profile });
+    const userContent = messages[1]?.content ?? "";
+
+    expect(userContent).not.toContain("当前运行时状态");
   });
 });
