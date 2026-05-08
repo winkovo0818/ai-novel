@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { BibleDraft, Character, Volume } from "@/lib/validation/schemas";
+import type { BibleDraft, Character } from "@/lib/validation/schemas";
 import { getVolumes } from "@/lib/validation/schemas";
 
 interface BibleEditorPanelProps {

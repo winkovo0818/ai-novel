@@ -175,7 +175,7 @@ function BibleStreamCards({ draft, eventsCount }: { draft?: Partial<BibleDraft>;
             <StreamCard key={`${character.name}-${index}`} label={character.role} title={character.name}>
               <p className="line-clamp-3 mb-12">{character.personality}</p>
               <div className="p-12 bg-secondary/30 rounded-sm text-xs italic text-text-muted border-l-2 border-primary/20">
-                "{character.catchphrase}"
+                &ldquo;{character.catchphrase}&rdquo;
               </div>
             </StreamCard>
           ))}

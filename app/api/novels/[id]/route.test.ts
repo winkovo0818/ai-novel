@@ -83,7 +83,6 @@ describe("GET /api/novels/[id]", () => {
     const response = await GET(new Request("http://localhost/api/novels/novel-1"), {
       params: Promise.resolve({ id: "novel-1" }),
     });
-    const json = await response.json();
 
     expect(response.status).toBe(200);
   });

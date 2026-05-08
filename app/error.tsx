@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 export default function GlobalError({
   error,
   reset,
@@ -19,9 +21,9 @@ export default function GlobalError({
       >
         重试
       </button>
-      <a href="/" className="mt-3 text-sm text-neutral-500 underline underline-offset-4 hover:text-neutral-950">
+      <Link href="/" className="mt-3 text-sm text-neutral-500 underline underline-offset-4 hover:text-neutral-950">
         返回首页
-      </a>
+      </Link>
     </main>
   );
 }

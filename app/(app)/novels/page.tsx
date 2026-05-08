@@ -37,7 +37,7 @@ export default function NovelsPage() {
         return;
       }
       setNovels(json.data);
-    } catch (err) {
+    } catch {
       setError("网络连接异常，请稍后重试");
     } finally {
       setLoading(false);

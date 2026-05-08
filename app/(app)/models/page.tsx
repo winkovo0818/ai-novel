@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { LoadingState, EmptyState } from "@/components/ui/StatusStates";
-import { StatusTag } from "@/components/ui/StatusTag";
 
 interface LlmModel {
   id: string;
@@ -49,7 +48,7 @@ export default function ModelsPage() {
       } else {
         setModels(json.data);
       }
-    } catch (err) {
+    } catch {
       setError("无法连接到配置服务器");
     } finally {
       setLoading(false);
