@@ -10,6 +10,16 @@ type CookieToSet = {
   options: CookieOptions;
 };
 
+const publicPaths = ["/", "/login", "/signup", "/reset-password", "/update-password", "/auth/callback"];
+const apiPublicPrefixes = ["/api/healthz", "/api/auth"];
+
+function isPublicPath(pathname: string): boolean {
+  if (publicPaths.includes(pathname)) return true;
+  if (apiPublicPrefixes.some((prefix) => pathname.startsWith(prefix))) return true;
+  if (pathname.startsWith("/_next")) return true;
+  return false;
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request: {
@@ -32,7 +42,24 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Redirect authenticated users away from login/signup
+  if (user && (request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/signup")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    return NextResponse.redirect(url);
+  }
+
+  // Redirect unauthenticated users to login for protected pages
+  if (!user && !isPublicPath(request.nextUrl.pathname)) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("next", request.nextUrl.pathname);
+    return NextResponse.redirect(url);
+  }
 
   return supabaseResponse;
 }
