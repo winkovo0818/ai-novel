@@ -82,9 +82,11 @@ cp .env.example .env
 
 ### 数据库
 ```bash
-npm run db:up        # 本地 Docker 起 PostgreSQL
+npm run db:up        # 本地 Docker 起 PostgreSQL（仅本地开发，端口绑 127.0.0.1）
 npm run db:migrate   # 应用 Prisma migrations
 ```
+
+> `docker-compose.yml` 仅用于本地开发，密码从 `.env` 的 `POSTGRES_PASSWORD` 读取（缺省为 `postgres`），并把 5432 端口绑到 `127.0.0.1`，不会暴露到 LAN。生产请用 Supabase 或托管 Postgres，不要部署这份 compose。
 
 已有 Supabase？直接填 `.env.local` 后：
 ```bash

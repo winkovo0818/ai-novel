@@ -119,7 +119,7 @@
 | 状态 | 编号 | 风险需求 / 任务 | 风险说明 | 技术实现方案 | 验收标准 | 关键文件 |
 |---|---:|---|---|---|---|---|
 | ✅ | Q-01 | `.dockerignore` 已就位 | `.dockerignore` 排除 `.env*` / `node_modules` / `.next` / `.git` / `.github` / `coverage` / `playwright-report` / `*.tsbuildinfo` / `.claude` 等，保留 `.env.example` | Docker build context 不包含 `.env` 和本地产物 | `Dockerfile`、`.dockerignore` |
-| 🟡 | Q-02 | Docker/Compose 生产边界标注 | docker-compose 使用默认 postgres/postgres 且暴露 5432，仅适合本地 | 1. README 明确 compose 仅本地；2. 改用 `.env` 注入密码；3. 可选只绑定 `127.0.0.1:5432`; 4. 生产不使用该 compose | 开发者不会误把本地 compose 当生产配置 | `docker-compose.yml`、`README.md` |
+| ✅ | Q-02 | Docker/Compose 生产边界标注 | docker-compose 改用 `${POSTGRES_PASSWORD:-postgres}` 等占位、5432 绑 `127.0.0.1`、加文件头注释；README 增加生产边界声明；`.env.example` 增加 POSTGRES_* 注释 | 开发者不会误把本地 compose 当生产配置 | `docker-compose.yml`、`README.md`、`.env.example` |
 | 🟡 | Q-03 | E2E 进入 CI | 当前 E2E 存在但 CI 中注释，无法防回归 | 1. 新增独立 e2e job；2. 起 PostgreSQL service；3. 设置 `LLM_MOCK=1`；4. `prisma migrate deploy` 后跑 Playwright；5. 初期只跑 chromium | CI 中至少跑 onboarding 和 editor failure E2E | `.github/workflows/ci.yml`、`tests/e2e/**` |
 | ✅ | Q-04 | 覆盖率报告 | `vitest.config.ts` 已配置 v8 coverage（reporter: text/html/json-summary）；`npm run test:coverage` 可用；`coverage/` 已加入 `.gitignore`；当前基线 56.94% stmts / 76.08% branches / 81.25% funcs；CI 暂未强制阈值 | 能看到行/分支/函数覆盖率；核心库覆盖率逐步提升 | `vitest.config.ts`、`package.json` |
 | ✅ | Q-05 | API 错误响应统一 | 新增 `lib/http/json.ts` 提供 `jsonError(code, message, retryable, status)` 和 `jsonOk(data)`；14 个 route.ts 删除内联 `jsonError` 副本改为 import；3 条单测覆盖错误/成功包络与 init 透传 | 新增 route 默认使用统一响应；测试不需重复断言结构 | `lib/http/json.ts`、`app/api/**/route.ts` |
