@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { isRateLimited } from "@/lib/auth/rateLimit";
 import { chatCompletion } from "@/lib/llm/client";
+import { checkQuota } from "@/lib/llm/usage";
 import { buildSummarizePrompt } from "@/lib/llm/prompts/summarize";
 import { getRequiredUserId } from "@/utils/supabase/auth";
 
@@ -37,6 +38,11 @@ export async function POST(_request: Request, context: RouteContext) {
 
   if (isRateLimited(userId, "/api/chapters/:id/summarize")) {
     return jsonError("RATE_LIMITED", "Too many requests, please try again later", false, 429);
+  }
+
+  const quota = await checkQuota(userId);
+  if (!quota.allowed) {
+    return jsonError(quota.code ?? "QUOTA_EXCEEDED", quota.reason ?? "Usage quota exceeded", false, 429);
   }
 
   if (!chapter.content.trim()) {
