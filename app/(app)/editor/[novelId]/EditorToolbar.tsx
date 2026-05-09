@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 
 interface EditorToolbarProps {
-  selectedIndex: number;
   summary?: string;
   chapterTitle: string;
   chapterStatus: "draft" | "done";
@@ -22,7 +21,6 @@ interface EditorToolbarProps {
 }
 
 export function EditorToolbar({
-  selectedIndex,
   chapterTitle,
   chapterStatus,
   status,
@@ -44,18 +42,11 @@ export function EditorToolbar({
     <div className="flex flex-col gap-10 mb-12">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
         <div className="flex-1 max-w-2xl">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-[10px] font-bold text-primary px-2 py-0.5 bg-primary/5 rounded-full border border-primary/10 uppercase tracking-[0.15em]">
-              Unit {String(selectedIndex).padStart(2, "0")}
-            </span>
-            <div className="h-px w-8 bg-border-strong" />
-            <span className="text-[10px] font-bold text-text-muted uppercase tracking-[0.1em]">Manuscript Draft</span>
-          </div>
           <input
             className="w-full bg-transparent border-none text-4xl font-serif font-bold text-text-primary placeholder:text-text-dim/30 focus:outline-none focus:ring-0 p-0 leading-tight"
             value={chapterTitle}
             spellCheck={false}
-            placeholder="在此处镌刻章节标题..."
+            placeholder="章节标题"
             onChange={(e) => onTitleChange(e.target.value)}
           />
         </div>

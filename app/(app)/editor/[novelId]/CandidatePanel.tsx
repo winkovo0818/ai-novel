@@ -125,13 +125,13 @@ export function CandidatePanel({
 
       {/* M3.4 retrieval transparency — list of memory chunks the model received */}
       {retrievalStatus === "success" && retrievedMemories && retrievedMemories.length > 0 && (
-        <details className="border-b border-border-subtle bg-emerald-50/40 group">
-          <summary className="cursor-pointer list-none px-6 py-2 flex items-center justify-between text-[11px] text-emerald-900 hover:bg-emerald-50 transition-colors">
+        <details className="border-b border-border-subtle bg-secondary/30 group">
+          <summary className="cursor-pointer list-none px-6 py-2 flex items-center justify-between text-[11px] text-text-secondary hover:bg-secondary/60 transition-colors">
             <span>
-              <span className="font-bold">已引用 {retrievedMemories.length} 条历史记忆</span>
-              <span className="text-emerald-800/70 ml-2">点击展开</span>
+              <span className="font-bold text-text-primary">已引用 {retrievedMemories.length} 条历史记忆</span>
+              <span className="text-text-muted ml-2">点击展开</span>
             </span>
-            <svg className="w-3.5 h-3.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5 transition-transform group-open:rotate-180 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </summary>
@@ -139,14 +139,14 @@ export function CandidatePanel({
             {retrievedMemories.map((m, i) => (
               <li
                 key={i}
-                className="text-[11px] leading-relaxed border border-emerald-200/60 bg-white/70 rounded-md px-3 py-2"
+                className="text-[11px] leading-relaxed border border-border-subtle bg-white rounded-md px-3 py-2"
               >
                 <div className="flex items-center justify-between mb-1 gap-2">
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-emerald-800 truncate">
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-text-muted truncate">
                     {m.source}
                   </span>
-                  <span className="text-[10px] text-emerald-700/80 shrink-0 tabular-nums">
-                    sim {m.score.toFixed(3)}
+                  <span className="text-[10px] text-text-muted shrink-0 tabular-nums">
+                    {m.score.toFixed(3)}
                   </span>
                 </div>
                 {m.reason && (

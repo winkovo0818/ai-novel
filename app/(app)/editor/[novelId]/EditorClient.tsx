@@ -81,7 +81,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
         {/* Top Control Bar */}
         <div className="sticky top-0 z-10 bg-white/70 backdrop-blur-md border-b border-border-strong/50 px-8 py-4 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={() => setShowBible(!showBible)}
               className={`p-2 rounded-lg transition-all ${
                 showBible ? "bg-primary/5 text-primary" : "text-text-muted hover:bg-secondary hover:text-text-primary"
@@ -93,30 +93,28 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               </svg>
             </button>
             <div className="h-4 w-px bg-border-strong mx-2" />
-            <div className="flex flex-col">
-              <span className="text-[9px] font-bold text-text-muted uppercase tracking-[0.2em] leading-none mb-1">正在创作</span>
-              <h2 className="text-[13px] font-bold text-text-primary truncate max-w-[240px] leading-none">{title}</h2>
-            </div>
+            <h2 className="text-[13px] font-bold text-text-primary truncate max-w-[280px]">{title}</h2>
           </div>
 
           <div className="flex items-center gap-3">
             {editor.pendingStateDiff && (
               <button
                 onClick={editor.openPendingStateDiff}
-                className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs font-bold text-amber-700 hover:bg-amber-100 transition-colors"
-                title="查看状态变更建议"
+                className="relative p-2 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors"
+                title={`第 ${editor.pendingStateDiffChapterIndex} 章状态分析完成 · 点击查看`}
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                第 {editor.pendingStateDiffChapterIndex} 章状态分析完成
+                <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-amber-500" />
               </button>
             )}
-            <StatusTag type={editor.status === "drafting" ? "drafting" : editor.status === "saving" ? "saving" : editor.chapterStatus === "done" ? "done" : "idle"} />
+            {(editor.status !== "idle" || editor.chapterStatus === "done") && (
+              <StatusTag type={editor.status === "drafting" ? "drafting" : editor.status === "saving" ? "saving" : editor.chapterStatus === "done" ? "done" : "idle"} />
+            )}
             <JobsBadge novelId={novelId} />
-            <div className="h-4 w-px bg-border-strong mx-2" />
             <ExportMenu novelId={novelId} />
-            <button 
+            <button
               onClick={() => setShowAI(!showAI)}
               className={`p-2 rounded-lg transition-all ${
                 showAI ? "bg-primary text-white shadow-md shadow-primary/20" : "text-text-muted hover:bg-secondary hover:text-text-primary"
@@ -134,7 +132,6 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
         <div className="flex-1 py-16 px-4 md:px-8">
           <div className="writing-canvas p-12 md:p-20 lg:p-24 animate-fade-in-up">
             <EditorToolbar
-              selectedIndex={editor.selectedIndex}
               summary={editor.selectedOutline?.summary}
               chapterTitle={editor.chapterTitle}
               chapterStatus={editor.chapterStatus}
@@ -181,20 +178,6 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
                   updateCursorPos((event.target as HTMLTextAreaElement).selectionStart);
                 }}
               />
-              
-              {/* Context Floating Info */}
-              <div className="mt-16 pt-10 border-t border-border-subtle flex items-center justify-between text-[10px] font-bold text-text-muted uppercase tracking-[0.2em]">
-                <div className="flex items-center gap-6">
-                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                   </svg>
-                   <span>累计 {editor.characterCount} 字</span>
-                </div>
-                <span className="flex items-center gap-2 text-emerald-600">
-                  <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" />
-                  云端同步协议已激活
-                </span>
-              </div>
             </div>
           </div>
           
