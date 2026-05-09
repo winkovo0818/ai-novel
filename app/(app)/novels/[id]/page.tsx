@@ -125,13 +125,32 @@ export default async function NovelDetailPage({ params }: PageProps) {
               icon="outline"
             />
             <NavCard
-              href={editorHref}
-              title="进入写作"
-              description={lastEdited ? `第 ${lastEdited.chapter_index} 章 · ${lastEdited.title}` : "从第 1 章开始"}
-              icon="write"
-              accent
+              href={`/novels/${novel.id}/chapters`}
+              title="章节管理"
+              description={`已起草 ${savedCount} · 已完成 ${doneCount}`}
+              icon="outline"
             />
           </div>
+        </section>
+
+        {/* Quick action: enter writing */}
+        <section className="mt-6">
+          <Link
+            href={editorHref}
+            className="card bg-primary text-white border-primary flex items-center justify-between gap-6 hover:bg-primary/90 transition-colors"
+          >
+            <div>
+              <h3 className="text-lg font-serif font-bold">{lastEdited ? "继续写作" : "开始第 1 章"}</h3>
+              <p className="text-[13px] opacity-90 mt-1">
+                {lastEdited
+                  ? `第 ${lastEdited.chapter_index} 章 · ${lastEdited.title}`
+                  : "项目刚刚开始，从第 1 章下笔"}
+              </p>
+            </div>
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+          </Link>
         </section>
 
         {/* Recent chapters */}
