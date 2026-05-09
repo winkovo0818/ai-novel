@@ -1,6 +1,6 @@
 # AI Novel — 当前审计报告与后续规划
 
-> 更新时间：2026-05-09  
+> 更新时间：2026-05-10  
 > 范围：当前工作区代码、文档审阅和实测命令（`typecheck`、Vitest、`build`）  
 > 总结：项目已具备可演示、可内部试用的 AI 小说写作 MVP。Onboarding、多章节编辑、Critic、State Diff、分层摘要、RAG 雏形、导出、用量表等能力均已落地；但距离生产级长篇写作工具仍有工程交付、CI/lint、成本配额、审核覆盖、后台任务和写作体验缺口。
 > 技术落地方案见：`TECHNICAL_PLAN.md`
@@ -29,9 +29,9 @@
 | `npm run typecheck` | 通过 | TypeScript 检查通过 |
 | `npm run test` | 通过 | 46 files / 289 tests passed |
 | `npm run build` | 通过 | Next.js 15 生产构建成功 |
-| `npm run lint` | 未通过质量门禁 | 脚本仍为废弃 `next lint`，本次运行 120 秒超时 |
+| `npm run lint` | 通过 | 当前脚本已迁移为 `eslint .`，本地验证通过 |
 
-工程交付风险：`.github/workflows/ci.yml` 已恢复基础 verify workflow，但 lint、coverage、E2E 仍未进入 CI；同时仍有大量核心源码、测试、迁移文件处于 modified/untracked 状态，需要分批提交并确认远端 CI 运行。
+工程交付风险：`.github/workflows/ci.yml` 已恢复基础 verify workflow，并纳入 lint/typecheck/test/build；当前主要缺口是 E2E 尚未进入 CI、coverage 尚未成为门禁，以及工作区仍有少量依赖文件本地修改需要收口。
 
 ---
 
@@ -133,7 +133,7 @@
 
 | # | 优先级 | 问题 | 建议 |
 |---|---|---|---|
-| UX1 | P1 | `window.confirm` 用于切章/起草/删除 | 改成自定义 modal/toast，避免浏览器原生弹窗打断写作 |
+| UX1 | P1 | 仍有零散页面使用原生确认框 | 编辑器主流程已迁移到自定义 `ConfirmDialog`，但 `/models` 等次要页面仍需统一，避免产品体验割裂 |
 | ~~UX2~~ | 已落地 | 自动保存和版本历史已解耦 | autosave 只更新草稿；手动保存/AI 起草/状态切换才写版本（2026-05-08） |
 | UX3 | P2 | SSE 中断不可续传 | 先增加“重试并保留已生成内容”；之后再做 stream resume |
 | UX4 | P2 | 错误恢复弱 | onboarding 和编辑器关键错误增加重试按钮 |

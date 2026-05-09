@@ -1,11 +1,11 @@
 # AI Novel — 后续技术实现方案
 
 > 创建时间：2026-05-08  
-> 最近同步：2026-05-09  
+> 最近同步：2026-05-10  
 > 依据：当前工作区代码、`AUDIT.md`、`TASKS.md`、`PROGRESS.md` 与原始 `AI小说网站技术实现方案 v1.0.md`  
 > 目标：把当前已可演示/可内部试用的 MVP 推进为可安全试用、可支撑长篇写作、逐步具备稳定四层记忆与多 Agent 协作能力的系统。
 
-当前实测基线：`npm run typecheck`、`npm run test`（32 files / 194 tests）、`npm run build` 均通过；`npm run lint` 仍使用废弃 `next lint` 且本次运行超时；`.github/workflows/ci.yml` 已恢复基础 verify workflow，后续必须纳入 lint、coverage 和 E2E 才能作为完整交付质量门禁。
+当前实测基线：`npm run lint`、`npm run typecheck`、`npm run test`（46 files / 289 tests）、`npm run build`、`npm run verify` 均通过；`.github/workflows/ci.yml` 已恢复 lint/typecheck/test/build 基础 verify workflow，后续重点是纳入 E2E 和更明确的 coverage 门禁。
 
 ---
 

@@ -1,6 +1,6 @@
 # AI Novel — 当前任务状态与风险需求台账
 
-> 更新时间：2026-05-09  
+> 更新时间：2026-05-10  
 > 依据：当前工作区代码、`README.md`、`PROGRESS.md`、`AUDIT.md`、`TECHNICAL_PLAN.md`、`docs/contracts.md`、实际验证命令。  
 > 当前结论：项目已具备可演示、可内部试用的 AI 小说写作 MVP；`typecheck`、Vitest、生产构建当前通过。但不应视为生产级上线完成。后续任务优先级按“先恢复 CI/lint 与交付状态、再安全成本硬边界、再长篇可靠性、最后体验产品化”排序。
 
@@ -8,30 +8,30 @@
 
 ## 一、状态定义
 
-| 状态 | 含义 |
-|---|---|
-| ✅ 已完成 | 当前代码已实现，且已有基础验证或测试覆盖 |
+| 状态      | 含义                       |
+|---------|--------------------------|
+| ✅ 已完成   | 当前代码已实现，且已有基础验证或测试覆盖     |
 | 🟡 部分完成 | 已有实现雏形，但覆盖、闭环、生产可用性或验证不足 |
-| 🔴 待处理 | 尚未实现，或当前实现存在明确阻塞/风险 |
-| ⚫ 暂缓 | 属于中长期完整产品范围，当前不建议优先投入 |
+| 🔴 待处理  | 尚未实现，或当前实现存在明确阻塞/风险      |
+| ⚫ 暂缓    | 属于中长期完整产品范围，当前不建议优先投入    |
 
 ---
 
 ## 二、当前完成度总览
 
-| 模块 | 当前状态 | 完成度估计 | 说明 | 关键证据 |
-|---|---|---:|---|---|
-| Onboarding 5 步开书 | ✅ 已完成 | 80-88% | `/new`、session、logline、questions、Bible SSE、Review、Finalize 已形成闭环；跳过/直接开写/中断恢复仍需补 | `app/(app)/new/**`、`app/api/onboarding/**`、`docs/contracts.md` |
-| 多章节编辑器 MVP | ✅ 已完成 | 78-85% | 多章节、保存、AI 起草、删除、版本历史、自动保存、状态切换、Critic、State Diff、导出已实现 | `app/(app)/editor/[novelId]/**`、`app/api/chapters/**` |
-| 账号与访问控制 | 🟡 部分完成 | 70-80% | Supabase Auth、middleware、ownership、admin-only 已有；RLS 已禁用，完全依赖应用层校验 | `utils/supabase/**`、`lib/auth/**`、`prisma/migrations/20260508050000_disable_rls` |
-| LLM 基础设施 | ✅ 已完成 | 78-85% | 统一 client、stream、mock、prompt、加密模型 key、用量表、成本日志均有；配额覆盖不完整 | `lib/llm/**`、`lib/stream/**` |
-| 内容审核 | 🟡 部分完成 | 70-78% | 本地关键词+LLM 审核+`MODERATION_FAILURE_MODE` 策略化；Bible 编辑等少数路径仍缺审核 | `lib/moderation/moderate.ts`、`app/api/chapters/[id]/route.ts` |
-| 长篇记忆 L1/L2 | 🟡 部分完成 | 65-75% | Bible、Story State、章节摘要、卷摘要、全书摘要、state diff、级联刷新均已实现；dirty/hash 可靠性不足 | `lib/agent/chapterContext.ts`、`lib/agent/summaries.ts` |
-| RAG / MemoryChunk | 🟡 部分完成 | 60-70% | pgvector + HNSW 已引入；SQL 端检索与混合检索有实现；索引失败/后台任务/召回质量仍非生产级 | `lib/agent/retrieval.ts`、`lib/agent/chunking.ts` |
-| 多 Agent 协作 | 🟡 部分完成 | 55-65% | Writer、Critic、StateUpdater、Outline(BeatSheet) 均有契约+prompt+路由；自动修订/回炉和编排可靠性未完成 | `lib/agent/contracts.ts`、`lib/llm/prompts/**` |
-| 工程验证 | 🟡 部分完成 | 60-70% | `typecheck`、Vitest、`build` 当前通过；`lint` 超时且脚本废弃，`verify` 未包含 lint | `package.json`、`next.config.ts` |
-| CI/CD | 🟡 部分完成 | 45-55% | `.github/workflows/ci.yml` 已恢复基础验证；E2E 未进 CI；coverage 缺失 | `.github/workflows/ci.yml` |
-| 产品化能力 | 🟡 部分完成 | 45-55% | 已有 Markdown/TXT 导出和用量表；缺候选稿、写作工具、生产限流、低噪声 UI、后台任务 | `design.md`、`AUDIT.md` |
+| 模块                | 当前状态    |  完成度估计 | 说明                                                                                       | 关键证据                                                                             |
+|-------------------|---------|-------:|------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| Onboarding 5 步开书  | ✅ 已完成   | 80-88% | `/new`、session、logline、questions、Bible SSE、Review、Finalize 已形成闭环；跳过/直接开写/中断恢复仍需补         | `app/(app)/new/**`、`app/api/onboarding/**`、`docs/contracts.md`                   |
+| 多章节编辑器 MVP        | ✅ 已完成   | 78-85% | 多章节、保存、AI 起草、删除、版本历史、自动保存、状态切换、Critic、State Diff、导出已实现                                   | `app/(app)/editor/[novelId]/**`、`app/api/chapters/**`                            |
+| 账号与访问控制           | 🟡 部分完成 | 70-80% | Supabase Auth、middleware、ownership、admin-only 已有；RLS 已禁用，完全依赖应用层校验                       | `utils/supabase/**`、`lib/auth/**`、`prisma/migrations/20260508050000_disable_rls` |
+| LLM 基础设施          | ✅ 已完成   | 78-85% | 统一 client、stream、mock、prompt、加密模型 key、用量表、成本日志均有；配额覆盖不完整                                 | `lib/llm/**`、`lib/stream/**`                                                     |
+| 内容审核              | 🟡 部分完成 | 70-78% | 本地关键词+LLM 审核+`MODERATION_FAILURE_MODE` 策略化；Bible 编辑等少数路径仍缺审核                             | `lib/moderation/moderate.ts`、`app/api/chapters/[id]/route.ts`                    |
+| 长篇记忆 L1/L2        | 🟡 部分完成 | 65-75% | Bible、Story State、章节摘要、卷摘要、全书摘要、state diff、级联刷新均已实现；dirty/hash 可靠性不足                     | `lib/agent/chapterContext.ts`、`lib/agent/summaries.ts`                           |
+| RAG / MemoryChunk | 🟡 部分完成 | 60-70% | pgvector + HNSW 已引入；SQL 端检索与混合检索有实现；索引失败/后台任务/召回质量仍非生产级                                  | `lib/agent/retrieval.ts`、`lib/agent/chunking.ts`                                 |
+| 多 Agent 协作        | 🟡 部分完成 | 55-65% | Writer、Critic、StateUpdater、Outline(BeatSheet) 均有契约+prompt+路由；自动修订/回炉和编排可靠性未完成            | `lib/agent/contracts.ts`、`lib/llm/prompts/**`                                    |
+| 工程验证              | ✅ 已完成   | 80-85% | `lint`、`typecheck`、Vitest、`build` 当前通过；`verify` 已覆盖四者                                    | `package.json`、`next.config.ts`                                                  |
+| CI/CD             | 🟡 部分完成 | 65-75% | `.github/workflows/ci.yml` 已恢复 lint/typecheck/test/build；E2E 仍未进 CI，coverage 仅本地可见未入质量门禁 | `.github/workflows/ci.yml`                                                       |
+| 产品化能力             | 🟡 部分完成 | 45-55% | 已有 Markdown/TXT 导出和用量表；缺候选稿、写作工具、生产限流、低噪声 UI、后台任务                                        | `design.md`、`AUDIT.md`                                                           |
 
 ---
 
@@ -44,7 +44,7 @@
 | ✅ | D-03 | Supabase 登录注册基础链路 | `/login`、`/signup`、密码重置、auth callback、logout 已有 | 需要 E2E 覆盖登录/注册/重置最小链路 |
 | ✅ | D-04 | 应用层 ownership | 主要 Novel/Chapter/API/SSR 页面已接入 `canAccessOwnerResource` | RLS 禁用后必须持续补全负向测试 |
 | ✅ | D-05 | 多章节编辑器 | 多章节加载、切换、保存、AI 起草、状态切换已实现 | 需要更强写作工具和候选稿/差异保存能力 |
-| ✅ | D-06 | 章节删除 | `DELETE /api/chapters/[id]` 已实现 | 当前仍使用浏览器原生确认体验 |
+| ✅ | D-06 | 章节删除 | `DELETE /api/chapters/[id]` 已实现 | 编辑器主路径已改用 `ConfirmDialog`；其余页面仍需统一危险操作确认 |
 | ✅ | D-07 | 章节版本历史 | `ChapterVersion`、hash 去重、50 条上限、版本列表 UI 已有 | 版本恢复 API 尚未实现 |
 | ✅ | D-08 | Autosave 与版本历史解耦 | `source=autosave/manual/ai/status_change` 已区分 | 需要事务化保护更新和版本写入一致性 |
 | ✅ | D-09 | 一致性检查 | `POST /api/novels/[id]/consistency` 和编辑器入口已接入 | 当前更多是手动审计，不是自动闭环 |
@@ -54,9 +54,9 @@
 | ✅ | D-13 | Chapter Context Builder | `buildChapterContext()` 统一组装 Bible、摘要、story_state、retrievedMemories | RAG 检索结果质量仍需提升 |
 | ✅ | D-14 | 分层摘要 v1 | `VolumeSummary`、`NovelSummary`、最近 5 章摘要策略已有 | dirty 检测较粗，章节改稿后级联刷新不足 |
 | ✅ | D-15 | MemoryChunk 雏形 | 表结构、chunking、embedding、retrieval 已有 | 需要 pgvector/索引/rerank 才能支撑规模 |
-| ✅ | D-16 | Admin-only 模型配置 | `/models` 与 `/api/llm-models/**` 已接入 admin guard | API key 明文存储和返回仍是高风险 |
+| ✅ | D-16 | Admin-only 模型配置 | `/models` 与 `/api/llm-models/**` 已接入 admin guard | 后续重点转向设置页体验与操作确认统一，而非权限缺口 |
 | ✅ | D-17 | API 限流雏形 | `lib/auth/rateLimit.ts` 已覆盖部分高成本路由 | 内存 Map 不适合生产，多实例无效 |
-| ✅ | D-18 | Vitest 基础覆盖 | 当前 24 个测试文件、127 个测试通过 | coverage 未配置，E2E 未进入质量门禁 |
+| ✅ | D-18 | Vitest 基础覆盖 | 当前 46 个测试文件、289 个测试通过 | coverage 已配置但未进入 CI 质量门禁；E2E 仍未进入 CI |
 
 ---
 
@@ -64,10 +64,10 @@
 
 | 状态 | 编号 | 风险需求 / 任务 | 风险说明 | 技术实现方案 | 验收标准 | 关键文件 |
 |---|---:|---|---|---|---|---|
-| ✅ | P0-01 | 修复当前 `typecheck/build` 失败 | 当前实测 `npm run typecheck`、`npm run test`、`npm run build` 均通过；`npm run verify` 可覆盖三者 | 保持依赖锁定和构建环境稳定；后续把 lint 迁移后再纳入 verify | `npm run typecheck`、`npm run test`、`npm run build` 通过 | `package.json`、`package-lock.json`、`next.config.ts` |
+| ✅ | P0-01 | 修复当前 `typecheck/build` 失败 | 当前实测 `npm run lint`、`npm run typecheck`、`npm run test`、`npm run build` 均通过；`npm run verify` 已覆盖四者 | 保持依赖锁定和构建环境稳定；下一步把 E2E 逐步纳入质量门禁 | `npm run lint`、`npm run typecheck`、`npm run test`、`npm run build` 通过 | `package.json`、`package-lock.json`、`next.config.ts` |
 | ✅ | P0-02 | 替换废弃的 `next lint` | `package.json` 已改为 `eslint .`；CI 已纳入 lint job；当前 `npm run lint` 通过 | `npm run lint` 通过；CI 执行 lint | `package.json`、`eslint.config.mjs`、`.github/workflows/ci.yml` |
 | ✅ | P0-03 | 恢复并增强 CI 工作流 | `.github/workflows/ci.yml` 已包含 typecheck/lint/test/build；E2E 仍未进 CI（Q-03） | PR 上 CI 自动运行且失败会阻断合并 | `.github/workflows/ci.yml` |
-| ✅ | P0-04 | 清理工作区未跟踪关键文件状态 | `git status --short` 当前为 clean，所有源码、测试、迁移、CI 已跟踪并推送 | `git status --short` 中只剩预期变更；关键功能文件均被追踪 | — |
+| 🟡 | P0-04 | 清理工作区未跟踪关键文件状态 | 当前仅 `package.json` / `package-lock.json` 仍有本地修改；源码、测试、迁移、CI 已基本跟踪 | `git status --short` 中只保留预期文档或依赖变更；关键功能文件均被追踪 | — |
 
 ---
 
@@ -107,7 +107,7 @@
 | ✅ | P-02 | 导出 Markdown/TXT | `lib/export/formatNovel.ts` 格式化逻辑；`GET /api/novels/:id/export?format=markdown|txt` 路由含权限+审核；`ExportMenu` 下拉组件在编辑器顶栏；内容审核覆盖导出 | 用户可导出整本小说 Markdown/TXT；章节顺序正确；未授权不可导出；审核阻挡导出 | `lib/export/formatNovel.ts`、`app/api/novels/[id]/export/route.ts`、`EditorClient.tsx`、`ExportMenu.tsx` |
 | 🟡 | P-03 | 写作工具补齐 | textarea 可用但不像专业写作工具，缺查找替换、目标字数、章节进度 | 1. 增加查找/替换；2. 章节目标字数来自 profile；3. 显示今日写作字数、章节完成度；4. 保存草稿恢复提示；5. 后续考虑富文本或 CodeMirror/TipTap | 作者能进行基础长文编辑，不依赖外部编辑器 | `EditorClient.tsx`、`EditorToolbar.tsx`、`useChapterEditor.ts` |
 | 🟡 | P-04 | AI 起草改为候选稿/差异保存 | 当前 AI 起草主要覆盖正文，虽然有 confirm 和版本，但体验风险高 | 1. AI 输出先进入 candidate buffer；2. 用户选择“覆盖/追加/插入光标/另存版本”；3. 展示 diff；4. 保存前创建版本 | AI 生成不会直接替换用户正文；用户可选择合并方式 | `useChapterEditor.ts`、`AIPanel.tsx`、`VersionsModal.tsx` |
-| 🟡 | P-05 | 替换 `window.confirm` | 原生确认框打断写作，与 `design.md` 的沉浸式目标冲突 | 1. 建统一 `ConfirmDialog`；2. 切章、起草、删除、未保存离开都使用自定义 modal；3. 支持保存并继续/放弃/取消 | 不再出现浏览器原生 confirm；交互文案统一 | `useChapterEditor.ts`、`EditorToolbar.tsx`、`components/ui/**` |
+| 🟡 | P-05 | 替换 `window.confirm` | 编辑器主路径已迁移到 `ConfirmDialog`，但 `/models` 等次要页面仍残留原生确认 | 1. 统一危险操作确认组件；2. 清理剩余原生 confirm；3. 统一文案与焦点管理 | 主工作流和设置页都不再出现浏览器原生 confirm | `useChapterEditor.ts`、`app/(app)/models/page.tsx`、`components/ui/**` |
 | ✅ | P-06 | Profile -> Generation Policy | `lib/llm/generationPolicy.ts` maps tone/pace/ai_freedom/audience/pov to temperature and prompt directives; draft route uses policy instead of hardcoded params; prompt builder consumes policy style directives | 修改 profile 后，后续章节生成参数和 prompt 明确变化 | `lib/llm/generationPolicy.ts`、`lib/llm/prompts/chapter.ts`、`app/api/novels/[id]/chapters/draft/route.ts` |
 | 🔴 | P-07 | 小说项目详情/角色/世界观/大纲独立页面 | `design.md` 规划了完整创作工作台，当前多数能力集中在编辑器侧栏 | 1. 增加 `/novels/[id]` 项目详情；2. 拆出角色、世界观、大纲管理 tab；3. 与 Bible JSON 同步；4. 编辑器只保留高频写作视图 | 用户能清晰管理“小说-卷-章-角色-世界观-大纲”关系 | `app/(app)/novels/**`、`BibleEditorPanel.tsx` |
 | 🟡 | P-08 | UI 低噪声重设计 | 当前 UI 与设计文档目标仍有差距，偏后台/协议感，不适合长时间写作 | 1. 按 `design.md` 建立色彩、字体、卡片、编辑器规范；2. 写作页优先低噪声；3. AI 面板默认收起或分层；4. 增加空/加载/错误状态 | 主编辑器长时间写作舒适；信息层级清晰；AI 不打扰创作 | `app/globals.css`、`components/ui/**`、`app/(app)/**` |
@@ -162,8 +162,8 @@
 
 | 验收项 | 目标 |
 |---|---|
-| 工程验证 | 当前 `npm run typecheck`、`npm run test`、`npm run build` 通过；下一步修复 `npm run lint` 并纳入 verify/CI |
-| 测试基线 | Vitest 当前 32 files / 194 tests 通过；新增 P0/S 类风险单测 |
+| 工程验证 | 当前 `npm run lint`、`npm run typecheck`、`npm run test`、`npm run build`、`npm run verify` 均通过；下一步把 E2E 纳入 CI |
+| 测试基线 | Vitest 当前 46 files / 289 tests 通过；新增 P0/S 类风险单测 |
 | 安全基线 | ✅ 未登录不能调用真实 LLM health check；普通用户不能读写模型配置；API key 不明文返回 |
 | 成本基线 | 所有高成本 LLM 路由有限流；用量至少能持久化记录 |
 | 文档基线 | `README.md`、`PROGRESS.md`、`TASKS.md`、`AUDIT.md` 不再互相冲突 |
