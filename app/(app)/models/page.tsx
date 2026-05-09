@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { LoadingState, EmptyState } from "@/components/ui/StatusStates";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 
 interface LlmModel {
   id: string;
@@ -18,6 +19,7 @@ interface LlmModel {
 const emptyForm = { name: "", provider: "deepseek", base_url: "https://api.deepseek.com/v1", api_key: "", model: "deepseek-chat", is_default: true };
 
 export default function ModelsPage() {
+  const confirm = useConfirm();
   const [models, setModels] = useState<LlmModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -107,7 +109,14 @@ export default function ModelsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("确定删除此模型配置？")) return;
+    const model = models.find((m) => m.id === id);
+    const ok = await confirm({
+      title: model ? `删除模型节点「${model.name}」？` : "删除此模型配置？",
+      message: "删除后该节点立即下线，正在使用此模型的任务可能失败。此操作不可撤销。",
+      confirmLabel: "删除节点",
+      danger: true,
+    });
+    if (!ok) return;
     await fetch(`/api/llm-models/${id}`, { method: "DELETE" });
     fetchModels();
   }
