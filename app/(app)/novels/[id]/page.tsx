@@ -130,6 +130,12 @@ export default async function NovelDetailPage({ params }: PageProps) {
               description={`已起草 ${savedCount} · 已完成 ${doneCount}`}
               icon="outline"
             />
+            <NavCard
+              href={`/novels/${novel.id}/history`}
+              title="生成历史"
+              description="查看所有 AI 调用记录"
+              icon="write"
+            />
           </div>
         </section>
 

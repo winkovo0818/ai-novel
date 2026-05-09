@@ -128,6 +128,7 @@ function logLlmCall(entry: LlmLogEntry): void {
       costCny: entry.costCny,
       status: entry.status,
       errorCode: entry.errCode,
+      tookMs: entry.tookMs,
     });
   }
 }

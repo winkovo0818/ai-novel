@@ -11,6 +11,8 @@ export interface UsageLogEntry {
   costCny: number;
   status: "ok" | "err";
   errorCode?: string;
+  /** Round-trip latency in milliseconds. */
+  tookMs?: number;
 }
 
 export async function logUsage(entry: UsageLogEntry): Promise<void> {
@@ -27,6 +29,7 @@ export async function logUsage(entry: UsageLogEntry): Promise<void> {
         cost_cny: entry.costCny,
         status: entry.status,
         error_code: entry.errorCode,
+        took_ms: entry.tookMs,
       },
     });
   } catch (err) {

@@ -179,11 +179,15 @@ model LlmUsage {
   cost_cny    Float    @default(0)
   status      String   @default("ok")
   error_code  String?
+  /// Round-trip latency in milliseconds. Populated by the LLM client.
+  /// Null on rows that pre-date the column.
+  took_ms     Int?
   created_at  DateTime @default(now())
 
   @@index([user_id])
   @@index([user_id, created_at])
   @@index([novel_id])
+  @@index([novel_id, created_at])
   @@index([route])
 }
 
