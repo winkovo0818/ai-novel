@@ -5,6 +5,7 @@ import type { BibleDraft, NovelProfile } from "@/lib/validation/schemas";
 const streamChatCompletionWithRetry = vi.fn();
 const findUnique = vi.fn();
 const getRequiredUserId = vi.fn();
+const retrieveMemories = vi.fn();
 
 vi.mock("@/lib/llm/client", () => ({
   streamChatCompletionWithRetry,
@@ -18,6 +19,15 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("@/utils/supabase/auth", () => ({
   getRequiredUserId,
+}));
+
+vi.mock("@/lib/agent/retrieval", () => ({
+  retrieveMemories,
+}));
+
+vi.mock("@/lib/moderation/moderate", () => ({
+  moderateContent: () => Promise.resolve({ allowed: true }),
+  stringifyForModeration: (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v)),
 }));
 
 const profile: NovelProfile = {
@@ -74,6 +84,7 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getRequiredUserId.mockResolvedValue("user-1");
+    retrieveMemories.mockResolvedValue({ status: "empty", memories: [] });
   });
 
   it("emits an SSE error event when the LLM times out", async () => {
@@ -155,6 +166,62 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
 
     expect(response.status).toBe(401);
     expect(json.error.code).toBe("UNAUTHORIZED");
+  });
+
+  it("emits a retrieval SSE event with truncated memory chunks before the LLM stream", async () => {
+    const { POST } = await import("./route");
+    findUnique.mockResolvedValue({
+      id: "novel-1",
+      user_id: "user-1",
+      profile,
+      bible: { content: bible },
+      chapters: [],
+      volume_summaries: [],
+      novel_summary: null,
+    });
+    retrieveMemories.mockResolvedValue({
+      status: "success",
+      memories: [
+        {
+          source: "chapter:3",
+          reason: "shared protagonist arc",
+          score: 0.873,
+          text: "短记忆片段 ABC",
+        },
+        {
+          // Long text should be truncated to 200 chars + ellipsis
+          source: "world:rule:1",
+          reason: "rule referenced in beat sheet",
+          score: 0.612,
+          text: "长".repeat(300),
+        },
+      ],
+    });
+    streamChatCompletionWithRetry.mockImplementation(async (_args, callbacks) => {
+      callbacks?.onDelta?.("章节正文片段");
+      return { tokenIn: 100, tokenOut: 50, costCny: 0.0001, tookMs: 10 };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/novels/novel-1/chapters/draft", {
+        method: "POST",
+        body: JSON.stringify({ chapter_index: 1, title: "第1章" }),
+      }),
+      { params: Promise.resolve({ id: "novel-1" }) },
+    );
+    const text = await response.text();
+
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    expect(text).toContain("event: retrieval");
+    expect(text).toContain('"status":"success"');
+    expect(text).toContain('"source":"chapter:3"');
+    expect(text).toContain('"score":0.873');
+    expect(text).toContain('"reason":"shared protagonist arc"');
+    // Truncated payload — exactly 200 "长" plus ellipsis, never the full 300
+    expect(text).toContain(`${"长".repeat(200)}…`);
+    expect(text).not.toContain("长".repeat(201));
+    // Retrieval event is emitted before any chapter_delta
+    expect(text.indexOf("event: retrieval")).toBeLessThan(text.indexOf("event: chapter_delta"));
   });
 });
 

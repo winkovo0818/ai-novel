@@ -114,6 +114,22 @@ export async function POST(request: Request, context: RouteContext) {
   retrievedMemories = retrievalResult.memories;
   retrievalStatus = retrievalResult.status;
 
+  // M3.4 retrieval visibility: short, UI-friendly view of what RAG fed in.
+  // Truncate body so SSE payload stays small even with 5 chunks of summaries.
+  const RETRIEVAL_PREVIEW_CHARS = 200;
+  const retrievalPreview = {
+    status: retrievalStatus,
+    error: retrievalResult.errorMessage,
+    memories: retrievalResult.memories.map((m) => ({
+      source: m.source,
+      reason: m.reason,
+      score: m.score,
+      text: m.text.length > RETRIEVAL_PREVIEW_CHARS
+        ? `${m.text.slice(0, RETRIEVAL_PREVIEW_CHARS)}…`
+        : m.text,
+    })),
+  };
+
   const chapterContext = buildChapterContext(bible.data, novel.chapters, input.chapter_index, {
     novelSummary: novel.novel_summary?.summary,
     volumeSummary,
@@ -134,6 +150,10 @@ export async function POST(request: Request, context: RouteContext) {
       }
 
       try {
+        // M3.4: surface what RAG retrieved before the LLM stream starts so the
+        // candidate panel can render the cited chunks while the model is still
+        // generating. Falls between request and first delta.
+        send(sseEncode("retrieval", retrievalPreview));
         heartbeat = setInterval(() => send(sseHeartbeat()), 15_000);
         const result = await streamChatCompletionWithRetry(
           {

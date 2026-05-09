@@ -5,6 +5,7 @@ export type SseEventName =
   | "outline_chapter"
   | "first_chapter_beat"
   | "chapter_delta"
+  | "retrieval"
   | "done"
   | "error";
 
