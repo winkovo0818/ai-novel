@@ -1,3 +1,4 @@
+import { jsonError } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { isRateLimited } from "@/lib/auth/rateLimit";
@@ -86,8 +87,4 @@ export async function POST(_request: Request, context: RouteContext) {
     const message = err instanceof Error ? err.message : "Consistency check failed";
     return jsonError("INTERNAL", message, true, 500);
   }
-}
-
-function jsonError(code: string, message: string, retryable: boolean, status: number) {
-  return Response.json({ ok: false, error: { code, message, retryable } }, { status });
 }

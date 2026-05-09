@@ -1,3 +1,4 @@
+import { jsonError } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { authorizeOnboardingSession } from "@/lib/auth/onboardingAccess";
 import { isRateLimited } from "@/lib/auth/rateLimit";
@@ -76,11 +77,6 @@ function parseJson(value: string): unknown {
   const trimmed = value.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   return JSON.parse(trimmed);
 }
-
-function jsonError(code: string, message: string, retryable: boolean, status: number) {
-  return Response.json({ ok: false, error: { code, message, retryable } }, { status });
-}
-
 function llmErrorResponse(err: unknown) {
   const message = err instanceof Error ? err.message : "unknown error";
   const isTimeout = /timed out/i.test(message);

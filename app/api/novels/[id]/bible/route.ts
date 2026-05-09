@@ -1,3 +1,4 @@
+import { jsonError } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { BibleUpdateRequestSchema } from "@/lib/validation/schemas";
@@ -44,8 +45,4 @@ export async function PATCH(request: Request, context: RouteContext) {
   });
 
   return Response.json({ ok: true, data: updated });
-}
-
-function jsonError(code: string, message: string, retryable: boolean, status: number) {
-  return Response.json({ ok: false, error: { code, message, retryable } }, { status });
 }

@@ -1,3 +1,4 @@
+import { jsonError } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { isRateLimited } from "@/lib/auth/rateLimit";
@@ -204,8 +205,4 @@ export async function POST(request: Request, context: RouteContext) {
       "X-Accel-Buffering": "no",
     },
   });
-}
-
-function jsonError(code: string, message: string, retryable: boolean, status: number) {
-  return Response.json({ ok: false, error: { code, message, retryable } }, { status });
 }
