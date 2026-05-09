@@ -72,6 +72,9 @@ model ChapterDraft {
   title         String
   content       String   @default("")
   status        String   @default("draft")
+  /// Optional per-chapter word target. Null means no target — UI hides the
+  /// progress affordance entirely. When set, the editor shows a target ring.
+  target_words  Int?
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 

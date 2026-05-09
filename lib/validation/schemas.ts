@@ -295,6 +295,8 @@ export const UpdateChapterDraftRequestSchema = z.object({
   content: z.string().max(80_000).optional(),
   status: z.enum(["draft", "done"]).optional(),
   source: z.enum(["manual", "ai", "autosave", "status_change"]).optional(),
+  /** Per-chapter word target. Null clears it; undefined leaves it unchanged. */
+  target_words: z.number().int().min(100).max(50_000).nullable().optional(),
 });
 
 export const GenerateChapterDraftRequestSchema = z.object({

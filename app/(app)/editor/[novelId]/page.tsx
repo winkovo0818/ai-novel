@@ -42,12 +42,22 @@ export default async function EditorPlaceholderPage({ params, searchParams }: Pa
       ? requestedIndex
       : 1;
 
+  const initialChapters = novel.chapters.map((c) => ({
+    id: c.id,
+    chapter_index: c.chapter_index,
+    title: c.title,
+    content: c.content,
+    status: c.status,
+    target_words: c.target_words,
+    updated_at: c.updated_at.toISOString(),
+  }));
+
   return (
     <EditorClient
       novelId={novel.id}
       title={novel.title}
       bible={bible.data}
-      initialChapters={novel.chapters}
+      initialChapters={initialChapters}
       initialChapterIndex={initialChapterIndex}
     />
   );

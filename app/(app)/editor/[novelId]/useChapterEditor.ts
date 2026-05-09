@@ -61,6 +61,8 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
   const [savedTitle, setSavedTitle] = useState(startDraft?.title ?? startOutline?.title ?? `第 ${startIndex} 章`);
   const [savedContent, setSavedContent] = useState(startDraft?.content ?? "");
   const [savedStatus, setSavedStatus] = useState<"draft" | "done">(startDraft?.status === "done" ? "done" : "draft");
+  const [targetWords, setTargetWordsState] = useState<number | null>(startDraft?.target_words ?? null);
+  const [lastSavedAt, setLastSavedAt] = useState<string | undefined>(startDraft?.updated_at);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "drafting" | "error">("idle");
   const [message, setMessage] = useState<string>();
   const hasUnsavedChanges = chapterTitle !== savedTitle || content !== savedContent || chapterStatus !== savedStatus;
@@ -103,6 +105,10 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     setSavedTitle(nextTitle);
     setSavedContent(nextContent);
     setSavedStatus(nextStatus);
+    if (json.data.updated_at) setLastSavedAt(json.data.updated_at);
+    if (json.data.target_words !== undefined) {
+      setTargetWordsState(json.data.target_words);
+    }
     setChapters((current) => {
       const nextChapter = json.data as ChapterDraftView;
       const exists = current.some((chapter) => chapter.id === nextChapter.id);
@@ -232,8 +238,29 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     setSavedTitle(nextTitle);
     setSavedContent(nextContent);
     setSavedStatus(nextStatus);
+    setTargetWordsState(draft?.target_words ?? null);
+    setLastSavedAt(draft?.updated_at);
     setStatus("idle");
     setMessage(undefined);
+  }
+
+  async function setTargetWords(value: number | null) {
+    if (value === targetWords) return;
+    setTargetWordsState(value);
+    if (!chapterId) return;
+    try {
+      const response = await fetch(`/api/chapters/${chapterId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_words: value, source: "manual" }),
+      });
+      const json = await response.json();
+      if (!json.ok) throw new Error(json.error?.message ?? "目标字数保存失败");
+      if (json.data.updated_at) setLastSavedAt(json.data.updated_at);
+    } catch (err) {
+      setStatus("error");
+      setMessage(err instanceof Error ? err.message : "目标字数保存失败");
+    }
   }
 
   async function saveChapter() {
@@ -630,5 +657,9 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     candidateCriticError,
     setCursorPos,
     acceptCandidate,
+    // M1.5 writing tools
+    targetWords,
+    setTargetWords,
+    lastSavedAt,
   };
 }

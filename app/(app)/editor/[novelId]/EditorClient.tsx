@@ -20,6 +20,8 @@ export interface ChapterDraftView {
   title: string;
   content: string;
   status: string;
+  target_words?: number | null;
+  updated_at?: string;
 }
 
 interface EditorClientProps {
@@ -141,6 +143,8 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               status={editor.status}
               message={editor.message}
               hasUnsavedChanges={editor.hasUnsavedChanges}
+              targetWords={editor.targetWords}
+              lastSavedAt={editor.lastSavedAt}
               onTitleChange={(nextTitle) => {
                 editor.setChapterTitle(nextTitle);
                 if (editor.status === "saved") editor.setStatus("idle");
@@ -153,6 +157,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               onSave={editor.saveChapter}
               onDeleteChapter={editor.deleteChapter}
               onOpenVersions={editor.openVersions}
+              onSetTargetWords={editor.setTargetWords}
             />
 
             <div className="mt-16 relative">
