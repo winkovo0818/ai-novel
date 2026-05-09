@@ -2,10 +2,10 @@ import { expect, test } from "@playwright/test";
 
 import { completeOnboardingToEditor } from "./helpers/onboarding";
 
-test("keeps existing chapter text when AI drafting fails", async ({ page }) => {
+test("AI draft errors stay inside the candidate panel and never touch the editor body", async ({ page }) => {
   await completeOnboardingToEditor(page, { title: "失败保护 E2E" });
 
-  const editor = page.locator("textarea");
+  const editor = page.locator("textarea").first();
   await editor.fill("这段原文不能被失败的 AI 起草覆盖。");
   await expect(page.getByText("已自动保存")).toBeVisible({ timeout: 8_000 });
 
@@ -17,7 +17,8 @@ test("keeps existing chapter text when AI drafting fails", async ({ page }) => {
     });
   });
 
-  await page.getByRole("button", { name: "AI 起草第 1 章" }).click();
+  await page.getByRole("button", { name: "全文续写" }).click();
+  // The error surfaces in the editor status line, not the body.
   await expect(page.getByText("timeout")).toBeVisible();
   await expect(editor).toHaveValue("这段原文不能被失败的 AI 起草覆盖。");
 });
