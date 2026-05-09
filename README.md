@@ -2,6 +2,8 @@
 
 AI 协同写小说平台，支持 5 步生成 Bible 草稿 + 多章节 AI 写作。
 
+当前状态：可演示、可内部试用的 MVP。`typecheck`、Vitest、生产构建当前通过；`lint` 脚本仍需从废弃的 `next lint` 迁移到 ESLint CLI，CI workflow 当前工作区为删除状态，恢复后才建议作为稳定交付基线。
+
 ---
 
 ## 功能概览
@@ -159,6 +161,12 @@ npm run verify
 npm run typecheck
 npm run test
 npm run build
+
+# 当前实测基线（2026-05-09）
+# npm run typecheck 通过
+# npm run test      32 files / 194 tests passed
+# npm run build     通过
+# npm run lint      当前使用废弃 next lint，本地运行超时，需迁移
 
 # E2E 测试（需 LLM_MOCK=1）
 $env:LLM_MOCK='1'; npm run test:e2e

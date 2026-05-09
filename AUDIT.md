@@ -1,8 +1,8 @@
 # AI Novel — 当前审计报告与后续规划
 
-> 更新时间：2026-05-08  
-> 范围：当前 main 分支（最新提交 `4c1921f`）  
-> 总结：项目已具备可演示的 AI 小说写作 MVP，但距离最初设计的“四层记忆架构 + 多 Agent 协同”仍有明显差距。当前最应该优先处理的是安全边界、版本/自动保存成本、长篇 schema 解锁，以及把现有摘要/一致性能力推进成真实的记忆闭环。
+> 更新时间：2026-05-09  
+> 范围：当前工作区代码、文档审阅和实测命令（`typecheck`、Vitest、`build`）  
+> 总结：项目已具备可演示、可内部试用的 AI 小说写作 MVP。Onboarding、多章节编辑、Critic、State Diff、分层摘要、RAG 雏形、导出、用量表等能力均已落地；但距离生产级长篇写作工具仍有工程交付、CI/lint、成本配额、审核覆盖、后台任务和写作体验缺口。
 > 技术落地方案见：`TECHNICAL_PLAN.md`
 
 ---
@@ -11,14 +11,27 @@
 
 | 模块 | 当前完成度 | 判断 |
 |---|---:|---|
-| Onboarding 一句话开书 | 80-90% | 主链路可用，已有鉴权、审核、流式 Bible 生成 |
-| 多章节编辑器 | 60-70% | 可写、可保存、可 AI 起草、可查看历史 |
-| 多 Agent 协作 | 20-30% | 只有写作 Agent + 手动 Critic，未形成 Agent 闭环 |
-| 四层记忆架构 | 20-25% | L1/L2 有雏形，L3/L4 基本未实现 |
-| 长篇稳定创作能力 | 25-35% | 仍受 schema、摘要、检索、状态同步限制 |
-| 产品化完整度 | 35-45% | 能演示，尚不能按长篇创作工具上线 |
+| Onboarding 一句话开书 | 80-88% | 主链路可用，已有 session、logline、追问、流式 Bible、Review、Finalize；跳过/恢复/直接开写仍需补 |
+| 多章节编辑器 | 78-85% | 可写、可保存、可 AI 起草、可查看历史、可删除、可导出，Critic/State Diff 已接入 |
+| 多 Agent 协作 | 55-65% | Writer、Critic、StateUpdater、Outline/BeatSheet、Retrieval 均有实现；自动修订/回炉和稳定编排不足 |
+| 四层记忆架构 | 60-70% | L1 Bible、L2 分层摘要、L3 MemoryChunk/RAG、L4 State Diff 都有实现；可靠性和任务化不足 |
+| 长篇稳定创作能力 | 60-70% | schema 已解锁长篇，摘要/RAG/状态可影响生成；dirty/hash、索引失败、召回质量仍需增强 |
+| 产品化完整度 | 45-55% | 能内部试用，已有导出和用量雏形；候选稿、写作工具、低噪声 UI、CI/coverage 未完成 |
 
-核心结论：当前不是“多 Agent 长篇记忆系统”，而是“带 Story Bible 和章节摘要雏形的单 Agent 写作 MVP”。
+核心结论：当前已经不再只是“带 Story Bible 和章节摘要雏形的单 Agent 写作 MVP”，而是具备多 Agent/记忆闭环雏形的写作 MVP。但它仍不是生产级“长篇记忆系统”：可靠性、可观测性、后台任务、成本控制和写作体验还需要系统性收敛。
+
+---
+
+## 当前实测验证
+
+| 命令 | 当前结果 | 说明 |
+|---|---|---|
+| `npm run typecheck` | 通过 | TypeScript 检查通过 |
+| `npm run test` | 通过 | 32 files / 194 tests passed |
+| `npm run build` | 通过 | Next.js 15 生产构建成功 |
+| `npm run lint` | 未通过质量门禁 | 脚本仍为废弃 `next lint`，本次运行 120 秒超时 |
+
+工程交付风险：当前工作区中 `.github/workflows/ci.yml` 为删除状态，若提交该状态，GitHub Actions 将失效；同时仍有大量核心源码、测试、迁移文件处于 modified/untracked 状态，需要分批提交并确认 CI 恢复。
 
 ---
 
@@ -47,9 +60,14 @@
 |---|---|---|---|---|
 | ~~S1~~ | 已落地 | **RLS 决策**：禁用 RLS，明确依赖应用层 ownership | migration `20260508050000_disable_rls` 已 DROP 所有策略并 DISABLE ROW LEVEL SECURITY；`lib/db.ts` 已删除 `setRlsUser` helper | 完成（2026-05-08）。当前版本明确以 `lib/auth/ownership.ts` + SSR/API guard 作为唯一隔离层 |
 | ~~S2~~ | 已落地 | **`setRlsUser` 字符串拼接** | 已随 RLS 决策一并删除 | 完成（2026-05-08） |
-| ~~S3~~ | 部分落地 | **LLM 模型配置 admin-only**（api_key 加密存储仍待办） | `app/api/llm-models/**` 已接入 `adminGuardResponse`；管理员通过 `ADMIN_USER_IDS` / `ADMIN_EMAILS` 环境变量配置；`/models` 页面对非管理员显示无权限提示 | admin 边界完成（2026-05-08）。下一步：per-user/provider 配置 + api_key 加密 |
-| S4 | P1 | **限流只覆盖章节起草** | `isRateLimited` 仅在 `app/api/novels/[id]/chapters/draft/route.ts` 使用 | 给 `bible`、`loglines`、`questions`、`consistency`、`summarize`、`llm-models` 扩面；生产改 Redis/Supabase RPC |
-| S5 | P1 | **章节保存和章节起草输入缺内容审核** | `moderateContent` 目前主要用于 onboarding bible/finalize | 至少在章节标记 `done`、AI 起草请求、导出前审核 |
+| ~~S3~~ | 已落地 | **LLM 模型配置 admin-only + api_key 加密** | `app/api/llm-models/**` 已接入 `adminGuardResponse`；`lib/llm/encryption.ts` AES-256-GCM 加密存储；API 返回脱敏 key；兼容旧明文 | 完成（2026-05-09） |
+| ~~S4~~ | 已完成 | **限流扩面 + 接口抽象** | `lib/auth/rateLimit.ts` 已抽象 `RateLimiter` 接口；保留 memory 实现；新增 `healthz_llm`、`critic`、`state-diff` 限流；支持 `RATE_LIMIT_STORE=redis` 占位 | 完成 2026-05-09 |
+| ~~S5~~ | 已完成 | **内容审核策略化** | `MODERATION_FAILURE_MODE=allow|block|review`；生产默认 `block`；本地关键词永远强阻断；LLM 失败按策略处理 | 完成 2026-05-09 |
+| ~~S6~~ | 已完成 | **LLM 模型配置 SSRF 防护** | `POST/PATCH /api/llm-models` 已接入 `LlmModelInputSchema`，校验 URL scheme、provider allowlist、私网 IP 拒绝 | 完成 2026-05-09 |
+| ~~S7~~ | 已完成 | **`/api/healthz/llm` 公开接口保护** | 已改为 admin-only，新增 `/api/healthz` 基础公开探针，深度探针加限流 | 完成 2026-05-09 |
+| ~~S8~~ | 已完成 | **API key 加密与脱敏** | `lib/llm/encryption.ts` AES-256-GCM 加密；`GET/POST/PATCH` 返回 `api_key_masked`；`client.ts` 解密使用；兼容旧明文 | 完成 2026-05-09 |
+| ~~S9~~ | 已完成 | **ownership 负向测试补齐** | 新增 `novels/route`、`summaries/refresh` 负向测试；覆盖 401/404 场景 | 完成 2026-05-09 |
+| ~~S10~~ | 已完成 | **owner 为空资源策略收紧** | `canAccessOwnerResource` 默认拒绝空 owner；新增 `canClaimAnonymousResource`；onboarding claim 流程单独受控 | 完成 2026-05-09 |
 
 建议：P0 先完成 S1/S2/S3，否则不要进入公网多人试用。
 
@@ -63,8 +81,8 @@
 |---|---|---|---|
 | L1 Story Bible | 有 `BibleDraft.content` JSON，包含角色、世界、首卷大纲、第一章节拍 | 字段浅 | 已支持 Bible 编辑器（2026-05-08），可编辑角色/世界规则/大纲 |
 | L2 分层摘要 | 已落地 v1（2026-05-08） | 级联刷新策略（dirty 检测）仍待更精细调优 | 新增 `NovelSummary` / `VolumeSummary`，prompt 只注入梗概+卷摘要+最近5章，不再拼接全部摘要 |
-| L3 RAG / Hybrid Search | 基本没有。无 embedding、无 pgvector、无 BM25、无 reranker | 起草时只是拼接所有前文章摘要或截断原文，不是真检索 | 新增 `MemoryChunk` + embedding；按章节/场景切块；实现关键词 + 向量混合检索；起草时只注入相关片段 |
-| L4 实时状态机 | 已落地 v1（2026-05-08） | 还需让 draft prompt 显式消费 story_state | State Tracker v1 已支持：LLM 生成 `state_diff`，人工确认后回写 Bible `story_state` |
+| L3 RAG / Hybrid Search | 已落地雏形 | pgvector、MemoryChunk、embedding、SQL 检索、关键词+向量混合检索已有；索引失败、后台任务、召回质量仍需生产化 | 先修索引事务/失败可见，再增加 rerank 和召回评估 |
+| L4 实时状态机 | 已落地 v2（2026-05-09） | 自动 diff、人工确认、new_entities 合并、改稿后级联刷新已有；刷新 dirty/hash 仍较粗 | State Tracker v2 继续增强：基于 hash 判断过期，状态更新失败可见可重试 |
 
 阶段目标不要一口气做完整 RAG。推荐先做“章节摘要 + 状态 diff + 可编辑 Bible”闭环，再做向量库。
 
@@ -76,9 +94,9 @@
 
 | Agent | 当前状态 | 缺口 | 建议实现顺序 |
 |---|---|---|---|
-| 大纲 Agent | 未独立存在 | 不能按当前状态动态生成 Beat Sheet | 第 2 阶段实现：先用章节大纲 + 当前状态生成本章 Beat Sheet |
-| 检索 Agent | 未实现 | 没有 query 构建、检索、rerank、引用片段 | 第 4 阶段实现：先基于摘要检索，再接 embedding |
-| 写作 Agent | 已有，已升级 | `buildChapterPrompt` 已接入 `buildChapterContext()`，开始消费 `story_state` | 保留，后续接入检索结果 |
+| 大纲 Agent | 已落地 v1 | Beat Sheet prompt 和章节 outline route 已有；用户编辑和动态规划体验仍弱 | 接入编辑器候选章纲，允许生成前确认 |
+| 检索 Agent | 已落地雏形 | MemoryChunk/RAG 检索已有；召回质量、rerank、失败可观测性不足 | 增加召回评估、rerank、引用片段展示 |
+| 写作 Agent | 已有，已升级 | `buildChapterPrompt` 已接入 `buildChapterContext()`，消费 story_state、摘要、retrievalStatus、beatSheet | 保留，后续增强候选稿和差异合并 |
 | Critic Agent | 已落地 v1 | 只检查单章，不涉及跨章一致性；不自动回炉 | Critic v1 已支持：起草后自动校验，critical/major 冲突阻止静默覆盖 |
 | State Updater | 已落地 v1 | 还需让 draft prompt 显式消费 story_state | State Updater v1 已支持：LLM 生成 `state_diff`，人工确认后回写 Bible |
 
@@ -93,10 +111,10 @@
 | ~~P1~~ | 已落地 | **schema 限制无法写长篇** | `ChapterSchema.index` 已放宽到 1-1000；`volume_1.chapters` 上限 50；`outline.volumes[]` 支持追加多卷；`POST /api/novels/[id]/chapters` 与 `/draft` 不再因不在 outline 中拒绝 | 完成 2026-05-08。 |
 | ~~P2~~ | 已落地 | **`ChapterVersion` 已节流** | PATCH `/api/chapters/[id]` 默认 `source=autosave` 不创建版本；只有 `manual` / `ai` / 状态切换创建版本；按 content_hash 去重；每章保留 50 条 | 完成 2026-05-08。客户端 `useChapterEditor` 自动保存→`autosave`，手动保存→`manual`，AI 起草→`ai`。 |
 | ~~P3~~ | 已落地 | **Bible 编辑能力不足** | finalize 后编辑器侧栏基本只读 | 完成 2026-05-08。新增 `PATCH /api/novels/[id]/bible` + `BibleEditorPanel`，支持编辑角色、世界规则、章节大纲。 |
-| P4 | P1 | **profile 字段影响 prompt 不充分** | `ai_freedom`、`audience` 等未完整映射到温度、审核、风格策略 | 建立 profile -> generation policy 映射，集中管理 temperature、字数、自由度、审核等级 |
-| P5 | P1 | **一致性检查不是闭环** | 用户手动点“逻辑审计”，结果只展示，不影响写作流程 | AI 起草后可选自动 Critic；严重冲突提示回炉或生成修订建议 |
-| P6 | P2 | **没有导出** | design 有导出，代码无实现 | 先做 Markdown/TXT，再做 docx/epub |
-| P7 | P2 | **没有用量统计/配额** | LLM 日志只输出到 console | 新增 `LlmUsage` 表，按 user/novel/route 汇总 token 和成本 |
+| ~~P4~~ | 已落地 | **profile 字段影响 prompt 不充分** | 已有 generation policy 映射 tone/pace/ai_freedom/audience/pov 到 prompt 和参数 | 后续继续按真实生成质量调参 |
+| ~~P5~~ | 已落地 | **一致性检查不是闭环** | AI 起草后自动 Critic，严重冲突阻止静默保存 | 后续增加自动修订/回炉策略 |
+| ~~P6~~ | 已落地 | **没有导出** | Markdown/TXT 导出 API 和编辑器菜单已实现 | 后续补 docx/epub |
+| P7 | P1 | **用量统计/配额覆盖不足** | `LlmUsage` 与部分配额检查已实现，但并非所有高成本路由覆盖，quota 检查失败仍 fail-open | 全路由覆盖 checkQuota，生产环境 quota 失败不默认放行 |
 
 ---
 

@@ -10,14 +10,14 @@
 
 | 阶段 | 进度 | 说明 |
 | --- | ---: | --- |
-| Onboarding MVP | 85-90% | `/new` 5 步开书、Bible SSE、Step5 Review、Finalize 已形成主闭环 |
-| 多章节写作 MVP | 75-85% | 多章节编辑、保存、AI 起草、删除、版本历史、Critic、State Diff 已实现 |
-| 安全上线准备 | 55-65% | 已有 Supabase Auth、ownership、admin-only；但 LLM key 明文、public LLM health check、生产限流仍是风险 |
-| 长篇记忆/Agent | 35-50% | Story State、分层摘要、MemoryChunk、Critic 有雏形；RAG 和 Agent 编排仍非生产级 |
-| 工程可交付性 | 45-55% | Vitest 通过；当前 typecheck/build/lint 因 `next-intl` 依赖状态失败 |
-| 正式产品化 | 30-40% | 缺导出、用量/配额、生产健康检查、写作工具、UI 低噪声重设计 |
+| Onboarding MVP | 80-88% | `/new` 5 步开书、Bible SSE、Step5 Review、Finalize 已形成主闭环；跳过/直接开写/中断恢复仍需打磨 |
+| 多章节写作 MVP | 78-85% | 多章节编辑、保存、AI 起草、删除、版本历史、Critic、State Diff、Markdown/TXT 导出已实现 |
+| 安全上线准备 | 60-70% | Supabase Auth、ownership、admin-only、key 加密、基础限流已接入；Bible 编辑审核、配额覆盖和生产级限流仍需补强 |
+| 长篇记忆/Agent | 60-70% | Story State、分层摘要、MemoryChunk/RAG、Beat Sheet、Critic、State Diff 均有实现；可靠性和自动闭环仍不足 |
+| 工程可交付性 | 55-65% | `typecheck`、Vitest、`build` 当前通过；`lint` 脚本废弃且超时，CI workflow 当前处于删除状态 |
+| 正式产品化 | 45-55% | 已有导出、用量表、配额雏形；候选稿、写作工具、低噪声 UI、后台任务、coverage/E2E CI 未完成 |
 
-核心结论：项目具备可演示 MVP，但当前不能标记为“全部完成”或“可生产上线”。下一阶段应优先恢复 `npm run verify`、修复 LLM 成本/密钥风险，并把长篇记忆闭环做扎实。
+核心结论：项目已经具备可演示、可内部试用的 AI 小说写作 MVP。当前 `typecheck`、单测和生产构建均通过，但还不能标记为“全部完成”或“可生产上线”。下一阶段应优先恢复 CI/lint 质量门禁、清理工作区交付状态、补齐成本/审核硬边界，并把长篇记忆闭环做扎实。
 
 ---
 
@@ -98,7 +98,7 @@
 
 ### 测试
 
-- Unit/API tests：当前实测 24 files / 127 tests passed
+- Unit/API tests：当前实测 32 files / 194 tests passed
   - `lib/stream/sseEncode.test.ts`
   - `lib/stream/readSse.test.ts`
   - `lib/stream/jsonStreamParser.test.ts`
@@ -115,10 +115,13 @@
 - `scripts/db-smoke-test.ts` — 数据库 CRUD smoke
 - `scripts/onboarding-api-smoke.ts` — API 全链路 smoke（含章节起草、越界拒绝、novel retrieval）
 
-### CI/CD
+### CI/CD 与验证
 
-- `.github/workflows/ci.yml` — 当前工作区存在，但 `.github/` 显示未跟踪，需确认提交后才会在 GitHub 生效
-- `npm run verify` — typecheck + test + build；当前因 `next-intl` 依赖状态导致 typecheck/build 失败
+- `npm run typecheck` — 当前实测通过
+- `npm run test` — 当前实测通过，32 files / 194 tests passed
+- `npm run build` — 当前实测通过，Next.js 15 生产构建成功
+- `npm run lint` — 当前脚本仍为废弃的 `next lint`，本次运行 120 秒超时，不能作为有效质量门禁
+- `.github/workflows/ci.yml` — 当前工作区显示为删除状态；若提交该状态，GitHub Actions 将失效
 - `npm run db:deploy` — Prisma migrate deploy（Supabase/生产用）
 
 ### 文档
@@ -136,13 +139,16 @@
 | --- | --- | --- |
 | P0 | 修复 `typecheck/build/lint` 失败 | 当前 `npm run verify` 不通过，项目不可交付 |
 | P0 | 提交并启用 CI 工作流 | `.github/` 当前未跟踪，CI 可能未真正生效 |
-| P0 | 保护 `/api/healthz/llm` | 公开接口可真实调用 LLM，存在刷成本风险 |
-| P0 | LLM API key 加密存储与脱敏返回 | 当前 `LlmModel.api_key` 明文字段，API 返回完整 row |
-| P1 | 生产级限流 | 当前内存 Map 限流不适合多实例和 serverless |
-| P1 | 内容审核策略化 | LLM 审核失败 fail-open，生产风险较高 |
-| P1 | ownership 负向测试补齐 | RLS 已禁用，必须用测试守住应用层隔离 |
+| ~~P0~~ | ~~保护 `/api/healthz/llm`~~ | ~~已改为 admin-only，新增公开基础探针 `/api/healthz`~~ |
+| ~~P0~~ | ~~LLM API key 加密存储与脱敏返回~~ | ~~AES-256-GCM 加密 + 脱敏返回 + 解密调用~~ |
+| ~~P1~~ | ~~模型配置 SSRF 防护~~ | ~~已新增 Zod schema + URL 校验 + provider allowlist + 私网 IP 拒绝~~ |
+| ~~P1~~ | ~~生产级限流~~ | ~~已抽象 RateLimiter 接口，保留 memory 实现，支持 Redis 扩展，扩面 critic/state-diff/healthz_llm~~ |
+| ~~P1~~ | ~~内容审核策略化~~ | ~~MODERATION_FAILURE_MODE=allow|block|review，生产默认 block，本地关键词强阻断~~ |
+| ~~P1~~ | ~~ownership 负向测试补齐~~ | ~~新增 novels/route、summaries/refresh 负向测试，覆盖 401/404~~ |
+| ~~P1~~ | ~~owner 为空资源策略收紧~~ | ~~canAccessOwnerResource 默认拒绝空 owner，onboarding 单独 claim 路径~~ |
 | P1 | LLM 用量统计与配额 | 目前成本只 console.log，无法控成本或计费 |
-| P1 | 章节改稿后的摘要/索引级联刷新 | 长篇记忆可能使用过期信息 |
+| ~~P1~~ | ~~章节改稿后的摘要/索引级联刷新~~ | ~~已自动触发 summarize + index + summaries/refresh 当 done 章节被修改时~~ |
+| P1 | LLM 用量统计与配额 | 目前成本只 console.log，无法控成本或计费 |
 | P2 | 导出 Markdown/TXT/docx/epub | 真实作者使用闭环缺失 |
 
 ---
