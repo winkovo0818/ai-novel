@@ -26,17 +26,15 @@ test("completes onboarding with mock LLM", async ({ page }) => {
   await expect(page.getByText("AI 草稿已生成并保存")).toBeVisible({ timeout: 30_000 });
   await expect(editor).toHaveValue(/沈言/, { timeout: 30_000 });
   await editor.fill("第二章未保存草稿。");
-  page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toContain("未保存修改");
-    await dialog.dismiss();
-  });
   await page.getByRole("button", { name: /^1\./ }).click();
+  // First switch attempt: cancel via the new ConfirmDialog, content should stay.
+  await expect(page.getByRole("dialog", { name: /切换章节/ })).toBeVisible();
+  await page.getByRole("button", { name: "取消" }).click();
   await expect(editor).toHaveValue("第二章未保存草稿。");
-  page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toContain("未保存修改");
-    await dialog.accept();
-  });
+  // Second switch attempt: accept and verify chapter 1 loads.
   await page.getByRole("button", { name: /^1\./ }).click();
+  await expect(page.getByRole("dialog", { name: /切换章节/ })).toBeVisible();
+  await page.getByRole("button", { name: "切换并丢弃" }).click();
   await expect(editor).toHaveValue(/沈言听见剑魂/);
   await page.getByRole("button", { name: /^2\./ }).click();
   await editor.fill("第二章测试草稿。");

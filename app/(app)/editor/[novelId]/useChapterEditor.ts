@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { readSse } from "@/lib/stream/readSse";
 import { getAllChapters } from "@/lib/validation/schemas";
 import type { BibleDraft, StateDiff } from "@/lib/validation/schemas";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import type { ChapterDraftView } from "./EditorClient";
 
 interface UseChapterEditorOptions {
@@ -35,6 +36,7 @@ export interface ChapterVersionView {
 }
 
 export function useChapterEditor({ novelId, bible, initialChapters }: UseChapterEditorOptions) {
+  const confirm = useConfirm();
   const allOutlineChapters = getAllChapters(bible);
   const firstChapter = allOutlineChapters[0];
   const firstDraft = initialChapters.find((chapter) => chapter.chapter_index === 1);
@@ -180,9 +182,17 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
     return () => window.clearTimeout(timeout);
   }, [chapterStatus, chapterTitle, content, hasUnsavedChanges, persistChapter, status]);
 
-  function selectChapter(index: number) {
+  async function selectChapter(index: number) {
     if (index === selectedIndex) return;
-    if (hasUnsavedChanges && !window.confirm("当前章节有未保存修改，切换后会丢失。确定切换吗？")) {
+    if (
+      hasUnsavedChanges &&
+      !(await confirm({
+        title: "切换章节？",
+        message: "当前章节有未保存修改，切换后会丢失。",
+        confirmLabel: "切换并丢弃",
+        danger: true,
+      }))
+    ) {
       return;
     }
 
@@ -219,7 +229,15 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
   }
 
   async function draftChapter() {
-    if (hasUnsavedChanges && !window.confirm("AI 起草会覆盖当前未保存内容。确定继续吗？")) {
+    if (
+      hasUnsavedChanges &&
+      !(await confirm({
+        title: "AI 起草将覆盖未保存内容？",
+        message: "当前章节存在未保存的修改，AI 起草会覆盖这些内容。",
+        confirmLabel: "覆盖并起草",
+        danger: true,
+      }))
+    ) {
       return;
     }
 
@@ -298,7 +316,16 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
 
   async function deleteChapter() {
     if (!chapterId) return;
-    if (!window.confirm(`确定删除第 ${selectedIndex} 章「${chapterTitle}」吗？此操作不可撤销。`)) return;
+    if (
+      !(await confirm({
+        title: `删除第 ${selectedIndex} 章「${chapterTitle}」？`,
+        message: "此操作不可撤销，章节正文与历史版本一并清空。",
+        confirmLabel: "删除",
+        danger: true,
+      }))
+    ) {
+      return;
+    }
 
     try {
       const response = await fetch(`/api/chapters/${chapterId}`, { method: "DELETE" });

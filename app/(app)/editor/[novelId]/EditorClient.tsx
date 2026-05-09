@@ -13,6 +13,7 @@ import { AIPanel } from "./AIPanel";
 import { VersionsModal } from "./VersionsModal";
 import { ExportMenu } from "./ExportMenu";
 import { JobsBadge } from "./JobsBadge";
+import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
 
 export interface ChapterDraftView {
   id: string;
@@ -30,6 +31,19 @@ interface EditorClientProps {
 }
 
 export function EditorClient({ novelId, title, bible: initialBible, initialChapters }: EditorClientProps) {
+  return (
+    <ConfirmProvider>
+      <EditorClientInner
+        novelId={novelId}
+        title={title}
+        bible={initialBible}
+        initialChapters={initialChapters}
+      />
+    </ConfirmProvider>
+  );
+}
+
+function EditorClientInner({ novelId, title, bible: initialBible, initialChapters }: EditorClientProps) {
   const [bible, setBible] = useState(initialBible);
   const editor = useChapterEditor({ novelId, bible, initialChapters });
   const [showBible, setShowBible] = useState(true);
