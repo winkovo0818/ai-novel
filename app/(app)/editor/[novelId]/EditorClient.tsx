@@ -235,7 +235,11 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
         versions={editor.versions}
         loading={editor.versionsLoading}
         error={editor.versionsError}
+        currentContent={editor.content}
+        currentTitle={editor.chapterTitle}
+        chapterId={editor.chapterId}
         onClose={editor.closeVersions}
+        onRestored={editor.applyRestoredChapter}
       />
 
       {editor.stateDiffOpen && (

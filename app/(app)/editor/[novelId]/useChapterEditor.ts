@@ -569,6 +569,30 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     setVersionsOpen(false);
   }
 
+  /**
+   * M3.2: After a successful version restore, the API returns the freshly
+   * updated ChapterDraft. Sync that back into the editor so the user sees
+   * the restored body immediately and the unsaved-changes indicator
+   * reflects the new baseline. Also patch the chapters list so the outline
+   * sidebar / status badges stay consistent.
+   */
+  function applyRestoredChapter(restored: ChapterDraftView) {
+    if (restored.id !== chapterId) return;
+    const nextStatus = restored.status === "done" ? "done" : "draft";
+    setChapterTitle(restored.title);
+    setContent(restored.content);
+    setChapterStatus(nextStatus);
+    setSavedTitle(restored.title);
+    setSavedContent(restored.content);
+    setSavedStatus(nextStatus);
+    if (restored.updated_at) setLastSavedAt(restored.updated_at);
+    setChapters((current) =>
+      current.map((chapter) => (chapter.id === restored.id ? { ...chapter, ...restored } : chapter)),
+    );
+    setStatus("saved");
+    setMessage("已恢复历史版本");
+  }
+
   // ────────────────────────────────────────────────
   // B2: state diff (chapter completion tracking)
   // ────────────────────────────────────────────────
@@ -700,6 +724,8 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     versionsError,
     openVersions,
     closeVersions,
+    applyRestoredChapter,
+    chapterId,
     stateDiffOpen,
     stateDiffLoading,
     stateDiff,
