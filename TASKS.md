@@ -127,7 +127,7 @@
 | ✅ | Q-07 | Finalize 幂等 | `Novel.session_id` 加 `@@unique` 约束；finalize 事务中先查已有 novel，存在则直接返回；新增单测覆盖重复 finalize | 网络重试不会创建多个 Novel | `prisma/schema.prisma`、`app/api/onboarding/sessions/[id]/finalize/route.ts` |
 | ✅ | Q-08 | SSE parser 边界增强 | `lib/stream/readSse.ts` 已支持多行 `data:` 合并、`\r\n` 行尾、末尾未 flush block，删除 `Step4Generating.tsx` 内联副本统一使用 lib 实现，单测 5 条 | SSE 客户端解析符合标准；测试覆盖多行和无尾分隔符 | `lib/stream/readSse.ts`、`Step4Generating.tsx` |
 | ✅ | Q-09 | LLM stream retry 保护 | `streamChatCompletionWithRetry` 已通过 `emitted` 标记记录是否已发送 delta，已发送则不再 retry，让上层 SSE 直接发 error 事件；新增 2 条单测覆盖 | 不会把两次生成内容混在同一个流里 | `lib/llm/client.ts`、`lib/llm/client.test.ts` |
-| 🟡 | Q-10 | 后台任务队列 | summarize/index/refresh 现在 fire-and-forget，失败不可见 | 1. MVP 可先建 `BackgroundJob` 表；2. 记录 type、payload、status、attempts、error；3. UI 显示记忆刷新状态；4. 后续接 BullMQ/Trigger.dev | 摘要/索引失败可见、可重试 | `lib/agent/summaries.ts`、`lib/agent/chunking.ts`、`useChapterEditor.ts` |
+| ✅ | Q-10 | 后台任务队列 | 新增 `BackgroundJob` 表、`lib/jobs/queue` (enqueue/runJob/runPendingJobsForNovel，3 次重试)、`lib/jobs/handlers` (summarize/index/refresh 注册)、`POST/GET /api/novels/[id]/jobs`、`JobsBadge` 状态徽章；useChapterEditor 三处 fire-and-forget 改走 jobs API；17 条单测覆盖 | 摘要/索引失败可见、可重试 | `lib/jobs/**`、`app/api/novels/[id]/jobs/**`、`app/(app)/editor/[novelId]/JobsBadge.tsx`、`useChapterEditor.ts` |
 
 ---
 
