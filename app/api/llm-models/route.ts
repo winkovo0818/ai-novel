@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
 import { adminGuardResponse } from "@/lib/auth/admin";
+import { LlmModelInputSchema } from "@/lib/validation/llmModel";
+import { encryptApiKey, maskApiKey } from "@/lib/llm/encryption";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +14,13 @@ export async function GET() {
     orderBy: [{ is_default: "desc" }, { created_at: "asc" }],
   });
 
-  return Response.json({ ok: true, data: models });
+  // Mask api_key before returning to the client.
+  const masked = models.map((m) => ({
+    ...m,
+    api_key: maskApiKey(m.api_key),
+  }));
+
+  return Response.json({ ok: true, data: masked });
 }
 
 export async function POST(request: Request) {
@@ -20,17 +28,25 @@ export async function POST(request: Request) {
   if (denied) return denied;
 
   const body = await request.json().catch(() => null);
-  const { name, provider, base_url, api_key, model } = body ?? {};
-
-  if (!name || !provider || !base_url || !api_key || !model) {
+  const parse = LlmModelInputSchema.safeParse(body ?? {});
+  if (!parse.success) {
     return Response.json(
-      { ok: false, error: { code: "INVALID_INPUT", message: "Missing required fields", retryable: false } },
+      {
+        ok: false,
+        error: {
+          code: "INVALID_INPUT",
+          message: parse.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join("; "),
+          retryable: false,
+        },
+      },
       { status: 400 },
     );
   }
 
+  const { name, provider, base_url, api_key, model, is_default, is_enabled } = parse.data;
+
   // If setting as default, unset others
-  if (body.is_default) {
+  if (is_default) {
     await prisma.llmModel.updateMany({
       where: { provider },
       data: { is_default: false },
@@ -38,8 +54,16 @@ export async function POST(request: Request) {
   }
 
   const llmModel = await prisma.llmModel.create({
-    data: { name, provider, base_url, api_key, model, is_default: body.is_default ?? false },
+    data: {
+      name,
+      provider,
+      base_url,
+      api_key: encryptApiKey(api_key),
+      model,
+      is_default: is_default ?? false,
+      is_enabled: is_enabled ?? true,
+    },
   });
 
-  return Response.json({ ok: true, data: llmModel });
+  return Response.json({ ok: true, data: { ...llmModel, api_key: maskApiKey(llmModel.api_key) } });
 }

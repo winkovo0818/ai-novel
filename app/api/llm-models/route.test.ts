@@ -26,6 +26,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
+  process.env.MODEL_KEY_ENCRYPTION_SECRET = "test-secret-key-for-encryption-32chars!";
 });
 
 describe("GET /api/llm-models", () => {
@@ -140,5 +141,28 @@ describe("POST /api/llm-models", () => {
     );
     expect(res.status).toBe(200);
     expect(create).toHaveBeenCalled();
+  });
+
+  it("rejects private/internal base_url", async () => {
+    getUser.mockResolvedValue({
+      data: { user: { id: "admin-1", email: null } },
+      error: null,
+    });
+    process.env.ADMIN_USER_IDS = "admin-1";
+    const { POST } = await import("./route");
+    const res = await POST(
+      new Request("http://localhost/api/llm-models", {
+        method: "POST",
+        body: JSON.stringify({
+          name: "n",
+          provider: "deepseek",
+          base_url: "http://192.168.1.1/v1",
+          api_key: "k",
+          model: "m",
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(create).not.toHaveBeenCalled();
   });
 });

@@ -76,15 +76,17 @@ describe("GET /api/novels/[id]", () => {
     expect(json.error.code).toBe("UNAUTHORIZED");
   });
 
-  it("allows access to anonymous novel when authenticated", async () => {
+  it("rejects access to anonymous novel even when authenticated", async () => {
     const { GET } = await import("./route");
     findUnique.mockResolvedValue({ id: "novel-1", user_id: null, bible: null, chapters: [] });
 
     const response = await GET(new Request("http://localhost/api/novels/novel-1"), {
       params: Promise.resolve({ id: "novel-1" }),
     });
+    const json = await response.json();
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(404);
+    expect(json.error.code).toBe("NOVEL_NOT_FOUND");
   });
 
   it("returns NOVEL_NOT_FOUND when the novel is missing", async () => {

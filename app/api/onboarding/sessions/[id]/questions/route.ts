@@ -45,6 +45,8 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     const result = await chatCompletionWithRetry({
       route: ROUTE,
+      agent: "outline",
+      userId,
       messages: buildQuestionsPrompt({ logline: parsed.data.logline, profile }),
       responseFormat: "json_object",
       temperature: 0.7,

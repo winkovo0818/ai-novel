@@ -53,6 +53,17 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const novel = await prisma.$transaction(async (tx) => {
+      const existing = await tx.novel.findUnique({
+        where: { session_id: session.id },
+      });
+      if (existing) {
+        await tx.onboardingSession.update({
+          where: { id },
+          data: { status: "finalized", bible_draft: draft },
+        });
+        return existing;
+      }
+
       const created = await tx.novel.create({
         data: {
           user_id: userId,

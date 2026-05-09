@@ -3,6 +3,7 @@ import { streamChatCompletionWithRetry } from "@/lib/llm/client";
 import { prisma } from "@/lib/db";
 import { authorizeOnboardingSession } from "@/lib/auth/onboardingAccess";
 import { isRateLimited } from "@/lib/auth/rateLimit";
+import { checkQuota } from "@/lib/llm/usage";
 import { moderateContent, stringifyForModeration } from "@/lib/moderation/moderate";
 import { sseEncode, sseHeartbeat } from "@/lib/stream/sseEncode";
 import {
@@ -72,6 +73,21 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
+  const quota = await checkQuota(userId);
+  if (!quota.allowed) {
+    return Response.json(
+      {
+        ok: false,
+        error: {
+          code: "QUOTA_EXCEEDED",
+          message: quota.reason ?? "Usage quota exceeded",
+          retryable: true,
+        },
+      },
+      { status: 429 },
+    );
+  }
+
   if (session.regeneration_count >= 3) {
     return Response.json(
       {
@@ -135,6 +151,8 @@ export async function POST(request: Request, context: RouteContext) {
         const result = await streamChatCompletionWithRetry(
           {
             route: ROUTE,
+            agent: "outline",
+            userId,
             messages: buildBiblePrompt(input),
             temperature: 0.7,
             timeoutMs: 60_000,

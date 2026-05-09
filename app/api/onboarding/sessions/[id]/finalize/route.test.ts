@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const findUnique = vi.fn();
+const findUniqueSession = vi.fn();
 const create = vi.fn();
 const update = vi.fn();
 const authorizeOnboardingSession = vi.fn();
@@ -8,10 +9,10 @@ const moderateContent = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    onboardingSession: { findUnique, update },
-    novel: { create },
+    onboardingSession: { findUnique: findUniqueSession, update },
+    novel: { create, findUnique },
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({
-      novel: { create },
+      novel: { create, findUnique },
       onboardingSession: { update },
     }),
   },
@@ -212,6 +213,40 @@ describe("POST /api/onboarding/sessions/[id]/finalize", () => {
     );
 
     expect(res.status).toBe(400);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("returns existing novel on duplicate finalize (idempotent)", async () => {
+    const existingNovel = { id: "550e8400-e29b-41d4-a716-446655440000", title: "My Novel", session_id: "session-1" };
+    authorizeOnboardingSession.mockResolvedValue({
+      ok: true,
+      userId: "user-1",
+      session: {
+        id: "session-1",
+        title: "My Novel",
+        status: "active",
+        bible_draft: validBible,
+      },
+    });
+    moderateContent.mockResolvedValue({ allowed: true });
+    findUnique.mockResolvedValue(existingNovel);
+    update.mockResolvedValue({});
+
+    const { POST } = await import("./route");
+    const res = await POST(
+      new Request("http://localhost/x", {
+        method: "POST",
+        body: JSON.stringify(validBody),
+      }),
+      { params: Promise.resolve({ id: "session-1" }) },
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.ok).toBe(true);
+    expect(json.data.novel_id).toBe("550e8400-e29b-41d4-a716-446655440000");
+    expect(findUnique).toHaveBeenCalledWith({ where: { session_id: "session-1" } });
+    expect(findUnique).toHaveBeenCalledWith({ where: { session_id: "session-1" } });
     expect(create).not.toHaveBeenCalled();
   });
 });

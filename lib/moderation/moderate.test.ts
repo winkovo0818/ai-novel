@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { moderateContent, stringifyForModeration } from "./moderate";
 
 vi.mock("@/lib/llm/client", () => ({
@@ -11,6 +11,16 @@ vi.mock("@/lib/llm/client", () => ({
     model: "test",
   }),
 }));
+
+const ORIGINAL_ENV = { ...process.env };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+afterEach(() => {
+  process.env = { ...ORIGINAL_ENV };
+});
 
 describe("moderateContent", () => {
   it("allows safe content via LLM", async () => {
@@ -49,7 +59,7 @@ describe("moderateContent", () => {
     expect(result.reason).toBe("包含暴力内容");
   });
 
-  it("falls back to allow on LLM error", async () => {
+  it("falls back to allow on LLM error in development", async () => {
     const { chatCompletion } = await import("@/lib/llm/client");
     vi.mocked(chatCompletion).mockRejectedValueOnce(new Error("timeout"));
 
@@ -58,6 +68,34 @@ describe("moderateContent", () => {
       text: "some text",
     });
     expect(result.allowed).toBe(true);
+  });
+
+  it("falls back to block on LLM error in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const { chatCompletion } = await import("@/lib/llm/client");
+    vi.mocked(chatCompletion).mockRejectedValueOnce(new Error("timeout"));
+
+    const result = await moderateContent({
+      route: "/api/test",
+      text: "some text",
+    });
+    expect(result.allowed).toBe(false);
+    expect(result.code).toBe("MODERATION_BLOCKED");
+    expect(result.reason).toContain("审核服务暂时不可用");
+    vi.unstubAllEnvs();
+  });
+
+  it("allows on LLM error in review mode", async () => {
+    vi.stubEnv("MODERATION_FAILURE_MODE", "review");
+    const { chatCompletion } = await import("@/lib/llm/client");
+    vi.mocked(chatCompletion).mockRejectedValueOnce(new Error("timeout"));
+
+    const result = await moderateContent({
+      route: "/api/test",
+      text: "some text",
+    });
+    expect(result.allowed).toBe(true);
+    vi.unstubAllEnvs();
   });
 });
 

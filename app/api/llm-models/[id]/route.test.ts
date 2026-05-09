@@ -27,6 +27,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
+  process.env.MODEL_KEY_ENCRYPTION_SECRET = "test-secret-key-for-encryption-32chars!";
 });
 
 describe("PATCH /api/llm-models/[id]", () => {

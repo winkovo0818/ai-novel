@@ -1,4 +1,7 @@
 import { chatCompletionWithRetry } from "@/lib/llm/client";
+import { adminGuardResponse } from "@/lib/auth/admin";
+import { isRateLimited } from "@/lib/auth/rateLimit";
+import { getRequiredUserId } from "@/utils/supabase/auth";
 
 export const runtime = "nodejs";
 // 始终调用 LLM，不要被构建期或边缘缓存掉
@@ -7,9 +10,36 @@ export const dynamic = "force-dynamic";
 const ROUTE = "/api/healthz/llm";
 
 export async function GET() {
+  // Admin-only: unauthenticated or non-admin callers are rejected.
+  const denied = await adminGuardResponse();
+  if (denied) return denied;
+
+  let userId: string | null = null;
+  try {
+    userId = await getRequiredUserId();
+  } catch {
+    // adminGuardResponse already guarantees authentication, but keep the guard.
+  }
+
+  if (isRateLimited(userId ?? "admin", ROUTE)) {
+    return Response.json(
+      {
+        ok: false,
+        error: {
+          code: "RATE_LIMITED",
+          message: "Too many health checks. Please retry later.",
+          retryable: true,
+        },
+      },
+      { status: 429 },
+    );
+  }
+
   try {
     const result = await chatCompletionWithRetry({
       route: ROUTE,
+      agent: "healthz",
+      userId: userId ?? undefined,
       messages: [
         {
           role: "system",

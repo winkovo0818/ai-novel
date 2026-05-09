@@ -1,0 +1,48 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+.next
+out
+dist
+build
+
+# Git
+.git
+.gitignore
+
+# IDE and editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test and coverage
+coverage
+.nyc_output
+
+# Temp files
+tmp
+temp
+*.tmp
+*.log
+
+# Local database
+*.db
+*.sqlite
+
+# Secrets and credentials
+*.pem
+*.key
+credentials.json
+service-account.json

@@ -11,7 +11,8 @@ export type OnboardingAccessResult =
  * - Caller must be authenticated.
  * - Session must exist.
  * - If session.user_id is set, it must equal the caller's user id.
- * - If session.user_id is null (legacy anonymous session), claim it for the caller.
+ * - If session.user_id is null (legacy anonymous session), claim it for the caller
+ *   via the explicit claim flow.
  *
  * Always returns a discriminated union — callers should branch on `ok`.
  */
@@ -45,6 +46,8 @@ export async function authorizeOnboardingSession(
   }
 
   if (!session.user_id) {
+    // Explicit claim: anonymous onboarding sessions can be claimed by any
+    // authenticated user, but only through this controlled onboarding flow.
     const claimed = await prisma.onboardingSession.update({
       where: { id: sessionId },
       data: { user_id: userId },

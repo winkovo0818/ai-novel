@@ -14,6 +14,8 @@ import {
   mockChatCompletion,
   mockStreamChatCompletion,
 } from "./mock";
+import { decryptApiKey } from "./encryption";
+import { logUsage } from "./usage";
 
 export type ChatRole = "system" | "user" | "assistant";
 
@@ -32,6 +34,12 @@ export interface ChatCompletionOptions {
   responseFormat?: "json_object";
   /** 单次请求超时，默认 15s（与 README §5 错误处理一致） */
   timeoutMs?: number;
+  /** Agent identifier for logging (e.g. "writer", "critic", "state_updater") */
+  agent?: string;
+  /** User ID for usage tracking */
+  userId?: string;
+  /** Novel ID for usage tracking */
+  novelId?: string;
 }
 
 export interface ChatCompletionResult {
@@ -49,6 +57,12 @@ export interface ChatStreamOptions {
   model?: string;
   temperature?: number;
   timeoutMs?: number;
+  /** Agent identifier for logging (e.g. "writer", "outline") */
+  agent?: string;
+  /** User ID for usage tracking */
+  userId?: string;
+  /** Novel ID for usage tracking */
+  novelId?: string;
 }
 
 export interface ChatStreamResult {
@@ -82,6 +96,7 @@ function requireEnv(name: string): string {
 
 interface LlmLogEntry {
   route: string;
+  agent?: string;
   model: string;
   tokenIn: number;
   tokenOut: number;
@@ -89,14 +104,32 @@ interface LlmLogEntry {
   tookMs: number;
   status: "ok" | "err";
   errCode?: string;
+  userId?: string;
+  novelId?: string;
 }
 
 function logLlmCall(entry: LlmLogEntry): void {
   const errPart = entry.errCode ? ` err_code=${entry.errCode}` : "";
-  // 契约 §9 格式：[LLM] route=... model=... token_in=... token_out=... cost_cny=... took_ms=... status=...
+  const agentPart = entry.agent ? ` agent=${entry.agent}` : "";
   console.log(
-    `[LLM] route=${entry.route} model=${entry.model} token_in=${entry.tokenIn} token_out=${entry.tokenOut} cost_cny=${entry.costCny.toFixed(4)} took_ms=${entry.tookMs} status=${entry.status}${errPart}`,
+    `[LLM] route=${entry.route}${agentPart} model=${entry.model} token_in=${entry.tokenIn} token_out=${entry.tokenOut} cost_cny=${entry.costCny.toFixed(4)} took_ms=${entry.tookMs} status=${entry.status}${errPart}`,
   );
+
+  // Persist usage to database (fire-and-forget)
+  if (entry.userId) {
+    logUsage({
+      userId: entry.userId,
+      novelId: entry.novelId,
+      route: entry.route,
+      agent: entry.agent,
+      model: entry.model,
+      tokenIn: entry.tokenIn,
+      tokenOut: entry.tokenOut,
+      costCny: entry.costCny,
+      status: entry.status,
+      errorCode: entry.errCode,
+    });
+  }
 }
 
 interface DeepSeekResponse {
@@ -143,7 +176,7 @@ async function resolveModelConfig(opts: { model?: string }): Promise<ResolvedMod
     if (row) {
       return {
         baseUrl: row.base_url.replace(/\/+$/, ""),
-        apiKey: row.api_key,
+        apiKey: decryptApiKey(row.api_key),
         model: opts.model ?? row.model,
       };
     }
@@ -273,6 +306,7 @@ export async function streamChatCompletion(
   } finally {
     logLlmCall({
       route: opts.route,
+      agent: opts.agent,
       model,
       tokenIn,
       tokenOut,
@@ -280,6 +314,8 @@ export async function streamChatCompletion(
       tookMs: Date.now() - start,
       status,
       errCode,
+      userId: opts.userId,
+      novelId: opts.novelId,
     });
   }
 }
@@ -380,6 +416,7 @@ export async function chatCompletion(
   } finally {
     logLlmCall({
       route: opts.route,
+      agent: opts.agent,
       model,
       tokenIn: result?.tokenIn ?? 0,
       tokenOut: result?.tokenOut ?? 0,
@@ -387,6 +424,8 @@ export async function chatCompletion(
       tookMs: Date.now() - start,
       status,
       errCode,
+      userId: opts.userId,
+      novelId: opts.novelId,
     });
   }
 }

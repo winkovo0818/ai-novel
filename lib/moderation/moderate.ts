@@ -1,5 +1,14 @@
 import { chatCompletion } from "@/lib/llm/client";
 
+export type ModerationFailureMode = "allow" | "block" | "review";
+
+function getFailureMode(): ModerationFailureMode {
+  const env = process.env.MODERATION_FAILURE_MODE;
+  if (env === "allow" || env === "block" || env === "review") return env;
+  // Default to block in production, allow in development/test.
+  return process.env.NODE_ENV === "production" ? "block" : "allow";
+}
+
 export interface ModerationResult {
   allowed: boolean;
   code?: "MODERATION_BLOCKED";
@@ -46,6 +55,7 @@ function localKeywordCheck(text: string): ModerationResult | null {
 }
 
 export async function moderateContent(input: ModerationInput): Promise<ModerationResult> {
+  // Local keywords are ALWAYS a hard block, regardless of failure mode.
   const localResult = localKeywordCheck(input.text);
   if (localResult) return localResult;
 
@@ -75,7 +85,27 @@ export async function moderateContent(input: ModerationInput): Promise<Moderatio
     }
 
     return { allowed: true };
-  } catch {
+  } catch (err) {
+    const mode = getFailureMode();
+    const errorMessage = err instanceof Error ? err.message : "审核服务异常";
+
+    if (mode === "block") {
+      console.error(`[moderation] BLOCKED due to service failure on ${input.route}: ${errorMessage}`);
+      return {
+        allowed: false,
+        code: "MODERATION_BLOCKED",
+        reason: `内容审核服务暂时不可用（${errorMessage}），请稍后重试`,
+      };
+    }
+
+    if (mode === "review") {
+      console.warn(`[moderation] REVIEW due to service failure on ${input.route}: ${errorMessage}`);
+      // In review mode we allow but flag; caller can log or queue for human review.
+      return { allowed: true };
+    }
+
+    // mode === "allow"
+    console.warn(`[moderation] ALLOWED due to service failure on ${input.route}: ${errorMessage}`);
     return { allowed: true };
   }
 }
