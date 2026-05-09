@@ -30,6 +30,10 @@ interface CandidatePanelProps {
   cursorPos: number | null;
   /** Status of the RAG retrieval used for this draft (success/empty/error). */
   retrievalStatus?: string;
+  /** M3.4: actual memory chunks the model received (truncated text). */
+  retrievedMemories?: Array<{ source: string; reason: string; score: number; text: string }>;
+  /** Server-side retrieval error message, when status === "error". */
+  retrievalError?: string;
   onAccept(mode: CandidateMode): void;
   onClose(): void;
 }
@@ -43,6 +47,8 @@ export function CandidatePanel({
   hasExistingContent,
   cursorPos,
   retrievalStatus,
+  retrievedMemories,
+  retrievalError,
   onAccept,
   onClose,
 }: CandidatePanelProps) {
@@ -112,9 +118,45 @@ export function CandidatePanel({
           }`}
         >
           {retrievalStatus === "error"
-            ? "记忆检索失败 · 本次起草未引用历史章节"
+            ? `记忆检索失败 · 本次起草未引用历史章节${retrievalError ? `（${retrievalError}）` : ""}`
             : "未检索到相关记忆 · 模型仅基于 Bible 与最近章节生成"}
         </div>
+      )}
+
+      {/* M3.4 retrieval transparency — list of memory chunks the model received */}
+      {retrievalStatus === "success" && retrievedMemories && retrievedMemories.length > 0 && (
+        <details className="border-b border-border-subtle bg-emerald-50/40 group">
+          <summary className="cursor-pointer list-none px-6 py-2 flex items-center justify-between text-[11px] text-emerald-900 hover:bg-emerald-50 transition-colors">
+            <span>
+              <span className="font-bold">已引用 {retrievedMemories.length} 条历史记忆</span>
+              <span className="text-emerald-800/70 ml-2">点击展开</span>
+            </span>
+            <svg className="w-3.5 h-3.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </summary>
+          <ul className="px-6 pb-3 pt-1 space-y-2">
+            {retrievedMemories.map((m, i) => (
+              <li
+                key={i}
+                className="text-[11px] leading-relaxed border border-emerald-200/60 bg-white/70 rounded-md px-3 py-2"
+              >
+                <div className="flex items-center justify-between mb-1 gap-2">
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-emerald-800 truncate">
+                    {m.source}
+                  </span>
+                  <span className="text-[10px] text-emerald-700/80 shrink-0 tabular-nums">
+                    sim {m.score.toFixed(3)}
+                  </span>
+                </div>
+                {m.reason && (
+                  <p className="text-text-muted italic mb-1">{m.reason}</p>
+                )}
+                <p className="text-text-secondary whitespace-pre-wrap break-words">{m.text}</p>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       {/* Critic banner */}

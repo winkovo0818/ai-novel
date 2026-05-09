@@ -288,6 +288,10 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
   const [candidateCriticResult, setCandidateCriticResult] = useState<CandidateCriticResult>();
   const [candidateCriticError, setCandidateCriticError] = useState<string>();
   const [lastRetrievalStatus, setLastRetrievalStatus] = useState<string>();
+  const [lastRetrievedMemories, setLastRetrievedMemories] = useState<
+    Array<{ source: string; reason: string; score: number; text: string }>
+  >([]);
+  const [lastRetrievalError, setLastRetrievalError] = useState<string>();
   // Cursor tracking for "insert at cursor" mode. EditorClient updates this on
   // textarea selection/click events.
   const cursorPosRef = useRef<number | null>(null);
@@ -323,6 +327,8 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     setCandidateCriticLoading(false);
     setCandidateCriticResult(undefined);
     setCandidateCriticError(undefined);
+    setLastRetrievedMemories([]);
+    setLastRetrievalError(undefined);
     setStatus("drafting");
     setMessage("AI 正在起草候选稿…");
 
@@ -352,6 +358,18 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
             generated += data.delta;
             setCandidateContent(generated);
           }
+          return;
+        }
+
+        if (event.event === "retrieval") {
+          const data = event.data as {
+            status?: string;
+            error?: string;
+            memories?: Array<{ source: string; reason: string; score: number; text: string }>;
+          };
+          if (data.status) setLastRetrievalStatus(data.status);
+          if (data.error) setLastRetrievalError(data.error);
+          if (Array.isArray(data.memories)) setLastRetrievedMemories(data.memories);
           return;
         }
 
@@ -758,5 +776,8 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     draftWithBeats,
     // M2.5 retrieval visibility
     lastRetrievalStatus,
+    // M3.4 retrieval transparency: actual chunks fed into the LLM
+    lastRetrievedMemories,
+    lastRetrievalError,
   };
 }

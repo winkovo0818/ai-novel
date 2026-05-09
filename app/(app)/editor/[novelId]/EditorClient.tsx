@@ -282,6 +282,8 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
           hasExistingContent={editor.content.trim().length > 0}
           cursorPos={cursorPos}
           retrievalStatus={editor.lastRetrievalStatus}
+          retrievedMemories={editor.lastRetrievedMemories}
+          retrievalError={editor.lastRetrievalError}
           onAccept={(mode) => editor.acceptCandidate(mode)}
           onClose={() => editor.acceptCandidate("discard")}
         />
