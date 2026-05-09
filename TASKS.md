@@ -125,8 +125,8 @@
 | 🟡 | Q-05 | API 错误响应统一 | 多个 route 重复 `jsonError()`，错误结构容易漂移 | 1. 新增 `lib/http/json.ts`；2. 定义 `ApiErrorCode` union；3. 统一 `jsonOk/jsonError`; 4. 逐步替换 route 内重复 helper | 新增 route 默认使用统一响应；测试不需重复断言结构 | `app/api/**/route.ts`、`lib/http/**` |
 | 🟡 | Q-06 | 数据写入事务化 | 更新章节 + 写版本 + 副作用当前不是事务，失败可能局部成功 | 1. `PATCH /api/chapters/[id]` 使用 `prisma.$transaction`；2. 版本写入和 pruning 放同事务；3. 对 finalize 创建 Novel + BibleDraft 做幂等和事务化 | 关键写入要么全部成功，要么全部失败 | `app/api/chapters/[id]/route.ts`、`app/api/onboarding/sessions/[id]/finalize/route.ts` |
 | ✅ | Q-07 | Finalize 幂等 | `Novel.session_id` 加 `@@unique` 约束；finalize 事务中先查已有 novel，存在则直接返回；新增单测覆盖重复 finalize | 网络重试不会创建多个 Novel | `prisma/schema.prisma`、`app/api/onboarding/sessions/[id]/finalize/route.ts` |
-| 🟡 | Q-08 | SSE parser 边界增强 | `readSse()` 对多行 data、末尾未 flush block 支持不足；Step4 还有内联重复实现 | 1. 统一使用 `lib/stream/readSse.ts`；2. 支持多行 data 合并；3. stream 结束时 flush buffer；4. Step4 删除内联 parser | SSE 客户端解析符合标准；测试覆盖多行和无尾分隔符 | `lib/stream/readSse.ts`、`Step4Generating.tsx` |
-| 🟡 | Q-09 | LLM stream retry 保护 | 流式请求如果已输出部分 delta 后重试，可能混合两次输出 | 1. 在 `streamChatCompletionWithRetry()` 中记录是否已 emit delta；2. 只有未输出时允许 retry；3. 已输出后失败直接发 error，让前端保留部分内容或提示重试 | 不会把两次生成内容混在同一个流里 | `lib/llm/client.ts`、`app/api/novels/[id]/chapters/draft/route.test.ts` |
+| ✅ | Q-08 | SSE parser 边界增强 | `lib/stream/readSse.ts` 已支持多行 `data:` 合并、`\r\n` 行尾、末尾未 flush block，删除 `Step4Generating.tsx` 内联副本统一使用 lib 实现，单测 5 条 | SSE 客户端解析符合标准；测试覆盖多行和无尾分隔符 | `lib/stream/readSse.ts`、`Step4Generating.tsx` |
+| ✅ | Q-09 | LLM stream retry 保护 | `streamChatCompletionWithRetry` 已通过 `emitted` 标记记录是否已发送 delta，已发送则不再 retry，让上层 SSE 直接发 error 事件；新增 2 条单测覆盖 | 不会把两次生成内容混在同一个流里 | `lib/llm/client.ts`、`lib/llm/client.test.ts` |
 | 🟡 | Q-10 | 后台任务队列 | summarize/index/refresh 现在 fire-and-forget，失败不可见 | 1. MVP 可先建 `BackgroundJob` 表；2. 记录 type、payload、status、attempts、error；3. UI 显示记忆刷新状态；4. 后续接 BullMQ/Trigger.dev | 摘要/索引失败可见、可重试 | `lib/agent/summaries.ts`、`lib/agent/chunking.ts`、`useChapterEditor.ts` |
 
 ---
