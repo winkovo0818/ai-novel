@@ -16,10 +16,12 @@ build
 # Git
 .git
 .gitignore
+.github
 
 # IDE and editor
 .vscode
 .idea
+.claude
 *.swp
 *.swo
 
@@ -30,12 +32,17 @@ Thumbs.db
 # Test and coverage
 coverage
 .nyc_output
+playwright-report
+test-results
 
 # Temp files
 tmp
 temp
 *.tmp
 *.log
+
+# TypeScript / Next build cache
+*.tsbuildinfo
 
 # Local database
 *.db
