@@ -287,6 +287,7 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
   const [candidateCriticLoading, setCandidateCriticLoading] = useState(false);
   const [candidateCriticResult, setCandidateCriticResult] = useState<CandidateCriticResult>();
   const [candidateCriticError, setCandidateCriticError] = useState<string>();
+  const [lastRetrievalStatus, setLastRetrievalStatus] = useState<string>();
   // Cursor tracking for "insert at cursor" mode. EditorClient updates this on
   // textarea selection/click events.
   const cursorPosRef = useRef<number | null>(null);
@@ -361,6 +362,10 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
         }
 
         if (event.event === "done") {
+          const data = event.data as { retrieval_status?: string };
+          if (data.retrieval_status) {
+            setLastRetrievalStatus(data.retrieval_status);
+          }
           setMessage("候选稿生成完成，正在审校…");
         }
       });
@@ -725,5 +730,7 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     setBeats,
     clearBeats,
     draftWithBeats,
+    // M2.5 retrieval visibility
+    lastRetrievalStatus,
   };
 }

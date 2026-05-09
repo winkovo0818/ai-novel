@@ -28,6 +28,8 @@ interface CandidatePanelProps {
   /** Whether the editor currently holds a non-empty body the candidate would overwrite. */
   hasExistingContent: boolean;
   cursorPos: number | null;
+  /** Status of the RAG retrieval used for this draft (success/empty/error). */
+  retrievalStatus?: string;
   onAccept(mode: CandidateMode): void;
   onClose(): void;
 }
@@ -40,6 +42,7 @@ export function CandidatePanel({
   criticError,
   hasExistingContent,
   cursorPos,
+  retrievalStatus,
   onAccept,
   onClose,
 }: CandidatePanelProps) {
@@ -98,6 +101,21 @@ export function CandidatePanel({
           </svg>
         </button>
       </header>
+
+      {/* Retrieval status — small line above critic banner */}
+      {retrievalStatus && retrievalStatus !== "success" && !streaming && (
+        <div
+          className={`px-6 py-2 text-[11px] border-b ${
+            retrievalStatus === "error"
+              ? "bg-amber-50 text-amber-800 border-amber-100"
+              : "bg-secondary text-text-muted border-border-subtle"
+          }`}
+        >
+          {retrievalStatus === "error"
+            ? "记忆检索失败 · 本次起草未引用历史章节"
+            : "未检索到相关记忆 · 模型仅基于 Bible 与最近章节生成"}
+        </div>
+      )}
 
       {/* Critic banner */}
       {(criticResult || criticError) && (

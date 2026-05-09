@@ -277,6 +277,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
           criticError={editor.candidateCriticError}
           hasExistingContent={editor.content.trim().length > 0}
           cursorPos={cursorPos}
+          retrievalStatus={editor.lastRetrievalStatus}
           onAccept={(mode) => editor.acceptCandidate(mode)}
           onClose={() => editor.acceptCandidate("discard")}
         />
