@@ -65,9 +65,9 @@
 | 状态 | 编号 | 风险需求 / 任务 | 风险说明 | 技术实现方案 | 验收标准 | 关键文件 |
 |---|---:|---|---|---|---|---|
 | ✅ | P0-01 | 修复当前 `typecheck/build` 失败 | 当前实测 `npm run typecheck`、`npm run test`、`npm run build` 均通过；`npm run verify` 可覆盖三者 | 保持依赖锁定和构建环境稳定；后续把 lint 迁移后再纳入 verify | `npm run typecheck`、`npm run test`、`npm run build` 通过 | `package.json`、`package-lock.json`、`next.config.ts` |
-| 🔴 | P0-02 | 替换废弃的 `next lint` | `next lint` 已提示 deprecated，Next 16 会移除；当前 lint 还会被 config 加载失败阻断 | 1. 将 script 改为 `eslint .`；2. 确认 `eslint.config.mjs` 可直接被 ESLint CLI 使用；3. 将 `npm run lint` 纳入 `verify` 或 CI；4. 修复现有 lint 问题 | `npm run lint` 通过；CI 执行 lint | `package.json`、`eslint.config.mjs`、`.github/workflows/ci.yml` |
-| 🟡 | P0-03 | 恢复并增强 CI 工作流 | `.github/workflows/ci.yml` 已恢复基础 verify，但 lint、coverage、E2E 尚未进入质量门禁 | 1. CI 中执行 `npm ci`、`prisma generate`、`typecheck`、`lint`、`test`、`build`；2. build 阶段提供必要 placeholder env；3. 后续另建 e2e job | PR 上 CI 自动运行且失败会阻断合并 | `.github/workflows/ci.yml` |
-| 🔴 | P0-04 | 清理工作区未跟踪关键文件状态 | 当前大量核心实现文件未跟踪，任务状态无法对应稳定版本 | 1. 审查所有 `??` 文件是否属于本轮功能；2. 将源码、测试、迁移、CI 纳入 git；3. 不提交 `.env`、临时文件、个人 IDE 文件；4. 删除或记录 `generate_report.py` 的删除原因 | `git status --short` 中只剩预期变更；关键功能文件均被追踪 | `lib/agent/**`、`app/api/**`、`prisma/migrations/**`、`.github/**` |
+| ✅ | P0-02 | 替换废弃的 `next lint` | `package.json` 已改为 `eslint .`；CI 已纳入 lint job；当前 `npm run lint` 通过 | `npm run lint` 通过；CI 执行 lint | `package.json`、`eslint.config.mjs`、`.github/workflows/ci.yml` |
+| ✅ | P0-03 | 恢复并增强 CI 工作流 | `.github/workflows/ci.yml` 已包含 typecheck/lint/test/build；E2E 仍未进 CI（Q-03） | PR 上 CI 自动运行且失败会阻断合并 | `.github/workflows/ci.yml` |
+| ✅ | P0-04 | 清理工作区未跟踪关键文件状态 | `git status --short` 当前为 clean，所有源码、测试、迁移、CI 已跟踪并推送 | `git status --short` 中只剩预期变更；关键功能文件均被追踪 | — |
 
 ---
 
