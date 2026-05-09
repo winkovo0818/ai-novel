@@ -8,10 +8,12 @@ import { EditorClient } from "./EditorClient";
 
 interface PageProps {
   params: Promise<{ novelId: string }>;
+  searchParams: Promise<{ chapter?: string }>;
 }
 
-export default async function EditorPlaceholderPage({ params }: PageProps) {
+export default async function EditorPlaceholderPage({ params, searchParams }: PageProps) {
   const { novelId } = await params;
+  const { chapter: chapterParam } = await searchParams;
 
   let userId: string;
   try {
@@ -34,12 +36,19 @@ export default async function EditorPlaceholderPage({ params }: PageProps) {
   const bible = BibleDraftSchema.safeParse(novel.bible.content);
   if (!bible.success) notFound();
 
+  const requestedIndex = chapterParam ? Number(chapterParam) : undefined;
+  const initialChapterIndex =
+    requestedIndex && Number.isFinite(requestedIndex) && requestedIndex >= 1
+      ? requestedIndex
+      : 1;
+
   return (
     <EditorClient
       novelId={novel.id}
       title={novel.title}
       bible={bible.data}
       initialChapters={novel.chapters}
+      initialChapterIndex={initialChapterIndex}
     />
   );
 }

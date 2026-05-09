@@ -27,11 +27,12 @@ interface EditorClientProps {
   title: string;
   bible: BibleDraft;
   initialChapters: ChapterDraftView[];
+  initialChapterIndex?: number;
 }
 
-export function EditorClient({ novelId, title, bible: initialBible, initialChapters }: EditorClientProps) {
+export function EditorClient({ novelId, title, bible: initialBible, initialChapters, initialChapterIndex }: EditorClientProps) {
   const [bible, setBible] = useState(initialBible);
-  const editor = useChapterEditor({ novelId, bible, initialChapters });
+  const editor = useChapterEditor({ novelId, bible, initialChapters, initialChapterIndex });
   const [showBible, setShowBible] = useState(true);
   const [showAI, setShowAI] = useState(true);
   const [cursorPos, setCursorPosState] = useState<number | null>(null);

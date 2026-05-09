@@ -16,6 +16,7 @@ interface UseChapterEditorOptions {
   novelId: string;
   bible: BibleDraft;
   initialChapters: ChapterDraftView[];
+  initialChapterIndex?: number;
 }
 
 export interface ConsistencyIssue {
@@ -39,22 +40,27 @@ export interface ChapterVersionView {
   created_at: string;
 }
 
-export function useChapterEditor({ novelId, bible, initialChapters }: UseChapterEditorOptions) {
+export function useChapterEditor({ novelId, bible, initialChapters, initialChapterIndex }: UseChapterEditorOptions) {
   const confirm = useConfirm();
   const allOutlineChapters = getAllChapters(bible);
-  const firstChapter = allOutlineChapters[0];
-  const firstDraft = initialChapters.find((chapter) => chapter.chapter_index === 1);
+  const startIndex = (() => {
+    const requested = initialChapterIndex ?? 1;
+    const inOutline = allOutlineChapters.some((c) => c.index === requested);
+    return inOutline ? requested : 1;
+  })();
+  const startOutline = allOutlineChapters.find((c) => c.index === startIndex) ?? allOutlineChapters[0];
+  const startDraft = initialChapters.find((chapter) => chapter.chapter_index === startIndex);
   const [chapters, setChapters] = useState(initialChapters);
-  const [selectedIndex, setSelectedIndex] = useState(1);
+  const [selectedIndex, setSelectedIndex] = useState(startIndex);
   const selectedDraft = chapters.find((chapter) => chapter.chapter_index === selectedIndex);
-  const selectedOutline = allOutlineChapters.find((chapter) => chapter.index === selectedIndex) ?? firstChapter;
-  const [chapterId, setChapterId] = useState(firstDraft?.id);
-  const [chapterTitle, setChapterTitle] = useState(firstDraft?.title ?? firstChapter?.title ?? "第一章");
-  const [content, setContent] = useState(firstDraft?.content ?? "");
-  const [chapterStatus, setChapterStatus] = useState<"draft" | "done">(firstDraft?.status === "done" ? "done" : "draft");
-  const [savedTitle, setSavedTitle] = useState(firstDraft?.title ?? firstChapter?.title ?? "第一章");
-  const [savedContent, setSavedContent] = useState(firstDraft?.content ?? "");
-  const [savedStatus, setSavedStatus] = useState<"draft" | "done">(firstDraft?.status === "done" ? "done" : "draft");
+  const selectedOutline = allOutlineChapters.find((chapter) => chapter.index === selectedIndex) ?? startOutline;
+  const [chapterId, setChapterId] = useState(startDraft?.id);
+  const [chapterTitle, setChapterTitle] = useState(startDraft?.title ?? startOutline?.title ?? `第 ${startIndex} 章`);
+  const [content, setContent] = useState(startDraft?.content ?? "");
+  const [chapterStatus, setChapterStatus] = useState<"draft" | "done">(startDraft?.status === "done" ? "done" : "draft");
+  const [savedTitle, setSavedTitle] = useState(startDraft?.title ?? startOutline?.title ?? `第 ${startIndex} 章`);
+  const [savedContent, setSavedContent] = useState(startDraft?.content ?? "");
+  const [savedStatus, setSavedStatus] = useState<"draft" | "done">(startDraft?.status === "done" ? "done" : "draft");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "drafting" | "error">("idle");
   const [message, setMessage] = useState<string>();
   const hasUnsavedChanges = chapterTitle !== savedTitle || content !== savedContent || chapterStatus !== savedStatus;

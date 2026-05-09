@@ -14,8 +14,8 @@ export function NovelCard({ id, title, chapterCount, doneCount, updatedAt, hasBi
   const progress = chapterCount > 0 ? Math.round((doneCount / chapterCount) * 100) : 0;
 
   return (
-    <Link 
-      href={`/editor/${id}`}
+    <Link
+      href={`/novels/${id}`}
       className="group relative bg-white border border-border-subtle rounded-xl overflow-hidden shadow-sm transition-all duration-500 hover:shadow-xl hover:border-primary/20 hover:-translate-y-1 flex flex-col min-h-[220px]"
     >
       {/* Book Spine Accent */}
@@ -72,7 +72,7 @@ export function NovelCard({ id, title, chapterCount, doneCount, updatedAt, hasBi
           </span>
         </div>
         <span className="text-[10px] text-primary font-bold uppercase tracking-[0.1em] opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
-          进入工作台 →
+          打开项目 →
         </span>
       </div>
     </Link>
