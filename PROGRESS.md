@@ -98,7 +98,7 @@
 
 ### 测试
 
-- Unit/API tests：当前实测 42 files / 262 tests passed
+- Unit/API tests：当前实测 44 files / 275 tests passed
   - `lib/stream/sseEncode.test.ts`
   - `lib/stream/readSse.test.ts`
   - `lib/stream/jsonStreamParser.test.ts`
@@ -118,7 +118,7 @@
 ### CI/CD 与验证
 
 - `npm run typecheck` — 当前实测通过
-- `npm run test` — 当前实测通过，42 files / 262 tests passed（coverage 67.26% stmts）
+- `npm run test` — 当前实测通过，44 files / 275 tests passed（coverage 67.9% stmts；lib/llm/prompts 97.52%）
 - `npm run build` — 当前实测通过，Next.js 15 生产构建成功
 - `npm run lint` — 已迁移为 `eslint .`，当前实测通过
 - `.github/workflows/ci.yml` — 已恢复基础 verify workflow；后续仍需纳入 lint、coverage 和 E2E job
