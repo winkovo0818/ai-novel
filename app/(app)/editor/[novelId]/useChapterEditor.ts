@@ -1,12 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { readSse } from "@/lib/stream/readSse";
 import { getAllChapters } from "@/lib/validation/schemas";
 import type { BibleDraft, StateDiff } from "@/lib/validation/schemas";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import type { ChapterDraftView } from "./EditorClient";
+import type {
+  CandidateCriticResult,
+  CandidateMode,
+} from "./CandidatePanel";
 
 interface UseChapterEditorOptions {
   novelId: string;
@@ -195,6 +199,18 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
     ) {
       return;
     }
+    if (
+      candidateContent &&
+      !(await confirm({
+        title: "切换章节将丢弃 AI 候选稿？",
+        message: "当前章节有未处理的 AI 候选稿，切换章节会丢弃它。",
+        confirmLabel: "切换并丢弃",
+        danger: true,
+      }))
+    ) {
+      return;
+    }
+    clearCandidate();
 
     const draft = chapters.find((chapter) => chapter.chapter_index === index);
     const outline = allOutlineChapters.find((chapter) => chapter.index === index);
@@ -228,23 +244,53 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
     }
   }
 
+  // ────────────────────────────────────────────────
+  // M1.3: AI draft → candidate buffer (no longer overwrites editor body)
+  // ────────────────────────────────────────────────
+  const [candidateContent, setCandidateContent] = useState<string>("");
+  const [candidateOpen, setCandidateOpen] = useState(false);
+  const [candidateStreaming, setCandidateStreaming] = useState(false);
+  const [candidateCriticLoading, setCandidateCriticLoading] = useState(false);
+  const [candidateCriticResult, setCandidateCriticResult] = useState<CandidateCriticResult>();
+  const [candidateCriticError, setCandidateCriticError] = useState<string>();
+  // Cursor tracking for "insert at cursor" mode. EditorClient updates this on
+  // textarea selection/click events.
+  const cursorPosRef = useRef<number | null>(null);
+  const setCursorPos = useCallback((pos: number | null) => {
+    cursorPosRef.current = pos;
+  }, []);
+
+  function clearCandidate() {
+    setCandidateContent("");
+    setCandidateOpen(false);
+    setCandidateStreaming(false);
+    setCandidateCriticLoading(false);
+    setCandidateCriticResult(undefined);
+    setCandidateCriticError(undefined);
+  }
+
   async function draftChapter() {
-    if (
-      hasUnsavedChanges &&
-      !(await confirm({
-        title: "AI 起草将覆盖未保存内容？",
-        message: "当前章节存在未保存的修改，AI 起草会覆盖这些内容。",
-        confirmLabel: "覆盖并起草",
+    // Defensive: if a candidate is still pending, ask the user first instead of
+    // dropping the previous generation silently.
+    if (candidateContent && !candidateStreaming) {
+      const ok = await confirm({
+        title: "丢弃当前候选稿并重新生成？",
+        message: "上一次 AI 起草的候选稿尚未处理，重新起草会覆盖它。",
+        confirmLabel: "重新起草",
         danger: true,
-      }))
-    ) {
-      return;
+      });
+      if (!ok) return;
     }
 
+    setCandidateOpen(true);
+    setCandidateStreaming(true);
+    setCandidateContent("");
+    setCandidateCriticLoading(false);
+    setCandidateCriticResult(undefined);
+    setCandidateCriticError(undefined);
     setStatus("drafting");
-    setMessage("AI 正在起草...");
+    setMessage("AI 正在起草候选稿…");
 
-    const originalContent = content;
     let generated = "";
     let streamError: string | undefined;
 
@@ -268,7 +314,7 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
           const data = event.data as { delta?: string };
           if (data.delta) {
             generated += data.delta;
-            setContent(generated);
+            setCandidateContent(generated);
           }
           return;
         }
@@ -280,37 +326,108 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
         }
 
         if (event.event === "done") {
-          setMessage("AI 草稿已生成，正在保存...");
+          setMessage("候选稿生成完成，正在审校…");
         }
       });
 
-      if (streamError) {
-        if (!generated) setContent(originalContent);
-        throw new Error(streamError);
-      }
+      if (streamError) throw new Error(streamError);
+      if (!generated.trim()) throw new Error("AI 未返回章节正文");
 
-      if (!generated.trim()) {
-        setContent(originalContent);
-        throw new Error("AI 未返回章节正文");
-      }
+      setCandidateStreaming(false);
+      setStatus("idle");
+      setMessage("候选稿就绪，请选择处理方式");
 
-      // C2: auto-critic after generation
-      setMessage("AI 草稿已生成，正在审校...");
-      const criticStatus = await runCritic(generated);
-
-      if (criticStatus === "blocked") {
-        setStatus("idle");
-        setMessage("审校发现问题，请确认后保存");
-        return;
-      }
-
-      await persistChapter(generated, chapterTitle, chapterStatus, "ai");
-      setStatus("saved");
-      setMessage("AI 草稿已生成并保存");
+      // Run critic against the candidate (non-blocking — its result decorates
+      // the panel, never auto-applies content).
+      void runCandidateCritic(generated);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "unknown error";
+      setCandidateStreaming(false);
       setStatus("error");
-      setMessage(msg);
+      setMessage(err instanceof Error ? err.message : "AI 起草失败");
+    }
+  }
+
+  async function runCandidateCritic(draftContent: string) {
+    setCandidateCriticLoading(true);
+    setCandidateCriticError(undefined);
+    setCandidateCriticResult(undefined);
+    try {
+      const response = await fetch(`/api/novels/${novelId}/chapters/critic`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chapter_index: selectedIndex,
+          content: draftContent,
+        }),
+      });
+      const json = await response.json();
+      if (!json.ok) throw new Error(json.error?.message ?? "审校失败");
+      setCandidateCriticResult(json.data as CandidateCriticResult);
+    } catch (err) {
+      // Critic failure is non-blocking. Display warning, don't gate the user.
+      setCandidateCriticError(err instanceof Error ? err.message : "审校失败");
+    } finally {
+      setCandidateCriticLoading(false);
+    }
+  }
+
+  async function acceptCandidate(mode: CandidateMode) {
+    if (mode === "discard") {
+      clearCandidate();
+      setStatus("idle");
+      setMessage("候选稿已丢弃，正文未改动");
+      return;
+    }
+
+    if (!candidateContent) return;
+
+    let nextContent = content;
+    if (mode === "replace") {
+      nextContent = candidateContent;
+    } else if (mode === "append") {
+      nextContent = content
+        ? `${content.replace(/\s+$/, "")}\n\n${candidateContent}`
+        : candidateContent;
+    } else if (mode === "insert") {
+      const pos = cursorPosRef.current ?? content.length;
+      nextContent = `${content.slice(0, pos)}${candidateContent}${content.slice(pos)}`;
+    }
+
+    setStatus("saving");
+    setMessage("保存候选稿…");
+    try {
+      // Snapshot current body as a manual version *first* if it's non-empty —
+      // gives the user a one-click way back to the pre-AI state.
+      if (content.trim() && chapterId) {
+        await fetch(`/api/chapters/${chapterId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content,
+            title: chapterTitle,
+            status: chapterStatus,
+            source: "manual",
+          }),
+        }).catch(() => {
+          // Snapshot best-effort — proceed even if it fails so user doesn't
+          // lose the candidate they just chose to apply.
+        });
+      }
+
+      setContent(nextContent);
+      await persistChapter(nextContent, chapterTitle, chapterStatus, "ai");
+      setStatus("saved");
+      setMessage(
+        mode === "replace"
+          ? "候选稿已替换正文"
+          : mode === "append"
+          ? "候选稿已追加到末尾"
+          : "候选稿已插入光标处",
+      );
+      clearCandidate();
+    } catch (err) {
+      setStatus("error");
+      setMessage(err instanceof Error ? err.message : "保存失败");
     }
   }
 
@@ -459,64 +576,6 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
     setStateDiffOpen(false);
   }
 
-  // ────────────────────────────────────────────────
-  // C2: auto-critic after AI draft
-  // ────────────────────────────────────────────────
-  const [criticOpen, setCriticOpen] = useState(false);
-  const [criticLoading, setCriticLoading] = useState(false);
-  const [criticResult, setCriticResult] = useState<{ consistent: boolean; issues: Array<{ type: string; severity: string; description: string; suggestion?: string }> }>();
-  const [criticError, setCriticError] = useState<string>();
-  const [pendingDraftContent, setPendingDraftContent] = useState<string>();
-
-  async function runCritic(draftContent: string) {
-    setCriticLoading(true);
-    setCriticError(undefined);
-    setCriticResult(undefined);
-    try {
-      const response = await fetch(`/api/novels/${novelId}/chapters/critic`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chapter_index: selectedIndex,
-          content: draftContent,
-        }),
-      });
-      const json = await response.json();
-      if (!json.ok) {
-        throw new Error(json.error?.message ?? "审校失败");
-      }
-      setCriticResult(json.data);
-      const hasCritical = json.data.issues?.some((issue: { severity: string }) => issue.severity === "critical" || issue.severity === "major");
-      if (hasCritical) {
-        setCriticOpen(true);
-        setPendingDraftContent(draftContent);
-        return "blocked" as const;
-      }
-      return "passed" as const;
-    } catch (err) {
-      setCriticError(err instanceof Error ? err.message : "审校失败");
-      // On critic failure, allow save to proceed (fail-open for UX)
-      return "passed" as const;
-    } finally {
-      setCriticLoading(false);
-    }
-  }
-
-  async function acceptCritic() {
-    setCriticOpen(false);
-    if (pendingDraftContent) {
-      await persistChapter(pendingDraftContent, chapterTitle, chapterStatus, "ai");
-      setStatus("saved");
-      setMessage("AI 草稿已生成并保存");
-      setPendingDraftContent(undefined);
-    }
-  }
-
-  function closeCritic() {
-    setCriticOpen(false);
-    setPendingDraftContent(undefined);
-  }
-
   return {
     chapters,
     selectedIndex,
@@ -556,11 +615,14 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
     pendingStateDiff,
     pendingStateDiffChapterIndex,
     openPendingStateDiff,
-    criticOpen,
-    criticLoading,
-    criticResult,
-    criticError,
-    acceptCritic,
-    closeCritic,
+    // M1.3 candidate flow
+    candidateOpen,
+    candidateContent,
+    candidateStreaming,
+    candidateCriticLoading,
+    candidateCriticResult,
+    candidateCriticError,
+    setCursorPos,
+    acceptCandidate,
   };
 }

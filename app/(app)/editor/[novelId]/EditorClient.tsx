@@ -8,7 +8,7 @@ import { EditorToolbar } from "./EditorToolbar";
 import { useChapterEditor } from "./useChapterEditor";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { StateDiffPanel } from "./StateDiffPanel";
-import { CriticPanel } from "./CriticPanel";
+import { CandidatePanel } from "./CandidatePanel";
 import { AIPanel } from "./AIPanel";
 import { VersionsModal } from "./VersionsModal";
 import { ExportMenu } from "./ExportMenu";
@@ -34,6 +34,12 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
   const editor = useChapterEditor({ novelId, bible, initialChapters });
   const [showBible, setShowBible] = useState(true);
   const [showAI, setShowAI] = useState(true);
+  const [cursorPos, setCursorPosState] = useState<number | null>(null);
+
+  const updateCursorPos = (pos: number | null) => {
+    setCursorPosState(pos);
+    editor.setCursorPos(pos);
+  };
 
   return (
     <div
@@ -156,7 +162,17 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
                 value={editor.content}
                 onChange={(event) => {
                   editor.setContent(event.target.value);
+                  updateCursorPos(event.target.selectionStart);
                   if (editor.status === "saved") editor.setStatus("idle");
+                }}
+                onSelect={(event) => {
+                  updateCursorPos((event.target as HTMLTextAreaElement).selectionStart);
+                }}
+                onClick={(event) => {
+                  updateCursorPos((event.target as HTMLTextAreaElement).selectionStart);
+                }}
+                onKeyUp={(event) => {
+                  updateCursorPos((event.target as HTMLTextAreaElement).selectionStart);
                 }}
               />
               
@@ -237,14 +253,17 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
         />
       )}
 
-      {editor.criticOpen && (
-        <CriticPanel
-          loading={editor.criticLoading}
-          error={editor.criticError}
-          result={editor.criticResult}
-          onClose={editor.closeCritic}
-          onAccept={editor.acceptCritic}
-          onRegenerate={editor.draftChapter}
+      {editor.candidateOpen && (
+        <CandidatePanel
+          content={editor.candidateContent}
+          streaming={editor.candidateStreaming}
+          criticLoading={editor.candidateCriticLoading}
+          criticResult={editor.candidateCriticResult}
+          criticError={editor.candidateCriticError}
+          hasExistingContent={editor.content.trim().length > 0}
+          cursorPos={cursorPos}
+          onAccept={(mode) => editor.acceptCandidate(mode)}
+          onClose={() => editor.acceptCandidate("discard")}
         />
       )}
     </div>
