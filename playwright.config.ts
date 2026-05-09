@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const useBuilt = process.env.E2E_USE_BUILT === "1" || process.env.CI === "true";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 120_000,
@@ -11,7 +13,9 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: "npm run dev",
+    // CI runs `next start` against the prebuilt app for predictable startup;
+    // local dev keeps `next dev` so hot reload works while iterating on specs.
+    command: useBuilt ? "npm run start" : "npm run dev",
     url: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
     reuseExistingServer: true,
     timeout: 120_000,
