@@ -183,3 +183,25 @@ model LlmUsage {
   @@index([novel_id])
   @@index([route])
 }
+
+/// Background job queue for fire-and-forget memory work
+/// (chapter summarize, chunk index, tiered-summary refresh).
+/// Persisting these turns silent failures into observable rows
+/// the UI can surface and the user can retry.
+model BackgroundJob {
+  id          String    @id @default(uuid())
+  novel_id    String
+  type        String    // summarize_chapter | index_chapter | refresh_summaries
+  payload     Json
+  status      String    @default("pending") // pending | running | done | failed
+  attempts    Int       @default(0)
+  last_error  String?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+  started_at  DateTime?
+  finished_at DateTime?
+
+  @@index([novel_id, status])
+  @@index([status, created_at])
+  @@index([type, status])
+}
