@@ -14,7 +14,7 @@
 | 多章节写作 MVP | 78-85% | 多章节编辑、保存、AI 起草、删除、版本历史、Critic、State Diff、Markdown/TXT 导出已实现 |
 | 安全上线准备 | 60-70% | Supabase Auth、ownership、admin-only、key 加密、基础限流已接入；Bible 编辑审核、配额覆盖和生产级限流仍需补强 |
 | 长篇记忆/Agent | 60-70% | Story State、分层摘要、MemoryChunk/RAG、Beat Sheet、Critic、State Diff 均有实现；可靠性和自动闭环仍不足 |
-| 工程可交付性 | 55-65% | `typecheck`、Vitest、`build` 当前通过；`lint` 脚本废弃且超时，CI workflow 当前处于删除状态 |
+| 工程可交付性 | 60-70% | `typecheck`、Vitest、`build` 当前通过；CI workflow 已恢复基础验证；`lint` 脚本废弃且超时 |
 | 正式产品化 | 45-55% | 已有导出、用量表、配额雏形；候选稿、写作工具、低噪声 UI、后台任务、coverage/E2E CI 未完成 |
 
 核心结论：项目已经具备可演示、可内部试用的 AI 小说写作 MVP。当前 `typecheck`、单测和生产构建均通过，但还不能标记为“全部完成”或“可生产上线”。下一阶段应优先恢复 CI/lint 质量门禁、清理工作区交付状态、补齐成本/审核硬边界，并把长篇记忆闭环做扎实。
@@ -121,7 +121,7 @@
 - `npm run test` — 当前实测通过，32 files / 194 tests passed
 - `npm run build` — 当前实测通过，Next.js 15 生产构建成功
 - `npm run lint` — 当前脚本仍为废弃的 `next lint`，本次运行 120 秒超时，不能作为有效质量门禁
-- `.github/workflows/ci.yml` — 当前工作区显示为删除状态；若提交该状态，GitHub Actions 将失效
+- `.github/workflows/ci.yml` — 已恢复基础 verify workflow；后续仍需纳入 lint、coverage 和 E2E job
 - `npm run db:deploy` — Prisma migrate deploy（Supabase/生产用）
 
 ### 文档

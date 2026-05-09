@@ -30,7 +30,7 @@
 | RAG / MemoryChunk | 🟡 部分完成 | 60-70% | pgvector + HNSW 已引入；SQL 端检索与混合检索有实现；索引失败/后台任务/召回质量仍非生产级 | `lib/agent/retrieval.ts`、`lib/agent/chunking.ts` |
 | 多 Agent 协作 | 🟡 部分完成 | 55-65% | Writer、Critic、StateUpdater、Outline(BeatSheet) 均有契约+prompt+路由；自动修订/回炉和编排可靠性未完成 | `lib/agent/contracts.ts`、`lib/llm/prompts/**` |
 | 工程验证 | 🟡 部分完成 | 60-70% | `typecheck`、Vitest、`build` 当前通过；`lint` 超时且脚本废弃，`verify` 未包含 lint | `package.json`、`next.config.ts` |
-| CI/CD | 🔴 待处理 | 35-45% | `.github/workflows/ci.yml` 当前为删除状态；E2E 未进 CI；coverage 缺失 | `.github/workflows/ci.yml` |
+| CI/CD | 🟡 部分完成 | 45-55% | `.github/workflows/ci.yml` 已恢复基础验证；E2E 未进 CI；coverage 缺失 | `.github/workflows/ci.yml` |
 | 产品化能力 | 🟡 部分完成 | 45-55% | 已有 Markdown/TXT 导出和用量表；缺候选稿、写作工具、生产限流、低噪声 UI、后台任务 | `design.md`、`AUDIT.md` |
 
 ---
@@ -66,7 +66,7 @@
 |---|---:|---|---|---|---|---|
 | ✅ | P0-01 | 修复当前 `typecheck/build` 失败 | 当前实测 `npm run typecheck`、`npm run test`、`npm run build` 均通过；`npm run verify` 可覆盖三者 | 保持依赖锁定和构建环境稳定；后续把 lint 迁移后再纳入 verify | `npm run typecheck`、`npm run test`、`npm run build` 通过 | `package.json`、`package-lock.json`、`next.config.ts` |
 | 🔴 | P0-02 | 替换废弃的 `next lint` | `next lint` 已提示 deprecated，Next 16 会移除；当前 lint 还会被 config 加载失败阻断 | 1. 将 script 改为 `eslint .`；2. 确认 `eslint.config.mjs` 可直接被 ESLint CLI 使用；3. 将 `npm run lint` 纳入 `verify` 或 CI；4. 修复现有 lint 问题 | `npm run lint` 通过；CI 执行 lint | `package.json`、`eslint.config.mjs`、`.github/workflows/ci.yml` |
-| 🔴 | P0-03 | 恢复并启用 CI 工作流 | 当前 `.github/workflows/ci.yml` 在工作区为删除状态；若提交该状态，GitHub Actions 会失效 | 1. 恢复 workflow；2. CI 中执行 `npm ci`、`prisma generate`、`typecheck`、`lint`、`test`、`build`；3. build 阶段提供必要 placeholder env；4. 后续另建 e2e job | PR 上 CI 自动运行且失败会阻断合并 | `.github/workflows/ci.yml` |
+| 🟡 | P0-03 | 恢复并增强 CI 工作流 | `.github/workflows/ci.yml` 已恢复基础 verify，但 lint、coverage、E2E 尚未进入质量门禁 | 1. CI 中执行 `npm ci`、`prisma generate`、`typecheck`、`lint`、`test`、`build`；2. build 阶段提供必要 placeholder env；3. 后续另建 e2e job | PR 上 CI 自动运行且失败会阻断合并 | `.github/workflows/ci.yml` |
 | 🔴 | P0-04 | 清理工作区未跟踪关键文件状态 | 当前大量核心实现文件未跟踪，任务状态无法对应稳定版本 | 1. 审查所有 `??` 文件是否属于本轮功能；2. 将源码、测试、迁移、CI 纳入 git；3. 不提交 `.env`、临时文件、个人 IDE 文件；4. 删除或记录 `generate_report.py` 的删除原因 | `git status --short` 中只剩预期变更；关键功能文件均被追踪 | `lib/agent/**`、`app/api/**`、`prisma/migrations/**`、`.github/**` |
 
 ---

@@ -31,7 +31,7 @@
 | `npm run build` | 通过 | Next.js 15 生产构建成功 |
 | `npm run lint` | 未通过质量门禁 | 脚本仍为废弃 `next lint`，本次运行 120 秒超时 |
 
-工程交付风险：当前工作区中 `.github/workflows/ci.yml` 为删除状态，若提交该状态，GitHub Actions 将失效；同时仍有大量核心源码、测试、迁移文件处于 modified/untracked 状态，需要分批提交并确认 CI 恢复。
+工程交付风险：`.github/workflows/ci.yml` 已恢复基础 verify workflow，但 lint、coverage、E2E 仍未进入 CI；同时仍有大量核心源码、测试、迁移文件处于 modified/untracked 状态，需要分批提交并确认远端 CI 运行。
 
 ---
 

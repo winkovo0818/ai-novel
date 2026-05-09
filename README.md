@@ -2,7 +2,7 @@
 
 AI 协同写小说平台，支持 5 步生成 Bible 草稿 + 多章节 AI 写作。
 
-当前状态：可演示、可内部试用的 MVP。`typecheck`、Vitest、生产构建当前通过；`lint` 脚本仍需从废弃的 `next lint` 迁移到 ESLint CLI，CI workflow 当前工作区为删除状态，恢复后才建议作为稳定交付基线。
+当前状态：可演示、可内部试用的 MVP。`typecheck`、Vitest、生产构建当前通过；`lint` 脚本仍需从废弃的 `next lint` 迁移到 ESLint CLI，CI workflow 已恢复基础验证，但还未包含 lint、coverage 和 E2E。
 
 ---
 
