@@ -8,7 +8,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { chatCompletion, chatCompletionWithRetry, streamChatCompletion } from "./client";
+import { chatCompletion, chatCompletionWithRetry, streamChatCompletion, streamChatCompletionWithRetry } from "./client";
 
 const ORIG_KEY = process.env.DEEPSEEK_API_KEY;
 const ORIG_MOCK = process.env.LLM_MOCK;
@@ -100,5 +100,68 @@ describe("lib/llm/client", () => {
 
     expect(result.content).toBe(content);
     expect(JSON.parse(content).meta.suggested_title).toBe("逆魂纪");
+  });
+
+  it("retries streamChatCompletion on timeout when no delta has been emitted", async () => {
+    process.env.DEEPSEEK_API_KEY = "test-key";
+    delete process.env.LLM_MOCK;
+
+    const okBody = [
+      'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n',
+      'data: {"usage":{"prompt_tokens":1,"completion_tokens":1}}\n\n',
+      'data: [DONE]\n\n',
+    ].join("");
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new DOMException("The operation was aborted", "AbortError"))
+      .mockResolvedValueOnce(new Response(okBody, { status: 200, headers: { "content-type": "text/event-stream" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    let captured = "";
+    const result = await streamChatCompletionWithRetry(
+      { route: "/test", messages: [{ role: "user", content: "ping" }] },
+      { onDelta: (delta) => { captured += delta; } },
+    );
+
+    expect(result.content).toBe("hi");
+    expect(captured).toBe("hi");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry streamChatCompletion once a delta has been emitted", async () => {
+    process.env.DEEPSEEK_API_KEY = "test-key";
+    delete process.env.LLM_MOCK;
+
+    // First pull delivers a delta; second pull errors. Using `pull` ensures
+    // the reader actually consumes the chunk (firing onDelta) before the
+    // stream errors, which is what makes this a "delta already emitted" case.
+    let pulled = 0;
+    const partialStream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled++;
+        if (pulled === 1) {
+          const encoder = new TextEncoder();
+          controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"par"}}]}\n\n'));
+        } else {
+          controller.error(new DOMException("The operation was aborted", "AbortError"));
+        }
+      },
+    });
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(partialStream, { status: 200, headers: { "content-type": "text/event-stream" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    let captured = "";
+    await expect(
+      streamChatCompletionWithRetry(
+        { route: "/test", messages: [{ role: "user", content: "ping" }] },
+        { onDelta: (delta) => { captured += delta; } },
+      ),
+    ).rejects.toThrow();
+
+    expect(captured).toBe("par");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

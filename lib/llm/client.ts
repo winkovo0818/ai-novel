@@ -325,11 +325,22 @@ export async function streamChatCompletionWithRetry(
   callbacks: ChatStreamCallbacks,
   retries = 1,
 ): Promise<ChatStreamResult> {
+  let emitted = false;
+  const wrappedCallbacks: ChatStreamCallbacks = {
+    async onDelta(delta) {
+      emitted = true;
+      await callbacks.onDelta(delta);
+    },
+  };
   try {
-    return await streamChatCompletion(opts, callbacks);
+    return await streamChatCompletion(opts, wrappedCallbacks);
   } catch (err) {
+    // Once the caller has seen any delta, retrying would splice a second
+    // generation onto the SSE stream and the client would render two
+    // overlapping continuations. Surface the error instead.
+    if (emitted) throw err;
     if (retries <= 0 || !isTimeoutError(err)) throw err;
-    return streamChatCompletion(opts, callbacks);
+    return streamChatCompletion(opts, wrappedCallbacks);
   }
 }
 
