@@ -99,9 +99,18 @@ const MONTHLY_COST_LIMIT_CNY = Number(process.env.MONTHLY_COST_LIMIT_CNY) || 500
 const DAILY_CALL_LIMIT = Number(process.env.DAILY_CALL_LIMIT) || 200;
 const MONTHLY_CALL_LIMIT = Number(process.env.MONTHLY_CALL_LIMIT) || 5000;
 
+export type QuotaFailureMode = "allow" | "block";
+
+export function getQuotaFailureMode(): QuotaFailureMode {
+  const env = process.env.QUOTA_FAILURE_MODE;
+  if (env === "allow" || env === "block") return env;
+  return process.env.NODE_ENV === "production" ? "block" : "allow";
+}
+
 export interface QuotaCheck {
   allowed: boolean;
   reason?: string;
+  code?: "QUOTA_EXCEEDED" | "QUOTA_CHECK_FAILED";
   dailyCostCny: number;
   monthlyCostCny: number;
   dailyLimitCny: number;
@@ -137,8 +146,21 @@ export async function checkQuota(userId: string): Promise<QuotaCheck> {
     dailyCalls = dailyUsage._count;
     monthlyCalls = monthlyUsage._count;
   } catch (err) {
-    // If quota check fails (e.g. table doesn't exist yet), allow the request
-    console.error("[usage] quota check failed, allowing request:", err instanceof Error ? err.message : err);
+    const mode = getQuotaFailureMode();
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    if (mode === "block") {
+      console.error(`[usage] quota check failed, BLOCKING request: ${errorMessage}`);
+      return {
+        allowed: false,
+        reason: "Usage quota service is temporarily unavailable, please try again later",
+        code: "QUOTA_CHECK_FAILED",
+        dailyCostCny: 0,
+        monthlyCostCny: 0,
+        dailyLimitCny: DAILY_COST_LIMIT_CNY,
+        monthlyLimitCny: MONTHLY_COST_LIMIT_CNY,
+      };
+    }
+    console.warn(`[usage] quota check failed, allowing request: ${errorMessage}`);
     return {
       allowed: true,
       dailyCostCny: 0,
