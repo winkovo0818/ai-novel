@@ -99,14 +99,22 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
     });
 
     // F1: When a chapter is marked done with substantive content, refresh its
-    // summary and index it for RAG in the background.
+    // summary and index it for RAG. Both run as background jobs so failures
+    // surface in the editor instead of disappearing into server logs.
     if (nextStatus === "done" && nextContent.trim().length >= 100) {
       const targetId = json.data.id as string;
-      void fetch(`/api/chapters/${targetId}/summarize`, { method: "POST" }).catch(() => {
-        // Background — surface failures only via server logs.
-      });
-      void fetch(`/api/chapters/${targetId}/index`, { method: "POST" }).catch(() => {
-        // Background — surface failures only via server logs.
+      void fetch(`/api/novels/${novelId}/jobs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobs: [
+            { type: "summarize_chapter", payload: { chapter_id: targetId } },
+            { type: "index_chapter", payload: { novel_id: novelId, chapter_id: targetId } },
+          ],
+        }),
+      }).catch(() => {
+        // Network error reaching our own API — the queue stays empty
+        // and the user can retry by re-marking the chapter done.
       });
     }
 
@@ -137,9 +145,17 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
 
     // L-03: Cascade refresh when editing an already-done chapter
     if (savedStatus === "done" && nextContent !== savedContent) {
-      void fetch(`/api/chapters/${targetId}/summarize`, { method: "POST" }).catch(() => {});
-      void fetch(`/api/chapters/${targetId}/index`, { method: "POST" }).catch(() => {});
-      void fetch(`/api/novels/${novelId}/summaries/refresh`, { method: "POST" }).catch(() => {});
+      void fetch(`/api/novels/${novelId}/jobs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobs: [
+            { type: "summarize_chapter", payload: { chapter_id: targetId } },
+            { type: "index_chapter", payload: { novel_id: novelId, chapter_id: targetId } },
+            { type: "refresh_summaries", payload: { novel_id: novelId } },
+          ],
+        }),
+      }).catch(() => {});
     }
 
     return json.data as ChapterDraftView;
