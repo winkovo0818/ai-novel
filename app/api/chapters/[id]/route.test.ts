@@ -9,6 +9,17 @@ const findManyVersion = vi.fn();
 const deleteManyVersion = vi.fn();
 const getRequiredUserId = vi.fn();
 
+const txClient = {
+  chapterDraft: { update },
+  chapterVersion: {
+    create: createVersion,
+    findFirst: findFirstVersion,
+    findMany: findManyVersion,
+    deleteMany: deleteManyVersion,
+  },
+};
+const $transaction = vi.fn(async (cb: (tx: typeof txClient) => unknown) => cb(txClient));
+
 vi.mock("@/lib/db", () => ({
   prisma: {
     chapterDraft: { findUnique, update, delete: deleteFn },
@@ -18,6 +29,7 @@ vi.mock("@/lib/db", () => ({
       findMany: findManyVersion,
       deleteMany: deleteManyVersion,
     },
+    $transaction,
   },
 }));
 
@@ -181,6 +193,26 @@ describe("PATCH /api/chapters/[id]", () => {
 
     expect(response.status).toBe(401);
     expect(json.error.code).toBe("UNAUTHORIZED");
+  });
+
+  it("rolls back the chapter update if version creation fails", async () => {
+    const { PATCH } = await import("./route");
+    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", novel: { user_id: "user-1" } });
+    update.mockResolvedValue({ id: "chapter-1", content: "new", status: "draft" });
+    createVersion.mockRejectedValue(new Error("version insert failed"));
+
+    // Simulate a real prisma.$transaction: when the callback throws, the
+    // wrapper rejects so the caller sees the error and the entire batch is
+    // treated as failed.
+    $transaction.mockImplementationOnce(async (cb) => cb(txClient));
+
+    const response = await PATCH(request({ content: "new", source: "manual" }), {
+      params: Promise.resolve({ id: "chapter-1" }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(json.error.code).toBe("INTERNAL");
   });
 });
 

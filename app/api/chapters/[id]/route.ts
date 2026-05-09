@@ -70,51 +70,55 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
 
-    const chapter = await prisma.chapterDraft.update({ where: { id }, data: updateData });
+    const chapter = await prisma.$transaction(async (tx) => {
+      const updated = await tx.chapterDraft.update({ where: { id }, data: updateData });
 
-    // Decide whether this PATCH should create a ChapterVersion.
-    // - source=autosave by default does NOT create a version.
-    // - manual / ai / status_change always create a version.
-    // - autosave still creates a version when the status changed (e.g. mark done),
-    //   so users never lose the boundary between draft and done.
-    const statusChanged =
-      updateData.status !== undefined && updateData.status !== existing.status;
-    const shouldCreateVersion = source !== "autosave" || statusChanged;
+      // Decide whether this PATCH should create a ChapterVersion.
+      // - source=autosave by default does NOT create a version.
+      // - manual / ai / status_change always create a version.
+      // - autosave still creates a version when the status changed (e.g. mark done),
+      //   so users never lose the boundary between draft and done.
+      const statusChanged =
+        updateData.status !== undefined && updateData.status !== existing.status;
+      const shouldCreateVersion = source !== "autosave" || statusChanged;
 
-    if (shouldCreateVersion) {
-      const versionContent = existing.content;
-      const versionHash = hashContent(versionContent);
-      // Skip when the most recent version for this chapter already matches.
-      const last = await prisma.chapterVersion.findFirst({
-        where: { chapter_id: id },
-        orderBy: { created_at: "desc" },
-        select: { content_hash: true },
-      });
-      if (last?.content_hash !== versionHash) {
-        await prisma.chapterVersion.create({
-          data: {
-            chapter_id: id,
-            title: existing.title,
-            content: versionContent,
-            content_hash: versionHash,
-            status: existing.status,
-            source: statusChanged && source === "autosave" ? "status_change" : source,
-          },
-        });
-        // Prune to MAX_VERSIONS_PER_CHAPTER newest entries.
-        const overflow = await prisma.chapterVersion.findMany({
+      if (shouldCreateVersion) {
+        const versionContent = existing.content;
+        const versionHash = hashContent(versionContent);
+        // Skip when the most recent version for this chapter already matches.
+        const last = await tx.chapterVersion.findFirst({
           where: { chapter_id: id },
           orderBy: { created_at: "desc" },
-          skip: MAX_VERSIONS_PER_CHAPTER,
-          select: { id: true },
+          select: { content_hash: true },
         });
-        if (overflow.length > 0) {
-          await prisma.chapterVersion.deleteMany({
-            where: { id: { in: overflow.map((v) => v.id) } },
+        if (last?.content_hash !== versionHash) {
+          await tx.chapterVersion.create({
+            data: {
+              chapter_id: id,
+              title: existing.title,
+              content: versionContent,
+              content_hash: versionHash,
+              status: existing.status,
+              source: statusChanged && source === "autosave" ? "status_change" : source,
+            },
           });
+          // Prune to MAX_VERSIONS_PER_CHAPTER newest entries.
+          const overflow = await tx.chapterVersion.findMany({
+            where: { chapter_id: id },
+            orderBy: { created_at: "desc" },
+            skip: MAX_VERSIONS_PER_CHAPTER,
+            select: { id: true },
+          });
+          if (overflow.length > 0) {
+            await tx.chapterVersion.deleteMany({
+              where: { id: { in: overflow.map((v) => v.id) } },
+            });
+          }
         }
       }
-    }
+
+      return updated;
+    });
 
     return Response.json({ ok: true, data: chapter });
   } catch (err) {
