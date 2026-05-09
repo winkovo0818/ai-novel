@@ -27,7 +27,7 @@
 | 命令 | 当前结果 | 说明 |
 |---|---|---|
 | `npm run typecheck` | 通过 | TypeScript 检查通过 |
-| `npm run test` | 通过 | 33 files / 209 tests passed |
+| `npm run test` | 通过 | 34 files / 212 tests passed |
 | `npm run build` | 通过 | Next.js 15 生产构建成功 |
 | `npm run lint` | 未通过质量门禁 | 脚本仍为废弃 `next lint`，本次运行 120 秒超时 |
 
