@@ -1,11 +1,13 @@
 import type { ChatMessage } from "../client";
 import type { NovelProfile } from "../../validation/schemas";
 import type { ChapterContext } from "../../agent/chapterContext";
+import type { GenerationPolicy } from "../generationPolicy";
 
 export interface ChapterPromptInput {
   context: ChapterContext;
   profile: NovelProfile;
   existingContent?: string;
+  generationPolicy?: GenerationPolicy;
 }
 
 function buildStoryStateSection(context: ChapterContext): string {
@@ -41,7 +43,7 @@ function buildStoryStateSection(context: ChapterContext): string {
 }
 
 export function buildChapterPrompt(input: ChapterPromptInput): ChatMessage[] {
-  const { context, profile, existingContent } = input;
+  const { context, profile, existingContent, generationPolicy } = input;
   const bible = context.bible;
   const protagonist = bible.characters.find((c) => c.role === "protagonist");
   const chapterIndex = context.outline.chapterIndex;
@@ -62,7 +64,28 @@ export function buildChapterPrompt(input: ChapterPromptInput): ChatMessage[] {
 
   const memorySection = context.retrievedMemories.length > 0
     ? `相关历史片段（仅用于参考，不要直接复述）：\n${context.retrievedMemories.map((m) => `- [来源：${m.source}] ${m.text}`).join("\n")}\n`
-    : "";
+    : context.retrievalStatus === "error"
+      ? "\n⚠ 记忆检索服务异常，本章节无法参考历史片段。请勿编造早期细节，仅基于大纲和前文推进。\n"
+      : context.retrievalStatus === "empty"
+        ? "\n（本章节暂无检索到相关历史片段，请基于大纲和前文摘要推进，不要编造具体细节。）\n"
+        : "";
+
+  const policy = generationPolicy ?? {
+    toneDirective: `保持 ${profile.tone} 调性`,
+    paceDirective: `保持 ${profile.pace} 节奏`,
+    freedomDirective: "",
+    audienceDirective: "",
+    povDirective: `保持 ${profile.pov} 视角`,
+    targetWordCount: profile.chapter_word_count,
+  };
+
+  const styleDirectives = [
+    policy.povDirective,
+    policy.toneDirective,
+    policy.paceDirective,
+    policy.freedomDirective,
+    policy.audienceDirective,
+  ].filter(Boolean);
 
   return [
     {
@@ -73,8 +96,8 @@ export function buildChapterPrompt(input: ChapterPromptInput): ChatMessage[] {
 - 只输出正文，不要 Markdown 标题，不要解释。
 - 不得违反世界规则和人物动机。
 - 第 ${chapterIndex} 章必须承接前文，不要重写已经发生过的剧情。
-- 保持 ${profile.pov} 视角、${profile.tone} 调性、${profile.pace} 节奏。
-- 目标字数接近 ${profile.chapter_word_count} 字；MVP 可先输出较短但完整的开篇片段。
+${styleDirectives.length > 0 ? `- ${styleDirectives.join("\n- ")}` : ""}
+- 目标字数接近 ${policy.targetWordCount} 字；MVP 可先输出较短但完整的开篇片段。
 - 避免裸露、色情、违反中国法律的内容。`,
     },
     {
@@ -101,8 +124,10 @@ ${bible.world.rules.map((rule) => `- ${rule}`).join("\n")}
 ${storyStateSection}
 
 ${chapterIndex === 1 ? `第一章节拍：
-${bible.first_chapter_beats.map((beat) => `${beat.beat}. ${beat.scene}：${beat.purpose}`).join("\n")}` : `本章写作要求：
-- 以“章节大纲”为主，不套用第一章节拍。
+${bible.first_chapter_beats.map((beat) => `${beat.beat}. ${beat.scene}：${beat.purpose}`).join("\n")}` : context.beatSheet && context.beatSheet.beats.length > 0
+      ? `本章节拍（按此推进）：\n${context.beatSheet.beats.map((b) => `${b.index}. ${b.description}`).join("\n")}`
+      : `本章写作要求：
+- 以"章节大纲"为主，不套用第一章节拍。
 - 承接近 ${context.previousSummaries.length} 章摘要，推进新的冲突或发现。
 - 保持章节结尾有继续阅读的牵引。`}
 

@@ -104,4 +104,19 @@ describe("buildChapterContext", () => {
     expect(context.novelSummary).toBe("全书梗概");
     expect(context.volumeSummary).toBe("卷摘要");
   });
+
+  it("defaults retrievalStatus to empty when no retrieval options", () => {
+    const context = buildChapterContext(bible, [], 1);
+    expect(context.retrievalStatus).toBe("empty");
+    expect(context.retrievedMemories).toHaveLength(0);
+  });
+
+  it("passes through retrievalStatus and memories", () => {
+    const context = buildChapterContext(bible, [], 1, {
+      retrievalStatus: "success",
+      retrievedMemories: [{ source: "chapter:abc", text: "记忆文本", reason: "相关" }],
+    });
+    expect(context.retrievalStatus).toBe("success");
+    expect(context.retrievedMemories).toHaveLength(1);
+  });
 });

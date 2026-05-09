@@ -57,6 +57,9 @@ export async function POST(_request: Request, context: RouteContext) {
   try {
     const result = await chatCompletion({
       route: "/api/novels/:id/consistency",
+      agent: "critic",
+      userId,
+      novelId: id,
       messages: buildConsistencyPrompt({
         bible: bible.data,
         profile: profile.data,

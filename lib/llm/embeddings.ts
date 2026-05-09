@@ -4,11 +4,15 @@
  * Environment:
  *   EDGEFN_API_KEY — required
  *   EDGEFN_BASE_URL — optional, defaults to https://api.edgefn.net/v1
+ *
+ * Model: BAAI/bge-m3 produces 1024-dimensional vectors.
+ * These are stored as vector(1024) via pgvector for similarity search.
  */
 
 const BASE_URL = process.env.EDGEFN_BASE_URL?.replace(/\/$/, "") || "https://api.edgefn.net/v1";
 const API_KEY = process.env.EDGEFN_API_KEY;
 const MODEL = "BAAI/bge-m3";
+const EMBEDDING_DIM = 1024;
 
 export interface EmbeddingResult {
   embeddings: number[][];
@@ -38,6 +42,12 @@ export async function createEmbeddings(texts: string[]): Promise<number[][]> {
   }
 
   const json = (await response.json()) as EmbeddingResult;
+  for (let i = 0; i < json.embeddings.length; i++) {
+    const dim = json.embeddings[i].length;
+    if (dim !== EMBEDDING_DIM) {
+      throw new Error(`Embedding dimension mismatch: expected ${EMBEDDING_DIM}, got ${dim} at index ${i}`);
+    }
+  }
   return json.embeddings;
 }
 

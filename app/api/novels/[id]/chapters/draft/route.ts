@@ -1,12 +1,14 @@
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { isRateLimited } from "@/lib/auth/rateLimit";
+import { checkQuota } from "@/lib/llm/usage";
 import { moderateContent, stringifyForModeration } from "@/lib/moderation/moderate";
 import { streamChatCompletionWithRetry } from "@/lib/llm/client";
 import { buildChapterPrompt } from "@/lib/llm/prompts/chapter";
 import { buildChapterContext } from "@/lib/agent/chapterContext";
-import { retrieveMemories } from "@/lib/agent/retrieval";
+import { retrieveMemories, type RetrievalStatus } from "@/lib/agent/retrieval";
 import { sseEncode, sseHeartbeat } from "@/lib/stream/sseEncode";
+import { getGenerationPolicy } from "@/lib/llm/generationPolicy";
 import {
   BibleDraftSchema,
   GenerateChapterDraftRequestSchema,
@@ -60,6 +62,12 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
   }
 
+  // Quota check: prevent cost overruns
+  const quota = await checkQuota(userId);
+  if (!quota.allowed) {
+    return jsonError("QUOTA_EXCEEDED", quota.reason ?? "Usage quota exceeded", false, 429);
+  }
+
   const bible = BibleDraftSchema.safeParse(novel.bible.content);
   const profile = NovelProfileSchema.safeParse(novel.profile);
   if (!bible.success || !profile.success) {
@@ -98,19 +106,22 @@ export async function POST(request: Request, context: RouteContext) {
     (vs) => vs.volume_index === currentVolumeIndex,
   )?.summary;
 
-  // Retrieve relevant memories (RAG v2)
+  // Retrieve relevant memories (RAG v2) — propagate status to prompt
   let retrievedMemories: Array<{ source: string; text: string; reason: string }> = [];
-  try {
-    retrievedMemories = await retrieveMemories(id, bible.data, input.chapter_index, 5);
-  } catch {
-    // Fail-open: if retrieval fails, proceed without memories
-  }
+  let retrievalStatus: RetrievalStatus = "empty";
+  const retrievalResult = await retrieveMemories(id, bible.data, input.chapter_index, 5);
+  retrievedMemories = retrievalResult.memories;
+  retrievalStatus = retrievalResult.status;
 
   const chapterContext = buildChapterContext(bible.data, novel.chapters, input.chapter_index, {
     novelSummary: novel.novel_summary?.summary,
     volumeSummary,
     retrievedMemories,
+    retrievalStatus,
+    beatSheet: input.beat_sheet,
   });
+
+  const policy = getGenerationPolicy(profile.data);
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -126,12 +137,16 @@ export async function POST(request: Request, context: RouteContext) {
         const result = await streamChatCompletionWithRetry(
           {
             route: ROUTE,
+            agent: "writer",
+            userId,
+            novelId: id,
             messages: buildChapterPrompt({
               context: chapterContext,
               profile: profile.data,
               existingContent: input.existing_content,
+              generationPolicy: policy,
             }),
-            temperature: 0.75,
+            temperature: policy.temperature,
             timeoutMs: 60_000,
           },
           {
@@ -167,6 +182,7 @@ export async function POST(request: Request, context: RouteContext) {
             cost_cny: Number(result.costCny.toFixed(6)),
             took_ms: result.tookMs,
             chars: content.length,
+            retrieval_status: retrievalStatus,
           }),
         );
       } catch (err) {

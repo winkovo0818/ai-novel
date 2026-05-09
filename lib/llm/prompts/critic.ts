@@ -1,12 +1,8 @@
 import type { ChatMessage } from "../client";
 import type { ChapterContext } from "../../agent/chapterContext";
+import type { CriticIssue } from "../../agent/contracts";
 
-export interface CriticIssue {
-  type: "character" | "world_rule" | "plot_thread" | "timeline" | "tone";
-  severity: "minor" | "major" | "critical";
-  description: string;
-  suggestion?: string;
-}
+export type { CriticIssue };
 
 export interface CriticResult {
   consistent: boolean;

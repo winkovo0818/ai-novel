@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
+import { isRateLimited } from "@/lib/auth/rateLimit";
+import { checkQuota } from "@/lib/llm/usage";
 import { chatCompletionWithRetry } from "@/lib/llm/client";
 import { buildStateDiffPrompt } from "@/lib/llm/prompts/stateDiff";
 import { BibleDraftSchema, StateDiffSchema } from "@/lib/validation/schemas";
@@ -35,6 +37,15 @@ export async function POST(_request: Request, context: RouteContext) {
     return jsonError("CHAPTER_NOT_FOUND", "Chapter not found", false, 404);
   }
 
+  if (isRateLimited(userId, "/api/chapters/:id/state-diff")) {
+    return jsonError("RATE_LIMITED", "Too many requests, please try again later", false, 429);
+  }
+
+  const quota = await checkQuota(userId);
+  if (!quota.allowed) {
+    return jsonError("QUOTA_EXCEEDED", quota.reason ?? "Usage quota exceeded", false, 429);
+  }
+
   if (!chapter.novel.bible) {
     return jsonError("BIBLE_NOT_FOUND", "Novel Bible not found", false, 404);
   }
@@ -52,6 +63,9 @@ export async function POST(_request: Request, context: RouteContext) {
     const result = await chatCompletionWithRetry(
       {
         route: "/api/chapters/:id/state-diff",
+        agent: "state_updater",
+        userId,
+        novelId: chapter.novel_id,
         messages: buildStateDiffPrompt({
           bible: bible.data,
           storyState: bible.data.story_state,

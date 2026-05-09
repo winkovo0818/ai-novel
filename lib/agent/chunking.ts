@@ -67,6 +67,7 @@ export function chunkChapterContent(content: string): Chunk[] {
 
 /**
  * Index a chapter: chunk it, embed it, and persist to MemoryChunk.
+ * Uses raw SQL for vector column since Prisma doesn't support pgvector types natively.
  */
 export async function indexChapter(
   novelId: string,
@@ -81,16 +82,24 @@ export async function indexChapter(
 
   const embeddings = await createEmbeddings(chunks.map((c) => c.text));
 
-  await prisma.memoryChunk.createMany({
-    data: chunks.map((chunk, i) => ({
-      novel_id: novelId,
-      chapter_id: chapterId,
-      chunk_type: chunk.chunk_type as string,
-      text: chunk.text,
-      embedding: embeddings[i] ?? [],
-      metadata: (chunk.metadata ?? {}) as object,
-    })),
-  });
+  // Insert using raw SQL since embedding is a vector(1024) column
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    const embedding = embeddings[i];
+    if (!embedding || embedding.length !== 1024) continue;
+
+    const embeddingStr = `[${embedding.join(",")}]`;
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "MemoryChunk" (id, novel_id, chapter_id, chunk_type, text, embedding, metadata)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5::vector, $6)`,
+      novelId,
+      chapterId,
+      chunk.chunk_type as string,
+      chunk.text,
+      embeddingStr,
+      (chunk.metadata ?? {}) as object,
+    );
+  }
 
   return { chunks: chunks.length };
 }

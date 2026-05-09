@@ -132,8 +132,8 @@ export const BibleMetaSchema = z.object({
 export const BibleWorldSchema = z.object({
   setting_summary: z.string().min(40).max(180),
   factions: z.array(FactionSchema).min(2).max(4),
-  rules: z.array(z.string().min(1).max(40)).min(2).max(4),
-  geography: z.array(z.string().min(1)).min(2).max(4),
+  rules: z.array(z.string().min(1).max(40)).min(2).max(10),
+  geography: z.array(z.string().min(1)).min(2).max(10),
 });
 
 export const VolumeSchema = z.object({
@@ -212,7 +212,7 @@ export const BibleDraftSchema = z.object({
   characters: z
     .array(CharacterSchema)
     .min(3)
-    .max(5)
+    .max(8)
     .refine(
       (chars) => chars.filter((c) => c.role === "protagonist").length === 1,
       { message: "characters must contain exactly 1 protagonist" },
@@ -301,9 +301,30 @@ export const GenerateChapterDraftRequestSchema = z.object({
   chapter_index: z.number().int().min(1).default(1),
   title: z.string().min(1).max(120),
   existing_content: z.string().max(80_000).optional(),
+  beat_sheet: z.object({
+    beats: z.array(z.object({
+      index: z.number().int().min(1),
+      description: z.string().min(10).max(300),
+    })).min(3).max(8),
+  }).optional(),
 });
 
 export const BibleUpdateRequestSchema = z.object({
   content: BibleDraftSchema,
 });
 export type BibleUpdateRequest = z.infer<typeof BibleUpdateRequestSchema>;
+
+export const BeatSheetItemSchema = z.object({
+  index: z.number().int().min(1),
+  description: z.string().min(10).max(300),
+});
+
+export const BeatSheetResponseSchema = z.object({
+  beats: z.array(BeatSheetItemSchema).min(3).max(8),
+});
+
+export const GenerateBeatSheetRequestSchema = z.object({
+  chapter_index: z.number().int().min(2),
+  chapter_title: z.string().min(1).max(120),
+  chapter_goal: z.string().max(200).optional(),
+});

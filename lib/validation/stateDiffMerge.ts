@@ -4,13 +4,81 @@ import type { BibleDraft, StateDiff, StoryStateV1 } from "./schemas";
  * Apply a StateDiff to a BibleDraft, producing a new BibleDraft with updated
  * story_state. This is a shallow merge: existing state is preserved and
  * updates are appended/overlaid.
+ *
+ * L-02: Also merges new_entities (characters / locations / items / rules)
+ * into the Bible structure itself so they become part of the canonical world.
  */
 export function applyStateDiff(
   bible: BibleDraft,
   diff: StateDiff,
   chapterIndex: number,
 ): BibleDraft {
-  const prev: StoryStateV1 = bible.story_state ?? {};
+  // L-02: Merge new_entities into Bible
+  let nextBible: BibleDraft = { ...bible };
+
+  for (const entity of diff.new_entities) {
+    if (entity.type === "character") {
+      const exists = nextBible.characters.some((c) => c.name === entity.name);
+      if (!exists && nextBible.characters.length < 8) {
+        nextBible = {
+          ...nextBible,
+          characters: [
+            ...nextBible.characters,
+            {
+              role: "hidden",
+              name: entity.name,
+              age: "未知",
+              appearance: entity.description.slice(0, 40),
+              personality: "待补全",
+              catchphrase: "……",
+              abilities: ["待定"],
+              goals: entity.description.slice(0, 40),
+              motivation: entity.description,
+              secrets: ["未揭示"],
+              relations: [],
+            },
+          ],
+        };
+      }
+    } else if (entity.type === "location") {
+      if (!nextBible.world.geography.includes(entity.name) && nextBible.world.geography.length < 10) {
+        nextBible = {
+          ...nextBible,
+          world: {
+            ...nextBible.world,
+            geography: [...nextBible.world.geography, entity.name],
+          },
+        };
+      }
+    } else if (entity.type === "rule") {
+      const ruleText =
+        entity.description.length > 40
+          ? entity.description.slice(0, 37) + "..."
+          : entity.description;
+      if (!nextBible.world.rules.includes(ruleText) && nextBible.world.rules.length < 10) {
+        nextBible = {
+          ...nextBible,
+          world: {
+            ...nextBible.world,
+            rules: [...nextBible.world.rules, ruleText],
+          },
+        };
+      }
+    } else if (entity.type === "item") {
+      const itemText = `[物品] ${entity.name}`;
+      if (!nextBible.world.geography.includes(itemText) && nextBible.world.geography.length < 10) {
+        nextBible = {
+          ...nextBible,
+          world: {
+            ...nextBible.world,
+            geography: [...nextBible.world.geography, itemText],
+          },
+        };
+      }
+    }
+  }
+
+  const prev: StoryStateV1 = nextBible.story_state ?? {};
 
   // Merge character updates
   const characters = prev.characters ? [...prev.characters] : [];
@@ -53,7 +121,7 @@ export function applyStateDiff(
   };
 
   return {
-    ...bible,
+    ...nextBible,
     story_state: Object.keys(nextState).length > 0 ? nextState : undefined,
   };
 }

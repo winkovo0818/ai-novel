@@ -1,5 +1,6 @@
 import type { BibleDraft, StoryStateV1 } from "@/lib/validation/schemas";
 import { getAllChapters } from "@/lib/validation/schemas";
+import type { RetrievalStatus, BeatSheet } from "@/lib/agent/contracts";
 
 export interface ChapterDraftView {
   id: string;
@@ -31,12 +32,16 @@ export interface ChapterContext {
     text: string;
     reason: string;
   }>;
+  retrievalStatus: RetrievalStatus;
+  beatSheet?: BeatSheet;
 }
 
 export interface BuildChapterContextOptions {
   novelSummary?: string;
   volumeSummary?: string;
   retrievedMemories?: Array<{ source: string; text: string; reason: string }>;
+  retrievalStatus?: RetrievalStatus;
+  beatSheet?: BeatSheet;
 }
 
 function formatPreviousChapter(index: number, title: string, content: string): string {
@@ -101,5 +106,7 @@ export function buildChapterContext(
     volumeSummary: opts?.volumeSummary,
     previousSummaries,
     retrievedMemories: opts?.retrievedMemories ?? [],
+    retrievalStatus: opts?.retrievalStatus ?? "empty",
+    beatSheet: opts?.beatSheet,
   };
 }

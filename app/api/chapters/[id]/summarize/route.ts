@@ -46,6 +46,9 @@ export async function POST(_request: Request, context: RouteContext) {
   try {
     const result = await chatCompletion({
       route: "/api/chapters/:id/summarize",
+      agent: "summarizer",
+      userId,
+      novelId: chapter.novel_id,
       messages: buildSummarizePrompt(chapter.chapter_index, chapter.title, chapter.content),
       temperature: 0,
       timeoutMs: 15_000,

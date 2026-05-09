@@ -101,6 +101,7 @@ function makeContext(overrides: Partial<ChapterContext> = {}): ChapterContext {
     outline: { chapterIndex: 1, title: "第1章", summary: mergedBible.outline.volume_1.chapters[0].summary },
     previousSummaries: [],
     retrievedMemories: [],
+    retrievalStatus: "empty",
     ...overrides,
   };
 }
@@ -154,5 +155,72 @@ describe("buildChapterPrompt", () => {
     const userContent = messages[1]?.content ?? "";
 
     expect(userContent).not.toContain("当前运行时状态");
+  });
+
+  it("shows memory not retrieved notice when retrievalStatus is empty", () => {
+    const messages = buildChapterPrompt({ context: makeContext({ retrievalStatus: "empty" }), profile });
+    const userContent = messages[1]?.content ?? "";
+
+    expect(userContent).toContain("暂无检索到相关历史片段");
+    expect(userContent).toContain("不要编造具体细节");
+  });
+
+  it("shows retrieval error warning when retrievalStatus is error", () => {
+    const messages = buildChapterPrompt({ context: makeContext({ retrievalStatus: "error" }), profile });
+    const userContent = messages[1]?.content ?? "";
+
+    expect(userContent).toContain("记忆检索服务异常");
+    expect(userContent).toContain("请勿编造早期细节");
+  });
+
+  it("shows retrieved memories when retrievalStatus is success", () => {
+    const messages = buildChapterPrompt({
+      context: makeContext({
+        retrievalStatus: "success",
+        retrievedMemories: [{ source: "chapter:abc", text: "沈言修炼剑魂", reason: "相关" }],
+      }),
+      profile,
+    });
+    const userContent = messages[1]?.content ?? "";
+
+    expect(userContent).toContain("相关历史片段");
+    expect(userContent).toContain("沈言修炼剑魂");
+    expect(userContent).not.toContain("暂无检索到相关历史片段");
+    expect(userContent).not.toContain("记忆检索服务异常");
+  });
+
+  it("uses beat sheet for chapter > 1 when provided", () => {
+    const messages = buildChapterPrompt({
+      context: makeContext({
+        outline: { chapterIndex: 2, title: "第2章", summary: "继续冒险" },
+        beatSheet: { beats: [
+          { index: 1, description: "主角发现线索" },
+          { index: 2, description: "遭遇伏击" },
+          { index: 3, description: "意外揭示真相" },
+        ] },
+        previousSummaries: [{ chapterIndex: 1, title: "第1章", summary: "摘要1" }],
+      }),
+      profile,
+    });
+    const userContent = messages[1]?.content ?? "";
+
+    expect(userContent).toContain("本章节拍");
+    expect(userContent).toContain("主角发现线索");
+    expect(userContent).toContain("遭遇伏击");
+    expect(userContent).not.toContain("本章写作要求");
+  });
+
+  it("falls back to default writing instructions for chapter > 1 without beat sheet", () => {
+    const messages = buildChapterPrompt({
+      context: makeContext({
+        outline: { chapterIndex: 2, title: "第2章", summary: "继续冒险" },
+        previousSummaries: [{ chapterIndex: 1, title: "第1章", summary: "摘要1" }],
+      }),
+      profile,
+    });
+    const userContent = messages[1]?.content ?? "";
+
+    expect(userContent).toContain("本章写作要求");
+    expect(userContent).not.toContain("本章节拍");
   });
 });

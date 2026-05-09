@@ -79,4 +79,78 @@ describe("applyStateDiff", () => {
     const next = applyStateDiff(baseBible, diff, 1);
     expect(next.story_state).toBeUndefined();
   });
+
+  it("adds new characters from new_entities", () => {
+    const diff: StateDiff = {
+      character_updates: [],
+      timeline_events: [],
+      plot_thread_updates: [],
+      new_entities: [
+        { type: "character", name: "神秘少女", description: "在暗处观察主角的神秘角色" },
+      ],
+    };
+
+    const next = applyStateDiff(baseBible, diff, 1);
+    expect(next.characters).toHaveLength(4);
+    expect(next.characters.some((c) => c.name === "神秘少女")).toBe(true);
+    const newChar = next.characters.find((c) => c.name === "神秘少女");
+    expect(newChar!.role).toBe("hidden");
+    expect(newChar!.motivation).toBe("在暗处观察主角的神秘角色");
+  });
+
+  it("adds new locations from new_entities", () => {
+    const diff: StateDiff = {
+      character_updates: [],
+      timeline_events: [],
+      plot_thread_updates: [],
+      new_entities: [
+        { type: "location", name: "迷雾森林", description: "充满迷雾的神秘森林" },
+      ],
+    };
+
+    const next = applyStateDiff(baseBible, diff, 1);
+    expect(next.world.geography).toContain("迷雾森林");
+  });
+
+  it("adds new rules from new_entities", () => {
+    const diff: StateDiff = {
+      character_updates: [],
+      timeline_events: [],
+      plot_thread_updates: [],
+      new_entities: [
+        { type: "rule", name: "禁魔法则", description: "在城镇内禁止施展魔法" },
+      ],
+    };
+
+    const next = applyStateDiff(baseBible, diff, 1);
+    expect(next.world.rules).toContain("在城镇内禁止施展魔法");
+  });
+
+  it("adds items as geography entries with prefix", () => {
+    const diff: StateDiff = {
+      character_updates: [],
+      timeline_events: [],
+      plot_thread_updates: [],
+      new_entities: [
+        { type: "item", name: "星辰剑", description: "传说中的神剑" },
+      ],
+    };
+
+    const next = applyStateDiff(baseBible, diff, 1);
+    expect(next.world.geography).toContain("[物品] 星辰剑");
+  });
+
+  it("skips duplicate new_entities", () => {
+    const diff: StateDiff = {
+      character_updates: [],
+      timeline_events: [],
+      plot_thread_updates: [],
+      new_entities: [
+        { type: "character", name: "主角", description: "已经是主角了" },
+      ],
+    };
+
+    const next = applyStateDiff(baseBible, diff, 1);
+    expect(next.characters).toHaveLength(3);
+  });
 });

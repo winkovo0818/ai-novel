@@ -21,8 +21,21 @@
  *                                                 └─────────────────┘
  */
 
-import type { BibleDraft, StoryStateV1, StateDiff } from "@/lib/validation/schemas";
+import type { BibleDraft, StoryStateV1, StateDiff, NovelProfile } from "@/lib/validation/schemas";
 import type { ChapterContext } from "./chapterContext";
+
+// ───────────────────────────────────────────────
+// Agent route identifiers (used in LLM logging)
+// ───────────────────────────────────────────────
+
+export type AgentRoute =
+  | "outline"
+  | "retrieval"
+  | "writer"
+  | "critic"
+  | "state_updater"
+  | "summarizer"
+  | "tiered_summarizer";
 
 // ───────────────────────────────────────────────
 // Outline Agent
@@ -42,19 +55,13 @@ export interface BeatSheet {
   }>;
 }
 
-/** Not yet implemented as a standalone agent; beats are generated during onboarding. */
 export type OutlineAgentOutput = BeatSheet;
 
 // ───────────────────────────────────────────────
 // Retrieval Agent
 // ───────────────────────────────────────────────
 
-export interface RetrievalAgentInput {
-  novelId: string;
-  chapterIndex: number;
-  bible: BibleDraft;
-  topK?: number;
-}
+export type RetrievalStatus = "success" | "empty" | "error";
 
 export interface RetrievedMemory {
   source: string;
@@ -63,7 +70,20 @@ export interface RetrievedMemory {
   score: number;
 }
 
-export type RetrievalAgentOutput = RetrievedMemory[];
+export interface RetrievalResult {
+  status: RetrievalStatus;
+  memories: RetrievedMemory[];
+  errorMessage?: string;
+}
+
+export interface RetrievalAgentInput {
+  novelId: string;
+  chapterIndex: number;
+  bible: BibleDraft;
+  topK?: number;
+}
+
+export type RetrievalAgentOutput = RetrievalResult;
 
 // ───────────────────────────────────────────────
 // Writer Agent
@@ -71,13 +91,7 @@ export type RetrievalAgentOutput = RetrievedMemory[];
 
 export interface WriterAgentInput {
   context: ChapterContext;
-  profile: {
-    genre_main?: string;
-    genre_sub?: string;
-    tone?: string;
-    chapter_word_count?: number;
-    ai_freedom?: string;
-  };
+  profile: NovelProfile;
   existingContent?: string;
 }
 
@@ -95,9 +109,10 @@ export interface CriticAgentInput {
 }
 
 export interface CriticIssue {
-  dimension: "character" | "world_rule" | "plot_thread" | "timeline" | "tone";
+  type: "character" | "world_rule" | "plot_thread" | "timeline" | "tone";
   severity: "critical" | "major" | "minor";
   description: string;
+  suggestion?: string;
 }
 
 export interface CriticAgentOutput {
