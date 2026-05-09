@@ -1,6 +1,7 @@
 import React from "react";
 import type { BibleDraft } from "@/lib/validation/schemas";
 import type { ConsistencyResult } from "./useChapterEditor";
+import { BeatSheetPanel, type BeatItem } from "./BeatSheetPanel";
 
 interface AIPanelProps {
   show: boolean;
@@ -9,6 +10,8 @@ interface AIPanelProps {
   status: "idle" | "saving" | "saved" | "drafting" | "error";
   message?: string;
   selectedOutline?: { summary?: string } | null;
+  selectedChapterIndex: number;
+  chapterTitle: string;
   onDraftChapter(): void;
   onRunConsistency(): void;
   consistencyRunning: boolean;
@@ -16,6 +19,14 @@ interface AIPanelProps {
   consistencyError?: string;
   onGenerateStateDiff(): void;
   stateDiffLoading: boolean;
+  // Beat Sheet
+  beats: BeatItem[];
+  beatsLoading: boolean;
+  beatsError?: string;
+  onGenerateBeats(chapterGoal?: string): void;
+  onUpdateBeats(beats: BeatItem[]): void;
+  onClearBeats(): void;
+  onDraftWithBeats(): void;
 }
 
 function AIActionBtn({ label, icon, onClick, disabled }: { label: string; icon: string; onClick?: () => void; disabled?: boolean }) {
@@ -38,6 +49,8 @@ export function AIPanel({
   status,
   message,
   selectedOutline,
+  selectedChapterIndex,
+  chapterTitle,
   onDraftChapter,
   onRunConsistency,
   consistencyRunning,
@@ -45,6 +58,13 @@ export function AIPanel({
   consistencyError,
   onGenerateStateDiff,
   stateDiffLoading,
+  beats,
+  beatsLoading,
+  beatsError,
+  onGenerateBeats,
+  onUpdateBeats,
+  onClearBeats,
+  onDraftWithBeats,
 }: AIPanelProps) {
   return (
     <aside
@@ -87,6 +107,22 @@ export function AIPanel({
               <div className="absolute top-0 left-0 w-1 h-full bg-primary/20" />
               {selectedOutline?.summary || "当前章节暂无梗概引导"}
             </div>
+          </section>
+
+          <section className="animate-fade-in-up delay-100">
+            <h3 className="text-[10px] font-bold text-text-muted uppercase tracking-[0.2em] mb-4 opacity-70">章节节拍</h3>
+            <BeatSheetPanel
+              chapterIndex={selectedChapterIndex}
+              chapterTitle={chapterTitle}
+              available={selectedChapterIndex >= 2}
+              beats={beats}
+              loading={beatsLoading}
+              error={beatsError}
+              onGenerate={onGenerateBeats}
+              onUpdateBeats={onUpdateBeats}
+              onClear={onClearBeats}
+              onDraft={onDraftWithBeats}
+            />
           </section>
 
           <section className="animate-fade-in-up delay-200">

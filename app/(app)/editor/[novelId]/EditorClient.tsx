@@ -211,6 +211,8 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
         status={editor.status}
         message={editor.message}
         selectedOutline={editor.selectedOutline}
+        selectedChapterIndex={editor.selectedIndex}
+        chapterTitle={editor.chapterTitle}
         onDraftChapter={editor.draftChapter}
         onRunConsistency={editor.runConsistency}
         consistencyRunning={editor.consistencyRunning}
@@ -218,6 +220,13 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
         consistencyError={editor.consistencyError}
         onGenerateStateDiff={editor.generateStateDiff}
         stateDiffLoading={editor.stateDiffLoading}
+        beats={editor.beats}
+        beatsLoading={editor.beatsLoading}
+        beatsError={editor.beatsError}
+        onGenerateBeats={editor.generateBeatSheet}
+        onUpdateBeats={editor.setBeats}
+        onClearBeats={editor.clearBeats}
+        onDraftWithBeats={editor.draftWithBeats}
       />
 
       <VersionsModal

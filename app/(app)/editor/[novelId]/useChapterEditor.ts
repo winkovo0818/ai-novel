@@ -11,6 +11,7 @@ import type {
   CandidateCriticResult,
   CandidateMode,
 } from "./CandidatePanel";
+import type { BeatItem } from "./BeatSheetPanel";
 
 interface UseChapterEditorOptions {
   novelId: string;
@@ -302,7 +303,7 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     setCandidateCriticError(undefined);
   }
 
-  async function draftChapter() {
+  async function draftChapter(beats?: BeatItem[]) {
     // Defensive: if a candidate is still pending, ask the user first instead of
     // dropping the previous generation silently.
     if (candidateContent && !candidateStreaming) {
@@ -335,6 +336,7 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
           chapter_index: selectedIndex,
           title: chapterTitle,
           existing_content: content,
+          ...(beats && beats.length > 0 ? { beat_sheet: { beats } } : {}),
         }),
       });
 
@@ -609,6 +611,60 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     setStateDiffOpen(false);
   }
 
+  // ────────────────────────────────────────────────
+  // M2.2: Beat Sheet (chapter ≥ 2). Generated beats are editable, then
+  // handed back to draftChapter() so writer prompt consumes them.
+  // ────────────────────────────────────────────────
+  const [beats, setBeatsState] = useState<BeatItem[]>([]);
+  const [beatsLoading, setBeatsLoading] = useState(false);
+  const [beatsError, setBeatsError] = useState<string>();
+
+  // Reset beats when switching chapters — they're chapter-specific.
+  useEffect(() => {
+    setBeatsState([]);
+    setBeatsError(undefined);
+  }, [selectedIndex]);
+
+  async function generateBeatSheet(chapterGoal?: string) {
+    if (selectedIndex < 2) {
+      setBeatsError("第 1 章节拍由 Bible 提供，无需另行生成");
+      return;
+    }
+    setBeatsLoading(true);
+    setBeatsError(undefined);
+    try {
+      const response = await fetch(`/api/novels/${novelId}/chapters/outline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chapter_index: selectedIndex,
+          chapter_title: chapterTitle,
+          ...(chapterGoal ? { chapter_goal: chapterGoal } : {}),
+        }),
+      });
+      const json = await response.json();
+      if (!json.ok) throw new Error(json.error?.message ?? "节拍生成失败");
+      setBeatsState(json.data.beats as BeatItem[]);
+    } catch (err) {
+      setBeatsError(err instanceof Error ? err.message : "节拍生成失败");
+    } finally {
+      setBeatsLoading(false);
+    }
+  }
+
+  function setBeats(next: BeatItem[]) {
+    setBeatsState(next);
+  }
+
+  function clearBeats() {
+    setBeatsState([]);
+    setBeatsError(undefined);
+  }
+
+  async function draftWithBeats() {
+    await draftChapter(beats);
+  }
+
   return {
     chapters,
     selectedIndex,
@@ -661,5 +717,13 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     targetWords,
     setTargetWords,
     lastSavedAt,
+    // M2.2 beat sheet
+    beats,
+    beatsLoading,
+    beatsError,
+    generateBeatSheet,
+    setBeats,
+    clearBeats,
+    draftWithBeats,
   };
 }
