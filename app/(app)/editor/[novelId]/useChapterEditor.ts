@@ -110,8 +110,40 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
       });
     }
 
+    // L-01: Auto-generate state diff when chapter is first marked done
+    const targetId = json.data.id as string;
+    if (savedStatus !== "done" && nextStatus === "done") {
+      void (async () => {
+        try {
+          const res = await fetch(`/api/chapters/${targetId}/state-diff`, { method: "POST" });
+          const stateDiffJson = await res.json();
+          if (stateDiffJson.ok && stateDiffJson.data) {
+            const diff = stateDiffJson.data as StateDiff;
+            const hasChanges =
+              diff.character_updates.length > 0 ||
+              diff.timeline_events.length > 0 ||
+              diff.plot_thread_updates.length > 0 ||
+              diff.new_entities.length > 0;
+            if (hasChanges) {
+              setPendingStateDiff(diff);
+              setPendingStateDiffChapterIndex(selectedIndex);
+            }
+          }
+        } catch {
+          // Silent fail for background auto-generation
+        }
+      })();
+    }
+
+    // L-03: Cascade refresh when editing an already-done chapter
+    if (savedStatus === "done" && nextContent !== savedContent) {
+      void fetch(`/api/chapters/${targetId}/summarize`, { method: "POST" }).catch(() => {});
+      void fetch(`/api/chapters/${targetId}/index`, { method: "POST" }).catch(() => {});
+      void fetch(`/api/novels/${novelId}/summaries/refresh`, { method: "POST" }).catch(() => {});
+    }
+
     return json.data as ChapterDraftView;
-  }, [chapterId, chapterStatus, chapterTitle, novelId, selectedIndex]);
+  }, [chapterId, chapterStatus, chapterTitle, novelId, selectedIndex, savedContent, savedStatus]);
 
   useEffect(() => {
     if (!hasUnsavedChanges || status === "saving" || status === "drafting" || !chapterTitle.trim()) return;
@@ -345,6 +377,17 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
   const [stateDiff, setStateDiff] = useState<StateDiff>();
   const [stateDiffError, setStateDiffError] = useState<string>();
 
+  // L-01: pending state diff from auto-generation after marking done
+  const [pendingStateDiff, setPendingStateDiff] = useState<StateDiff | null>(null);
+  const [pendingStateDiffChapterIndex, setPendingStateDiffChapterIndex] = useState(0);
+
+  function openPendingStateDiff() {
+    if (!pendingStateDiff) return;
+    setStateDiff(pendingStateDiff);
+    setStateDiffOpen(true);
+    setPendingStateDiff(null);
+  }
+
   async function generateStateDiff() {
     if (!chapterId) {
       setStateDiffError("章节尚未保存，无法分析状态变更");
@@ -467,6 +510,9 @@ export function useChapterEditor({ novelId, bible, initialChapters }: UseChapter
     stateDiffError,
     generateStateDiff,
     closeStateDiff,
+    pendingStateDiff,
+    pendingStateDiffChapterIndex,
+    openPendingStateDiff,
     criticOpen,
     criticLoading,
     criticResult,

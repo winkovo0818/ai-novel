@@ -11,6 +11,7 @@ import { StateDiffPanel } from "./StateDiffPanel";
 import { CriticPanel } from "./CriticPanel";
 import { AIPanel } from "./AIPanel";
 import { VersionsModal } from "./VersionsModal";
+import { ExportMenu } from "./ExportMenu";
 
 export interface ChapterDraftView {
   id: string;
@@ -89,8 +90,21 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
           </div>
 
           <div className="flex items-center gap-3">
+            {editor.pendingStateDiff && (
+              <button
+                onClick={editor.openPendingStateDiff}
+                className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs font-bold text-amber-700 hover:bg-amber-100 transition-colors"
+                title="查看状态变更建议"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                第 {editor.pendingStateDiffChapterIndex} 章状态分析完成
+              </button>
+            )}
             <StatusTag type={editor.status === "drafting" ? "drafting" : editor.status === "saving" ? "saving" : editor.chapterStatus === "done" ? "done" : "idle"} />
             <div className="h-4 w-px bg-border-strong mx-2" />
+            <ExportMenu novelId={novelId} />
             <button 
               onClick={() => setShowAI(!showAI)}
               className={`p-2 rounded-lg transition-all ${
