@@ -12,6 +12,7 @@ import { CriticPanel } from "./CriticPanel";
 import { AIPanel } from "./AIPanel";
 import { VersionsModal } from "./VersionsModal";
 import { ExportMenu } from "./ExportMenu";
+import { JobsBadge } from "./JobsBadge";
 
 export interface ChapterDraftView {
   id: string;
@@ -103,6 +104,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               </button>
             )}
             <StatusTag type={editor.status === "drafting" ? "drafting" : editor.status === "saving" ? "saving" : editor.chapterStatus === "done" ? "done" : "idle"} />
+            <JobsBadge novelId={novelId} />
             <div className="h-4 w-px bg-border-strong mx-2" />
             <ExportMenu novelId={novelId} />
             <button 
