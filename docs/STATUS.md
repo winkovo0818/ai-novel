@@ -1,24 +1,26 @@
 # AI Novel — 项目状态
 
-> 最近更新：2026-05-10
+> 最近更新：2026-05-10 · 阶段 1（M1.1-M1.6）已完成
 > 本文件是 PROGRESS / AUDIT / TASKS 三份历史状态文档的合并版本，是当前**唯一**的项目状态来源。
 > 战略路线见 `docs/ROADMAP_2_4_8_WEEKS.md`，战术任务单见 `docs/IMPLEMENTATION_TASKS.md`。
 
 ---
 
-## 一、当前实测验证基线（2026-05-10）
+## 一、当前实测验证基线（2026-05-10，阶段 1 完成后）
 
 | 命令 | 结果 |
 |---|---|
 | `npm run typecheck` | ✅ 通过 |
 | `npm run lint` (`eslint .`) | ✅ 通过 |
 | `npm run test` (Vitest) | ✅ 通过，46 files / 289 tests |
-| `npm run build` (Next.js 15) | ✅ 通过 |
-| `npm run verify` | ✅ 通过（typecheck + lint + test + build） |
-| `tests/e2e/` (Playwright) | 🟡 2 spec 通过，但**未进 CI** |
-| coverage（v8） | 🟡 56.94% stmts / 76.08% branches / 81.25% funcs，未做 CI 门禁 |
+| `npm run build` (Next.js 15) | ✅ 通过（4 个新路由进表：`/novels/[id]`、`/novels/[id]/characters`、`/novels/[id]/world`、`/novels/[id]/outline`） |
+| `npm run verify` | ✅ 通过 |
+| `tests/e2e/` (Playwright) | 🟡 3 spec（onboarding、editor-failure、editor-candidate）通过本地，**未进 CI** |
+| coverage（v8） | 🟡 未做 CI 门禁 |
 
 `.github/workflows/ci.yml` 已恢复 lint/typecheck/test/build 验证。**E2E 与 coverage 未入 CI**。
+
+> 阶段 1 新增：`/novels/:id` 详情页、3 个 Bible 子页面、AI 候选稿流、章节目标字数、ChapterDraft.target_words 字段（migration `20260510050000_add_chapter_target_words`）。需要 `npx prisma migrate deploy` 后再启动。
 
 ---
 
@@ -48,16 +50,29 @@
 - 重摆限制 ≤3 次
 - Finalize 创建 Novel + BibleDraft（事务化、`session_id` 唯一约束保证幂等）
 
-### 多章节编辑器（D-05 ~ D-15）
+### 项目层信息架构（M1.1 / M1.2 - 2026-05-10）
+- `/novels/:id` 小说详情页：进度 / Bible 状态 / 最近编辑章节 / 4 个入口卡 / 最近章节列表
+- `/novels/:id/characters` 角色管理页（左名单 + 右编辑器，含 schema 全字段）
+- `/novels/:id/world` 世界观页（背景 / 规则 / 地理 / 势力，与 schema min/max 对齐）
+- `/novels/:id/outline` 大纲页（按卷分组、起草状态徽章、深链入编辑器）
+- 共享 `useBibleEdit` hook + `SaveBar` 组件
+- NovelCard 改指向项目详情页而不是编辑器
+
+### 多章节编辑器（D-05 ~ D-15 + M1.3 + M1.5）
 - `/editor/[novelId]` 章节切换、自动保存、Ctrl/Cmd+S、章节状态切换
-- AI 起草 SSE 流式 + 失败不覆盖原文（E2E 已覆盖）
+- 支持 `?chapter=N` query 直达指定章节
+- **AI 起草改候选稿流（M1.3 - 2026-05-10）**：流式不再覆盖正文，候选面板 4 个动作（覆盖 / 追加 / 插入光标 / 放弃），critic 内嵌为警告，覆盖前自动存版本
+- **目标字数 + 最近保存时间（M1.5 - 2026-05-10）**：toolbar 显示 `X / Y 字 · NN%`、`保存于 X 分钟前`
 - 章节删除、版本历史、autosave 与版本解耦（source=autosave/manual/ai/status_change）
-- Bible 编辑器（角色 / 世界规则 / 章节大纲）
-- Critic 自动审校（critical/major 阻断静默覆盖）
+- Bible 编辑器（角色 / 世界规则 / 章节大纲）— 编辑器侧栏快速查看，主编辑入口已迁至独立页面
 - State Diff 生成 / 确认 / 回写 Bible
 - Chapter Context Builder（Bible + 摘要 + state + retrieved memories）
 - 分层摘要（VolumeSummary / NovelSummary）+ 改稿后级联刷新
 - MemoryChunk + pgvector + HNSW 混合检索
+
+### UI 一致性（M1.4 - 2026-05-10）
+- ConfirmProvider 提到 `(app)/layout.tsx` 全局
+- 全仓 `window.confirm` 清零
 
 ### API（统一 jsonOk / jsonError 响应）
 - `GET /api/novels` `/api/novels/:id`
@@ -91,11 +106,11 @@
 
 ### P0 — 影响内测可用性
 
-| 编号 | 任务 | 来源 |
-|---|---|---|
-| P0-1 | AI 起草改候选稿，停止直接覆盖正文 | TASKS P-04 / ROADMAP M1.3 |
-| P0-2 | 项目层信息架构（小说详情页 + 角色/世界观/大纲独立页） | TASKS P-07 / ROADMAP M1.1-M1.2 |
-| P0-3 | 消灭 `app/(app)/models/page.tsx:110` 残留的 `window.confirm` | TASKS P-05 / ROADMAP M1.4 |
+| 编号 | 任务 | 状态 | 来源 |
+|---|---|---|---|
+| ~~P0-1~~ | ~~AI 起草改候选稿，停止直接覆盖正文~~ | ✅ M1.3 完成（2026-05-10） | TASKS P-04 / ROADMAP M1.3 |
+| ~~P0-2~~ | ~~项目层信息架构（小说详情页 + 角色/世界观/大纲独立页）~~ | ✅ M1.1 + M1.2 完成（2026-05-10） | TASKS P-07 / ROADMAP M1.1-M1.2 |
+| ~~P0-3~~ | ~~消灭 `app/(app)/models/page.tsx:110` 残留的 `window.confirm`~~ | ✅ M1.4 完成（2026-05-10） | TASKS P-05 / ROADMAP M1.4 |
 
 ### P1 — 工作台与可靠性
 
@@ -106,7 +121,7 @@
 | P1-3 | Beat Sheet 接入主写作流程（`POST /chapters/outline` 已存在） | ROADMAP M2.2 |
 | P1-4 | 生成历史页 + `LlmGeneration` 表 | ROADMAP M2.3 |
 | P1-5 | Dashboard（`/`）替换当前重定向 | ROADMAP M2.4 |
-| P1-6 | 编辑器基础写作工具（目标字数 / 最近保存 / AI 反馈） | TASKS P-03 / ROADMAP M1.5 |
+| P1-6 | ~~编辑器基础写作工具（目标字数 / 最近保存 / AI 反馈）~~ | ✅ M1.5 完成（2026-05-10，目标字数 + 最近保存）；AI 反馈 chip 待 M2.3 生成历史落地后做 | TASKS P-03 / ROADMAP M1.5 |
 | P1-7 | retrieval 失败显式提示 + jobs retry API | TASKS L-05 / ROADMAP M2.5 / M3.1 |
 
 ### P2 — 长篇可靠性 + 版本 + 导出

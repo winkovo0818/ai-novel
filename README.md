@@ -1,8 +1,10 @@
 # AI Novel
 
-AI 协同写小说平台，支持 5 步生成 Bible 草稿 + 多章节 AI 写作。
+AI 协同写小说平台：5 步生成 Bible 草稿 → 项目层信息架构 → 多章节 AI 写作（候选稿模式）。
 
-当前状态：可演示、可内部试用的 MVP。`typecheck`、Vitest、生产构建当前通过；`lint` 脚本仍需从废弃的 `next lint` 迁移到 ESLint CLI，CI workflow 已恢复基础验证，但还未包含 lint、coverage 和 E2E。
+当前状态：可演示、可内部试用的 MVP，阶段 1（项目详情页 + 三个 Bible 子页面 + AI 候选稿流 + 章节目标字数）已完成。`lint`、`typecheck`、Vitest、生产构建当前通过；CI workflow 已恢复基础验证并纳入 lint/typecheck/test/build，但仍未包含 E2E job。
+
+详细状态见 `docs/STATUS.md`，路线图见 `docs/ROADMAP_2_4_8_WEEKS.md`，任务单见 `docs/IMPLEMENTATION_TASKS.md`。
 
 ---
 
@@ -15,11 +17,17 @@ AI 协同写小说平台，支持 5 步生成 Bible 草稿 + 多章节 AI 写作
 - Step 4：SSE 流式生成 Bible（角色卡、世界观、章节大纲、节拍）
 - Step 5：字段级编辑、重摆（≤3 次）、保存或进入写作页
 
+### 项目工作台
+- `/novels` 书架 → `/novels/:id` 项目详情（章节进度 / Bible 状态 / 最近编辑 / 4 个入口卡）
+- `/novels/:id/characters` 角色管理：左侧名单，右侧含 schema 全字段的角色编辑器
+- `/novels/:id/world` 世界观：背景设定 / 规则 / 地理 / 势力四个 section
+- `/novels/:id/outline` 大纲：按卷分组，已起草章节带徽章，深链跳进编辑器
+- `/editor/:id?chapter=N` 编辑器支持直达指定章节
+
 ### 多章节编辑器
-- `/editor/[novelId]` 左侧 Bible 侧栏，右侧章节编辑
-- 每章独立标题、正文、状态（草稿/完成）
-- AI 起草：基于 Bible + 前文章节上下文，SSE 流式输出
-- 自动保存（停止输入 3 秒）+ Ctrl/Cmd+S 快捷保存
+- 章节切换 / 自动保存（3s 停顿）/ Ctrl·Cmd+S 快捷保存
+- **AI 起草改候选稿模式**：流式不再覆盖正文，候选面板提供「覆盖 / 追加 / 插入光标 / 放弃」4 种处理方式；critic 内嵌为警告；接受候选稿前自动把当前正文存为版本
+- 章节目标字数 + 进度环 + 最近保存时间显示
 - 章节删除、版本历史（自动快照）
 - 全文一致性校验 API（LLM Critic Agent）
 
@@ -105,10 +113,11 @@ npm run dev
 
 ### 健康检查
 ```bash
-curl http://localhost:3000/api/healthz/llm
+curl http://localhost:3000/api/healthz
 ```
 
-应返回 `{ ok: true, data: { reply, token_in, token_out, cost_cny, took_ms } }`
+应返回基础探针结果。  
+`/api/healthz/llm` 当前为 admin-only 深度探针，需要登录管理员账号后访问。
 
 ---
 
@@ -164,11 +173,11 @@ npm run typecheck
 npm run test
 npm run build
 
-# 当前实测基线（2026-05-09）
+# 当前实测基线（2026-05-10）
 # npm run typecheck 通过
-# npm run test      32 files / 194 tests passed
+# npm run test      46 files / 289 tests passed
 # npm run build     通过
-# npm run lint      当前使用废弃 next lint，本地运行超时，需迁移
+# npm run lint      通过
 
 # E2E 测试（需 LLM_MOCK=1）
 $env:LLM_MOCK='1'; npm run test:e2e
