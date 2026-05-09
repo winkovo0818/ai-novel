@@ -98,7 +98,7 @@
 
 ### 测试
 
-- Unit/API tests：当前实测 32 files / 194 tests passed
+- Unit/API tests：当前实测 33 files / 203 tests passed
   - `lib/stream/sseEncode.test.ts`
   - `lib/stream/readSse.test.ts`
   - `lib/stream/jsonStreamParser.test.ts`
@@ -118,9 +118,9 @@
 ### CI/CD 与验证
 
 - `npm run typecheck` — 当前实测通过
-- `npm run test` — 当前实测通过，32 files / 194 tests passed
+- `npm run test` — 当前实测通过，33 files / 203 tests passed
 - `npm run build` — 当前实测通过，Next.js 15 生产构建成功
-- `npm run lint` — 当前脚本仍为废弃的 `next lint`，本次运行 120 秒超时，不能作为有效质量门禁
+- `npm run lint` — 已迁移为 `eslint .`，当前实测通过
 - `.github/workflows/ci.yml` — 已恢复基础 verify workflow；后续仍需纳入 lint、coverage 和 E2E job
 - `npm run db:deploy` — Prisma migrate deploy（Supabase/生产用）
 
@@ -137,8 +137,8 @@
 
 | 优先级 | 任务 | 原因 |
 | --- | --- | --- |
-| P0 | 修复 `typecheck/build/lint` 失败 | 当前 `npm run verify` 不通过，项目不可交付 |
-| P0 | 提交并启用 CI 工作流 | `.github/` 当前未跟踪，CI 可能未真正生效 |
+| ~~P0~~ | ~~修复 `typecheck/build/lint` 失败~~ | ~~`npm run verify` 当前通过，lint 已迁移到 `eslint .`~~ |
+| ~~P0~~ | ~~提交并启用 CI 工作流~~ | ~~`.github/workflows/ci.yml` 已恢复 verify job 并纳入 lint~~ |
 | ~~P0~~ | ~~保护 `/api/healthz/llm`~~ | ~~已改为 admin-only，新增公开基础探针 `/api/healthz`~~ |
 | ~~P0~~ | ~~LLM API key 加密存储与脱敏返回~~ | ~~AES-256-GCM 加密 + 脱敏返回 + 解密调用~~ |
 | ~~P1~~ | ~~模型配置 SSRF 防护~~ | ~~已新增 Zod schema + URL 校验 + provider allowlist + 私网 IP 拒绝~~ |
@@ -146,10 +146,10 @@
 | ~~P1~~ | ~~内容审核策略化~~ | ~~MODERATION_FAILURE_MODE=allow|block|review，生产默认 block，本地关键词强阻断~~ |
 | ~~P1~~ | ~~ownership 负向测试补齐~~ | ~~新增 novels/route、summaries/refresh 负向测试，覆盖 401/404~~ |
 | ~~P1~~ | ~~owner 为空资源策略收紧~~ | ~~canAccessOwnerResource 默认拒绝空 owner，onboarding 单独 claim 路径~~ |
-| P1 | LLM 用量统计与配额 | 目前成本只 console.log，无法控成本或计费 |
+| ~~P1~~ | ~~LLM 用量统计与配额~~ | ~~summarize/consistency/loglines/questions 已接入 checkQuota，QUOTA_FAILURE_MODE 生产默认 block~~ |
 | ~~P1~~ | ~~章节改稿后的摘要/索引级联刷新~~ | ~~已自动触发 summarize + index + summaries/refresh 当 done 章节被修改时~~ |
-| P1 | LLM 用量统计与配额 | 目前成本只 console.log，无法控成本或计费 |
-| P2 | 导出 Markdown/TXT/docx/epub | 真实作者使用闭环缺失 |
+| P2 | 候选稿/差异保存 + 替换 window.confirm | 写作体验仍依赖原生 confirm，AI 起草直接覆盖原文 |
+| P2 | 导出 docx/epub | Markdown/TXT 已实现，docx/epub 未做 |
 
 ---
 

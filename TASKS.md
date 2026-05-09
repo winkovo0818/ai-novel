@@ -103,7 +103,7 @@
 
 | 状态 | 编号 | 风险需求 / 任务 | 风险说明 | 技术实现方案 | 验收标准 | 关键文件 |
 |---|---:|---|---|---|---|---|
-| 🟡 | P-01 | LLM 用量统计与配额 | `LlmUsage` 模型、`checkQuota()`、`GET /api/usage` 和部分高成本路由 429 保护已实现；但 loglines/questions/summarize/consistency 等路由覆盖不全，quota 检查失败仍 fail-open | 每次 LLM 调用有持久化记录；所有高成本路由超额返回 429；生产 quota 检查失败不默认放行 | `lib/llm/usage.ts`、`lib/llm/client.ts`、`app/api/usage/route.ts` |
+| ✅ | P-01 | LLM 用量统计与配额 | `LlmUsage` 模型 + `checkQuota()` + `GET /api/usage` 已实现；所有 7 条高成本 LLM 路由（draft / outline / critic / state-diff / bible / summarize / consistency / loglines / questions）均接入 checkQuota；`QUOTA_FAILURE_MODE=allow|block` 策略化，生产默认 block | 每次 LLM 调用有持久化记录；所有高成本路由超额返回 429；生产 quota 检查失败不默认放行 | `lib/llm/usage.ts`、`lib/llm/client.ts`、`app/api/usage/route.ts` |
 | ✅ | P-02 | 导出 Markdown/TXT | `lib/export/formatNovel.ts` 格式化逻辑；`GET /api/novels/:id/export?format=markdown|txt` 路由含权限+审核；`ExportMenu` 下拉组件在编辑器顶栏；内容审核覆盖导出 | 用户可导出整本小说 Markdown/TXT；章节顺序正确；未授权不可导出；审核阻挡导出 | `lib/export/formatNovel.ts`、`app/api/novels/[id]/export/route.ts`、`EditorClient.tsx`、`ExportMenu.tsx` |
 | 🟡 | P-03 | 写作工具补齐 | textarea 可用但不像专业写作工具，缺查找替换、目标字数、章节进度 | 1. 增加查找/替换；2. 章节目标字数来自 profile；3. 显示今日写作字数、章节完成度；4. 保存草稿恢复提示；5. 后续考虑富文本或 CodeMirror/TipTap | 作者能进行基础长文编辑，不依赖外部编辑器 | `EditorClient.tsx`、`EditorToolbar.tsx`、`useChapterEditor.ts` |
 | 🟡 | P-04 | AI 起草改为候选稿/差异保存 | 当前 AI 起草主要覆盖正文，虽然有 confirm 和版本，但体验风险高 | 1. AI 输出先进入 candidate buffer；2. 用户选择“覆盖/追加/插入光标/另存版本”；3. 展示 diff；4. 保存前创建版本 | AI 生成不会直接替换用户正文；用户可选择合并方式 | `useChapterEditor.ts`、`AIPanel.tsx`、`VersionsModal.tsx` |

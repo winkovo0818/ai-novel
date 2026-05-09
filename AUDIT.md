@@ -27,7 +27,7 @@
 | 命令 | 当前结果 | 说明 |
 |---|---|---|
 | `npm run typecheck` | 通过 | TypeScript 检查通过 |
-| `npm run test` | 通过 | 32 files / 194 tests passed |
+| `npm run test` | 通过 | 33 files / 203 tests passed |
 | `npm run build` | 通过 | Next.js 15 生产构建成功 |
 | `npm run lint` | 未通过质量门禁 | 脚本仍为废弃 `next lint`，本次运行 120 秒超时 |
 
@@ -114,7 +114,7 @@
 | ~~P4~~ | 已落地 | **profile 字段影响 prompt 不充分** | 已有 generation policy 映射 tone/pace/ai_freedom/audience/pov 到 prompt 和参数 | 后续继续按真实生成质量调参 |
 | ~~P5~~ | 已落地 | **一致性检查不是闭环** | AI 起草后自动 Critic，严重冲突阻止静默保存 | 后续增加自动修订/回炉策略 |
 | ~~P6~~ | 已落地 | **没有导出** | Markdown/TXT 导出 API 和编辑器菜单已实现 | 后续补 docx/epub |
-| P7 | P1 | **用量统计/配额覆盖不足** | `LlmUsage` 与部分配额检查已实现，但并非所有高成本路由覆盖，quota 检查失败仍 fail-open | 全路由覆盖 checkQuota，生产环境 quota 失败不默认放行 |
+| ~~P7~~ | 已完成 | **用量统计/配额覆盖** | summarize / consistency / loglines / questions 已接入 checkQuota；`QUOTA_FAILURE_MODE=allow|block`，生产默认 block；usage.test.ts 覆盖 block/allow 两个分支 | 完成 2026-05-09 |
 
 ---
 
