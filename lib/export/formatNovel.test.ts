@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { formatAsMarkdown, formatAsTxt, formatNovel, sanitizeFilename, contentTypeFor, fileExtensionFor } from "./formatNovel";
+import {
+  formatAsDocx,
+  formatAsEpub,
+  formatAsMarkdown,
+  formatAsTxt,
+  formatNovel,
+  sanitizeFilename,
+  contentTypeFor,
+  fileExtensionFor,
+} from "./formatNovel";
 
 const sampleNovel = {
   title: "星辰之海",
@@ -44,10 +53,10 @@ describe("formatNovel", () => {
     expect(txt).toContain("(本章暂无内容)");
   });
 
-  it("formatNovel dispatches to correct formatter", () => {
-    const md = formatNovel(sampleNovel, "markdown");
+  it("formatNovel dispatches to correct formatter", async () => {
+    const md = await formatNovel(sampleNovel, "markdown");
     expect(md).toContain("# 星辰之海");
-    const txt = formatNovel(sampleNovel, "txt");
+    const txt = await formatNovel(sampleNovel, "txt");
     expect(txt).toContain("星辰之海");
     expect(txt).not.toContain("# 星辰之海");
   });
@@ -55,11 +64,40 @@ describe("formatNovel", () => {
   it("contentTypeFor returns correct MIME types", () => {
     expect(contentTypeFor("markdown")).toContain("text/markdown");
     expect(contentTypeFor("txt")).toContain("text/plain");
+    expect(contentTypeFor("docx")).toContain("wordprocessingml.document");
+    expect(contentTypeFor("epub")).toContain("epub+zip");
   });
 
   it("fileExtensionFor returns correct extensions", () => {
     expect(fileExtensionFor("markdown")).toBe(".md");
     expect(fileExtensionFor("txt")).toBe(".txt");
+    expect(fileExtensionFor("docx")).toBe(".docx");
+    expect(fileExtensionFor("epub")).toBe(".epub");
+  });
+
+  it("formatAsDocx returns a ZIP-shaped binary", async () => {
+    const buf = new Uint8Array(await formatAsDocx(sampleNovel));
+    expect(buf.byteLength).toBeGreaterThan(0);
+    // .docx is a ZIP archive — first two bytes are "PK".
+    expect(buf[0]).toBe(0x50);
+    expect(buf[1]).toBe(0x4b);
+  });
+
+  it("formatAsEpub returns a ZIP-shaped binary", async () => {
+    const buf = new Uint8Array(await formatAsEpub(sampleNovel));
+    expect(buf.byteLength).toBeGreaterThan(0);
+    expect(buf[0]).toBe(0x50);
+    expect(buf[1]).toBe(0x4b);
+  });
+
+  it("formatAsDocx tolerates empty chapter content", async () => {
+    const buf = new Uint8Array(await formatAsDocx(emptyChapterNovel));
+    expect(buf.byteLength).toBeGreaterThan(0);
+  });
+
+  it("formatAsEpub tolerates empty chapter content", async () => {
+    const buf = new Uint8Array(await formatAsEpub(emptyChapterNovel));
+    expect(buf.byteLength).toBeGreaterThan(0);
   });
 
   it("sanitizeFilename strips unsafe characters", () => {
