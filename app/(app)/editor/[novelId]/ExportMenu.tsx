@@ -21,7 +21,7 @@ export function ExportMenu({ novelId }: ExportMenuProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
-  async function handleExport(format: "markdown" | "txt") {
+  async function handleExport(format: "markdown" | "txt" | "docx" | "epub") {
     if (exporting) return;
     setExporting(true);
     try {
@@ -34,7 +34,9 @@ export function ExportMenu({ novelId }: ExportMenuProps) {
       const blob = await res.blob();
       const disposition = res.headers.get("Content-Disposition") ?? "";
       const match = disposition.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/);
-      const filename = match ? decodeURIComponent(match[1]) : `novel${format === "markdown" ? ".md" : ".txt"}`;
+      const fallbackExt =
+        format === "markdown" ? ".md" : format === "txt" ? ".txt" : format === "docx" ? ".docx" : ".epub";
+      const filename = match ? decodeURIComponent(match[1]) : `novel${fallbackExt}`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -64,7 +66,7 @@ export function ExportMenu({ novelId }: ExportMenuProps) {
         </svg>
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-40 bg-white rounded-lg shadow-xl border border-border-strong z-50 overflow-hidden animate-fade-in-up">
+        <div className="absolute right-0 top-full mt-2 w-44 bg-white rounded-lg shadow-xl border border-border-strong z-50 overflow-hidden animate-fade-in-up">
           <button
             onClick={() => handleExport("markdown")}
             disabled={exporting}
@@ -85,6 +87,28 @@ export function ExportMenu({ novelId }: ExportMenuProps) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
             </svg>
             纯文本 (.txt)
+          </button>
+          <div className="h-px bg-border-strong mx-3" />
+          <button
+            onClick={() => handleExport("docx")}
+            disabled={exporting}
+            className="w-full px-4 py-3 text-left text-sm font-medium text-text-primary hover:bg-primary/5 transition-colors flex items-center gap-2 disabled:opacity-40"
+          >
+            <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-6 4h4m1-13H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-4z" />
+            </svg>
+            Word (.docx)
+          </button>
+          <div className="h-px bg-border-strong mx-3" />
+          <button
+            onClick={() => handleExport("epub")}
+            disabled={exporting}
+            className="w-full px-4 py-3 text-left text-sm font-medium text-text-primary hover:bg-primary/5 transition-colors flex items-center gap-2 disabled:opacity-40"
+          >
+            <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            电子书 (.epub)
           </button>
         </div>
       )}

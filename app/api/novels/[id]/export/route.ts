@@ -17,7 +17,7 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
-const VALID_FORMATS: ExportFormat[] = ["markdown", "txt"];
+const VALID_FORMATS: ExportFormat[] = ["markdown", "txt", "docx", "epub"];
 
 export async function GET(request: Request, context: RouteContext) {
   const { id } = await context.params;
@@ -87,7 +87,7 @@ export async function GET(request: Request, context: RouteContext) {
     })),
   };
 
-  const body = formatNovel(exportData, format);
+  const body = await formatNovel(exportData, format);
   const filename = sanitizeFilename(novel.title) + fileExtensionFor(format);
 
   return new Response(body, {

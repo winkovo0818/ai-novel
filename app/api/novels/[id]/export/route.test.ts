@@ -112,7 +112,7 @@ describe("GET /api/novels/[id]/export", () => {
   });
 
   it("returns 400 for invalid format", async () => {
-    const response = await GET(new Request("http://localhost/api/novels/novel-1/export?format=docx"), {
+    const response = await GET(new Request("http://localhost/api/novels/novel-1/export?format=pdf"), {
       params: Promise.resolve({ id: "novel-1" }),
     });
     expect(response.status).toBe(400);
@@ -124,6 +124,38 @@ describe("GET /api/novels/[id]/export", () => {
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toContain("text/markdown");
+  });
+
+  it("returns docx export with correct content type and PK signature", async () => {
+    const response = await GET(new Request("http://localhost/api/novels/novel-1/export?format=docx"), {
+      params: Promise.resolve({ id: "novel-1" }),
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("wordprocessingml.document");
+
+    const buf = new Uint8Array(await response.arrayBuffer());
+    // .docx is a ZIP container — first two bytes are "PK" (0x50 0x4B).
+    expect(buf[0]).toBe(0x50);
+    expect(buf[1]).toBe(0x4b);
+
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    expect(disposition).toContain(".docx");
+  });
+
+  it("returns epub export with correct content type and PK signature", async () => {
+    const response = await GET(new Request("http://localhost/api/novels/novel-1/export?format=epub"), {
+      params: Promise.resolve({ id: "novel-1" }),
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("epub+zip");
+
+    const buf = new Uint8Array(await response.arrayBuffer());
+    // .epub is also a ZIP container.
+    expect(buf[0]).toBe(0x50);
+    expect(buf[1]).toBe(0x4b);
+
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    expect(disposition).toContain(".epub");
   });
 
   it("returns 422 when moderation blocks content", async () => {
