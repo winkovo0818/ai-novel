@@ -118,10 +118,10 @@
 
 | 状态 | 编号 | 风险需求 / 任务 | 风险说明 | 技术实现方案 | 验收标准 | 关键文件 |
 |---|---:|---|---|---|---|---|
-| 🔴 | Q-01 | 增加 `.dockerignore` | 当前 Dockerfile `COPY . .`，本地 `.env`、node_modules、临时文件可能进入 build context | 新增 `.dockerignore`，排除 `.env*`、`node_modules`、`.next`、`.git`、coverage、tmp、IDE 文件；保留 `.env.example` | Docker build context 不包含 `.env` 和本地产物 | `Dockerfile`、`.dockerignore` |
+| ✅ | Q-01 | `.dockerignore` 已就位 | `.dockerignore` 排除 `.env*` / `node_modules` / `.next` / `.git` / `.github` / `coverage` / `playwright-report` / `*.tsbuildinfo` / `.claude` 等，保留 `.env.example` | Docker build context 不包含 `.env` 和本地产物 | `Dockerfile`、`.dockerignore` |
 | 🟡 | Q-02 | Docker/Compose 生产边界标注 | docker-compose 使用默认 postgres/postgres 且暴露 5432，仅适合本地 | 1. README 明确 compose 仅本地；2. 改用 `.env` 注入密码；3. 可选只绑定 `127.0.0.1:5432`; 4. 生产不使用该 compose | 开发者不会误把本地 compose 当生产配置 | `docker-compose.yml`、`README.md` |
 | 🟡 | Q-03 | E2E 进入 CI | 当前 E2E 存在但 CI 中注释，无法防回归 | 1. 新增独立 e2e job；2. 起 PostgreSQL service；3. 设置 `LLM_MOCK=1`；4. `prisma migrate deploy` 后跑 Playwright；5. 初期只跑 chromium | CI 中至少跑 onboarding 和 editor failure E2E | `.github/workflows/ci.yml`、`tests/e2e/**` |
-| 🟡 | Q-04 | 覆盖率报告 | 当前无 coverage script，测试数量无法代表覆盖率 | 1. 配置 Vitest coverage；2. 新增 `npm run test:coverage`；3. CI 上传 artifact；4. 先不设硬阈值，稳定后设置核心库阈值 | 能看到行/分支/函数覆盖率；核心库覆盖率逐步提升 | `vitest.config.ts`、`package.json` |
+| ✅ | Q-04 | 覆盖率报告 | `vitest.config.ts` 已配置 v8 coverage（reporter: text/html/json-summary）；`npm run test:coverage` 可用；`coverage/` 已加入 `.gitignore`；当前基线 56.94% stmts / 76.08% branches / 81.25% funcs；CI 暂未强制阈值 | 能看到行/分支/函数覆盖率；核心库覆盖率逐步提升 | `vitest.config.ts`、`package.json` |
 | 🟡 | Q-05 | API 错误响应统一 | 多个 route 重复 `jsonError()`，错误结构容易漂移 | 1. 新增 `lib/http/json.ts`；2. 定义 `ApiErrorCode` union；3. 统一 `jsonOk/jsonError`; 4. 逐步替换 route 内重复 helper | 新增 route 默认使用统一响应；测试不需重复断言结构 | `app/api/**/route.ts`、`lib/http/**` |
 | 🟡 | Q-06 | 数据写入事务化 | 更新章节 + 写版本 + 副作用当前不是事务，失败可能局部成功 | 1. `PATCH /api/chapters/[id]` 使用 `prisma.$transaction`；2. 版本写入和 pruning 放同事务；3. 对 finalize 创建 Novel + BibleDraft 做幂等和事务化 | 关键写入要么全部成功，要么全部失败 | `app/api/chapters/[id]/route.ts`、`app/api/onboarding/sessions/[id]/finalize/route.ts` |
 | ✅ | Q-07 | Finalize 幂等 | `Novel.session_id` 加 `@@unique` 约束；finalize 事务中先查已有 novel，存在则直接返回；新增单测覆盖重复 finalize | 网络重试不会创建多个 Novel | `prisma/schema.prisma`、`app/api/onboarding/sessions/[id]/finalize/route.ts` |

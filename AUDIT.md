@@ -122,7 +122,7 @@
 
 | # | 优先级 | 问题 | 处理建议 |
 |---|---|---|---|
-| B1 | P2 | `.gitignore` 有重复 `.env` | 小修即可 |
+| ~~B1~~ | 已完成 | `.gitignore` 重复 `.env` 已修复为 `.env*` + `!.env.example` | 完成 2026-05-09 |
 | B2 | P2 | i18n 已装但 locale 锁死为 `zh`，大量 JSX 硬编码中文 | 如果近期只做中文产品，删除假 i18n；如果要国际化，补完整路由和消息抽取 |
 | B3 | P2 | 缺 `/api/healthz` 总体健康检查 | 增加 DB + 进程基本探针，保留 `/api/healthz/llm` 作为深度检查 |
 | B4 | P1 | `TASKS.md`、`PROGRESS.md`、README 与当前事实不一致 | 将 `AUDIT.md` 作为当前准绳，后续统一文档状态 |
