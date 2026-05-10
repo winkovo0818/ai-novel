@@ -151,56 +151,58 @@
 
 ## 阶段 3（第 5-8 周）：长篇可靠性 + 版本恢复 + 导出中心
 
+> **实施记录（2026-05-10）**：交付时优先级重排为 M3.2 → M3.3 → M3.1.5/3.1.6（retrieval 可视化）→ M3.4（UI 降噪）→ M3.5（乐观锁）。M3.1 的 dirty 字段链路（3.1.1-3.1.3）按下进入 backlog；M3.3.1（独立 export 页面）暂以 `ExportMenu` 多格式扩展替代。
+
 ### M3.1 长篇记忆可靠性
 
 | # | 类型 | 任务 | 路径 / 产物 | 验收 |
 |---|---|---|---|---|
-| 3.1.1 | [DB] | `ChapterDraft` 增加 `summary_dirty / index_dirty: Boolean` 字段 | migration | 默认 false |
-| 3.1.2 | [LIB] | 改稿后只把 dirty 标记为 true，不再立即推 job | `app/api/chapters/[id]/route.ts` PATCH 时若 content 变化置 dirty | UT |
-| 3.1.3 | [P] | 章节管理页"刷新所有 dirty"按钮 | 触发 `POST /api/novels/:id/jobs` 批量入队 | |
-| 3.1.4 | [API] | `POST /api/novels/:id/jobs/:jobId/retry`（沿用 M2.5.3） | | |
-| 3.1.5 | [P] | retrieval 结果可视化 | AIPanel 起草后展示"本次引用的记忆来源"列表（chapter index + 摘要片段） | 数据来自 SSE 新事件 `retrieval_used` |
-| 3.1.6 | [API] | draft SSE 增加 `retrieval_used: { source, score }[]` 事件 | `app/api/novels/[id]/chapters/draft/route.ts` | UT |
+| 3.1.1 | [DB] | `ChapterDraft` 增加 `summary_dirty / index_dirty: Boolean` 字段 | migration | 默认 false（**backlog**） |
+| 3.1.2 | [LIB] | 改稿后只把 dirty 标记为 true，不再立即推 job | `app/api/chapters/[id]/route.ts` PATCH 时若 content 变化置 dirty | UT（**backlog**） |
+| 3.1.3 | [P] | 章节管理页"刷新所有 dirty"按钮 | 触发 `POST /api/novels/:id/jobs` 批量入队 | （**backlog**） |
+| ~~3.1.4~~ | [API] | ~~`POST /api/novels/:id/jobs/:jobId/retry`（沿用 M2.5.3）~~ | ✅ M2.5 已实现 | |
+| ~~3.1.5~~ | [P] | ~~retrieval 结果可视化~~ | ✅ M3.4 完成：`CandidatePanel` 折叠展示 source / score / reason / 截断片段 | |
+| ~~3.1.6~~ | [API] | ~~draft SSE 增加 `retrieval_used: { source, score }[]` 事件~~ | ✅ M3.4 完成：实际事件名 `retrieval`，载荷 `{status, error?, memories: [{source, reason, score, text}]}`，文本截断 200 字 | UT 覆盖事件序、字段、截断 |
 
-### M3.2 版本恢复 + diff
-
-| # | 类型 | 任务 | 路径 / 产物 | 验收 |
-|---|---|---|---|---|
-| 3.2.1 | [API] | `POST /api/chapters/:id/versions/:versionId/restore` | 把 `ChapterVersion` 的 title/content/status 写回 ChapterDraft，并把当前正文先快照为新版本 | UT：覆盖被删/非 owner |
-| 3.2.2 | [P] | `VersionsModal` 增加"恢复此版本"按钮 + 二次确认 | `app/(app)/editor/[novelId]/VersionsModal.tsx` | restore 后关闭 modal，编辑器重新加载 |
-| 3.2.3 | [LIB] | diff 渲染组件 | `components/ui/DiffView.tsx`（基于 `diff` 包按段落或行） | 删/增/改三色 |
-| 3.2.4 | [P] | 历史版本点击对比当前 | VersionsModal 左右分栏，复用 DiffView | |
-| 3.2.5 | [P] | 候选稿 vs 正文 diff | M1.3 的 `CandidatePanel` 增"显示差异"切换 | |
-| 3.2.6 | [E2E] | `tests/e2e/version-restore.spec.ts` | 编辑 → 保存 → 再编辑 → 恢复 → 内容回滚 | |
-
-### M3.3 导出 / 发布中心 v1
+### M3.2 版本恢复 + diff（✅ 已完成）
 
 | # | 类型 | 任务 | 路径 / 产物 | 验收 |
 |---|---|---|---|---|
-| 3.3.1 | [P] | `app/(app)/novels/[id]/export/page.tsx` | 左侧选项（格式 / 章节范围 / 是否含 Bible / 是否含未完成章节）、右侧实时预览 | |
-| 3.3.2 | [API] | `GET /api/novels/:id/export?format=md\|txt&range=&include_bible=` | 由现 `app/api/novels/[id]/export/route.ts` 扩参 | UT |
-| 3.3.3 | [LIB] | docx 导出 | `lib/export/docx.ts`（用 `docx` 包） | UT：生成的 buffer 头字节校验 |
-| 3.3.4 | [LIB] | epub 导出 | `lib/export/epub.ts`（用 `epub-gen-memory` 或 `nodepub`） | UT：zip 结构断言 |
-| 3.3.5 | [API] | 导出格式扩 docx/epub | `app/api/novels/[id]/export/route.ts` | content-type / disposition |
-| 3.3.6 | [P] | 导出前审核状态说明 | 显示哪些章节未通过/未审核（基于 `LlmGeneration.status=blocked` 或章节内容长度） | |
-| 3.3.7 | [P] | 编辑器 `ExportMenu` 改为"打开导出中心"链接 | | 不在 menu 里直接下载，统一入口 |
+| ~~3.2.1~~ | [API] | ~~`POST /api/chapters/:id/versions/:versionId/restore`~~ | ✅ 事务内：current → manual 版本（同 hash 跳过）→ 覆盖 draft + 自增 version | |
+| ~~3.2.2~~ | [P] | ~~`VersionsModal` 增加"恢复此版本"按钮 + 二次确认~~ | ✅ 接入 ConfirmDialog（danger）；恢复后 `applyRestoredChapter` 同步本地状态 | |
+| ~~3.2.3~~ | [LIB] | ~~diff 渲染组件~~ | ✅ `components/ui/DiffView.tsx`（基于 `diff` 包 diffLines；超过 8 行的未变段折叠为"省略 N 行"） | 红绿三色 |
+| ~~3.2.4~~ | [P] | ~~历史版本点击对比当前~~ | ✅ VersionsModal "与当前对比"按钮 + 行内 diff 视图 + 标题差异提示 | |
+| 3.2.5 | [P] | 候选稿 vs 正文 diff | M1.3 的 `CandidatePanel` 增"显示差异"切换 | （**backlog** — DiffView 已就绪可复用） |
+| 3.2.6 | [E2E] | `tests/e2e/version-restore.spec.ts` | 编辑 → 保存 → 再编辑 → 恢复 → 内容回滚 | （**backlog**） |
 
-### M3.4 UI 统一与降噪
-
-| # | 类型 | 任务 | 路径 / 产物 | 验收 |
-|---|---|---|---|---|
-| 3.4.1 | [LIB] | 页面标题统一组件审计 | `components/ui/PageHeader.tsx` 已存在，所有新页面强制使用 | grep 检查 |
-| 3.4.2 | [P] | 统一空 / 错误 / 加载 / 生成中四态 | `components/ui/StatusStates.tsx` 已存在 `LoadingState/EmptyState`，补 `ErrorState/GeneratingState` | 替换所有手写态 |
-| 3.4.3 | [P] | 文案降噪 | 全仓清理 "云端同步协议已激活" / "AI 灵感引擎" / "节点协议" 等过度科技感文案，改为创作语境 | reviewer 验收 |
-| 3.4.4 | [P] | 编辑器优化阅读字号 / 行距 | `EditorClient.tsx` textarea 提供 3 档字号切换 | localStorage 持久化 |
-
-### M3.5 多人协作前置
+### M3.3 导出 / 发布中心 v1（🟡 多格式已落地，独立页面 backlog）
 
 | # | 类型 | 任务 | 路径 / 产物 | 验收 |
 |---|---|---|---|---|
-| 3.5.1 | [DB] | `ChapterDraft` 增 `version_lock: Int @default(0)` 乐观锁字段 | migration | |
-| 3.5.2 | [API] | PATCH/POST 章节带 `expected_version_lock`，不匹配 → 409 | | UT：并发覆盖被拦截 |
-| 3.5.3 | [P] | 编辑器收到 409 → 弹 `ConfirmDialog`：覆盖 / 重载 / 合并稍后 | | 不直接静默吞 |
+| 3.3.1 | [P] | `app/(app)/novels/[id]/export/page.tsx` | 左侧选项 / 右侧实时预览 | （**backlog**，目前由 `ExportMenu` 承载） |
+| 3.3.2 | [API] | `GET /api/novels/:id/export?format=md\|txt&range=&include_bible=` | range / include_bible 暂未做 | （**部分 backlog**） |
+| ~~3.3.3~~ | [LIB] | ~~docx 导出~~ | ✅ `lib/export/formatNovel.ts` `formatAsDocx`（HEADING_1 + 每行 Paragraph） | UT：ZIP `PK` 头 + 空章节稳健 |
+| ~~3.3.4~~ | [LIB] | ~~epub 导出~~ | ✅ `lib/export/formatNovel.ts` `formatAsEpub`（`epub-gen-memory`，HTML 转义 `<p>` 段落） | UT：ZIP 签名 + 空章节稳健 |
+| ~~3.3.5~~ | [API] | ~~导出格式扩 docx/epub~~ | ✅ `/api/novels/:id/export?format=docx\|epub`，`formatNovel` 改 async 返回 `string \| ArrayBuffer` | content-type / disposition 测试 |
+| 3.3.6 | [P] | 导出前审核状态说明 | 独立页面承载，未做 | （**backlog**） |
+| 3.3.7 | [P] | 编辑器 `ExportMenu` 改为"打开导出中心"链接 | 待独立页面落地后再切 | （**backlog**） |
+
+### M3.4 UI 统一与降噪（🟡 编辑界面已降噪；状态四态组件统一未审计）
+
+| # | 类型 | 任务 | 路径 / 产物 | 验收 |
+|---|---|---|---|---|
+| 3.4.1 | [LIB] | 页面标题统一组件审计 | `components/ui/PageHeader.tsx` 已存在，所有新页面强制使用 | （**backlog**：阶段 3 未做全仓审计） |
+| 3.4.2 | [P] | 统一空 / 错误 / 加载 / 生成中四态 | `components/ui/StatusStates.tsx` 已存在 `LoadingState/EmptyState`，补 `ErrorState/GeneratingState` | （**部分 backlog**：组件存在，统一替换未做） |
+| ~~3.4.3~~ | [P] | ~~文案降噪~~ | ✅ M3.5 完成：编辑界面 26 行装饰性 chrome 移除（"云端同步协议已激活" / "Unit XX · Manuscript Draft" / "正在创作" eyebrow / 重复字数 / 闲时 StatusTag）；标题 placeholder 由"在此处镌刻..."改为"章节标题" | |
+| 3.4.4 | [P] | 编辑器优化阅读字号 / 行距 | `EditorClient.tsx` textarea 提供 3 档字号切换 | （**backlog**） |
+
+### M3.5 多人协作前置（✅ 已完成，对应实际 commit M3.6）
+
+| # | 类型 | 任务 | 路径 / 产物 | 验收 |
+|---|---|---|---|---|
+| ~~3.5.1~~ | [DB] | ~~`ChapterDraft` 增 `version_lock: Int @default(0)` 乐观锁字段~~ | ✅ 实际命名为 `version`；migration `20260510070000_add_chapter_version` | |
+| ~~3.5.2~~ | [API] | ~~PATCH/POST 章节带 `expected_version_lock`，不匹配 → 409~~ | ✅ 实际字段名 `expected_version`，409 `CHAPTER_VERSION_CONFLICT` 携带最新行；restore 也自增 version | UT：409 路径 + 匹配路径 + 缺省兼容路径 |
+| ~~3.5.3~~ | [P] | ~~编辑器收到 409 → 弹 `ConfirmDialog`：覆盖 / 重载 / 合并稍后~~ | ✅ 实现为工具栏下方琥珀色横幅（"加载最新" / "暂不处理"），本地正文不强制覆盖 | |
 
 ---
 
@@ -210,7 +212,7 @@
 |---|---|---|---|---|
 | 1 | `/novels/:id`、`/novels/:id/characters`、`/novels/:id/world`、`/novels/:id/outline` | bible PATCH partial、`GET /novels/:id` 扩字段、`PATCH /chapters/:id` 加 `target_words` | `ChapterDraft.target_words` | candidate、project-shell |
 | 2 | `/novels/:id/chapters`、`/novels/:id/history`、`/`（Dashboard） | `GET /novels/:id/chapters`、`GET /novels/:id/generations`、`GET /dashboard`、`POST /jobs/:jobId/retry`、draft SSE 加 `retrieval_status` | `LlmGeneration` 新表、`ChapterDraft.beats?` | beat-to-draft、ci-e2e |
-| 3 | `/novels/:id/export` | `POST /chapters/:id/versions/:vid/restore`、export 扩格式与参数、draft SSE 加 `retrieval_used` | `ChapterDraft.summary_dirty/index_dirty/version_lock` | version-restore |
+| 3 | （独立 export 页面 backlog） | `POST /chapters/:id/versions/:vid/restore`、export 扩 docx/epub、draft SSE 加 `retrieval` 事件、PATCH `expected_version` + 409 | `ChapterDraft.version`（乐观锁；dirty 字段 backlog） | （version-restore 仍 backlog） |
 
 ---
 
