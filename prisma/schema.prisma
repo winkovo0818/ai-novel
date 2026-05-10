@@ -114,6 +114,21 @@ model LlmModel {
   @@unique([provider, model])
 }
 
+/// DB-driven role grants. Composite PK (user_id, role) lets a user hold
+/// multiple roles without schema churn — Phase A only fills 'admin', later
+/// phases (e.g. 'embedding_admin') just insert new rows. user_id is not a
+/// FK because Supabase auth.users lives outside Prisma; deletes there must
+/// be paired with a manual cleanup of dangling rows.
+model UserRole {
+  user_id    String
+  role       String
+  granted_by String?
+  created_at DateTime @default(now())
+
+  @@id([user_id, role])
+  @@index([role])
+}
+
 model ChapterVersion {
   id           String   @id @default(uuid())
   chapter_id   String
