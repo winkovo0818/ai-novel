@@ -76,11 +76,11 @@ export function Step4Generating() {
 
   return (
     <StepShell eyebrow="STEP 04" title="圣经合成中" description="正在编织叙事经纬。AI 正在实时同步合成作品的叙事基础设施。">
-      <div className="grid gap-32">
-        <div className="flex flex-wrap items-center gap-16">
+      <div className="grid gap-8">
+        <div className="flex flex-wrap items-center gap-4">
           <button className="btn-primary" disabled={store.status === "streaming"} onClick={start}>
             {store.status === "streaming" ? (
-              <span className="flex items-center gap-8">
+              <span className="flex items-center gap-2">
                 <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -97,11 +97,11 @@ export function Step4Generating() {
           </button>
         </div>
 
-        <div className="bg-surface border border-border-strong rounded-md p-24 shadow-sm">
-          <div className="flex items-center justify-between gap-12 mb-16">
+        <div className="bg-surface border border-border-strong rounded-md p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-3 mb-4">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">当前合成阶段</p>
-              <p className="mt-4 text-lg font-semibold text-text-primary">{phase.label}</p>
+              <p className="mt-1 text-lg font-semibold text-text-primary">{phase.label}</p>
             </div>
             <span className="text-xl font-bold text-primary">{phase.percent}%</span>
           </div>
@@ -113,14 +113,14 @@ export function Step4Generating() {
         <BibleStreamCards draft={store.bible_draft} eventsCount={events.length} />
 
         <details className="group bg-surface border border-border-strong rounded-md overflow-hidden">
-          <summary className="cursor-pointer p-16 text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted hover:bg-secondary transition-colors list-none flex justify-between items-center">
+          <summary className="cursor-pointer p-4 text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted hover:bg-secondary transition-colors list-none flex justify-between items-center">
             <span>数据包日志 / 实时合成数据 ({events.length})</span>
             <span className="group-open:rotate-180 transition-transform">↓</span>
           </summary>
-          <div className="border-t border-border-subtle bg-secondary/20 p-16 max-h-96 overflow-auto font-mono text-[10px] space-y-8">
+          <div className="border-t border-border-subtle bg-secondary/20 p-4 max-h-96 overflow-auto font-mono text-[10px] space-y-2">
             {events.map((item, index) => (
-              <article key={`${item.event}-${index}`} className="border-l-2 border-primary/30 pl-12 py-4">
-                <p className="text-primary font-bold mb-4">EVENT::{item.event.toUpperCase()}</p>
+              <article key={`${item.event}-${index}`} className="border-l-2 border-primary/30 pl-3 py-1">
+                <p className="text-primary font-bold mb-1">EVENT::{item.event.toUpperCase()}</p>
                 <pre className="text-text-secondary whitespace-pre-wrap">{JSON.stringify(item.data, null, 2)}</pre>
               </article>
             ))}
