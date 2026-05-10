@@ -18,11 +18,12 @@
 
 ## 最近更新
 
-- **2026-05-12 (深夜)** — `StatusStates.GeneratingState` 新增（M3.4.2 缺失的"生成中"四态，含可选 percent 进度条）；`VersionsModal` 加载/空状态从裸 div 改为 LoadingState / EmptyState。M3.4.1（PageHeader 全仓审计）经检视，所有页面已统一使用 PageHeader，无散用裸标题。
-- **2026-05-12 (傍晚)** — M3.4.4 编辑器字号切换落地。EditorClient header 加 3 档字号控件（小/中/大），localStorage 持久化。
-- **2026-05-12 (中段)** — `chapterStatus.getChapterStatusesForNovel` 单测补齐（5 个）；M3.2.5 候选稿 vs 正文 diff 经检视已实现，文档勾掉。总测试 389 → **394**。
-- **2026-05-12** — 基础设施加固：rateLimit Upstash Redis 适配器 + healthz 探针扩展。新增测试 21 个；总测试 373 → 389。
-- **2026-05-11 (深夜)** — 关键路径测试补全。`lib/agent/summaries.ts` 0% → **100%**；`lib/jobs/handlers.ts` 0% → **100%**；总测试 352 → 373。
+- **2026-05-13** — 生产 security headers baseline（X-Content-Type-Options / X-Frame-Options / Referrer-Policy / Permissions-Policy / HSTS）通过 `next.config.ts` 的 `headers()` 应用到全部路由。CSP 待单独 phase 处理（需要 Next.js 15 nonce middleware 才能避开 inline script 'unsafe-inline'）。
+- **2026-05-12 (深夜)** — `StatusStates.GeneratingState` 新增；`VersionsModal` 加载/空状态从裸 div 改为 LoadingState / EmptyState。M3.4.1 PageHeader 全仓审计经检视已统一。
+- **2026-05-12 (傍晚)** — M3.4.4 编辑器字号切换落地。
+- **2026-05-12 (中段)** — `chapterStatus.getChapterStatusesForNovel` 单测补齐。M3.2.5 候选稿 vs 正文 diff 经检视已实现。总测试 389 → **394**。
+- **2026-05-12** — 基础设施加固：rateLimit Upstash Redis 适配器 + healthz 探针扩展。
+- **2026-05-11 (深夜)** — 关键路径测试补全（summaries / handlers 100%）。
 - **2026-05-11 (晚)** — M3.1 dirty 字段链路落地。
 - **2026-05-11** — 初版健康度报告。
 
@@ -97,7 +98,7 @@
 - [ ] **`lib/agent/chapterStatus.ts`** ✅ 100% 覆盖（2026-05-12）— buildChapterStatus + getChapterStatusesForNovel 都已覆盖
 - [ ] **`ChapterDraft.content` 80,000 char 上限**与目标字数无交互验证 — 补"接近上限"提醒
 - [ ] **`expected_version` 缺省兼容路径** 与 M3.6 防覆盖目标存在轻度冲突，可重新评估是否强制
-- [ ] **生产 security headers**：`next.config.ts` 无 CSP / images / headers 配置
+- [x] **生产 security headers** ✅ baseline（`X-Content-Type-Options / X-Frame-Options / Referrer-Policy / Permissions-Policy / HSTS`）已加（2026-05-13，`next.config.ts:headers()`）。CSP 单独 phase（需 nonce middleware）。
 - [ ] **`refresh-dirty` 与单章"重新刷新"路径并存** — 经评估保留双端点：refresh-dirty 是 dirty-driven，row-level 是 user-forced 重摆，语义不同
 - [ ] **dirty 字段未参与 chapterStatus 全部组合的快照测试** — 加 vitest snapshot 防回归
 
@@ -141,7 +142,7 @@ F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关
 
 1. **useChapterEditor 拆分 + RTL 测试** — 当前 799 行 0% 覆盖，是最大盲区；需要切 jsdom 环境 + RTL setup，单独 phase 处理。
 2. **M3.2.6 version-restore E2E** — 编辑→保存→再编辑→恢复→内容回滚，跑 LLM_MOCK，进 CI。
-3. **生产 security headers** — `next.config.ts` 加 CSP / images / X-Content-Type-Options 等基线 headers。
+3. **CSP with nonce middleware** — 当前 baseline headers 已加，但 CSP 没接（Next.js 15 hydration 注入 inline script，需要 nonce 中间件正确放行）。
 
 ---
 
