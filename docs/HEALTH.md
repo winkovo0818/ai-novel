@@ -18,8 +18,9 @@
 
 ## 最近更新
 
-- **2026-05-12** — 基础设施加固：rateLimit Upstash Redis 适配器（HTTP-only 4-command pipeline，fail-open 网络异常）+ healthz 探针扩展（DB / pgvector 维度检查 / Supabase env 配置 / 200 vs 503 + 错误码分类）。`isRateLimited` 接口转 async，10 个 caller 加 await。修复 `normalizeRouteKey` 老 regex bug（`/[a-f0-9-]+/gi` 把 `/api` 中的 `a` 也截走）。新增测试 21 个（rateLimit 15 + healthz 6）；总测试 373 → **389**。
-- **2026-05-11 (深夜)** — 关键路径测试补全。`lib/agent/summaries.ts` 0% → **100%**（10 个测试）；`lib/jobs/handlers.ts` 0% → **100%**（11 个测试）；总测试 352 → 373，branches 79.21% → 82.18%。
+- **2026-05-12 (中段)** — `chapterStatus.getChapterStatusesForNovel` 单测补齐（5 个：空 novel / 多章节聚合 / chunk count=0 视为 missing / 最新 job 优先 / 忽略无 chapter_id 的 novel-scoped job）。文件覆盖率 43% → 100%。M3.2.5 候选稿 vs 正文 diff 经检视已实现（CandidatePanel viewMode + DiffView 集成 + EditorClient wire-up），文档勾掉。总测试 389 → **394**。
+- **2026-05-12** — 基础设施加固：rateLimit Upstash Redis 适配器（HTTP-only 4-command pipeline，fail-open）+ healthz 探针扩展（DB / pgvector / Supabase env / 200 vs 503 + 错误码）。`isRateLimited` 接口转 async + 修 normalizeRouteKey regex bug。新增测试 21 个；总测试 373 → 389。
+- **2026-05-11 (深夜)** — 关键路径测试补全。`lib/agent/summaries.ts` 0% → **100%**；`lib/jobs/handlers.ts` 0% → **100%**；总测试 352 → 373，branches 79.21% → 82.18%。
 - **2026-05-11 (晚)** — M3.1 dirty 字段链路落地。新增 `ChapterDraft.summary_dirty / index_dirty` + migration backfill；PATCH 在 content 变化时标脏；handlers 完成后清脏；编辑器删除两处客户端推 job；新端点 `POST /api/novels/:id/jobs/refresh-dirty`；章节管理页加"刷新所有 dirty (N)"按钮。
 - **2026-05-11** — 初版健康度报告（基于 Phase A + Phase B + UI 设计刷新完成后状态）
 
@@ -31,10 +32,10 @@
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
 | `npm run lint` | ✅ 通过（零 warning） | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **58 files / 389 tests** 全绿，7.46s | 基础设施加固后净增 1 file / 16 tests |
+| `npm run test` | ✅ **58 files / 394 tests** 全绿，7.45s | chapterStatus 聚合补齐后净增 5 tests |
 | `npm run build` | ✅ 通过 | 16 静态页 + 29 动态路由 |
 | Playwright E2E | 3 spec（onboarding / editor-failure / editor-candidate）已进 CI | |
-| Coverage（v8） | 🟡 lines **64.07%** / functions **87.6%** / branches **82.18%**（基础设施加固后未重生） | 已生成报告，未入 CI 门禁 |
+| Coverage（v8） | 🟡 lines 64% / functions 87.6% / branches 82%（chapterStatus 加测后未重生） | summaries / handlers / chapterStatus 100% |
 | Prisma migrations | 21 条 | 部署前需 `prisma migrate deploy` |
 
 **规模**：业务源码 17,500+ LoC（136 ts/tsx）；测试 7,200+ LoC（58 个 .test.ts）；36 个 API route + 19 个 page.tsx。
@@ -67,6 +68,8 @@
 
 - [x] **P2-4 / M3.1.1–3** — `ChapterDraft.summary_dirty / index_dirty: Boolean` 字段 + 改稿后只标脏不立即触发 job + 章节管理页"刷新所有 dirty"按钮（**2026-05-11 完成**：含 `POST /api/novels/:id/jobs/refresh-dirty` 新端点 + chapterStatus 优先用 dirty + 编辑器删除两处客户端推 job）
 - [ ] **M3.2.5** — 候选稿 vs 正文 diff 切换（DiffView 已就绪可复用）
+
+> 经检视：M3.2.5 已实现于 CandidatePanel.tsx:60(viewMode) + 235-258(切换按钮) + 271(DiffView 调用)，EditorClient.tsx:314 已传 currentContent。文档误判，2026-05-12 勾掉。
 - [ ] **M3.2.6** — `tests/e2e/version-restore.spec.ts`（版本恢复 E2E）
 - [ ] **M3.3.1 / .6 / .7** — 独立 `/novels/:id/export` 页面 + 审核状态说明 + ExportMenu 改"打开导出中心"链接
 - [ ] **M3.3.2** — 导出 `range` / `include_bible` 参数
@@ -89,11 +92,11 @@
 - [ ] **`useChapterEditor.ts`（799 行，0% 覆盖）** 拆分 + 切 jsdom + RTL 行为级测试 — 单独 phase
 - [x] **`lib/agent/summaries.ts`** ✅ 100% 覆盖（2026-05-11 深夜）
 - [x] **`lib/jobs/handlers.ts`** ✅ 100% 覆盖（2026-05-11 深夜）
-- [ ] **`lib/agent/chapterStatus.ts`** 单元 buildChapterStatus 已覆盖（43%），`getChapterStatusesForNovel` 的 prisma 聚合分支还差
+- [ ] **`lib/agent/chapterStatus.ts`** ✅ 100% 覆盖（2026-05-12）— buildChapterStatus + getChapterStatusesForNovel 都已覆盖
 - [ ] **`ChapterDraft.content` 80,000 char 上限**与目标字数无交互验证 — 补"接近上限"提醒
 - [ ] **`expected_version` 缺省兼容路径** 与 M3.6 防覆盖目标存在轻度冲突，可重新评估是否强制
 - [ ] **生产 security headers**：`next.config.ts` 无 CSP / images / headers 配置
-- [ ] **`refresh-dirty` 与单章"重新刷新"路径并存** — 章节管理页行内按钮还在调老的 `/jobs` 端点，可选择性收敛到新端点
+- [ ] **`refresh-dirty` 与单章"重新刷新"路径并存** — 经评估保留双端点：refresh-dirty 是 dirty-driven，row-level 是 user-forced 重摆，语义不同
 - [ ] **dirty 字段未参与 chapterStatus 全部组合的快照测试** — 加 vitest snapshot 防回归
 
 ### 暂缓（3 个月内不做）
@@ -134,9 +137,9 @@ F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关
 
 > 完成任意一件后回到本文档勾掉对应 §三 待办、刷新 §一 基线、并在 §最近更新 加一行摘要。
 
-1. **候选稿 vs 正文 diff（M3.2.5）** — DiffView 已就绪，CandidatePanel 加切换即可，工作量低产品价值显著。
-2. **useChapterEditor 拆分 + RTL 测试** — 当前 799 行 0% 覆盖，是最大盲区，但需要切 jsdom 环境 + RTL setup，单独 phase 处理。
-3. **章节管理页单章"重新刷新"按钮收敛到 refresh-dirty 端点** — 让旧路径慢慢死掉，避免两套并存。
+1. **useChapterEditor 拆分 + RTL 测试** — 当前 799 行 0% 覆盖，是最大盲区；需要切 jsdom 环境 + RTL setup，单独 phase 处理。
+2. **M3.4.4 编辑器字号切换** — 简单 UI 改动，3 档字号切换，长时间阅读体验改进。
+3. **M3.2.6 version-restore E2E** — 编辑→保存→再编辑→恢复→内容回滚，跑 LLM_MOCK，进 CI。
 
 ---
 

@@ -1,8 +1,32 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildChapterStatus } from "./chapterStatus";
+const mocks = vi.hoisted(() => ({
+  findManyChapter: vi.fn(),
+  findManyChapterSummary: vi.fn(),
+  groupByMemoryChunk: vi.fn(),
+  findManyJob: vi.fn(),
+}));
 
-function chapter(overrides: Partial<{ summary_dirty: boolean; index_dirty: boolean; updated_at: Date }>) {
+vi.mock("@/lib/db", () => ({
+  prisma: {
+    chapterDraft: { findMany: mocks.findManyChapter },
+    chapterSummary: { findMany: mocks.findManyChapterSummary },
+    memoryChunk: { groupBy: mocks.groupByMemoryChunk },
+    backgroundJob: { findMany: mocks.findManyJob },
+  },
+}));
+
+const { findManyChapter, findManyChapterSummary, groupByMemoryChunk, findManyJob } = mocks;
+
+import { buildChapterStatus, getChapterStatusesForNovel } from "./chapterStatus";
+
+function chapter(overrides: Partial<{
+  id: string;
+  chapter_index: number;
+  summary_dirty: boolean;
+  index_dirty: boolean;
+  updated_at: Date;
+}>) {
   return {
     id: "c-1",
     novel_id: "n-1",
@@ -20,10 +44,10 @@ function chapter(overrides: Partial<{ summary_dirty: boolean; index_dirty: boole
   } as Parameters<typeof buildChapterStatus>[0]["chapter"];
 }
 
-function summary(updatedAt: Date) {
+function summary(updatedAt: Date, chapterId = "c-1") {
   return {
-    id: "s-1",
-    chapter_id: "c-1",
+    id: `s-${chapterId}`,
+    chapter_id: chapterId,
     summary: "x",
     created_at: updatedAt,
     updated_at: updatedAt,
@@ -34,7 +58,6 @@ describe("buildChapterStatus — M3.1 dirty bits", () => {
   it("treats summary_dirty=true as stale even when timestamps look fresh", async () => {
     const view = buildChapterStatus({
       chapter: chapter({ summary_dirty: true, updated_at: new Date("2026-01-01") }),
-      // Summary written AFTER the chapter — old logic would say "fresh".
       summary: summary(new Date("2026-01-05")),
       hasMemoryChunks: true,
     });
@@ -52,9 +75,6 @@ describe("buildChapterStatus — M3.1 dirty bits", () => {
   });
 
   it("falls back to timestamp comparison when both dirty bits are false", async () => {
-    // Pre-M3.1 chapter: dirty bits stayed false because the migration
-    // backfilled them only for chapters whose memory was actually missing.
-    // Timestamps still serve as a backstop here.
     const view = buildChapterStatus({
       chapter: chapter({
         summary_dirty: false,
@@ -106,5 +126,110 @@ describe("buildChapterStatus — M3.1 dirty bits", () => {
     });
     expect(view.summary).toBe("missing");
     expect(view.index).toBe("missing");
+  });
+});
+
+describe("getChapterStatusesForNovel — bulk aggregation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    findManyChapter.mockResolvedValue([]);
+    findManyChapterSummary.mockResolvedValue([]);
+    groupByMemoryChunk.mockResolvedValue([]);
+    findManyJob.mockResolvedValue([]);
+  });
+
+  it("returns an empty list for a novel with no chapters", async () => {
+    const result = await getChapterStatusesForNovel("n-empty");
+    expect(result).toEqual([]);
+    expect(findManyChapter).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { novel_id: "n-empty" } }),
+    );
+  });
+
+  it("joins summary, chunk presence, and latest job per chapter", async () => {
+    findManyChapter.mockResolvedValue([
+      chapter({ id: "c-1", chapter_index: 1 }),
+      chapter({ id: "c-2", chapter_index: 2, summary_dirty: true }),
+      chapter({ id: "c-3", chapter_index: 3, index_dirty: true }),
+    ]);
+    findManyChapterSummary.mockResolvedValue([
+      summary(new Date("2026-01-05"), "c-1"),
+      summary(new Date("2026-01-05"), "c-2"),
+      // No summary for c-3 → missing
+    ]);
+    groupByMemoryChunk.mockResolvedValue([
+      { chapter_id: "c-1", _count: { _all: 4 } },
+      { chapter_id: "c-2", _count: { _all: 2 } },
+      // c-3 has no chunks → missing
+    ]);
+    findManyJob.mockResolvedValue([]);
+
+    const result = await getChapterStatusesForNovel("n-1");
+
+    // Per-chapter views are returned in the chapter_index order from the
+    // chapterDraft.findMany query.
+    expect(result).toHaveLength(3);
+    expect(result[0]).toMatchObject({ chapterId: "c-1", summary: "fresh", index: "fresh" });
+    expect(result[1]).toMatchObject({ chapterId: "c-2", summary: "stale", index: "fresh" });
+    expect(result[2]).toMatchObject({ chapterId: "c-3", summary: "missing", index: "missing" });
+  });
+
+  it("only counts chunks when _count._all > 0 (groupBy can return zero rows)", async () => {
+    findManyChapter.mockResolvedValue([chapter({ id: "c-1" })]);
+    findManyChapterSummary.mockResolvedValue([summary(new Date("2026-01-05"))]);
+    // The groupBy may produce a row with 0 chunks if a chapter_id was
+    // present-then-deleted; treat it as missing.
+    groupByMemoryChunk.mockResolvedValue([{ chapter_id: "c-1", _count: { _all: 0 } }]);
+    findManyJob.mockResolvedValue([]);
+
+    const result = await getChapterStatusesForNovel("n-1");
+    expect(result[0].index).toBe("missing");
+  });
+
+  it("attaches the LATEST job per chapter (jobs ordered desc by created_at)", async () => {
+    findManyChapter.mockResolvedValue([chapter({ id: "c-1" })]);
+    findManyChapterSummary.mockResolvedValue([summary(new Date("2026-01-05"))]);
+    groupByMemoryChunk.mockResolvedValue([{ chapter_id: "c-1", _count: { _all: 1 } }]);
+    // Simulate the desc-by-created_at order the production query uses:
+    // first row = newest. Two summarize jobs for the same chapter — only
+    // the first one should win in the per-chapter map.
+    findManyJob.mockResolvedValue([
+      {
+        id: "j-new",
+        type: "summarize_chapter",
+        payload: { chapter_id: "c-1" },
+        status: "failed",
+        last_error: "oops",
+      },
+      {
+        id: "j-old",
+        type: "summarize_chapter",
+        payload: { chapter_id: "c-1" },
+        status: "done",
+        last_error: null,
+      },
+    ]);
+
+    const result = await getChapterStatusesForNovel("n-1");
+    // The newest job is "failed" — that should bubble up.
+    expect(result[0].lastJobStatus).toBe("failed");
+    expect(result[0].lastJobError).toBe("oops");
+    expect(result[0].summary).toBe("failed");
+  });
+
+  it("ignores job rows whose payload is missing chapter_id", async () => {
+    findManyChapter.mockResolvedValue([chapter({ id: "c-1" })]);
+    findManyChapterSummary.mockResolvedValue([summary(new Date("2026-01-05"))]);
+    groupByMemoryChunk.mockResolvedValue([{ chapter_id: "c-1", _count: { _all: 1 } }]);
+    findManyJob.mockResolvedValue([
+      // refresh_summaries jobs are novel-scoped and have no chapter_id;
+      // they must not pollute per-chapter status.
+      { id: "j-1", type: "refresh_summaries", payload: { novel_id: "n-1" }, status: "running" },
+      { id: "j-2", type: "summarize_chapter", payload: null, status: "done" },
+    ]);
+
+    const result = await getChapterStatusesForNovel("n-1");
+    expect(result[0].lastJobStatus).toBeUndefined();
+    expect(result[0].summary).toBe("fresh");
   });
 });
