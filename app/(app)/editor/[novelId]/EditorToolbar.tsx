@@ -39,26 +39,26 @@ export function EditorToolbar({
   const lastSavedRelative = useRelativeTime(lastSavedAt);
 
   return (
-    <div className="flex flex-col gap-10 mb-12">
+    <div className="flex flex-col gap-8 mb-10 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
         <div className="flex-1 max-w-2xl">
           <input
-            className="w-full bg-transparent border-none text-4xl font-serif font-bold text-text-primary placeholder:text-text-dim/30 focus:outline-none focus:ring-0 p-0 leading-tight"
+            className="w-full bg-transparent border-none text-4xl font-serif font-bold text-text-primary placeholder:text-text-dim/20 focus:outline-none focus:ring-0 p-0 leading-tight transition-all"
             value={chapterTitle}
             spellCheck={false}
-            placeholder="章节标题"
+            placeholder="请输入章节标题..."
             onChange={(e) => onTitleChange(e.target.value)}
           />
         </div>
 
-        <div className="flex items-center gap-2.5 pb-1">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={onToggleStatus}
             title={chapterStatus === "done" ? "恢复为草稿" : "标记为已完成"}
-            className={`p-2.5 rounded-lg border transition-all duration-300 ${
+            className={`p-2.5 rounded-xl border transition-all duration-200 ${
               chapterStatus === "done"
-                ? "bg-emerald-50 border-emerald-200 text-emerald-600 shadow-inner"
-                : "bg-white border-border-strong text-text-secondary hover:border-emerald-300 hover:text-emerald-600"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-600 shadow-sm"
+                : "bg-white border-border-strong text-text-dim hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50/30"
             }`}
             disabled={isBusy}
           >
@@ -70,7 +70,7 @@ export function EditorToolbar({
           <button
             onClick={onSave}
             disabled={isBusy || !chapterTitle.trim()}
-            className="btn-primary gap-2 min-w-[120px] shadow-lg shadow-text-primary/10"
+            className="btn-primary gap-2 min-w-[110px] px-5 py-2.5 rounded-xl shadow-premium"
           >
             {status === "saving" ? (
               <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -82,14 +82,16 @@ export function EditorToolbar({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
               </svg>
             )}
-            <span>保存原稿</span>
+            <span>保存草稿</span>
           </button>
+
+          <div className="h-6 w-px bg-border-strong mx-1" />
 
           <button
             onClick={onOpenVersions}
             disabled={!isSaved}
-            className="p-2.5 text-text-secondary hover:text-primary hover:bg-primary/5 rounded-lg transition-all border border-transparent hover:border-primary/20 disabled:opacity-40 disabled:cursor-not-allowed"
-            title={isSaved ? "查看历史版本" : "保存后才有历史版本"}
+            className="p-2.5 text-text-dim hover:text-primary hover:bg-primary/5 rounded-xl transition-all border border-transparent hover:border-primary/20 disabled:opacity-30 disabled:cursor-not-allowed"
+            title={isSaved ? "查看历史版本" : "保存后查看历史"}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -98,8 +100,8 @@ export function EditorToolbar({
 
           <button
             onClick={onDeleteChapter}
-            className="p-2.5 text-text-dim hover:text-red-500 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-100"
-            title="废弃此章节"
+            className="p-2.5 text-text-dim hover:text-red-500 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
+            title="移除章节"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -109,15 +111,18 @@ export function EditorToolbar({
       </div>
 
       {/* Writing meta row: word target + last saved */}
-      <div className="flex flex-wrap items-center gap-4 text-[11px] text-text-muted">
+      <div className="flex flex-wrap items-center gap-4 text-[11px] text-text-dim font-bold uppercase tracking-wider">
         <WordTarget characterCount={characterCount} target={targetWords} onSetTarget={onSetTargetWords} disabled={!isSaved} />
         <span className="h-3 w-px bg-border-strong" />
-        <span className="font-medium">
-          {lastSavedRelative ? `保存于 ${lastSavedRelative}` : "尚未保存"}
+        <span className="font-bold flex items-center gap-1.5">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {lastSavedRelative ? `已于 ${lastSavedRelative} 保存` : "尚未保存到云端"}
         </span>
       </div>
 
-      <div className="h-px bg-gradient-to-r from-border-strong/50 via-border-strong to-transparent w-full" />
+      <div className="h-px bg-gradient-to-r from-border-strong/40 via-border-strong/40 to-transparent w-full" />
     </div>
   );
 }
@@ -159,15 +164,15 @@ function WordTarget({
         type="button"
         onClick={() => !disabled && setEditing(true)}
         disabled={disabled}
-        className="flex items-center gap-2.5 hover:text-text-secondary transition-colors disabled:cursor-not-allowed"
+        className="flex items-center gap-3 hover:text-text-secondary transition-colors disabled:cursor-not-allowed group"
         title={disabled ? "保存章节后才能设置目标字数" : "点击修改目标字数"}
       >
-        <span className="font-medium">
-          {characterCount} / {target} 字 · {pct}%
+        <span className="font-bold">
+          {characterCount.toLocaleString()} / {target.toLocaleString()} 字 · {pct}%
         </span>
         <span className="block w-16 h-1 bg-secondary rounded-full overflow-hidden">
           <span
-            className={`block h-full ${pct >= 100 ? "bg-emerald-500" : "bg-primary"} transition-all`}
+            className={`block h-full ${pct >= 100 ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" : "bg-primary"} transition-all duration-1000`}
             style={{ width: `${pct}%` }}
           />
         </span>
@@ -178,7 +183,7 @@ function WordTarget({
   if (editing) {
     return (
       <span className="flex items-center gap-2">
-        <span className="font-medium">目标字数</span>
+        <span className="font-bold">设定目标字数</span>
         <input
           type="number"
           min={100}
@@ -195,10 +200,10 @@ function WordTarget({
             }
           }}
           placeholder="留空清除"
-          className="w-20 px-2 py-1 border border-border-subtle rounded text-[11px] focus:border-primary focus:outline-none"
+          className="w-20 px-2 py-1 bg-white border border-border-strong rounded-lg text-[11px] focus:border-primary focus:outline-none shadow-sm"
         />
-        <button onClick={commit} className="text-primary text-[10px] font-bold uppercase tracking-wider">
-          确定
+        <button onClick={commit} className="text-primary text-[10px] font-bold uppercase tracking-widest hover:underline">
+          确认
         </button>
       </span>
     );
@@ -209,11 +214,11 @@ function WordTarget({
       type="button"
       onClick={() => !disabled && setEditing(true)}
       disabled={disabled}
-      className="flex items-center gap-2 hover:text-text-secondary transition-colors disabled:cursor-not-allowed"
+      className="flex items-center gap-2 hover:text-text-secondary transition-colors disabled:cursor-not-allowed group"
       title={disabled ? "保存章节后才能设置目标字数" : "设置目标字数"}
     >
-      <span className="font-medium">{characterCount} 字</span>
-      <span className="text-[10px] uppercase tracking-wider opacity-70">+ 设目标</span>
+      <span className="font-bold">{characterCount.toLocaleString()} 字</span>
+      <span className="text-[9px] uppercase tracking-widest bg-secondary px-1.5 py-0.5 rounded text-text-dim group-hover:bg-primary/10 group-hover:text-primary transition-colors">+ 设定目标</span>
     </button>
   );
 }
@@ -233,5 +238,5 @@ function useRelativeTime(timestamp?: string): string | undefined {
   if (diff < 30_000) return "刚刚";
   if (diff < 60 * 60_000) return `${Math.floor(diff / 60_000)} 分钟前`;
   if (diff < 24 * 60 * 60_000) return `${Math.floor(diff / (60 * 60_000))} 小时前`;
-  return new Date(timestamp).toLocaleString("zh-CN");
+  return new Date(timestamp).toLocaleString("zh-CN", { month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' });
 }

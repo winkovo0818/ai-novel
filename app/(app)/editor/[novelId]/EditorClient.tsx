@@ -60,79 +60,89 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
     >
       {/* Left: Chapter Tree & Bible Context */}
       <aside 
-        className={`bg-surface border-r border-border-strong transition-all duration-300 overflow-y-auto ${
-          showBible ? "w-320 opacity-100" : "w-0 opacity-0 invisible"
+        className={`bg-white border-r border-border-subtle transition-all duration-500 ease-in-out h-full overflow-hidden ${
+          showBible ? "w-80 opacity-100" : "w-0 opacity-0"
         }`}
       >
-        <EditorSidebar
-          novelId={novelId}
-          title={title}
-          bible={bible}
-          chapters={editor.chapters}
-          selectedIndex={editor.selectedIndex}
-          isBusy={editor.status === "drafting" || editor.status === "saving"}
-          onSelectChapter={(index) => {
-            editor.selectChapter(index);
-          }}
-          onBibleUpdate={(updated) => setBible(updated)}
-        />
+        <div className="w-80 h-full">
+          <EditorSidebar
+            novelId={novelId}
+            title={title}
+            bible={bible}
+            chapters={editor.chapters}
+            selectedIndex={editor.selectedIndex}
+            isBusy={editor.status === "drafting" || editor.status === "saving"}
+            onSelectChapter={(index) => {
+              editor.selectChapter(index);
+            }}
+            onBibleUpdate={(updated) => setBible(updated)}
+          />
+        </div>
       </aside>
 
       {/* Middle: Writing Canvas */}
-      <main className="flex-1 flex flex-col min-w-0 bg-secondary/20 relative overflow-y-auto custom-scrollbar">
+      <main className="flex-1 flex flex-col min-w-0 bg-secondary/40 relative overflow-hidden">
         {/* Top Control Bar */}
-        <div className="sticky top-0 z-10 bg-white/70 backdrop-blur-md border-b border-border-strong/50 px-8 py-4 flex items-center justify-between shadow-sm">
+        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-xl border-b border-border-subtle/50 px-6 py-3 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setShowBible(!showBible)}
-              className={`p-2 rounded-lg transition-all ${
-                showBible ? "bg-primary/5 text-primary" : "text-text-muted hover:bg-secondary hover:text-text-primary"
+              className={`p-2 rounded-xl transition-all duration-200 ${
+                showBible ? "bg-primary/10 text-primary shadow-inner" : "text-text-dim hover:bg-secondary hover:text-text-primary"
               }`}
-              title="作品设定"
+              title={showBible ? "收起目录" : "展开目录"}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
               </svg>
             </button>
-            <div className="h-4 w-px bg-border-strong mx-2" />
-            <h2 className="text-[13px] font-bold text-text-primary truncate max-w-[280px]">{title}</h2>
+            <div className="h-4 w-px bg-border-strong/50 mx-1" />
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider">当前正在创作</span>
+              <h2 className="text-[13px] font-bold text-text-primary truncate max-w-[240px] leading-tight">{title}</h2>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
             {editor.pendingStateDiff && (
               <button
                 onClick={editor.openPendingStateDiff}
-                className="relative p-2 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors"
-                title={`第 ${editor.pendingStateDiffChapterIndex} 章状态分析完成 · 点击查看`}
+                className="relative p-2 rounded-xl text-amber-600 bg-amber-50 border border-amber-100 hover:bg-amber-100 transition-colors shadow-sm"
+                title={`第 ${editor.pendingStateDiffChapterIndex} 章设定冲突 · 点击查看`}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-amber-500" />
+                <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-500 border-2 border-white animate-bounce" />
               </button>
             )}
+            
             {(editor.status !== "idle" || editor.chapterStatus === "done") && (
               <StatusTag type={editor.status === "drafting" ? "drafting" : editor.status === "saving" ? "saving" : editor.chapterStatus === "done" ? "done" : "idle"} />
             )}
+            
+            <div className="h-4 w-px bg-border-strong/50 mx-1" />
+            
             <JobsBadge novelId={novelId} />
             <ExportMenu novelId={novelId} />
+            
             <button
               onClick={() => setShowAI(!showAI)}
-              className={`p-2 rounded-lg transition-all ${
-                showAI ? "bg-primary text-white shadow-md shadow-primary/20" : "text-text-muted hover:bg-secondary hover:text-text-primary"
+              className={`p-2 rounded-xl transition-all duration-300 ${
+                showAI ? "bg-text-primary text-white shadow-premium scale-105" : "text-text-dim hover:bg-secondary hover:text-text-primary"
               }`}
-              title="AI 助手"
+              title="AI 创作助手"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </button>
           </div>
-        </div>
+        </header>
 
         {/* Editor Area with Paper Look */}
-        <div className="flex-1 py-16 px-4 md:px-8">
-          <div className="writing-canvas p-12 md:p-20 lg:p-24 animate-fade-in-up">
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-4 md:px-8 py-12 md:py-20 flex flex-col items-center">
+          <div className="writing-canvas p-10 md:p-16 lg:p-20 animate-fade-in-up">
             <EditorToolbar
               summary={editor.selectedOutline?.summary}
               chapterTitle={editor.chapterTitle}
@@ -160,35 +170,39 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
             />
 
             {editor.conflictChapter && (
-              <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 flex flex-wrap items-start justify-between gap-4">
-                <div className="text-[13px] text-amber-900 leading-relaxed min-w-0 flex-1">
-                  <p className="font-bold mb-0.5">章节已被另一处修改</p>
-                  <p className="text-amber-800/90">
-                    服务器上的版本比你这里新。继续保存会被拒绝；点击「加载最新」会用服务器内容
-                    覆盖当前正文（建议先复制需要保留的片段）。
-                  </p>
+              <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50/50 p-5 flex flex-wrap items-center justify-between gap-4 animate-slide-in">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                   <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                      <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                   </div>
+                   <div className="min-w-0">
+                      <p className="text-[13px] font-bold text-amber-900">检测到内容版本冲突</p>
+                      <p className="text-[12px] text-amber-800/80 truncate">云端版本较新，继续保存可能会覆盖他人修改。</p>
+                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={editor.loadLatestChapter}
-                    className="px-3 py-1.5 text-[12px] font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+                    className="px-4 py-1.5 text-[11px] font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors shadow-sm"
                   >
-                    加载最新
+                    同步最新
                   </button>
                   <button
                     onClick={editor.dismissConflict}
-                    className="px-3 py-1.5 text-[12px] font-bold rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-100 transition-colors"
+                    className="px-4 py-1.5 text-[11px] font-bold rounded-lg border border-amber-200 text-amber-800 hover:bg-amber-100 transition-colors"
                   >
-                    暂不处理
+                    忽略
                   </button>
                 </div>
               </div>
             )}
 
-            <div className="mt-16 relative">
+            <div className="mt-12 relative">
               <textarea
-                className="w-full min-h-[800px] resize-none border-none bg-transparent p-0 font-serif text-2xl leading-[2.2] text-text-primary placeholder:text-text-dim/50 focus:outline-none selection:bg-primary/10"
-                placeholder={`在此输入第 ${editor.selectedIndex} 章内容...`}
+                className="w-full min-h-[1000px] resize-none border-none bg-transparent p-0 font-serif text-2xl leading-[2.2] text-text-primary placeholder:text-text-dim/20 focus:outline-none selection:bg-primary/10"
+                placeholder="开始书写故事..."
                 spellCheck={false}
                 value={editor.content}
                 onChange={(event) => {
@@ -208,38 +222,45 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               />
             </div>
           </div>
-          
-          {/* Bottom Margin for comfort */}
-          <div className="h-32" />
+          <div className="h-32 shrink-0" />
         </div>
       </main>
 
       {/* Right: AI Assistant */}
-      <AIPanel
-        show={showAI}
-        onClose={() => setShowAI(false)}
-        bible={bible}
-        status={editor.status}
-        message={editor.message}
-        selectedOutline={editor.selectedOutline}
-        selectedChapterIndex={editor.selectedIndex}
-        chapterTitle={editor.chapterTitle}
-        onDraftChapter={editor.draftChapter}
-        onRunConsistency={editor.runConsistency}
-        consistencyRunning={editor.consistencyRunning}
-        consistencyResult={editor.consistencyResult}
-        consistencyError={editor.consistencyError}
-        onGenerateStateDiff={editor.generateStateDiff}
-        stateDiffLoading={editor.stateDiffLoading}
-        beats={editor.beats}
-        beatsLoading={editor.beatsLoading}
-        beatsError={editor.beatsError}
-        onGenerateBeats={editor.generateBeatSheet}
-        onUpdateBeats={editor.setBeats}
-        onClearBeats={editor.clearBeats}
-        onDraftWithBeats={editor.draftWithBeats}
-      />
+      <aside 
+        className={`bg-white border-l border-border-subtle transition-all duration-500 ease-in-out h-full overflow-hidden ${
+          showAI ? "w-96 opacity-100" : "w-0 opacity-0"
+        }`}
+      >
+        <div className="w-96 h-full">
+          <AIPanel
+            show={showAI}
+            onClose={() => setShowAI(false)}
+            bible={bible}
+            status={editor.status}
+            message={editor.message}
+            selectedOutline={editor.selectedOutline}
+            selectedChapterIndex={editor.selectedIndex}
+            chapterTitle={editor.chapterTitle}
+            onDraftChapter={editor.draftChapter}
+            onRunConsistency={editor.runConsistency}
+            consistencyRunning={editor.consistencyRunning}
+            consistencyResult={editor.consistencyResult}
+            consistencyError={editor.consistencyError}
+            onGenerateStateDiff={editor.generateStateDiff}
+            stateDiffLoading={editor.stateDiffLoading}
+            beats={editor.beats}
+            beatsLoading={editor.beatsLoading}
+            beatsError={editor.beatsError}
+            onGenerateBeats={editor.generateBeatSheet}
+            onUpdateBeats={editor.setBeats}
+            onClearBeats={editor.clearBeats}
+            onDraftWithBeats={editor.draftWithBeats}
+          />
+        </div>
+      </aside>
 
+      {/* Overlays / Modals */}
       <VersionsModal
         open={editor.versionsOpen}
         selectedIndex={editor.selectedIndex}
@@ -261,7 +282,6 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
           onClose={editor.closeStateDiff}
           onAccept={(diff) => {
             const updated = applyStateDiff(bible, diff, editor.selectedIndex);
-            // Persist updated Bible
             fetch(`/api/novels/${novelId}/bible`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
