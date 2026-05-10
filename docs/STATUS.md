@@ -1,48 +1,53 @@
 # AI Novel — 项目状态
 
-> 最近更新：2026-05-10 · 阶段 1 + 阶段 2 + 阶段 3 已完成
+> 最近更新：2026-05-11 · 阶段 1 + 阶段 2 + 阶段 3 已完成；阶段 3 之后追加 Phase A（DB 权限）+ Phase B（Embedding 配置）+ UI 设计刷新
 > 本文件是 PROGRESS / AUDIT / TASKS 三份历史状态文档的合并版本，是当前**唯一**的项目状态来源。
-> 战略路线见 `docs/ROADMAP_2_4_8_WEEKS.md`，战术任务单见 `docs/IMPLEMENTATION_TASKS.md`。
+> 战略路线见 `docs/ROADMAP_2_4_8_WEEKS.md`，战术任务单见 `docs/IMPLEMENTATION_TASKS.md`，阶段 3 之后的 phase 决策见 `docs/phases/`。
 
 ---
 
-## 一、当前实测验证基线（2026-05-10，阶段 3 完成后）
+## 一、当前实测验证基线（2026-05-11，Phase A + B + UI 刷新完成后）
 
-| 命令                          | 结果                                                                                                                                                              |
-|-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `npm run typecheck`         | ✅ 通过                                                                                                                                                            |
-| `npm run lint` (`eslint .`) | ✅ 通过                                                                                                                                                            |
-| `npm run test` (Vitest)     | ✅ 通过，46 files / 299 tests（阶段 3 净增 10 条：docx/epub formatter 6、export route 2、retrieval SSE 1、PATCH 乐观锁 3 - 原断言更新 1 - 已合并 1）                                    |
-| `npm run build`             | ✅ 通过（14 个路由进表，新增 `POST /api/chapters/:id/versions/:versionId/restore`）                                                                                          |
-| `tests/e2e/` (Playwright)   | ✅ 3 spec（onboarding / editor-failure / editor-candidate），**已进 CI**                                                                                               |
-| coverage（v8）                | 🟡 已生成报告，未做 CI 门禁                                                                                                                                                |
+| 命令                          | 结果                                                                                                          |
+|-----------------------------|-------------------------------------------------------------------------------------------------------------|
+| `npm run typecheck`         | ✅ 通过                                                                                                        |
+| `npm run lint` (`eslint .`) | ✅ 通过                                                                                                        |
+| `npm run test` (Vitest)     | ✅ 通过，**53 files / 337 tests**（阶段 3 后净增 38：Phase A 20 + Phase B 18）                                          |
+| `npm run build`             | ✅ 通过（16 个静态页 + 28 个动态路由；新增 `/admin/users`、`/models/embeddings` 及对应 API）                                     |
+| `tests/e2e/` (Playwright)   | ✅ 3 spec（onboarding / editor-failure / editor-candidate），**已进 CI**                                          |
+| coverage（v8）                | 🟡 已生成报告，未做 CI 门禁                                                                                            |
 
 `.github/workflows/ci.yml` 现有两个 job：`verify`（lint/typecheck/test/build）+ `e2e`（pgvector postgres + LLM_MOCK + playwright + 失败上传 trace）。
 
-> 阶段 1-3 累计 migration：
+> 累计 migration（19 条），关键的近期 5 条：
 > - `20260510050000_add_chapter_target_words` — `ChapterDraft.target_words`
 > - `20260510060000_llm_usage_took_ms` — `LlmUsage.took_ms` + `(novel_id, created_at)` 复合索引
 > - `20260510070000_add_chapter_version` — `ChapterDraft.version`（乐观锁计数器，M3.6）
+> - `20260510080000_add_user_roles` — `UserRole(user_id, role)` 复合主键（Phase A）
+> - `20260511010000_add_embedding_models` — `EmbeddingModel` 表 + `(provider, model)` 唯一约束（Phase B）
 >
-> 上线前需要 `npx prisma migrate deploy`。
+> 上线前需要 `npx prisma migrate deploy`。Phase A 还需在 env 里加 `SUPABASE_SERVICE_ROLE_KEY`（`/admin/users` 列用户必需）。
 
 ---
 
 ## 二、模块完成度
 
-| 模块                | 状态 |    完成度 | 说明                                                                                     |
-|-------------------|----|-------:|----------------------------------------------------------------------------------------|
-| Onboarding 5 步开书  | ✅  | 80-88% | 闭环可用；跳过 / 中断恢复 / 重复 finalize 仍待打磨                                                      |
-| 多章节编辑器 MVP        | ✅  | 85-90% | 多章节、保存、AI 起草、删除、版本恢复 + diff、Critic、State Diff、retrieval 可视化、乐观锁、四格式导出已实现             |
-| 账号与 Ownership     | ✅  | 70-80% | Supabase Auth + middleware + 应用层 ownership；RLS 已禁用                                     |
-| LLM 基础设施          | ✅  | 78-85% | client / stream / mock / 加密 key / 用量 / 配额覆盖完整                                          |
-| 内容审核              | 🟡 | 70-78% | 关键词 + LLM + `MODERATION_FAILURE_MODE` 策略化；Bible 编辑路径仍缺                                 |
-| 长篇记忆 L1/L2        | 🟡 | 65-75% | Bible / Story State / 章节摘要 / 卷摘要 / 全书摘要 / state diff / 级联刷新已实现；dirty 检测仍粗              |
-| RAG / MemoryChunk | 🟡 | 65-75% | pgvector + HNSW + 混合检索已落地；M3.4 命中片段对用户可见；索引失败可观测性、召回评估未生产化                            |
-| 多 Agent 协作        | 🟡 | 55-65% | Writer / Critic / StateUpdater / Outline(BeatSheet) / Retrieval 都有；Outline UI 未接，自动回炉无 |
-| 工程验证              | ✅  | 80-85% | lint/typecheck/test/build 都过                                                           |
-| CI/CD             | 🟡 | 65-75% | 基础 verify 已接；E2E + coverage 仍未入门禁                                                      |
-| 产品化能力             | 🟡 | 65-75% | 候选稿、项目层信息架构、Dashboard、生成历史、版本恢复 + diff、四格式导出（md/txt/docx/epub）、retrieval 命中可视化、UI 降噪、乐观锁均已落地；导出仍是菜单非独立中心，dirty 标脏未做 |
+| 模块                    | 状态 |    完成度 | 说明                                                                                     |
+|-----------------------|----|-------:|----------------------------------------------------------------------------------------|
+| Onboarding 5 步开书      | ✅  | 80-88% | 闭环可用；跳过 / 中断恢复 / 重复 finalize 仍待打磨                                                      |
+| 多章节编辑器 MVP            | ✅  | 85-90% | 多章节、保存、AI 起草、删除、版本恢复 + diff、Critic、State Diff、retrieval 可视化、乐观锁、四格式导出已实现             |
+| 账号与 Ownership         | ✅  | 70-80% | Supabase Auth + middleware + 应用层 ownership；RLS 已禁用                                     |
+| **DB-驱动权限**           | ✅  | 80-85% | **Phase A（2026-05-10）**：`user_roles` 多对多表 + `/admin/users` 页 + grant/revoke API；env allowlist 永久兜底 |
+| LLM 基础设施              | ✅  | 78-85% | client / stream / mock / 加密 key / 用量 / 配额覆盖完整                                          |
+| **Embedding 基础设施**    | ✅  | 80-85% | **Phase B（2026-05-11）**：`embedding_models` 表 + `/models/embeddings` 页 + DB→env fallback；维度严格 1024 |
+| 内容审核                  | 🟡 | 70-78% | 关键词 + LLM + `MODERATION_FAILURE_MODE` 策略化；Bible 编辑路径仍缺                                 |
+| 长篇记忆 L1/L2            | 🟡 | 65-75% | Bible / Story State / 章节摘要 / 卷摘要 / 全书摘要 / state diff / 级联刷新已实现；dirty 检测仍粗              |
+| RAG / MemoryChunk     | 🟡 | 65-75% | pgvector + HNSW + 混合检索已落地；M3.4 命中片段对用户可见；索引失败可观测性、召回评估未生产化                            |
+| 多 Agent 协作            | 🟡 | 55-65% | Writer / Critic / StateUpdater / Outline(BeatSheet) / Retrieval 都有；Outline UI 已接，自动回炉无 |
+| 工程验证                  | ✅  | 80-85% | lint/typecheck/test/build 都过                                                           |
+| CI/CD                 | 🟡 | 65-75% | 基础 verify 已接；E2E + coverage 仍未入门禁                                                      |
+| 产品化能力                 | 🟡 | 70-80% | 候选稿、项目层信息架构、Dashboard、生成历史、版本恢复 + diff、四格式导出、retrieval 命中可视化、UI 降噪 + 设计刷新、乐观锁均已落地；导出仍是菜单非独立中心，dirty 标脏未做 |
+| **UI 设计语言**           | ✅  | 85-90% | **2026-05-11 一次性刷新**：tokens（颜色 / 阴影 / 字体节奏）+ 6 大页面层级（auth / onboarding / workspace / 详情 / 编辑器）一致采用；新增 SectionCard / StatCard 原语 |
 
 ---
 
@@ -95,23 +100,62 @@
 - **UI 降噪（M3.5）**：编辑界面减去 26 行装饰性 chrome —— 标题上方的 `Unit XX · Manuscript Draft` chip 行去掉、placeholder 由"在此处镌刻章节标题..."改为"章节标题"、"正在创作" eyebrow 删除、StatusTag 闲时不渲染、pendingStateDiff 收成琥珀小圆点图标、画布底部"云端同步协议已激活"+ 重复字数行整段移除、CandidatePanel 检索块绿色降为中性 secondary；候选稿"sim"前缀去掉只留数字。
 - **章节乐观锁（M3.6）**：`ChapterDraft.version Int @default(0)` 计数器，PATCH 与 restore 都自增；`UpdateChapterDraftRequestSchema` 新增 `expected_version`，不匹配时返回 `409 CHAPTER_VERSION_CONFLICT` 并把最新行同时回吐；`useChapterEditor` 维护 `chapterVersion`，autosave / manual / ai / target_words 四条 PATCH 路径全部带 expected_version；命中 409 后存 `conflictChapter`，编辑器在工具栏下方渲染琥珀色冲突横幅（"加载最新" / "暂不处理"），本地正文保留以便复制。候选稿应用前的快照保存改走 `persistChapter("manual")` 避免与紧随的 ai PATCH 自我冲突。
 
+### Phase A — DB-驱动权限（2026-05-10）
+
+> 决策记录：`docs/phases/PHASE-A-PERMISSIONS-CONTEXT.md`
+
+- **`UserRole` 多对多表**：`(user_id, role)` 复合主键 + `granted_by` + `created_at`；`role` 是字符串字段，Phase A 只填 `'admin'`，后续 phase 加 `'embedding_admin'` 等不动 schema。
+- **`checkAdmin()` 改为 DB-then-env**：`lib/auth/admin.ts:36-48` 先查 `user_roles`，未命中或 DB 抛错时 fallback 到 `ADMIN_USER_IDS` / `ADMIN_EMAILS` env。env 永久兜底，应对 DB 删空 / 最后一个 admin 误删的死锁场景。
+- **`/admin/users` 管理页**：列出 supabase auth.users + 当前 roles + grant/revoke 按钮；403 网关页风格与 `/models` 一致。
+- **REST API（admin-only）**：`GET /api/admin/users` 列表（含 roles）、`POST /api/admin/users/:id/roles` 授权、`DELETE /api/admin/users/:id/roles/:role` 收回。Role allowlist 当前只接受 `'admin'`。
+- **Service-role Supabase client**：`lib/supabase/admin.ts` 单例，封装 `SUPABASE_SERVICE_ROLE_KEY`；服务器端独占，永不暴露给浏览器。
+- **零自我保护护栏**：admin 可以撤回自己 / 删到 0 个 admin（依赖 env fallback 兑底）。无 `role_changes` 审计表（个人项目当前不需要）。
+
+### Phase B — Embedding 配置入 UI（2026-05-11）
+
+> 决策记录：`docs/phases/PHASE-B-EMBEDDINGS-CONTEXT.md`
+
+- **`EmbeddingModel` 表**：与 `LlmModel` 平行字段集 + 新增 `dim Int` 字段（默认 1024）。`(provider, model)` 唯一约束。
+- **维度严格 1024**：`lib/validation/embeddingModel.ts` 的 zod schema 拒绝 dim ≠ 1024，提示 "需要单独迁移脚本"。原因：`MemoryChunk.embedding` 是 `vector(1024)`，混维度会让旧 chunk 失效。换其他维度的迁移流程留 backlog。
+- **`createEmbeddings` 改为 DB-then-env**：`lib/llm/embeddings.ts` 先查 `is_default=true && is_enabled=true` 的行（解密 api_key 后用），未命中或 DB 抛错时 fallback 到 `EDGEFN_API_KEY` / `EDGEFN_BASE_URL` env。两个 caller（`lib/agent/chunking.ts` 写入、`lib/agent/retrieval.ts` 读取）签名不变。
+- **多配置 + 全局唯一 default**：与 LlmModel 相似的 `is_default + is_enabled` 模式，但 `is_default=true` 时 unset 所有其他行（不分 provider），因为 runtime 只挑一个 default。
+- **`/models/embeddings` 独立页**：自带"Chat 节点"返回链接。Tab 整合到 `/models` 是 backlog（避免与未提交 UI 改动冲突，决策见 PHASE-B-EMBEDDINGS-CONTEXT §B-D-05）。
+- **REST API（admin-only）**：`GET/POST /api/embedding-models`、`PATCH/DELETE /api/embedding-models/:id`。AES-256-GCM 加密 + SSRF 防护 与 LlmModel 共用 helper。
+- **沿用 admin role**：不引入 `embedding_admin`（schema 已支持，未来加 guard 时一行）。
+
+### UI 设计刷新（2026-05-11）
+
+- 一次性切换设计 token：indigo 主色提亮（`#4f46e5` → `#6366f1`）、阴影柔化、纸感背景升级、文本灰阶（`text-muted` / `text-dim`）拉开层次。
+- `PageHeader` API 调整：`breadcrumb` 由 `ReactNode` 改为 `{label, href?}[]`；移除装饰性下边线条。
+- 新增 `SectionCard` / `StatCard` UI 原语（Dashboard 风格布局复用）。
+- 6 个页面层级一致采用：auth/landing/profile · onboarding wizard · workspace shell（dashboard / 我的书架 / 模型配置）· novel detail（含 6 个子页）· editor（client + sidebar + toolbar + AIPanel）· shared primitives。
+
 ### API（统一 jsonOk / jsonError 响应）
+
+#### 内容创作
 - `GET /api/novels` `/api/novels/:id`
 - `POST /api/novels/:id/chapters`、`PATCH/DELETE /api/chapters/:id`
 - `POST /api/novels/:id/chapters/draft`（SSE）
-- `POST /api/novels/:id/chapters/critic`、`/outline`（Beat Sheet API 已存在但 UI 未接）
+- `POST /api/novels/:id/chapters/critic`、`/outline`（Beat Sheet）
 - `POST /api/chapters/:id/state-diff`、`/summarize`、`/index`
-- `GET /api/chapters/:id/versions`、**`POST /api/chapters/:id/versions/:versionId/restore`**（M3.2）
-- `POST /api/novels/:id/consistency`、`/summaries/refresh`、`/export`（支持 markdown / txt / docx / epub，M3.3）、`/jobs`
+- `GET /api/chapters/:id/versions`、`POST /api/chapters/:id/versions/:versionId/restore`（M3.2）
+- `POST /api/novels/:id/consistency`、`/summaries/refresh`、`/export`（md / txt / docx / epub，M3.3）、`/jobs`
 
-### 安全 / 成本（S-01 ~ S-07，全部完成）
+#### 配置与权限（admin-only）
+- `GET/POST /api/llm-models`、`PATCH/DELETE /api/llm-models/:id`
+- `GET/POST /api/embedding-models`、`PATCH/DELETE /api/embedding-models/:id`（**Phase B**）
+- `GET /api/admin/users`、`POST /api/admin/users/:id/roles`、`DELETE /api/admin/users/:id/roles/:role`（**Phase A**）
+- `GET /api/healthz/llm`
+
+### 安全 / 成本（S-01 ~ S-07，全部完成；Phase A 加固）
 - `/api/healthz` 公开 + `/api/healthz/llm` admin-only
-- AES-256-GCM 加密 LLM api_key + 脱敏返回
-- LLM 模型 SSRF 防护（URL/scheme/私网 IP）
+- AES-256-GCM 加密 LLM api_key + 脱敏返回；EmbeddingModel 沿用同一加密链路
+- LLM / Embedding 模型 SSRF 防护（URL/scheme/私网 IP）共享 `validateLlmBaseUrl`
 - RateLimiter 接口抽象（memory + Redis 占位），扩面 critic/state-diff/healthz_llm
 - `MODERATION_FAILURE_MODE`、`QUOTA_FAILURE_MODE` 生产默认 block
 - `canAccessOwnerResource` 默认拒绝空 owner，独立 `canClaimAnonymousResource`
 - novels/route、summaries/refresh 负向测试覆盖 401/404
+- **DB-驱动 admin 权限**：`user_roles` + env 永久 fallback（Phase A）
 
 ### 工程基线（Q-01 ~ Q-10）
 - `.dockerignore`、Docker/Compose 生产边界标注
@@ -156,11 +200,23 @@
 | ~~P2-5~~ | ~~UI 文案降噪 + 状态四态统一~~                  | ✅ M3.5 完成（编辑界面 26 行装饰性 chrome 移除；状态四态统一组件复用情况未审计） | TASKS P-08 / ROADMAP M3.4    |
 | ~~P2-6~~ | ~~多人协作前置（章节乐观锁）~~                    | ✅ M3.6 完成（version 列 + 409 + 加载最新横幅） | ROADMAP M3.5                 |
 
+### P3 — 阶段 3 之后追加（已完成）
+
+| 编号    | 任务                                                | 状态                           | 来源                                |
+|-------|---------------------------------------------------|------------------------------|-----------------------------------|
+| ~~P3-A~~ | ~~DB-驱动 admin 权限（`user_roles` + `/admin/users`）~~ | ✅ Phase A 完成（2026-05-10）     | `docs/phases/PHASE-A-PERMISSIONS-CONTEXT.md` |
+| ~~P3-B~~ | ~~Embedding 配置入 UI + DB→env fallback~~           | ✅ Phase B 完成（2026-05-11）     | `docs/phases/PHASE-B-EMBEDDINGS-CONTEXT.md`  |
+| ~~P3-UI~~ | ~~设计语言刷新（tokens + 6 大页面层级）~~                  | ✅ 2026-05-11 完成              | commit `6610943` 起 6 个原子 refactor commit |
+
 ### 其他遗留小项
 - B2 — i18n 已装但 locale 锁死 zh：删除假 i18n 或补完整路由（暂缓）
 - UX3 — SSE 中断不可续传（暂缓）
 - onboarding/sessions ownership 负向测试补齐
 - coverage 入 CI 门禁（当前已生成报告但未强制）
+- **Tab 整合 `/models` 与 `/models/embeddings`**（Phase B 决策 §B-D-05 推迟）：`app/(app)/models/page.tsx` 加 `<Link href="/models/embeddings">Embedding 节点</Link>` 即可
+- **候选稿 vs 正文 diff**（M3.2 backlog）：DiffView 已就绪可复用，candidate panel 加切换即可
+- **独立导出中心页 `/novels/[id]/export`**（M3.3 backlog）：当前由 `ExportMenu` 承载
+- **编辑器字号切换**（M3.4.4 backlog）：3 档字号供长时间阅读
 
 ### 暂缓（3 个月内不做）
 F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关系图 / F-05 Prompt Cache 多模型 Router / F-06 计费支付
@@ -169,6 +225,7 @@ F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关
 
 ## 五、关键文件索引
 
+### 内容创作
 | 文件                                                | 用途                                |
 |---------------------------------------------------|-----------------------------------|
 | `app/(app)/new/**`                                | Onboarding 5 步 Wizard             |
@@ -177,23 +234,50 @@ F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关
 | `app/(app)/editor/[novelId]/BibleEditorPanel.tsx` | 角色/世界/大纲编辑（待拆为独立页面）               |
 | `app/api/novels/[id]/route.ts`                    | 获取 Novel + Bible + chapters       |
 | `app/api/novels/[id]/chapters/draft/route.ts`     | 章节 SSE 起草                         |
-| `app/api/novels/[id]/chapters/outline/route.ts`   | Beat Sheet 生成（**API 存在，UI 未接**）   |
+| `app/api/novels/[id]/chapters/outline/route.ts`   | Beat Sheet 生成                     |
 | `app/api/chapters/[id]/route.ts`                  | 章节更新 + 版本快照 + pruning + 乐观锁 409（事务化）   |
 | `app/api/chapters/[id]/versions/route.ts`         | 版本列表                                  |
 | `app/api/chapters/[id]/versions/[versionId]/restore/route.ts` | 版本恢复（M3.2，事务内先快照当前再覆盖 + 自增 version） |
 | `app/api/novels/[id]/jobs/route.ts`               | 后台任务入队 + 状态                       |
+
+### Agent / 记忆
+| 文件                                                | 用途                                |
+|---------------------------------------------------|-----------------------------------|
 | `lib/agent/chapterContext.ts`                     | 章节上下文编排                           |
 | `lib/agent/summaries.ts`                          | 分层摘要刷新                            |
 | `lib/agent/retrieval.ts`                          | RAG 检索（pgvector）                  |
-| `lib/export/formatNovel.ts`                       | 四格式导出（markdown / txt / docx / epub，M3.3） |
-| `components/ui/DiffView.tsx`                      | 行级 diff 渲染（M3.2，VersionsModal 引用）     |
-| `lib/jobs/queue.ts` + `handlers.ts`               | 后台任务队列                            |
+| `lib/agent/chunking.ts`                           | chunk 切分 + 写入 embedding           |
 | `lib/llm/client.ts`                               | DeepSeek 客户端 + 加密 key             |
+| `lib/llm/embeddings.ts`                           | **Phase B**：embedding 客户端，DB-first + EDGEFN env fallback |
 | `lib/llm/usage.ts` + `generationPolicy.ts`        | 用量配额 + profile→prompt 映射          |
+
+### 权限 / 配置（admin-only）
+| 文件                                                | 用途                                |
+|---------------------------------------------------|-----------------------------------|
+| `lib/auth/admin.ts`                               | **Phase A**：`checkAdmin` DB-then-env，`adminGuardResponse` 通用 gate |
 | `lib/auth/ownership.ts`                           | 资源归属校验（应用层唯一隔离）                   |
 | `lib/auth/rateLimit.ts`                           | RateLimiter 接口（memory + Redis 占位） |
+| `lib/supabase/admin.ts`                           | **Phase A**：service-role client，封装 `SUPABASE_SERVICE_ROLE_KEY` |
+| `lib/validation/llmModel.ts`                      | LLM 配置 zod + SSRF guard            |
+| `lib/validation/embeddingModel.ts`                | **Phase B**：Embedding zod，dim 严格 1024 |
+| `lib/validation/userRole.ts`                      | **Phase A**：role allowlist（当前只 `'admin'`） |
+| `app/(app)/admin/users/page.tsx`                  | **Phase A**：用户与权限页                  |
+| `app/(app)/models/page.tsx`                       | LLM 模型配置页                          |
+| `app/(app)/models/embeddings/page.tsx`            | **Phase B**：Embedding 模型配置页         |
+| `app/api/admin/users/**`                          | **Phase A**：list / grant / revoke   |
+| `app/api/llm-models/**` + `app/api/embedding-models/**` | 模型配置 REST                       |
 | `lib/moderation/moderate.ts`                      | 内容审核 + `MODERATION_FAILURE_MODE`  |
-| `prisma/schema.prisma`                            | 数据模型                              |
+
+### 共享 UI / 数据
+| 文件                                                | 用途                                |
+|---------------------------------------------------|-----------------------------------|
+| `lib/export/formatNovel.ts`                       | 四格式导出（markdown / txt / docx / epub，M3.3） |
+| `components/ui/DiffView.tsx`                      | 行级 diff 渲染（M3.2，VersionsModal 引用）     |
+| `components/ui/PageHeader.tsx`                    | 页面标题（UI 刷新后 breadcrumb API 改为对象数组） |
+| `components/ui/SectionCard.tsx` / `StatCard.tsx`  | 设计刷新新增的卡片原语                        |
+| `lib/jobs/queue.ts` + `handlers.ts`               | 后台任务队列                            |
+| `lib/http/json.ts`                                | jsonOk / jsonError 统一响应           |
+| `prisma/schema.prisma`                            | 数据模型（含 `LlmModel` / `EmbeddingModel` / `UserRole`） |
 
 ---
 
@@ -229,8 +313,9 @@ LLM_MOCK=1 npm run smoke:onboarding  # 终端 2
 |--------------------------------|-------------------|
 | `README.md`                    | 项目入口、启动方式         |
 | `docs/STATUS.md`               | **本文件**：当前状态唯一来源  |
-| `docs/ROADMAP_2_4_8_WEEKS.md`  | 2/4/8 周战略路线       |
+| `docs/ROADMAP_2_4_8_WEEKS.md`  | 2/4/8 周战略路线（阶段 1-3） |
 | `docs/IMPLEMENTATION_TASKS.md` | 路线图的页面/接口级任务单     |
 | `docs/contracts.md`            | API / Schema 契约参考 |
+| `docs/phases/`                 | 阶段 3 之后的 phase 决策记录（PHASE-A、PHASE-B…） |
 | `design.md`                    | 设计目标参考（不是实现状态）    |
 | `docs/archive/**`              | 已归档的历史规划/设计稿      |
