@@ -164,7 +164,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
                 <div className="text-[13px] text-amber-900 leading-relaxed min-w-0 flex-1">
                   <p className="font-bold mb-0.5">章节已被另一处修改</p>
                   <p className="text-amber-800/90">
-                    服务器上的版本比你这里新。继续保存会被拒绝；点击"加载最新"会用服务器内容
+                    服务器上的版本比你这里新。继续保存会被拒绝；点击「加载最新」会用服务器内容
                     覆盖当前正文（建议先复制需要保留的片段）。
                   </p>
                 </div>

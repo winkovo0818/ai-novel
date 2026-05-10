@@ -53,9 +53,11 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     // Optimistic lock: when the client tells us which version it last saw and
     // it no longer matches, refuse the write and hand back the current row so
-    // the editor can show a conflict banner with "load latest" / diff.
+    // the editor can show a conflict banner with "load latest" / diff. Strip
+    // the joined novel before returning so we don't leak owner ids.
     if (expected_version !== undefined && expected_version !== existing.version) {
-      const { novel: _novel, ...latest } = existing;
+      const { novel: _omit, ...latest } = existing;
+      void _omit;
       return Response.json(
         {
           ok: false,
