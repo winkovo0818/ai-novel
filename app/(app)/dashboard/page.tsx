@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getRequiredUserId } from "@/utils/supabase/auth";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { StatCard } from "@/components/ui/StatCard";
+import { SectionCard } from "@/components/ui/SectionCard";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +17,6 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // One round-trip per data box, all in parallel — keeps p95 under a single
-  // pool RTT.
   const userNovelIds = await prisma.novel
     .findMany({ where: { user_id: userId }, select: { id: true } })
     .then((rows) => rows.map((r) => r.id));
@@ -36,7 +36,7 @@ export default async function DashboardPage() {
     prisma.llmUsage.findMany({
       where: { user_id: userId },
       orderBy: { created_at: "desc" },
-      take: 5,
+      take: 8,
     }),
     userNovelIds.length === 0
       ? Promise.resolve([])
@@ -55,16 +55,14 @@ export default async function DashboardPage() {
     }),
   ]);
 
-  // Recently edited: top 3 novels with most-recent chapter updated_at.
   const recentNovels = [...novels]
     .map((n) => ({
       ...n,
       lastEdit: n.chapters[0]?.updated_at ?? n.created_at,
     }))
     .sort((a, b) => b.lastEdit.getTime() - a.lastEdit.getTime())
-    .slice(0, 3);
+    .slice(0, 4);
 
-  // Chapters waiting to be drafted or finished — across the user's library.
   const pendingChapters = novels
     .flatMap((n) =>
       n.chapters
@@ -85,175 +83,242 @@ export default async function DashboardPage() {
   const monthlyTokens = (monthlyUsage._sum.token_in ?? 0) + (monthlyUsage._sum.token_out ?? 0);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-secondary/20 custom-scrollbar">
-      <div className="p-8 md:p-12 lg:p-16 max-w-6xl mx-auto min-h-full pb-12">
+    <div className="flex-1 overflow-y-auto bg-secondary/30 custom-scrollbar">
+      <div className="p-8 md:p-12 lg:p-16 max-w-7xl mx-auto min-h-full pb-24">
         <PageHeader
-          title="工作台"
-          description={
-            novels.length === 0
-              ? "你还没有作品。从书架新建一个项目开始。"
-              : `${novels.length} 个作品 · 本月调用 ${monthlyUsage._count} 次 · 累计 ¥${monthlyCost.toFixed(2)}`
-          }
+          title="创作工作台"
+          description="欢迎回来。在这里查看您的创作进度、AI 调用统计以及待办任务。"
           actions={
-            <Link href="/new" className="btn-primary gap-2">
+            <Link href="/new" className="btn-primary gap-2 px-6">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              新建作品
+              新建文学作品
             </Link>
           }
         />
 
-        {/* Next step suggestion */}
-        {suggestion && (
-          <section className="mt-10">
-            <Link
-              href={suggestion.href}
-              className="card bg-primary text-white border-primary flex items-center justify-between gap-6 hover:bg-primary/90 transition-colors"
-            >
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-80 mb-1">
-                  下一步建议
-                </p>
-                <h3 className="text-lg font-serif font-bold">{suggestion.title}</h3>
-                <p className="text-[13px] opacity-90 mt-1">{suggestion.detail}</p>
-              </div>
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
-            </Link>
-          </section>
-        )}
-
-        {/* Two-column layout */}
-        <div className="mt-10 grid gap-6 md:grid-cols-2">
-          {/* Recent novels */}
-          <section className="card bg-white">
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted mb-4">
-              最近编辑
-            </h3>
-            {recentNovels.length === 0 ? (
-              <p className="text-sm text-text-muted">还没有作品</p>
+        {/* Suggestion & Quick Stats */}
+        <div className="mt-12 grid gap-6 lg:grid-cols-4">
+          <div className="lg:col-span-2">
+            {suggestion ? (
+              <Link
+                href={suggestion.href}
+                className="card bg-text-primary text-white border-text-primary flex items-center justify-between gap-8 h-full group hover:shadow-premium transition-all duration-300"
+              >
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60 mb-2">
+                    智能下一步建议
+                  </p>
+                  <h3 className="text-xl font-serif font-bold group-hover:translate-x-1 transition-transform">{suggestion.title}</h3>
+                  <p className="text-sm opacity-70 mt-2 leading-relaxed">{suggestion.detail}</p>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition-colors">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </div>
+              </Link>
             ) : (
-              <ul className="space-y-3">
-                {recentNovels.map((n) => (
-                  <li key={n.id}>
+              <div className="card bg-white h-full flex flex-col justify-center">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-dim mb-2">
+                  当前状态
+                </p>
+                <h3 className="text-xl font-serif font-bold text-text-primary">渐入佳境</h3>
+                <p className="text-sm text-text-muted mt-2">所有的创作任务都已处理完成，准备开启新的篇章吗？</p>
+              </div>
+            )}
+          </div>
+
+          <StatCard
+            label="本月 AI 调用"
+            value={monthlyUsage._count}
+            subValue={`消耗 ${monthlyTokens.toLocaleString()} tokens`}
+            icon={
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            }
+          />
+          
+          <StatCard
+            label="累计预估费用"
+            value={`¥${monthlyCost.toFixed(2)}`}
+            subValue="按当前模型费率计算"
+            icon={
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            }
+          />
+        </div>
+
+        {/* Main Sections */}
+        <div className="mt-8 grid gap-8 lg:grid-cols-3">
+          {/* Left Column: Projects & Chapters */}
+          <div className="lg:col-span-2 flex flex-col gap-8">
+            <SectionCard 
+              title="最近编辑的作品" 
+              subtitle="您最近活跃的文学项目"
+              actions={
+                <Link href="/novels" className="text-[11px] font-bold text-primary hover:underline uppercase tracking-wider">
+                  查看全部
+                </Link>
+              }
+            >
+              {recentNovels.length === 0 ? (
+                <div className="py-12 text-center bg-secondary/20 rounded-2xl border border-dashed border-border-strong">
+                  <p className="text-sm text-text-dim">还没有作品。点击上方「新建」开始创作。</p>
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {recentNovels.map((n) => (
                     <Link
+                      key={n.id}
                       href={`/novels/${n.id}`}
-                      className="block hover:bg-secondary rounded-md px-3 py-2 -mx-3"
+                      className="group p-5 rounded-2xl border border-border-subtle hover:border-border-strong hover:bg-secondary/50 transition-all"
                     >
-                      <p className="text-sm font-bold text-text-primary truncate">{n.title}</p>
-                      <p className="text-[11px] text-text-muted mt-0.5">
-                        {n.chapters.filter((c) => c.status === "done").length} / {n.chapters.length} 章完成
-                        {" · "}
-                        {n.lastEdit.toLocaleDateString("zh-CN")}
+                      <p className="text-base font-bold text-text-primary truncate group-hover:text-primary transition-colors">{n.title}</p>
+                      <div className="flex items-center gap-3 mt-3">
+                        <div className="flex-1 h-1 bg-border-subtle rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-primary" 
+                            style={{ width: `${n.chapters.length > 0 ? (n.chapters.filter(c => c.status === 'done').length / n.chapters.length) * 100 : 0}%` }}
+                          />
+                        </div>
+                        <span className="text-[11px] font-bold text-text-muted">
+                          {n.chapters.filter((c) => c.status === "done").length}/{n.chapters.length}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-text-dim mt-4 uppercase tracking-wider">
+                        最后编辑：{n.lastEdit.toLocaleDateString("zh-CN")}
                       </p>
                     </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
 
-          {/* Pending chapters */}
-          <section className="card bg-white">
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted mb-4">
-              待继续的章节
-            </h3>
-            {pendingChapters.length === 0 ? (
-              <p className="text-sm text-text-muted">所有已起草章节都已完成</p>
-            ) : (
-              <ul className="space-y-2">
-                {pendingChapters.map((c) => (
-                  <li key={c.id}>
-                    <Link
-                      href={`/editor/${c.novel_id}?chapter=${c.chapter_index}`}
-                      className="flex items-center justify-between gap-3 hover:bg-secondary rounded-md px-3 py-2 -mx-3"
-                    >
-                      <span className="text-sm text-text-primary truncate">
-                        <span className="text-text-muted">第 {c.chapter_index} 章 · </span>
-                        {c.title}
-                      </span>
-                      <span className="text-[10px] text-text-muted whitespace-nowrap">
-                        {c.novel_title.slice(0, 8)}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+            <SectionCard 
+              title="待继续的章节" 
+              subtitle="从上次停下的地方继续"
+            >
+              {pendingChapters.length === 0 ? (
+                <div className="py-8 text-center bg-secondary/10 rounded-xl border border-border-subtle">
+                  <p className="text-sm text-text-muted italic">所有已创建章节均已完成，干得漂亮！</p>
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-xl border border-border-subtle">
+                  <table className="w-full text-left text-sm border-collapse">
+                    <thead>
+                      <tr className="bg-secondary/50 text-[11px] font-bold text-text-dim uppercase tracking-wider">
+                        <th className="px-5 py-3 border-b border-border-subtle">章节名称</th>
+                        <th className="px-5 py-3 border-b border-border-subtle">所属作品</th>
+                        <th className="px-5 py-3 border-b border-border-subtle">最后更新</th>
+                        <th className="px-5 py-3 border-b border-border-subtle"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-subtle">
+                      {pendingChapters.map((c) => (
+                        <tr key={c.id} className="hover:bg-secondary/30 transition-colors group">
+                          <td className="px-5 py-4">
+                             <div className="flex flex-col">
+                               <span className="font-bold text-text-primary group-hover:text-primary transition-colors">
+                                 第 {c.chapter_index} 章 · {c.title}
+                               </span>
+                               <span className="text-[10px] font-medium text-amber-600 uppercase tracking-tighter mt-0.5">
+                                 {c.status === 'draft' ? '草稿中' : '起草中'}
+                               </span>
+                             </div>
+                          </td>
+                          <td className="px-5 py-4 text-text-secondary font-medium">
+                            {c.novel_title}
+                          </td>
+                          <td className="px-5 py-4 text-text-dim text-xs font-medium">
+                            {c.updated_at.toLocaleDateString("zh-CN")}
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            <Link
+                              href={`/editor/${c.novel_id}?chapter=${c.chapter_index}`}
+                              className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-border-strong text-text-muted hover:border-primary hover:text-primary hover:bg-white transition-all"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                              </svg>
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </SectionCard>
+          </div>
 
-          {/* Recent generations */}
-          <section className="card bg-white">
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted mb-4">
-              最近 AI 调用
-            </h3>
-            {generations.length === 0 ? (
-              <p className="text-sm text-text-muted">还没有 AI 调用记录</p>
-            ) : (
-              <ul className="space-y-2">
-                {generations.map((g) => (
-                  <li key={g.id} className="flex items-center justify-between text-[12px]">
-                    <span className="flex items-center gap-2 min-w-0">
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full ${
-                          g.status === "ok" ? "bg-emerald-500" : "bg-red-500"
-                        }`}
-                      />
-                      <span className="text-text-secondary truncate">{g.agent ?? "unknown"}</span>
-                    </span>
-                    <span className="text-text-muted whitespace-nowrap">
-                      {g.took_ms != null ? `${(g.took_ms / 1000).toFixed(1)}s` : "—"}
-                      {" · "}¥{g.cost_cny.toFixed(4)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          {/* Right Column: AI Activity & System Health */}
+          <div className="flex flex-col gap-8">
+            <SectionCard title="AI 活动记录" subtitle="最近的智能写作调用">
+              {generations.length === 0 ? (
+                <p className="text-sm text-text-dim italic">还没有 AI 调用记录</p>
+              ) : (
+                <div className="space-y-4">
+                  {generations.map((g) => (
+                    <div key={g.id} className="flex items-center justify-between p-3 rounded-xl bg-secondary/30 border border-border-subtle/50">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`h-2 w-2 rounded-full shrink-0 ${g.status === "ok" ? "bg-emerald-500" : "bg-red-500"}`} />
+                        <span className="text-[13px] font-bold text-text-secondary truncate">{g.agent ?? "AI Assistant"}</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-[11px] font-bold text-text-primary">¥{g.cost_cny.toFixed(4)}</p>
+                        <p className="text-[10px] text-text-dim mt-0.5">{g.took_ms != null ? `${(g.took_ms / 1000).toFixed(1)}s` : "—"}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
 
-          {/* Usage + failed jobs */}
-          <section className="card bg-white">
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted mb-4">
-              本月用量与异常
-            </h3>
-            <dl className="grid grid-cols-2 gap-4 text-[13px]">
-              <div>
-                <dt className="text-[10px] uppercase tracking-wider text-text-muted">调用次数</dt>
-                <dd className="text-2xl font-serif font-bold text-text-primary mt-1">
-                  {monthlyUsage._count}
-                </dd>
+            <SectionCard title="异常与任务" subtitle="后台任务运行状态">
+              <div className="space-y-6">
+                 <div>
+                   <dt className="text-[10px] font-bold uppercase tracking-wider text-text-dim mb-3">失败的记忆任务</dt>
+                   <dd className={`flex items-center justify-between p-4 rounded-2xl border ${ownedFailedJobs.length > 0 ? 'bg-red-50 border-red-100 text-red-600' : 'bg-emerald-50/30 border-emerald-100 text-emerald-600'}`}>
+                      <span className="text-sm font-bold">{ownedFailedJobs.length} 个异常</span>
+                      {ownedFailedJobs.length > 0 && (
+                        <div className="h-6 w-6 rounded-full bg-red-100 flex items-center justify-center">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                        </div>
+                      )}
+                   </dd>
+                 </div>
+
+                 {ownedFailedJobs.length > 0 && (
+                   <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100">
+                     <p className="text-[11px] text-amber-700 leading-relaxed font-medium">
+                        提示：进入作品后在编辑器顶部点击红色徽章可查看详情并重试失败的任务。
+                     </p>
+                   </div>
+                 )}
+
+                 <div className="pt-4 border-t border-border-subtle">
+                   <div className="flex items-center justify-between mb-2">
+                     <span className="text-[11px] font-bold text-text-dim uppercase tracking-wider">系统可用性</span>
+                     <span className="text-[10px] font-bold text-emerald-500 uppercase">100% Online</span>
+                   </div>
+                   <div className="flex gap-1">
+                     {Array.from({ length: 24 }).map((_, i) => (
+                       <div key={i} className="h-4 flex-1 rounded-sm bg-emerald-500/20 group relative">
+                          <div className="absolute inset-0 bg-emerald-500 scale-y-75 opacity-80 rounded-sm" />
+                       </div>
+                     ))}
+                   </div>
+                 </div>
               </div>
-              <div>
-                <dt className="text-[10px] uppercase tracking-wider text-text-muted">累计费用</dt>
-                <dd className="text-2xl font-serif font-bold text-text-primary mt-1">
-                  ¥{monthlyCost.toFixed(2)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[10px] uppercase tracking-wider text-text-muted">Token</dt>
-                <dd className="text-sm text-text-secondary mt-1">
-                  {monthlyTokens.toLocaleString()}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[10px] uppercase tracking-wider text-text-muted">失败任务</dt>
-                <dd
-                  className={`text-sm mt-1 ${
-                    ownedFailedJobs.length > 0 ? "text-red-600 font-bold" : "text-text-secondary"
-                  }`}
-                >
-                  {ownedFailedJobs.length}
-                </dd>
-              </div>
-            </dl>
-            {ownedFailedJobs.length > 0 && (
-              <p className="mt-4 text-[11px] text-text-muted">
-                进入项目后在编辑器顶部点击红色徽章可查看与重试
-              </p>
-            )}
-          </section>
+            </SectionCard>
+          </div>
         </div>
       </div>
     </div>
@@ -270,23 +335,23 @@ interface SuggestionInput {
 function nextStepSuggestion(input: SuggestionInput): { title: string; detail: string; href: string } | null {
   if (input.novels === 0) {
     return {
-      title: "创建第一本书",
-      detail: "5 步向导带你从灵感到完整 Bible 草稿",
+      title: "开启您的首个创作项目",
+      detail: "通过我们的智能向导，从一个灵感片段开始，在 5 分钟内构建出完整的作品设定集。",
       href: "/new",
     };
   }
   if (input.failedJobs > 0) {
     return {
-      title: `处理 ${input.failedJobs} 个失败的记忆任务`,
-      detail: "进入项目编辑器，在顶部点击红色徽章重试",
+      title: `处理 ${input.failedJobs} 个待修复的任务`,
+      detail: "检测到部分记忆同步任务由于网络原因失败。请进入编辑器进行手动重试以确保一致性。",
       href: input.recentNovel ? `/editor/${input.recentNovel.id}` : "/novels",
     };
   }
   if (input.pendingChapters > 0 && input.recentNovel) {
     return {
-      title: `继续编写《${input.recentNovel.title}》`,
-      detail: `还有 ${input.pendingChapters} 章在草稿状态`,
-      href: `/novels/${input.recentNovel.id}/chapters`,
+      title: `继续打磨《${input.recentNovel.title}》`,
+      detail: `您还有 ${input.pendingChapters} 个章节处于草稿阶段。继续编写，让故事走向高潮。`,
+      href: `/novels/${input.recentNovel.id}`,
     };
   }
   return null;
