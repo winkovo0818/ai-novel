@@ -24,7 +24,7 @@ interface HistoryClientProps {
   initialData: GenerationRow[];
   initialAgent: string;
   initialStatus: string;
-  breadcrumb: React.ReactNode;
+  breadcrumb: { label: string; href?: string }[];
 }
 
 const AGENT_FILTERS: Array<{ key: string; label: string }> = [

@@ -36,7 +36,7 @@ interface ChaptersClientProps {
   bibleTitle: string;
   volumes: VolumeBlock[];
   initialFilter: string;
-  breadcrumb: React.ReactNode;
+  breadcrumb: { label: string; href?: string }[];
 }
 
 const FILTERS: Array<{ key: Filter; label: string }> = [

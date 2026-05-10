@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/db";
@@ -67,15 +66,11 @@ export default async function GenerationHistoryPage({ params, searchParams }: Pa
       initialData={initialData}
       initialAgent={agent ?? "all"}
       initialStatus={status ?? "all"}
-      breadcrumb={
-        <span className="flex items-center gap-2">
-          <Link href={`/novels/${novel.id}`} className="hover:text-text-primary">
-            {bibleTitle}
-          </Link>
-          <span>·</span>
-          <span>生成历史</span>
-        </span>
-      }
+      breadcrumb={[
+        { label: "我的书架", href: "/novels" },
+        { label: bibleTitle, href: `/novels/${novel.id}` },
+        { label: "AI 调用历史" }
+      ]}
     />
   );
 }

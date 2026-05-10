@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/db";
@@ -76,15 +75,11 @@ export default async function ChaptersPage({ params, searchParams }: PageProps) 
       bibleTitle={bible.data.meta.suggested_title}
       volumes={volumeMeta}
       initialFilter={filter ?? "all"}
-      breadcrumb={
-        <span className="flex items-center gap-2">
-          <Link href={`/novels/${novel.id}`} className="hover:text-text-primary">
-            {bible.data.meta.suggested_title}
-          </Link>
-          <span>·</span>
-          <span>章节</span>
-        </span>
-      }
+      breadcrumb={[
+        { label: "我的书架", href: "/novels" },
+        { label: bible.data.meta.suggested_title, href: `/novels/${novel.id}` },
+        { label: "章节版本" }
+      ]}
     />
   );
 }
