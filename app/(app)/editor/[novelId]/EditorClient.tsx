@@ -311,6 +311,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
           criticResult={editor.candidateCriticResult}
           criticError={editor.candidateCriticError}
           hasExistingContent={editor.content.trim().length > 0}
+          currentContent={editor.content}
           cursorPos={cursorPos}
           retrievalStatus={editor.lastRetrievalStatus}
           retrievedMemories={editor.lastRetrievedMemories}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DiffView } from "@/components/ui/DiffView";
 
 export type CandidateMode = "replace" | "append" | "insert" | "discard";
 
@@ -27,6 +28,8 @@ interface CandidatePanelProps {
   criticError?: string;
   /** Whether the editor currently holds a non-empty body the candidate would overwrite. */
   hasExistingContent: boolean;
+  /** The current chapter body, used as the "before" side of the diff toggle. */
+  currentContent: string;
   cursorPos: number | null;
   /** Status of the RAG retrieval used for this draft (success/empty/error). */
   retrievalStatus?: string;
@@ -45,6 +48,7 @@ export function CandidatePanel({
   criticResult,
   criticError,
   hasExistingContent,
+  currentContent,
   cursorPos,
   retrievalStatus,
   retrievedMemories,
@@ -53,6 +57,7 @@ export function CandidatePanel({
   onClose,
 }: CandidatePanelProps) {
   const [confirmingOverwrite, setConfirmingOverwrite] = useState<CandidateMode | null>(null);
+  const [viewMode, setViewMode] = useState<"preview" | "diff">("preview");
 
   const hasBlockingIssue = criticResult?.issues.some(
     (i) => i.severity === "critical" || i.severity === "major",
@@ -225,6 +230,34 @@ export function CandidatePanel({
         </div>
       )}
 
+      {/* View mode toggle — only meaningful once streaming is done and there
+          is an existing body to diff against. */}
+      {!streaming && hasExistingContent && content.length > 0 && (
+        <div className="flex items-center gap-1 px-6 py-2 border-b border-border-subtle bg-secondary/10">
+          <button
+            onClick={() => setViewMode("preview")}
+            className={`px-3 py-1 text-[11px] font-bold uppercase tracking-wider rounded-md transition-colors ${
+              viewMode === "preview"
+                ? "bg-white text-text-primary shadow-sm"
+                : "text-text-muted hover:text-text-secondary"
+            }`}
+          >
+            候选稿
+          </button>
+          <button
+            onClick={() => setViewMode("diff")}
+            className={`px-3 py-1 text-[11px] font-bold uppercase tracking-wider rounded-md transition-colors ${
+              viewMode === "diff"
+                ? "bg-white text-text-primary shadow-sm"
+                : "text-text-muted hover:text-text-secondary"
+            }`}
+            title="对比当前正文与候选稿的行级差异"
+          >
+            与正文对比
+          </button>
+        </div>
+      )}
+
       {/* Candidate body preview */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
         {streaming && content.length === 0 ? (
@@ -235,6 +268,8 @@ export function CandidatePanel({
             </svg>
             等待首段内容…
           </div>
+        ) : viewMode === "diff" && !streaming && hasExistingContent ? (
+          <DiffView before={currentContent} after={content} />
         ) : (
           <article className="font-serif text-[15px] leading-[1.9] text-text-primary whitespace-pre-wrap break-words">
             {content}
