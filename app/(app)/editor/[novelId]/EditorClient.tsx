@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { BibleDraft } from "@/lib/validation/schemas";
 import { applyStateDiff } from "@/lib/validation/stateDiffMerge";
 import { EditorSidebar } from "./EditorSidebar";
@@ -34,12 +34,43 @@ interface EditorClientProps {
   initialChapterIndex?: number;
 }
 
+// M3.4.4 reading font scale. Tailwind classes pre-bundled so the build
+// can still tree-shake; storing strings here means the textarea swap is
+// just a className flip with no runtime style injection.
+type FontScale = "sm" | "md" | "lg";
+
+const FONT_SCALES: Record<FontScale, { textareaClass: string; label: string }> = {
+  sm: { textareaClass: "text-lg leading-[2.0]", label: "小" },
+  md: { textareaClass: "text-2xl leading-[2.2]", label: "中" },
+  lg: { textareaClass: "text-3xl leading-[2.4]", label: "大" },
+};
+
+const FONT_STORAGE_KEY = "ai-novel:editor-font-scale";
+
+function readStoredFontScale(): FontScale {
+  if (typeof window === "undefined") return "md";
+  const v = window.localStorage.getItem(FONT_STORAGE_KEY);
+  return v === "sm" || v === "md" || v === "lg" ? v : "md";
+}
+
 export function EditorClient({ novelId, title, bible: initialBible, initialChapters, initialChapterIndex }: EditorClientProps) {
   const [bible, setBible] = useState(initialBible);
   const editor = useChapterEditor({ novelId, bible, initialChapters, initialChapterIndex });
   const [showBible, setShowBible] = useState(true);
   const [showAI, setShowAI] = useState(true);
   const [cursorPos, setCursorPosState] = useState<number | null>(null);
+  // Default to "md" on the server render to avoid hydration mismatch; the
+  // effect below pulls the persisted preference on the client.
+  const [fontScale, setFontScale] = useState<FontScale>("md");
+
+  useEffect(() => {
+    setFontScale(readStoredFontScale());
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(FONT_STORAGE_KEY, fontScale);
+  }, [fontScale]);
 
   const updateCursorPos = (pos: number | null) => {
     setCursorPosState(pos);
@@ -124,6 +155,32 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
             <div className="h-4 w-px bg-border-strong/50 mx-1" />
             
             <JobsBadge novelId={novelId} />
+
+            {/* M3.4.4 reading font scale — small / medium / large. Persisted to
+                localStorage so long sessions keep the user's preference across
+                refreshes; defaults to medium. */}
+            <div
+              className="flex items-center rounded-xl border border-border-subtle bg-secondary/30 p-0.5"
+              role="group"
+              aria-label="正文字号"
+            >
+              {(Object.keys(FONT_SCALES) as FontScale[]).map((key) => (
+                <button
+                  key={key}
+                  onClick={() => setFontScale(key)}
+                  aria-pressed={fontScale === key}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-colors ${
+                    fontScale === key
+                      ? "bg-white text-text-primary shadow-sm"
+                      : "text-text-dim hover:text-text-primary"
+                  }`}
+                  title={`正文字号：${FONT_SCALES[key].label}`}
+                >
+                  {FONT_SCALES[key].label}
+                </button>
+              ))}
+            </div>
+
             <ExportMenu novelId={novelId} />
             
             <button
@@ -201,7 +258,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
 
             <div className="mt-12 relative">
               <textarea
-                className="w-full min-h-[1000px] resize-none border-none bg-transparent p-0 font-serif text-2xl leading-[2.2] text-text-primary placeholder:text-text-dim/20 focus:outline-none selection:bg-primary/10"
+                className={`w-full min-h-[1000px] resize-none border-none bg-transparent p-0 font-serif ${FONT_SCALES[fontScale].textareaClass} text-text-primary placeholder:text-text-dim/20 focus:outline-none selection:bg-primary/10`}
                 placeholder="开始书写故事..."
                 spellCheck={false}
                 value={editor.content}

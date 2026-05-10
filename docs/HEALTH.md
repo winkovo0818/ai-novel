@@ -18,11 +18,12 @@
 
 ## 最近更新
 
-- **2026-05-12 (中段)** — `chapterStatus.getChapterStatusesForNovel` 单测补齐（5 个：空 novel / 多章节聚合 / chunk count=0 视为 missing / 最新 job 优先 / 忽略无 chapter_id 的 novel-scoped job）。文件覆盖率 43% → 100%。M3.2.5 候选稿 vs 正文 diff 经检视已实现（CandidatePanel viewMode + DiffView 集成 + EditorClient wire-up），文档勾掉。总测试 389 → **394**。
-- **2026-05-12** — 基础设施加固：rateLimit Upstash Redis 适配器（HTTP-only 4-command pipeline，fail-open）+ healthz 探针扩展（DB / pgvector / Supabase env / 200 vs 503 + 错误码）。`isRateLimited` 接口转 async + 修 normalizeRouteKey regex bug。新增测试 21 个；总测试 373 → 389。
-- **2026-05-11 (深夜)** — 关键路径测试补全。`lib/agent/summaries.ts` 0% → **100%**；`lib/jobs/handlers.ts` 0% → **100%**；总测试 352 → 373，branches 79.21% → 82.18%。
-- **2026-05-11 (晚)** — M3.1 dirty 字段链路落地。新增 `ChapterDraft.summary_dirty / index_dirty` + migration backfill；PATCH 在 content 变化时标脏；handlers 完成后清脏；编辑器删除两处客户端推 job；新端点 `POST /api/novels/:id/jobs/refresh-dirty`；章节管理页加"刷新所有 dirty (N)"按钮。
-- **2026-05-11** — 初版健康度报告（基于 Phase A + Phase B + UI 设计刷新完成后状态）
+- **2026-05-12 (傍晚)** — M3.4.4 编辑器字号切换落地。EditorClient header 加 3 档字号控件（小 text-lg / 中 text-2xl / 大 text-3xl），localStorage 持久化偏好，textarea 类名按状态切换。覆盖 ROADMAP M3.4.4 backlog。
+- **2026-05-12 (中段)** — `chapterStatus.getChapterStatusesForNovel` 单测补齐（5 个）。M3.2.5 候选稿 vs 正文 diff 经检视已实现，文档勾掉。总测试 389 → **394**。
+- **2026-05-12** — 基础设施加固：rateLimit Upstash Redis 适配器 + healthz 探针扩展。新增测试 21 个；总测试 373 → 389。
+- **2026-05-11 (深夜)** — 关键路径测试补全。`lib/agent/summaries.ts` 0% → **100%**；`lib/jobs/handlers.ts` 0% → **100%**；总测试 352 → 373。
+- **2026-05-11 (晚)** — M3.1 dirty 字段链路落地。
+- **2026-05-11** — 初版健康度报告。
 
 ---
 
@@ -74,7 +75,7 @@
 - [ ] **M3.3.1 / .6 / .7** — 独立 `/novels/:id/export` 页面 + 审核状态说明 + ExportMenu 改"打开导出中心"链接
 - [ ] **M3.3.2** — 导出 `range` / `include_bible` 参数
 - [ ] **M3.4.1 / .2** — PageHeader / StatusStates 全仓审计 + 替换为统一 4 态
-- [ ] **M3.4.4** — 编辑器 3 档字号切换
+- [x] **M3.4.4** ✅ 编辑器 3 档字号切换（2026-05-12 傍晚，EditorClient header + localStorage 持久化）
 
 ### 工程化遗留
 
@@ -138,8 +139,8 @@ F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关
 > 完成任意一件后回到本文档勾掉对应 §三 待办、刷新 §一 基线、并在 §最近更新 加一行摘要。
 
 1. **useChapterEditor 拆分 + RTL 测试** — 当前 799 行 0% 覆盖，是最大盲区；需要切 jsdom 环境 + RTL setup，单独 phase 处理。
-2. **M3.4.4 编辑器字号切换** — 简单 UI 改动，3 档字号切换，长时间阅读体验改进。
-3. **M3.2.6 version-restore E2E** — 编辑→保存→再编辑→恢复→内容回滚，跑 LLM_MOCK，进 CI。
+2. **M3.2.6 version-restore E2E** — 编辑→保存→再编辑→恢复→内容回滚，跑 LLM_MOCK，进 CI。
+3. **M3.4.1 / .2 PageHeader / StatusStates 全仓审计** — 4 态（loading/empty/error/generating）组件已存在，仍有页面散用裸 JSX；统一替换提一致性。
 
 ---
 
