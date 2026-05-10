@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/db";
 
 /**
  * Result of an admin check. We split UNAUTHORIZED vs FORBIDDEN so callers
@@ -18,9 +19,9 @@ function parseList(value: string | undefined): string[] {
 }
 
 /**
- * Decide whether a user is an admin based on env-configured allowlists.
- * - ADMIN_USER_IDS: comma-separated Supabase user UUIDs
- * - ADMIN_EMAILS: comma-separated emails (case-insensitive)
+ * Env allowlist check. Kept as a permanent fallback so a wiped user_roles
+ * table can never lock out the operator — see PHASE-A-PERMISSIONS-CONTEXT
+ * §Bootstrap (D-02).
  */
 export function isAdminUser(userId: string, email: string | null): boolean {
   const ids = parseList(process.env.ADMIN_USER_IDS);
@@ -33,6 +34,21 @@ export function isAdminUser(userId: string, email: string | null): boolean {
   return false;
 }
 
+async function hasAdminRoleInDb(userId: string): Promise<boolean> {
+  try {
+    const row = await prisma.userRole.findUnique({
+      where: { user_id_role: { user_id: userId, role: "admin" } },
+      select: { user_id: true },
+    });
+    return row !== null;
+  } catch {
+    // Schema not migrated yet, or DB unreachable — fall back to env. The env
+    // allowlist is the documented escape hatch (D-02), so we should NEVER
+    // hard-fail here.
+    return false;
+  }
+}
+
 export async function checkAdmin(): Promise<AdminCheckResult> {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getUser();
@@ -41,10 +57,14 @@ export async function checkAdmin(): Promise<AdminCheckResult> {
   }
   const userId = data.user.id;
   const email = data.user.email ?? null;
-  if (!isAdminUser(userId, email)) {
-    return { ok: false, reason: "FORBIDDEN", userId, email };
+
+  if (await hasAdminRoleInDb(userId)) {
+    return { ok: true, userId, email };
   }
-  return { ok: true, userId, email };
+  if (isAdminUser(userId, email)) {
+    return { ok: true, userId, email };
+  }
+  return { ok: false, reason: "FORBIDDEN", userId, email };
 }
 
 /**

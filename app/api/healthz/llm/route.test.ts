@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 const getUser = vi.fn();
 const chatCompletionWithRetry = vi.fn();
+const userRoleFindUnique = vi.fn();
 
 vi.mock("@/utils/supabase/server", () => ({
   createClient: async () => ({
@@ -13,6 +14,12 @@ vi.mock("@/lib/llm/client", () => ({
   chatCompletionWithRetry,
 }));
 
+vi.mock("@/lib/db", () => ({
+  prisma: {
+    userRole: { findUnique: userRoleFindUnique },
+  },
+}));
+
 const ORIGINAL_ENV = { ...process.env };
 
 afterEach(() => {
@@ -22,6 +29,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
+  userRoleFindUnique.mockResolvedValue(null);
 });
 
 describe("GET /api/healthz/llm", () => {
