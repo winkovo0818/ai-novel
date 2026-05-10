@@ -30,7 +30,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     return jsonError("INVALID_INPUT", "Invalid chapter draft update", false, 400);
   }
 
-  const { source = "autosave", ...updateData } = parsed.data;
+  const { source = "autosave", expected_version, ...updateData } = parsed.data;
 
   try {
     const existing = await prisma.chapterDraft.findUnique({
@@ -49,6 +49,25 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
     if (!canAccessOwnerResource(existing.novel.user_id, userId)) {
       return jsonError("CHAPTER_NOT_FOUND", "Chapter draft not found", false, 404);
+    }
+
+    // Optimistic lock: when the client tells us which version it last saw and
+    // it no longer matches, refuse the write and hand back the current row so
+    // the editor can show a conflict banner with "load latest" / diff.
+    if (expected_version !== undefined && expected_version !== existing.version) {
+      const { novel: _novel, ...latest } = existing;
+      return Response.json(
+        {
+          ok: false,
+          error: {
+            code: "CHAPTER_VERSION_CONFLICT",
+            message: "章节已被另一处修改，请加载最新版本后再保存",
+            retryable: false,
+          },
+          data: latest,
+        },
+        { status: 409 },
+      );
     }
 
     // Moderate content when marking as done (publishing) or on manual saves with content.
@@ -71,7 +90,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const chapter = await prisma.$transaction(async (tx) => {
-      const updated = await tx.chapterDraft.update({ where: { id }, data: updateData });
+      const updated = await tx.chapterDraft.update({
+        where: { id },
+        data: { ...updateData, version: { increment: 1 } },
+      });
 
       // Decide whether this PATCH should create a ChapterVersion.
       // - source=autosave by default does NOT create a version.

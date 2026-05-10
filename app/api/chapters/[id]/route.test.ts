@@ -64,7 +64,7 @@ describe("PATCH /api/chapters/[id]", () => {
     expect(json).toEqual({ ok: true, data: chapter });
     expect(update).toHaveBeenCalledWith({
       where: { id: "chapter-1" },
-      data: { content: "正文", status: "done" },
+      data: { content: "正文", status: "done", version: { increment: 1 } },
     });
     expect(createVersion).toHaveBeenCalledTimes(1);
     expect(createVersion).toHaveBeenCalledWith(
@@ -213,6 +213,88 @@ describe("PATCH /api/chapters/[id]", () => {
 
     expect(response.status).toBe(500);
     expect(json.error.code).toBe("INTERNAL");
+  });
+
+  // ─────────────────────────────────────────────
+  // M3.6 optimistic-lock conflict handling
+  // ─────────────────────────────────────────────
+
+  it("rejects with 409 when expected_version does not match the row", async () => {
+    const { PATCH } = await import("./route");
+    findUnique.mockResolvedValue({
+      id: "chapter-1",
+      title: "t",
+      content: "server-side",
+      status: "draft",
+      version: 7,
+      novel: { user_id: "user-1" },
+    });
+
+    const response = await PATCH(
+      request({ content: "client-write", source: "manual", expected_version: 3 }),
+      { params: Promise.resolve({ id: "chapter-1" }) },
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(json.ok).toBe(false);
+    expect(json.error.code).toBe("CHAPTER_VERSION_CONFLICT");
+    expect(json.error.retryable).toBe(false);
+    // Latest server row should ride along, with the join field stripped
+    expect(json.data).toMatchObject({ id: "chapter-1", content: "server-side", version: 7 });
+    expect(json.data.novel).toBeUndefined();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("succeeds and increments version when expected_version matches", async () => {
+    const { PATCH } = await import("./route");
+    // clearAllMocks() in beforeEach does not reset mockResolved/Rejected from
+    // earlier tests, so re-establish a clean resolution for createVersion.
+    createVersion.mockResolvedValue({ id: "ver-1" });
+    findUnique.mockResolvedValue({
+      id: "chapter-1",
+      title: "t",
+      content: "old",
+      status: "draft",
+      version: 4,
+      novel: { user_id: "user-1" },
+    });
+    update.mockResolvedValue({ id: "chapter-1", content: "fresh", status: "draft", version: 5 });
+
+    const response = await PATCH(
+      request({ content: "fresh", source: "manual", expected_version: 4 }),
+      { params: Promise.resolve({ id: "chapter-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "chapter-1" },
+      data: { content: "fresh", version: { increment: 1 } },
+    });
+  });
+
+  it("still saves and increments version when expected_version is omitted (back-compat)", async () => {
+    const { PATCH } = await import("./route");
+    createVersion.mockResolvedValue({ id: "ver-1" });
+    findUnique.mockResolvedValue({
+      id: "chapter-1",
+      title: "t",
+      content: "old",
+      status: "draft",
+      version: 9,
+      novel: { user_id: "user-1" },
+    });
+    update.mockResolvedValue({ id: "chapter-1", content: "next", status: "draft", version: 10 });
+
+    const response = await PATCH(request({ content: "next" }), {
+      params: Promise.resolve({ id: "chapter-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "chapter-1" },
+      data: { content: "next", version: { increment: 1 } },
+    });
   });
 });
 

@@ -75,6 +75,10 @@ model ChapterDraft {
   /// Optional per-chapter word target. Null means no target — UI hides the
   /// progress affordance entirely. When set, the editor shows a target ring.
   target_words  Int?
+  /// Optimistic-lock counter. Bumped on every PATCH and on restore so two
+  /// tabs / devices editing the same chapter detect conflicts instead of
+  /// silently overwriting each other (see /api/chapters/:id PATCH).
+  version       Int      @default(0)
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 

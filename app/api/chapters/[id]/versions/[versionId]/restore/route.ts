@@ -83,6 +83,7 @@ export async function POST(_request: Request, context: RouteContext) {
           title: targetVersion.title,
           content: targetVersion.content,
           status: targetVersion.status,
+          version: { increment: 1 },
         },
       });
     });

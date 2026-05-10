@@ -297,6 +297,12 @@ export const UpdateChapterDraftRequestSchema = z.object({
   source: z.enum(["manual", "ai", "autosave", "status_change"]).optional(),
   /** Per-chapter word target. Null clears it; undefined leaves it unchanged. */
   target_words: z.number().int().min(100).max(50_000).nullable().optional(),
+  /**
+   * Optimistic-lock guard. When provided and not equal to the row's current
+   * version, the PATCH is rejected with 409 CHAPTER_VERSION_CONFLICT and the
+   * latest server state is returned so the client can merge or replace.
+   */
+  expected_version: z.number().int().min(0).optional(),
 });
 
 export const GenerateChapterDraftRequestSchema = z.object({
