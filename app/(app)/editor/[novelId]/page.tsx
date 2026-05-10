@@ -49,6 +49,7 @@ export default async function EditorPlaceholderPage({ params, searchParams }: Pa
     content: c.content,
     status: c.status,
     target_words: c.target_words,
+    version: c.version,
     updated_at: c.updated_at.toISOString(),
   }));
 

@@ -66,6 +66,12 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
   const [lastSavedAt, setLastSavedAt] = useState<string | undefined>(startDraft?.updated_at);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "drafting" | "error">("idle");
   const [message, setMessage] = useState<string>();
+  // M3.6 optimistic-lock state. Hydrated from the chapter row on selection
+  // and updated from every successful PATCH/POST/restore response. When the
+  // server responds 409 we stash the latest row in conflictChapter so the
+  // editor can render a "load latest" banner.
+  const [chapterVersion, setChapterVersion] = useState<number>(startDraft?.version ?? 0);
+  const [conflictChapter, setConflictChapter] = useState<ChapterDraftView | null>(null);
   const hasUnsavedChanges = chapterTitle !== savedTitle || content !== savedContent || chapterStatus !== savedStatus;
   const characterCount = content.replace(/\s/g, "").length;
 
@@ -86,7 +92,9 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
       title: nextTitle,
       content: nextContent,
       status: nextStatus,
-      ...(chapterId ? { source } : { chapter_index: selectedIndex }),
+      ...(chapterId
+        ? { source, expected_version: chapterVersion }
+        : { chapter_index: selectedIndex }),
     };
     const response = await fetch(
       chapterId ? `/api/chapters/${chapterId}` : `/api/novels/${novelId}/chapters`,
@@ -98,6 +106,16 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     );
     const json = await response.json();
 
+    if (response.status === 409 && json.error?.code === "CHAPTER_VERSION_CONFLICT") {
+      // Another tab / device wrote first. Stash the latest server row so the
+      // editor can render a banner with "load latest" / diff actions; the
+      // local body stays untouched in case the user wants to copy parts out.
+      if (json.data) setConflictChapter(json.data as ChapterDraftView);
+      const conflictError = new Error(json.error.message ?? "章节已被另一处修改");
+      conflictError.name = "ChapterVersionConflict";
+      throw conflictError;
+    }
+
     if (!json.ok) {
       throw new Error(json.error?.message ?? "保存失败");
     }
@@ -106,6 +124,7 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     setSavedTitle(nextTitle);
     setSavedContent(nextContent);
     setSavedStatus(nextStatus);
+    if (typeof json.data.version === "number") setChapterVersion(json.data.version);
     if (json.data.updated_at) setLastSavedAt(json.data.updated_at);
     if (json.data.target_words !== undefined) {
       setTargetWordsState(json.data.target_words);
@@ -178,7 +197,7 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     }
 
     return json.data as ChapterDraftView;
-  }, [chapterId, chapterStatus, chapterTitle, novelId, selectedIndex, savedContent, savedStatus]);
+  }, [chapterId, chapterStatus, chapterTitle, chapterVersion, novelId, selectedIndex, savedContent, savedStatus]);
 
   useEffect(() => {
     if (!hasUnsavedChanges || status === "saving" || status === "drafting" || !chapterTitle.trim()) return;
@@ -241,6 +260,8 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     setSavedStatus(nextStatus);
     setTargetWordsState(draft?.target_words ?? null);
     setLastSavedAt(draft?.updated_at);
+    setChapterVersion(draft?.version ?? 0);
+    setConflictChapter(null);
     setStatus("idle");
     setMessage(undefined);
   }
@@ -253,10 +274,15 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
       const response = await fetch(`/api/chapters/${chapterId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_words: value, source: "manual" }),
+        body: JSON.stringify({ target_words: value, source: "manual", expected_version: chapterVersion }),
       });
       const json = await response.json();
+      if (response.status === 409 && json.error?.code === "CHAPTER_VERSION_CONFLICT") {
+        if (json.data) setConflictChapter(json.data as ChapterDraftView);
+        throw new Error(json.error.message ?? "章节已被另一处修改");
+      }
       if (!json.ok) throw new Error(json.error?.message ?? "目标字数保存失败");
+      if (typeof json.data.version === "number") setChapterVersion(json.data.version);
       if (json.data.updated_at) setLastSavedAt(json.data.updated_at);
     } catch (err) {
       setStatus("error");
@@ -455,21 +481,17 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     setMessage("保存候选稿…");
     try {
       // Snapshot current body as a manual version *first* if it's non-empty —
-      // gives the user a one-click way back to the pre-AI state.
+      // gives the user a one-click way back to the pre-AI state. Routed
+      // through persistChapter so the version row is created AND the local
+      // chapterVersion bumps before the next "ai" save (otherwise the second
+      // PATCH would 409 against itself).
       if (content.trim() && chapterId) {
-        await fetch(`/api/chapters/${chapterId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            content,
-            title: chapterTitle,
-            status: chapterStatus,
-            source: "manual",
-          }),
-        }).catch(() => {
+        try {
+          await persistChapter(content, chapterTitle, chapterStatus, "manual");
+        } catch {
           // Snapshot best-effort — proceed even if it fails so user doesn't
           // lose the candidate they just chose to apply.
-        });
+        }
       }
 
       setContent(nextContent);
@@ -603,12 +625,30 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     setSavedTitle(restored.title);
     setSavedContent(restored.content);
     setSavedStatus(nextStatus);
+    if (typeof restored.version === "number") setChapterVersion(restored.version);
     if (restored.updated_at) setLastSavedAt(restored.updated_at);
     setChapters((current) =>
       current.map((chapter) => (chapter.id === restored.id ? { ...chapter, ...restored } : chapter)),
     );
+    setConflictChapter(null);
     setStatus("saved");
     setMessage("已恢复历史版本");
+  }
+
+  /**
+   * M3.6: when a 409 conflict has been recorded, replace local editor state
+   * with the latest server row and clear the conflict banner. The user's
+   * unsaved local body is discarded — the conflict banner warns about this
+   * and offers a diff view first.
+   */
+  function loadLatestChapter() {
+    if (!conflictChapter) return;
+    applyRestoredChapter(conflictChapter);
+    setMessage("已加载最新版本");
+  }
+
+  function dismissConflict() {
+    setConflictChapter(null);
   }
 
   // ────────────────────────────────────────────────
@@ -779,5 +819,10 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     // M3.4 retrieval transparency: actual chunks fed into the LLM
     lastRetrievedMemories,
     lastRetrievalError,
+    // M3.6 optimistic-lock conflict handling
+    chapterVersion,
+    conflictChapter,
+    loadLatestChapter,
+    dismissConflict,
   };
 }

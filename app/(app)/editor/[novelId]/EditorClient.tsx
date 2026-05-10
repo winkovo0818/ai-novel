@@ -21,6 +21,8 @@ export interface ChapterDraftView {
   content: string;
   status: string;
   target_words?: number | null;
+  /** Optimistic-lock counter, sent back as expected_version on PATCH. */
+  version?: number;
   updated_at?: string;
 }
 
@@ -156,6 +158,32 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               onOpenVersions={editor.openVersions}
               onSetTargetWords={editor.setTargetWords}
             />
+
+            {editor.conflictChapter && (
+              <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 flex flex-wrap items-start justify-between gap-4">
+                <div className="text-[13px] text-amber-900 leading-relaxed min-w-0 flex-1">
+                  <p className="font-bold mb-0.5">章节已被另一处修改</p>
+                  <p className="text-amber-800/90">
+                    服务器上的版本比你这里新。继续保存会被拒绝；点击"加载最新"会用服务器内容
+                    覆盖当前正文（建议先复制需要保留的片段）。
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={editor.loadLatestChapter}
+                    className="px-3 py-1.5 text-[12px] font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+                  >
+                    加载最新
+                  </button>
+                  <button
+                    onClick={editor.dismissConflict}
+                    className="px-3 py-1.5 text-[12px] font-bold rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-100 transition-colors"
+                  >
+                    暂不处理
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="mt-16 relative">
               <textarea
