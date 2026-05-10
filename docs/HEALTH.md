@@ -18,8 +18,9 @@
 
 ## 最近更新
 
-- **2026-05-12 (傍晚)** — M3.4.4 编辑器字号切换落地。EditorClient header 加 3 档字号控件（小 text-lg / 中 text-2xl / 大 text-3xl），localStorage 持久化偏好，textarea 类名按状态切换。覆盖 ROADMAP M3.4.4 backlog。
-- **2026-05-12 (中段)** — `chapterStatus.getChapterStatusesForNovel` 单测补齐（5 个）。M3.2.5 候选稿 vs 正文 diff 经检视已实现，文档勾掉。总测试 389 → **394**。
+- **2026-05-12 (深夜)** — `StatusStates.GeneratingState` 新增（M3.4.2 缺失的"生成中"四态，含可选 percent 进度条）；`VersionsModal` 加载/空状态从裸 div 改为 LoadingState / EmptyState。M3.4.1（PageHeader 全仓审计）经检视，所有页面已统一使用 PageHeader，无散用裸标题。
+- **2026-05-12 (傍晚)** — M3.4.4 编辑器字号切换落地。EditorClient header 加 3 档字号控件（小/中/大），localStorage 持久化。
+- **2026-05-12 (中段)** — `chapterStatus.getChapterStatusesForNovel` 单测补齐（5 个）；M3.2.5 候选稿 vs 正文 diff 经检视已实现，文档勾掉。总测试 389 → **394**。
 - **2026-05-12** — 基础设施加固：rateLimit Upstash Redis 适配器 + healthz 探针扩展。新增测试 21 个；总测试 373 → 389。
 - **2026-05-11 (深夜)** — 关键路径测试补全。`lib/agent/summaries.ts` 0% → **100%**；`lib/jobs/handlers.ts` 0% → **100%**；总测试 352 → 373。
 - **2026-05-11 (晚)** — M3.1 dirty 字段链路落地。
@@ -74,7 +75,7 @@
 - [ ] **M3.2.6** — `tests/e2e/version-restore.spec.ts`（版本恢复 E2E）
 - [ ] **M3.3.1 / .6 / .7** — 独立 `/novels/:id/export` 页面 + 审核状态说明 + ExportMenu 改"打开导出中心"链接
 - [ ] **M3.3.2** — 导出 `range` / `include_bible` 参数
-- [ ] **M3.4.1 / .2** — PageHeader / StatusStates 全仓审计 + 替换为统一 4 态
+- [x] **M3.4.1 / .2** ✅ 经检视：PageHeader 全仓已统一；StatusStates 加 GeneratingState 凑齐四态（2026-05-12 深夜）。in-form / in-banner 错误提示按设计保留行内呈现。
 - [x] **M3.4.4** ✅ 编辑器 3 档字号切换（2026-05-12 傍晚，EditorClient header + localStorage 持久化）
 
 ### 工程化遗留
@@ -140,7 +141,7 @@ F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关
 
 1. **useChapterEditor 拆分 + RTL 测试** — 当前 799 行 0% 覆盖，是最大盲区；需要切 jsdom 环境 + RTL setup，单独 phase 处理。
 2. **M3.2.6 version-restore E2E** — 编辑→保存→再编辑→恢复→内容回滚，跑 LLM_MOCK，进 CI。
-3. **M3.4.1 / .2 PageHeader / StatusStates 全仓审计** — 4 态（loading/empty/error/generating）组件已存在，仍有页面散用裸 JSX；统一替换提一致性。
+3. **生产 security headers** — `next.config.ts` 加 CSP / images / X-Content-Type-Options 等基线 headers。
 
 ---
 

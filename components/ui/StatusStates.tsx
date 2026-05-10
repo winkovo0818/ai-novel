@@ -51,3 +51,53 @@ export function ErrorState({ title = "加载失败", message, onRetry }: { title
     </div>
   );
 }
+
+/**
+ * Long-running generation state (onboarding Bible SSE, full-novel
+ * consistency, etc). Distinct from LoadingState because the user is
+ * waiting on an LLM call that takes 10-60s — we surface a slow-cadence
+ * progress affordance instead of bouncing dots.
+ */
+export function GeneratingState({
+  title = "AI 正在生成",
+  message,
+  /** Optional 0-100 progress hint. Renders a thin progress bar when set. */
+  percent,
+}: {
+  title?: string;
+  message?: string;
+  percent?: number;
+}) {
+  const clamped = typeof percent === "number" ? Math.min(100, Math.max(0, percent)) : undefined;
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center animate-fade-in">
+      <div className="relative h-12 w-12 mb-6">
+        <span className="absolute inset-0 rounded-full bg-primary/10 animate-ping" />
+        <span className="absolute inset-2 rounded-full bg-primary/30" />
+        <svg
+          className="absolute inset-0 w-12 h-12 animate-spin text-primary"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      </div>
+      <h4 className="text-base font-bold text-text-primary mb-1">{title}</h4>
+      {message && <p className="text-sm text-text-secondary mb-4 max-w-sm mx-auto">{message}</p>}
+      {clamped !== undefined && (
+        <div className="w-64 max-w-full mt-2">
+          <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-500 ease-out"
+              style={{ width: `${clamped}%` }}
+            />
+          </div>
+          <p className="mt-2 text-[10px] font-bold text-text-dim uppercase tracking-[0.2em] tabular-nums">
+            {clamped.toFixed(0)}%
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}

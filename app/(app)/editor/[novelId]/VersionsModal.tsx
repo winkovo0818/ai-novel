@@ -6,6 +6,7 @@ import type { ChapterVersionView } from "./useChapterEditor";
 import type { ChapterDraftView } from "./EditorClient";
 import { DiffView } from "@/components/ui/DiffView";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { LoadingState, EmptyState } from "@/components/ui/StatusStates";
 
 interface VersionsModalProps {
   open: boolean;
@@ -143,16 +144,17 @@ export function VersionsModal({
 
           {view === "list" && (
             <div className="p-6 space-y-3">
-              {loading && (
-                <div className="text-center py-12 text-sm text-text-muted">加载中…</div>
-              )}
+              {loading && <LoadingState message="正在加载历史版本" />}
               {!loading && error && (
                 <div className="p-4 rounded-xl bg-red-50 border border-red-100 text-sm text-red-600">
                   {error}
                 </div>
               )}
               {!loading && !error && versions.length === 0 && (
-                <div className="text-center py-12 text-sm text-text-muted">暂无历史版本</div>
+                <EmptyState
+                  title="暂无历史版本"
+                  description="保存或 AI 起草后会在这里出现快照，可随时对比 / 恢复。"
+                />
               )}
               {!loading &&
                 versions.map((version) => (
