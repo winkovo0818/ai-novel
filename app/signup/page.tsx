@@ -29,10 +29,7 @@ export default function SignupPage() {
     let authError: { message: string } | null = null;
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
+      const { error } = await supabase.auth.signUp({ email, password });
       authError = error;
     } catch {
       setError("无法连接认证服务，请检查网络连接");
@@ -52,110 +49,188 @@ export default function SignupPage() {
 
   if (success) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-32">
-        <div className="w-full max-w-[500px] bg-surface border border-border-strong p-48 text-center rounded-md shadow-lg animate-fade">
-          <div className="flex justify-center mb-32">
-             <div className="h-16 w-16 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-500/30">
-               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-               </svg>
-             </div>
-          </div>
-          <h1 className="text-2xl font-bold text-text-primary tracking-tight">注册请求已发送</h1>
-          <p className="mt-24 text-sm text-text-secondary leading-relaxed">
-            确认邮件已发送至 <br />
+      <SuccessShell
+        accent="emerald"
+        title="确认邮件已发送"
+        description={
+          <>
+            我们已经把激活链接发到 <br />
             <span className="font-bold text-text-primary text-base">{email}</span>
-            <br /><br />
-            请点击邮件中的链接以完成账号激活及身份授权。
-          </p>
-          <a
-            href="/login"
-            className="btn-primary mt-40 inline-block px-32"
-          >
-            返回登录门户
-          </a>
-        </div>
-      </main>
+            <br />
+            <br />
+            点击邮件里的链接完成账号激活。
+          </>
+        }
+        action={{ label: "返回登录", href: "/login" }}
+      />
     );
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-32">
-      <div className="w-full max-w-[440px] animate-fade">
-        <div className="bg-surface border border-border-strong p-40 md:p-56 rounded-md shadow-lg">
-          <div className="flex justify-center mb-40">
-             <div className="h-48 w-48 rounded-sm bg-primary flex items-center justify-center text-white font-bold text-xl">A</div>
-          </div>
-
-          <div className="text-center mb-40">
-            <h1 className="text-2xl font-bold text-text-primary tracking-tight">初始化创作账号</h1>
-            <p className="mt-8 text-sm text-text-secondary leading-relaxed">开启您的 AI 协同创作之旅。</p>
-          </div>
-
-          {error ? (
-            <div className="mb-32 border border-red-200 bg-red-50 p-16 rounded-sm text-xs font-bold text-red-600 uppercase tracking-widest flex items-center gap-8">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              {error}
+    <main className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
+      <div className="w-full max-w-md animate-fade">
+        <div className="bg-surface border border-border-subtle p-8 md:p-10 rounded-2xl shadow-xl">
+          <div className="flex justify-center mb-6">
+            <div className="h-10 w-10 rounded-md bg-primary flex items-center justify-center text-white font-bold">
+              A
             </div>
-          ) : null}
+          </div>
 
-          <form onSubmit={handleSubmit} className="grid gap-24">
-            <div className="grid gap-8">
-              <label htmlFor="email" className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted">身份标识 / Identifier</label>
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold text-text-primary tracking-tight">注册账号</h1>
+            <p className="mt-2 text-sm text-text-secondary">开启你的 AI 协同创作之旅。</p>
+          </div>
+
+          {error && <ErrorBanner>{error}</ErrorBanner>}
+
+          <form onSubmit={handleSubmit} className="grid gap-5">
+            <Field label="邮箱" id="email">
               <input
                 id="email"
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="input-base h-48"
-                placeholder="您的常用邮箱"
+                className="input-base"
+                placeholder="you@example.com"
               />
-            </div>
-            <div className="grid gap-8">
-              <label htmlFor="password" title="password" className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted">访问密钥 / Access Key</label>
+            </Field>
+
+            <Field label="密码" id="password" hint="至少 6 位字符">
               <input
                 id="password"
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="input-base h-48"
-                placeholder="至少 6 位字符"
+                className="input-base"
+                placeholder="••••••••"
               />
-            </div>
-            <div className="grid gap-8">
-              <label htmlFor="confirmPassword" title="confirmPassword" className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted">密钥确认 / Confirm</label>
+            </Field>
+
+            <Field label="确认密码" id="confirmPassword">
               <input
                 id="confirmPassword"
                 type="password"
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="input-base h-48"
-                placeholder="重复输入密钥"
+                className="input-base"
+                placeholder="再次输入密码"
               />
-            </div>
+            </Field>
+
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary h-52 mt-16 text-base font-bold shadow-md shadow-primary/20"
+              className="btn-primary h-11 mt-2 text-base shadow-md shadow-primary/20 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading ? "正在同步..." : "确认注册"}
+              {loading ? <Spinner label="注册中..." /> : "创建账号"}
             </button>
           </form>
 
-          <div className="mt-48 pt-24 border-t border-border-subtle text-center">
-             <p className="text-sm text-text-muted">
-              已经有账号了？
-              <a href="/login" title="login" className="ml-8 text-primary font-bold hover:underline transition-colors">
-                立即登录
+          <div className="mt-8 pt-6 border-t border-border-subtle text-center">
+            <p className="text-sm text-text-muted">
+              已经有账号？
+              <a href="/login" className="ml-2 text-primary font-bold hover:underline transition-colors">
+                登录
               </a>
             </p>
           </div>
         </div>
+      </div>
+    </main>
+  );
+}
+
+function Field({
+  label,
+  id,
+  hint,
+  children,
+}: {
+  label: string;
+  id: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <div className="flex items-center justify-between">
+        <label htmlFor={id} className="text-xs font-medium text-text-secondary">
+          {label}
+        </label>
+        {hint && <span className="text-xs text-text-muted">{hint}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ErrorBanner({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-5 border border-red-200 bg-red-50 px-3 py-2.5 rounded-md text-sm text-red-700 flex items-start gap-2">
+      <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+        />
+      </svg>
+      <span className="leading-relaxed">{children}</span>
+    </div>
+  );
+}
+
+function Spinner({ label }: { label: string }) {
+  return (
+    <span className="flex items-center gap-2">
+      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path
+          className="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+        />
+      </svg>
+      {label}
+    </span>
+  );
+}
+
+function SuccessShell({
+  accent,
+  title,
+  description,
+  action,
+}: {
+  accent: "emerald" | "primary";
+  title: string;
+  description: React.ReactNode;
+  action: { label: string; href: string };
+}) {
+  const accentBg = accent === "emerald" ? "bg-emerald-500" : "bg-primary";
+  const accentShadow =
+    accent === "emerald" ? "shadow-emerald-500/30" : "shadow-primary/30";
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
+      <div className="w-full max-w-md bg-surface border border-border-subtle p-8 md:p-10 text-center rounded-2xl shadow-xl animate-fade">
+        <div className="flex justify-center mb-6">
+          <div
+            className={`h-12 w-12 ${accentBg} rounded-full flex items-center justify-center text-white shadow-lg ${accentShadow}`}
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+        </div>
+        <h1 className="text-2xl font-bold text-text-primary tracking-tight">{title}</h1>
+        <p className="mt-4 text-sm text-text-secondary leading-relaxed">{description}</p>
+        <a href={action.href} className="btn-primary mt-8 inline-block px-6 h-11">
+          {action.label}
+        </a>
       </div>
     </main>
   );

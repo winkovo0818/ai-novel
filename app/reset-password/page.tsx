@@ -15,10 +15,9 @@ export default function ResetPasswordPage() {
     setLoading(true);
 
     const supabase = createClient();
-    const { error: authError } = await supabase.auth.resetPasswordForEmail(
-      email,
-      { redirectTo: `${window.location.origin}/update-password` },
-    );
+    const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/update-password`,
+    });
 
     if (authError) {
       setError(authError.message);
@@ -32,27 +31,30 @@ export default function ResetPasswordPage() {
 
   if (sent) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-32">
-        <div className="w-full max-w-[500px] bg-surface border border-border-strong p-48 text-center rounded-md shadow-lg animate-fade">
-          <div className="flex justify-center mb-32">
-             <div className="h-16 w-16 bg-primary rounded-full flex items-center justify-center text-white shadow-lg shadow-primary/30">
-               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-               </svg>
-             </div>
+      <main className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
+        <div className="w-full max-w-md bg-surface border border-border-subtle p-8 md:p-10 text-center rounded-2xl shadow-xl animate-fade">
+          <div className="flex justify-center mb-6">
+            <div className="h-12 w-12 bg-primary rounded-full flex items-center justify-center text-white shadow-lg shadow-primary/30">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+            </div>
           </div>
           <h1 className="text-2xl font-bold text-text-primary tracking-tight">重置链接已发送</h1>
-          <p className="mt-24 text-sm text-text-secondary leading-relaxed">
-            恢复协议已发送至 <br />
+          <p className="mt-4 text-sm text-text-secondary leading-relaxed">
+            我们已经把重置链接发到 <br />
             <span className="font-bold text-text-primary text-base">{email}</span>
-            <br /><br />
-            请按照邮件中的指示重置您的访问密钥。
+            <br />
+            <br />
+            按照邮件里的指引重置密码即可。
           </p>
-          <a
-            href="/login"
-            className="btn-primary mt-40 inline-block px-32"
-          >
-            返回登录门户
+          <a href="/login" className="btn-primary mt-8 inline-block px-6 h-11">
+            返回登录
           </a>
         </div>
       </main>
@@ -60,52 +62,75 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-32">
-      <div className="w-full max-w-[440px] animate-fade">
-        <div className="bg-surface border border-border-strong p-40 md:p-56 rounded-md shadow-lg">
-          <div className="flex justify-center mb-40">
-             <div className="h-48 w-48 rounded-sm bg-primary flex items-center justify-center text-white font-bold text-xl">A</div>
-          </div>
-
-          <div className="text-center mb-40">
-            <h1 className="text-2xl font-bold text-text-primary tracking-tight">找回访问密钥</h1>
-            <p className="mt-8 text-sm text-text-secondary leading-relaxed">输入您的身份标识以接收恢复指令。</p>
-          </div>
-
-          {error ? (
-            <div className="mb-32 border border-red-200 bg-red-50 p-16 rounded-sm text-xs font-bold text-red-600 uppercase tracking-widest flex items-center gap-8">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              {error}
+    <main className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
+      <div className="w-full max-w-md animate-fade">
+        <div className="bg-surface border border-border-subtle p-8 md:p-10 rounded-2xl shadow-xl">
+          <div className="flex justify-center mb-6">
+            <div className="h-10 w-10 rounded-md bg-primary flex items-center justify-center text-white font-bold">
+              A
             </div>
-          ) : null}
+          </div>
 
-          <form onSubmit={handleSubmit} className="grid gap-24">
-            <div className="grid gap-8">
-              <label htmlFor="email" className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted">身份标识 / Identifier</label>
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold text-text-primary tracking-tight">找回密码</h1>
+            <p className="mt-2 text-sm text-text-secondary">输入注册邮箱，我们会发送重置链接给你。</p>
+          </div>
+
+          {error && (
+            <div className="mb-5 border border-red-200 bg-red-50 px-3 py-2.5 rounded-md text-sm text-red-700 flex items-start gap-2">
+              <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <span className="leading-relaxed">{error}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="grid gap-5">
+            <div className="grid gap-1.5">
+              <label htmlFor="email" className="text-xs font-medium text-text-secondary">
+                邮箱
+              </label>
               <input
                 id="email"
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="input-base h-48"
-                placeholder="您的注册邮箱"
+                className="input-base"
+                placeholder="you@example.com"
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary h-52 mt-16 text-base font-bold shadow-md shadow-primary/20"
+              className="btn-primary h-11 mt-2 text-base shadow-md shadow-primary/20 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading ? "正在同步..." : "发送重置链接"}
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
+                  </svg>
+                  发送中...
+                </span>
+              ) : (
+                "发送重置链接"
+              )}
             </button>
           </form>
 
-          <div className="mt-48 pt-24 border-t border-border-subtle text-center">
+          <div className="mt-8 pt-6 border-t border-border-subtle text-center">
             <a href="/login" className="text-sm text-primary font-bold hover:underline transition-colors">
-              返回登录门户
+              返回登录
             </a>
           </div>
         </div>

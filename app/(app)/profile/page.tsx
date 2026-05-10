@@ -12,7 +12,9 @@ export default function ProfilePage() {
   useEffect(() => {
     async function load() {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) {
         setEmail(user.email ?? "");
       }
@@ -29,53 +31,47 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="py-96">
-        <LoadingState message="正在同步个人信息..." />
+      <div className="py-24">
+        <LoadingState message="加载中..." />
       </div>
     );
   }
 
   return (
-    <div className="p-32 md:p-48 max-w-4xl mx-auto animate-fade">
-      <PageHeader 
-        title="个人设置" 
-        description="管理您的账户信息、安全偏好及创作身份。"
-      />
+    <div className="p-8 md:p-12 max-w-4xl mx-auto animate-fade">
+      <PageHeader title="个人设置" description="管理你的账户、安全和创作身份。" />
 
-      <div className="grid gap-24">
-        <section className="card bg-surface shadow-sm">
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-24">身份识别</p>
-          <div className="grid gap-12">
-            <label className="text-[11px] font-bold text-text-muted uppercase tracking-widest">登录邮箱 (主标识)</label>
-            <p className="text-xl font-semibold text-text-primary">{email || "未绑定邮箱"}</p>
+      <div className="grid gap-6 mt-8">
+        <section className="card">
+          <p className="text-xs font-medium text-text-muted uppercase tracking-wider mb-4">账户</p>
+          <div className="grid gap-2">
+            <label className="text-xs text-text-muted">登录邮箱</label>
+            <p className="text-lg font-semibold text-text-primary">{email || "未绑定邮箱"}</p>
           </div>
         </section>
 
-        <section className="card flex flex-col md:flex-row md:items-center justify-between gap-24">
+        <section className="card flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-8">安全协议</p>
-            <p className="text-base font-semibold text-text-primary">访问密钥保护</p>
-            <p className="text-xs text-text-muted mt-4">定期更新密码以保障您的创作资产安全</p>
+            <p className="text-xs font-medium text-text-muted uppercase tracking-wider mb-2">密码</p>
+            <p className="text-base font-semibold text-text-primary">修改登录密码</p>
+            <p className="text-xs text-text-muted mt-1">建议定期更新以保护账户安全。</p>
           </div>
-          <a
-            href="/reset-password"
-            className="btn-secondary whitespace-nowrap"
-          >
-            重置登录密码
+          <a href="/reset-password" className="btn-secondary whitespace-nowrap">
+            重置密码
           </a>
         </section>
 
-        <section className="card border-red-100 bg-red-50/30 flex flex-col md:flex-row md:items-center justify-between gap-24">
+        <section className="card border-red-100 bg-red-50/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-500 mb-8">会话终止</p>
-            <p className="text-base font-semibold text-text-primary">当前活跃会话</p>
-            <p className="text-xs text-text-muted mt-4">退出后将清除本地缓存并断开 AI 引擎连接</p>
+            <p className="text-xs font-medium uppercase tracking-wider text-red-600 mb-2">退出登录</p>
+            <p className="text-base font-semibold text-text-primary">结束当前会话</p>
+            <p className="text-xs text-text-muted mt-1">退出后会清除本地缓存。</p>
           </div>
           <button
             onClick={handleLogout}
-            className="btn-ghost !border-red-200 !text-red-600 hover:!bg-red-100 whitespace-nowrap"
+            className="btn-ghost !border !border-red-200 !text-red-600 hover:!bg-red-100 whitespace-nowrap"
           >
-            终止当前会话
+            退出登录
           </button>
         </section>
       </div>
