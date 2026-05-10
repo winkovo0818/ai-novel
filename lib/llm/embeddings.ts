@@ -1,18 +1,58 @@
 /**
- * EdgeFn.net embedding client (BAAI/bge-m3).
+ * Embedding client.
  *
- * Environment:
- *   EDGEFN_API_KEY — required
- *   EDGEFN_BASE_URL — optional, defaults to https://api.edgefn.net/v1
+ * Resolution order (PHASE-B-EMBEDDINGS-CONTEXT §B-D-04):
+ *   1. EmbeddingModel DB row where is_default=true AND is_enabled=true
+ *   2. EDGEFN_API_KEY / EDGEFN_BASE_URL env vars (permanent escape hatch)
  *
- * Model: BAAI/bge-m3 produces 1024-dimensional vectors.
- * These are stored as vector(1024) via pgvector for similarity search.
+ * Dimension is locked to 1024 to match `MemoryChunk.embedding vector(1024)`
+ * (PHASE-B §B-D-02). Other dimensions need a separate migration + chunk
+ * re-embedding flow.
  */
 
-const BASE_URL = process.env.EDGEFN_BASE_URL?.replace(/\/$/, "") || "https://api.edgefn.net/v1";
-const API_KEY = process.env.EDGEFN_API_KEY;
-const MODEL = "BAAI/bge-m3";
-const EMBEDDING_DIM = 1024;
+import { prisma } from "@/lib/db";
+import { decryptApiKey } from "@/lib/llm/encryption";
+
+const EXPECTED_DIM = 1024;
+
+interface ResolvedEmbeddingConfig {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  source: "db" | "env";
+}
+
+async function resolveConfig(): Promise<ResolvedEmbeddingConfig> {
+  try {
+    const row = await prisma.embeddingModel.findFirst({
+      where: { is_default: true, is_enabled: true },
+    });
+    if (row) {
+      return {
+        baseUrl: row.base_url.replace(/\/$/, ""),
+        apiKey: decryptApiKey(row.api_key),
+        model: row.model,
+        source: "db",
+      };
+    }
+  } catch {
+    // DB unreachable / table missing — fall through to env. The env
+    // fallback is the documented escape hatch (B-D-04), never hard-fail here.
+  }
+
+  const apiKey = process.env.EDGEFN_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "No embedding configuration: no enabled default in EmbeddingModel and EDGEFN_API_KEY is not set",
+    );
+  }
+  return {
+    baseUrl: (process.env.EDGEFN_BASE_URL ?? "https://api.edgefn.net/v1").replace(/\/$/, ""),
+    apiKey,
+    model: "BAAI/bge-m3",
+    source: "env",
+  };
+}
 
 export interface EmbeddingResult {
   embeddings: number[][];
@@ -20,18 +60,16 @@ export interface EmbeddingResult {
 }
 
 export async function createEmbeddings(texts: string[]): Promise<number[][]> {
-  if (!API_KEY) {
-    throw new Error("EDGEFN_API_KEY is not configured");
-  }
+  const cfg = await resolveConfig();
 
-  const response = await fetch(`${BASE_URL}/embeddings`, {
+  const response = await fetch(`${cfg.baseUrl}/embeddings`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${API_KEY}`,
+      Authorization: `Bearer ${cfg.apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: cfg.model,
       input: texts,
     }),
   });
@@ -44,8 +82,10 @@ export async function createEmbeddings(texts: string[]): Promise<number[][]> {
   const json = (await response.json()) as EmbeddingResult;
   for (let i = 0; i < json.embeddings.length; i++) {
     const dim = json.embeddings[i].length;
-    if (dim !== EMBEDDING_DIM) {
-      throw new Error(`Embedding dimension mismatch: expected ${EMBEDDING_DIM}, got ${dim} at index ${i}`);
+    if (dim !== EXPECTED_DIM) {
+      throw new Error(
+        `Embedding dimension mismatch (model=${cfg.model}, source=${cfg.source}): expected ${EXPECTED_DIM}, got ${dim} at index ${i}`,
+      );
     }
   }
   return json.embeddings;
