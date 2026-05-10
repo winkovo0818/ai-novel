@@ -18,6 +18,7 @@
 
 ## 最近更新
 
+- **2026-05-11 (深夜)** — 关键路径测试补全。`lib/agent/summaries.ts` 0% → **100%**（10 个测试覆盖 guards / volume 创建跳过重摆 / novel 摘要兜底）；`lib/jobs/handlers.ts` 0% → **100%**（11 个测试覆盖三种 handler + dirty 清除 + 失败不清旗 + 注册幂等性）；总测试 352 → **373**，branches 79.21% → **82.18%**。
 - **2026-05-11 (晚)** — M3.1 dirty 字段链路落地。新增 `ChapterDraft.summary_dirty / index_dirty` + migration backfill；PATCH 在 content 变化时标脏；handlers 完成后清脏；编辑器删除两处客户端推 job（首次标 done / 已 done 章节再改）；新端点 `POST /api/novels/:id/jobs/refresh-dirty`；章节管理页加"刷新所有 dirty (N)"按钮。新增测试：dirty 行为 2 个 + refresh-dirty 端点 7 个 + chapterStatus 6 个。
 - **2026-05-11** — 初版健康度报告（基于 Phase A + Phase B + UI 设计刷新完成后状态）
 
@@ -29,13 +30,13 @@
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
 | `npm run lint` | ✅ 通过（零 warning） | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **55 files / 352 tests** 全绿，6.72s | M3.1 后净增 2 files / 15 tests |
-| `npm run build` | ✅ 通过 | 16 静态页 + 29 动态路由（新增 `/api/novels/[id]/jobs/refresh-dirty`） |
+| `npm run test` | ✅ **57 files / 373 tests** 全绿，7.54s | 关键路径补测后净增 2 files / 21 tests |
+| `npm run build` | ✅ 通过 | 16 静态页 + 29 动态路由 |
 | Playwright E2E | 3 spec（onboarding / editor-failure / editor-candidate）已进 CI | |
-| Coverage（v8） | 🟡 lines 64.5% / functions 87.96% / branches 79.21%（M3.1 后未重新生成） | 已生成报告，未入 CI 门禁 |
-| Prisma migrations | 21 条（新增 `20260511020000_add_chapter_dirty_flags`） | 部署前需 `prisma migrate deploy` |
+| Coverage（v8） | 🟡 lines **64.07%** / functions **87.6%** / branches **82.18%** | summaries / handlers 100%；useChapterEditor 仍 0% |
+| Prisma migrations | 21 条 | 部署前需 `prisma migrate deploy` |
 
-**规模**：业务源码 17,270 LoC（136 ts/tsx）；测试 6,295+ LoC（55 个 .test.ts）；36 个 API route + 19 个 page.tsx。
+**规模**：业务源码 17,270 LoC（136 ts/tsx）；测试 6,800+ LoC（57 个 .test.ts）；36 个 API route + 19 个 page.tsx。
 
 ---
 
@@ -84,9 +85,10 @@
 
 - [ ] **rateLimit Redis 适配器**（`lib/auth/rateLimit.ts:74-82` 仅占位符）— 多实例部署前必做
 - [ ] **`/api/healthz` 合并探针**：补 DB / Supabase Auth / pgvector 维度检查；当前 `/api/healthz/llm` admin-only 监控系统不能直接用
-- [ ] **`useChapterEditor.ts`（删除两处推 job 后约 800 行，0% 覆盖）** 拆分 + 补行为级测试
-- [ ] **`lib/agent/summaries.ts`（0% 覆盖）** 补单测
-- [ ] **`lib/jobs/handlers.ts`（0% 覆盖；M3.1 加了清 dirty 后更需要测）** 补单测
+- [ ] **`useChapterEditor.ts`（799 行，0% 覆盖）** 拆分 + 切 jsdom + RTL 行为级测试 — 单独 phase
+- [x] **`lib/agent/summaries.ts`** ✅ 100% 覆盖（2026-05-11 深夜）
+- [x] **`lib/jobs/handlers.ts`** ✅ 100% 覆盖（2026-05-11 深夜）
+- [ ] **`lib/agent/chapterStatus.ts`** 单元 buildChapterStatus 已覆盖（43%），`getChapterStatusesForNovel` 的 prisma 聚合分支还差
 - [ ] **`ChapterDraft.content` 80,000 char 上限**与目标字数无交互验证 — 补"接近上限"提醒
 - [ ] **`expected_version` 缺省兼容路径** 与 M3.6 防覆盖目标存在轻度冲突，可重新评估是否强制
 - [ ] **生产 security headers**：`next.config.ts` 无 CSP / images / headers 配置
@@ -131,9 +133,9 @@ F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关
 
 > 完成任意一件后回到本文档勾掉对应 §三 待办、刷新 §一 基线、并在 §最近更新 加一行摘要。
 
-1. **补 `useChapterEditor` / `summaries` / `jobs/handlers` 测试到 50%+** — 业务最复杂的三处现在 0% 覆盖。M3.1 给 handlers 加了清 dirty 逻辑后回归风险更大，应优先补。
-2. **rateLimit Redis 适配器 + healthz 合并探针** — 上线多副本前必做，同时补单测覆盖 limiter 切换分支。
-3. **候选稿 vs 正文 diff（M3.2.5）** — DiffView 已就绪，CandidatePanel 加切换即可，工作量低产品价值显著。
+1. **rateLimit Redis 适配器 + healthz 合并探针** — 上线多副本前必做，同时补单测覆盖 limiter 切换分支。
+2. **候选稿 vs 正文 diff（M3.2.5）** — DiffView 已就绪，CandidatePanel 加切换即可，工作量低产品价值显著。
+3. **useChapterEditor 拆分 + RTL 测试** — 当前 799 行 0% 覆盖，是最大盲区，但需要切 jsdom 环境 + RTL setup，单独 phase 处理。
 
 ---
 
