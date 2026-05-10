@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { LoadingState, EmptyState } from "@/components/ui/StatusStates";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { ModelsTabs } from "../_components/ModelsTabs";
 
 interface EmbeddingModel {
   id: string;
@@ -158,28 +158,27 @@ export default function EmbeddingsPage() {
           title="Embedding 节点"
           description="管理向量化提供方与模型。当前严格只支持 1024 维（bge-m3 / Cohere v3 / Voyage 等）；其他维度需要单独迁移脚本重嵌入历史 chunk。"
           actions={
-            <div className="flex items-center gap-3">
-              <Link href="/models" className="btn-secondary rounded-xl">Chat 节点</Link>
-              <button
-                onClick={() => (showForm ? handleCancelForm() : setShowForm(true))}
-                className={showForm ? "btn-secondary rounded-xl" : "btn-primary shadow-premium rounded-xl px-6"}
-              >
-                <div className="flex items-center gap-2">
-                  {showForm ? (
-                    <>取消操作</>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                      </svg>
-                      部署 Embedding 节点
-                    </>
-                  )}
-                </div>
-              </button>
-            </div>
+            <button
+              onClick={() => (showForm ? handleCancelForm() : setShowForm(true))}
+              className={showForm ? "btn-secondary rounded-xl" : "btn-primary shadow-premium rounded-xl px-6"}
+            >
+              <div className="flex items-center gap-2">
+                {showForm ? (
+                  <>取消操作</>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                    </svg>
+                    部署 Embedding 节点
+                  </>
+                )}
+              </div>
+            </button>
           }
         />
+
+        <ModelsTabs />
 
         {showForm && (
           <div className="mt-12 animate-fade-in">

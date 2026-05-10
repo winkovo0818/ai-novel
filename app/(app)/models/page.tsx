@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { LoadingState, EmptyState } from "@/components/ui/StatusStates";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import { ModelsTabs } from "./_components/ModelsTabs";
 
 interface LlmModel {
   id: string;
@@ -171,6 +172,8 @@ export default function ModelsPage() {
             </button>
           }
         />
+
+        <ModelsTabs />
 
         {showForm && (
           <div className="mt-12 animate-fade-in">
