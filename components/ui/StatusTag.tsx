@@ -10,7 +10,7 @@ interface StatusTagProps {
 
 export function StatusTag({ type, label, className = "" }: StatusTagProps) {
   const styles: Record<StatusType, { bg: string; text: string; dot?: string; animate?: string }> = {
-    idle: { bg: "bg-secondary", text: "text-text-secondary" },
+    idle: { bg: "bg-secondary/80", text: "text-text-secondary" },
     drafting: { bg: "bg-primary/10", text: "text-primary", dot: "bg-primary", animate: "animate-pulse" },
     saving: { bg: "bg-blue-500/10", text: "text-blue-600", dot: "bg-blue-500", animate: "animate-pulse" },
     done: { bg: "bg-emerald-500/10", text: "text-emerald-700", dot: "bg-emerald-500" },
@@ -25,11 +25,11 @@ export function StatusTag({ type, label, className = "" }: StatusTagProps) {
     saving: "正在保存",
     done: "已完成",
     error: "异常",
-    ai: "AI 强力辅助",
+    ai: "AI 辅助",
   };
 
   return (
-    <span className={`inline-flex items-center gap-6 px-10 py-3 rounded-full text-[11px] font-bold uppercase tracking-wider ${current.bg} ${current.text} ${className}`}>
+    <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-transparent transition-all ${current.bg} ${current.text} ${className}`}>
       {current.dot && (
         <span className={`h-1.5 w-1.5 rounded-full ${current.dot} ${current.animate || ""}`} />
       )}

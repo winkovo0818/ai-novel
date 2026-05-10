@@ -2,39 +2,40 @@
 
 @theme {
   /* Colors - Premium "Literary" Palette */
-  --color-background: #fdfdfc; /* Warmer, paper-like background */
-  --color-foreground: #1a1a1a;
+  --color-background: #fcfcf9; /* Warmer, premium paper-like background */
+  --color-foreground: #111827;
   
-  --color-primary: #4f46e5;
-  --color-primary-hover: #4338ca;
+  --color-primary: #6366f1; /* Indigo 500 */
+  --color-primary-hover: #4f46e5; /* Indigo 600 */
   --color-primary-light: #eef2ff;
   
-  --color-secondary: #f4f4f2; /* Off-white for UI elements */
+  --color-secondary: #f8f8f6; /* Off-white for UI elements */
   
   --color-surface: #ffffff;
   --color-surface-raised: #ffffff;
   
-  --color-border-subtle: #f1f1ee;
+  --color-border-subtle: #f3f3ef;
   --color-border-strong: #e5e5e0;
   
   --color-text-primary: #111827;
   --color-text-secondary: #4b5563;
-  --color-text-muted: #9ca3af;
-  --color-text-dim: #d1d5db;
+  --color-text-muted: #6b7280;
+  --color-text-dim: #9ca3af;
 
   /* Typography */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-serif), "Source Serif 4", "Noto Serif SC", serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
-  /* Shadows - Layered for depth */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  /* Shadows - Layered for depth (Modern SaaS Style) */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.04), 0 4px 6px -4px rgba(0, 0, 0, 0.02);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+  --shadow-premium: 0 12px 24px -6px rgba(0, 0, 0, 0.04), 0 4px 12px -4px rgba(0, 0, 0, 0.02);
   
   /* Layout Constants */
-  --width-sidebar: 280px;
+  --width-sidebar: 260px;
 }
 
 @layer base {
@@ -56,82 +57,85 @@
 
 @layer components {
   /* Premium Buttons */
+  .btn-base {
+    @apply inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
   .btn-primary {
-    @apply inline-flex items-center justify-center bg-text-primary text-white font-semibold px-4 py-2 rounded-md transition-all duration-300 hover:bg-primary shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 text-sm;
+    @apply inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-text-primary text-white px-4 py-2 hover:bg-primary shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center bg-white border border-border-strong text-text-primary font-semibold px-4 py-2 rounded-md transition-all duration-300 hover:bg-secondary shadow-sm hover:shadow-md text-sm;
+    @apply inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-white border border-border-strong text-text-primary px-4 py-2 hover:bg-secondary hover:border-text-dim/30 shadow-sm hover:shadow-md active:translate-y-0;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center bg-transparent text-text-secondary font-medium px-3 py-1.5 rounded-md transition-all duration-200 hover:bg-secondary hover:text-text-primary text-sm;
+    @apply inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-transparent text-text-secondary px-3 py-1.5 hover:bg-secondary hover:text-text-primary;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-white border border-red-100 text-red-600 px-4 py-2 hover:bg-red-50 hover:border-red-200 shadow-sm;
   }
 
   /* Premium Card */
   .card {
-    @apply bg-surface border border-border-subtle rounded-xl p-5 shadow-sm transition-all duration-500 hover:shadow-lg hover:border-border-strong;
+    @apply bg-surface border border-border-subtle rounded-xl p-6 shadow-sm transition-all duration-300;
+  }
+
+  .card-hover {
+    @apply hover:shadow-premium hover:border-border-strong;
   }
 
   /* Form Elements */
   .input-base {
-    @apply w-full bg-white border border-border-strong rounded-lg px-4 py-2 text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-sm shadow-sm;
+    @apply w-full bg-white border border-border-strong rounded-lg px-4 py-2 text-text-primary placeholder:text-text-dim/60 focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary/50 transition-all text-sm shadow-sm;
   }
 
   /* Paper Canvas - Used in Editor */
   .writing-canvas {
-    @apply bg-white shadow-xl rounded-sm mx-auto min-h-[900px] border border-border-subtle;
+    @apply bg-white shadow-premium rounded-sm mx-auto min-h-[900px] border border-border-subtle/50;
     width: 100%;
-    max-width: 800px;
+    max-width: 840px;
   }
 
   /* Custom Scrollbar */
   .custom-scrollbar::-webkit-scrollbar {
-    width: 5px;
+    width: 6px;
   }
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-border-strong rounded-full hover:bg-text-muted transition-colors;
+    @apply bg-border-strong/60 rounded-full hover:bg-text-dim/50 transition-colors;
   }
 }
 
 /* Subtle Micro-animations */
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(15px); }
+  from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes fade {
+@keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-@keyframes slide {
-  from { opacity: 0; transform: translateY(8px); }
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes slideInRight {
-  from { opacity: 0; transform: translateX(24px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
 .animate-fade-in-up {
-  animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.animate-fade {
-  animation: fade 0.4s ease-out both;
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out both;
 }
 
-.animate-slide {
-  animation: slide 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.animate-slide-in-right {
-  animation: slideInRight 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+.animate-slide-in {
+  animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .delay-100 { animation-delay: 100ms; }

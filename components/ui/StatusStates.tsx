@@ -9,26 +9,45 @@ interface EmptyStateProps {
 
 export function EmptyState({ title, description, icon, action }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center p-64 text-center border-2 border-dashed border-border-strong rounded-lg bg-surface/50">
-      {icon && <div className="mb-24 text-text-muted">{icon}</div>}
-      <h3 className="text-xl font-semibold text-text-primary mb-8">{title}</h3>
-      <p className="text-sm text-text-secondary mb-24 max-w-sm">{description}</p>
-      {action && <div>{action}</div>}
+    <div className="flex flex-col items-center justify-center py-20 px-6 text-center border-2 border-dashed border-border-strong rounded-3xl bg-white/40 animate-fade-in">
+      {icon && <div className="mb-6">{icon}</div>}
+      <h3 className="text-xl font-bold text-text-primary mb-2">{title}</h3>
+      <p className="text-sm text-text-secondary mb-8 max-w-xs mx-auto leading-relaxed">{description}</p>
+      {action && <div className="flex justify-center">{action}</div>}
     </div>
   );
 }
 
-export function LoadingState({ message = "正在加载数据..." }: { message?: string }) {
+export function LoadingState({ message = "数据加载中" }: { message?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center p-64 text-center">
-      <div className="mb-24 flex gap-4">
-        <div className="h-3 w-3 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
-        <div className="h-3 w-3 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
-        <div className="h-3 w-3 rounded-full bg-primary animate-bounce" />
+    <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
+      <div className="mb-6 flex gap-2">
+        <div className="h-2 w-2 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+        <div className="h-2 w-2 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+        <div className="h-2 w-2 rounded-full bg-primary animate-bounce" />
       </div>
-      <p className="text-sm font-medium text-text-secondary animate-pulse uppercase tracking-[0.1em]">
+      <p className="text-[11px] font-bold text-text-dim uppercase tracking-[0.2em]">
         {message}
       </p>
+    </div>
+  );
+}
+
+export function ErrorState({ title = "加载失败", message, onRetry }: { title?: string; message: string; onRetry?: () => void }) {
+  return (
+    <div className="card border-red-100 bg-red-50/30 p-12 text-center animate-fade-in">
+      <div className="h-12 w-12 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-red-600 shadow-sm">
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      </div>
+      <h4 className="text-base font-bold text-red-900 mb-2">{title}</h4>
+      <p className="text-sm text-red-700/70 mb-8 max-w-sm mx-auto">{message}</p>
+      {onRetry && (
+        <button onClick={onRetry} className="btn-secondary bg-white border-red-200 text-red-700 hover:bg-red-50">
+          尝试重新连接
+        </button>
+      )}
     </div>
   );
 }
