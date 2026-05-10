@@ -114,6 +114,27 @@ model LlmModel {
   @@unique([provider, model])
 }
 
+/// Configurable embedding providers. Mirrors LlmModel layout but tracks
+/// `dim` so we can reject mismatched-dimension models at the API layer
+/// (see PHASE-B-EMBEDDINGS-CONTEXT §B-D-02). Phase B locks dim to 1024
+/// to match the `MemoryChunk.embedding vector(1024)` column; non-1024
+/// models require a separate migration + chunk re-embedding flow.
+model EmbeddingModel {
+  id           String   @id @default(uuid())
+  name         String
+  provider     String   @default("edgefn")
+  base_url     String
+  api_key      String
+  model        String
+  dim          Int      @default(1024)
+  is_default   Boolean  @default(false)
+  is_enabled   Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@unique([provider, model])
+}
+
 /// DB-driven role grants. Composite PK (user_id, role) lets a user hold
 /// multiple roles without schema churn — Phase A only fills 'admin', later
 /// phases (e.g. 'embedding_admin') just insert new rows. user_id is not a
