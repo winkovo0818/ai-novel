@@ -136,25 +136,11 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
       return [...current, nextChapter].sort((a, b) => a.chapter_index - b.chapter_index);
     });
 
-    // F1: When a chapter is marked done with substantive content, refresh its
-    // summary and index it for RAG. Both run as background jobs so failures
-    // surface in the editor instead of disappearing into server logs.
-    if (nextStatus === "done" && nextContent.trim().length >= 100) {
-      const targetId = json.data.id as string;
-      void fetch(`/api/novels/${novelId}/jobs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobs: [
-            { type: "summarize_chapter", payload: { chapter_id: targetId } },
-            { type: "index_chapter", payload: { novel_id: novelId, chapter_id: targetId } },
-          ],
-        }),
-      }).catch(() => {
-        // Network error reaching our own API — the queue stays empty
-        // and the user can retry by re-marking the chapter done.
-      });
-    }
+    // M3.1: server-side PATCH flips summary_dirty / index_dirty on content
+    // change. The chapter management page's "refresh dirty" batch button
+    // owns when summarize/index actually run, so the editor no longer pushes
+    // jobs on every save — long novels would otherwise pay LLM cost for
+    // every keystroke autosave.
 
     // L-01: Auto-generate state diff when chapter is first marked done
     const targetId = json.data.id as string;
@@ -181,23 +167,8 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
       })();
     }
 
-    // L-03: Cascade refresh when editing an already-done chapter
-    if (savedStatus === "done" && nextContent !== savedContent) {
-      void fetch(`/api/novels/${novelId}/jobs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobs: [
-            { type: "summarize_chapter", payload: { chapter_id: targetId } },
-            { type: "index_chapter", payload: { novel_id: novelId, chapter_id: targetId } },
-            { type: "refresh_summaries", payload: { novel_id: novelId } },
-          ],
-        }),
-      }).catch(() => {});
-    }
-
     return json.data as ChapterDraftView;
-  }, [chapterId, chapterStatus, chapterTitle, chapterVersion, novelId, selectedIndex, savedContent, savedStatus]);
+  }, [chapterId, chapterStatus, chapterTitle, chapterVersion, novelId, selectedIndex, savedStatus]);
 
   useEffect(() => {
     if (!hasUnsavedChanges || status === "saving" || status === "drafting" || !chapterTitle.trim()) return;

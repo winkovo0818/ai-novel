@@ -51,11 +51,22 @@ export function registerJobHandlers(): void {
       timeoutMs: 15_000,
     });
 
-    await prisma.chapterSummary.upsert({
-      where: { chapter_id: chapter.id },
-      create: { chapter_id: chapter.id, summary: result.content.trim() },
-      update: { summary: result.content.trim() },
-    });
+    // M3.1: upsert + clear summary_dirty in one transaction so the chapter
+    // management page's "needs refresh" badge flips off the moment the
+    // summary lands. If summarize_dirty was set again between findUnique
+    // and now, we still clear it — the next user edit re-sets it via PATCH,
+    // which is the contract the editor relies on.
+    await prisma.$transaction([
+      prisma.chapterSummary.upsert({
+        where: { chapter_id: chapter.id },
+        create: { chapter_id: chapter.id, summary: result.content.trim() },
+        update: { summary: result.content.trim() },
+      }),
+      prisma.chapterDraft.update({
+        where: { id: chapter.id },
+        data: { summary_dirty: false },
+      }),
+    ]);
   });
 
   registerHandler("index_chapter", async (payload) => {
@@ -63,6 +74,12 @@ export function registerJobHandlers(): void {
     const chapter = await prisma.chapterDraft.findUnique({ where: { id: payload.chapter_id } });
     if (!chapter || !chapter.content.trim()) return;
     await indexChapter(payload.novel_id, payload.chapter_id, chapter.content);
+    // M3.1: indexChapter() rebuilds MemoryChunk rows for this chapter. Clear
+    // index_dirty so the management page badge reflects "fresh" again.
+    await prisma.chapterDraft.update({
+      where: { id: chapter.id },
+      data: { index_dirty: false },
+    });
   });
 
   registerHandler("refresh_summaries", async (payload) => {

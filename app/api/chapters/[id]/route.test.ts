@@ -64,7 +64,13 @@ describe("PATCH /api/chapters/[id]", () => {
     expect(json).toEqual({ ok: true, data: chapter });
     expect(update).toHaveBeenCalledWith({
       where: { id: "chapter-1" },
-      data: { content: "正文", status: "done", version: { increment: 1 } },
+      data: {
+        content: "正文",
+        status: "done",
+        summary_dirty: true,
+        index_dirty: true,
+        version: { increment: 1 },
+      },
     });
     expect(createVersion).toHaveBeenCalledTimes(1);
     expect(createVersion).toHaveBeenCalledWith(
@@ -269,7 +275,12 @@ describe("PATCH /api/chapters/[id]", () => {
     expect(response.status).toBe(200);
     expect(update).toHaveBeenCalledWith({
       where: { id: "chapter-1" },
-      data: { content: "fresh", version: { increment: 1 } },
+      data: {
+        content: "fresh",
+        summary_dirty: true,
+        index_dirty: true,
+        version: { increment: 1 },
+      },
     });
   });
 
@@ -293,7 +304,62 @@ describe("PATCH /api/chapters/[id]", () => {
     expect(response.status).toBe(200);
     expect(update).toHaveBeenCalledWith({
       where: { id: "chapter-1" },
-      data: { content: "next", version: { increment: 1 } },
+      data: {
+        content: "next",
+        summary_dirty: true,
+        index_dirty: true,
+        version: { increment: 1 },
+      },
+    });
+  });
+
+  // ─────────────────────────────────────────────
+  // M3.1 dirty-flag behavior
+  // ─────────────────────────────────────────────
+
+  it("does NOT set dirty flags when content is unchanged (title-only PATCH)", async () => {
+    const { PATCH } = await import("./route");
+    findUnique.mockResolvedValue({
+      id: "chapter-1",
+      title: "old-title",
+      content: "stable",
+      status: "draft",
+      version: 0,
+      novel: { user_id: "user-1" },
+    });
+    update.mockResolvedValue({ id: "chapter-1", title: "new-title", content: "stable", status: "draft" });
+
+    await PATCH(request({ title: "new-title" }), {
+      params: Promise.resolve({ id: "chapter-1" }),
+    });
+
+    // Title-only edits don't invalidate the chapter summary or RAG index, so
+    // the batch-flush button shouldn't light up for these.
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "chapter-1" },
+      data: { title: "new-title", version: { increment: 1 } },
+    });
+  });
+
+  it("does NOT set dirty flags when content payload equals existing content", async () => {
+    const { PATCH } = await import("./route");
+    findUnique.mockResolvedValue({
+      id: "chapter-1",
+      title: "t",
+      content: "same-content",
+      status: "draft",
+      version: 0,
+      novel: { user_id: "user-1" },
+    });
+    update.mockResolvedValue({ id: "chapter-1", content: "same-content", status: "draft" });
+
+    await PATCH(request({ content: "same-content" }), {
+      params: Promise.resolve({ id: "chapter-1" }),
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "chapter-1" },
+      data: { content: "same-content", version: { increment: 1 } },
     });
   });
 });

@@ -79,6 +79,13 @@ model ChapterDraft {
   /// tabs / devices editing the same chapter detect conflicts instead of
   /// silently overwriting each other (see /api/chapters/:id PATCH).
   version       Int      @default(0)
+  /// M3.1 dirty flags. PATCH sets these true on content change; summarize /
+  /// index job handlers reset them after a successful run. Decouples "user
+  /// edited" from "memory must rerun now" so long novels don't pay LLM cost
+  /// on every autosave — the chapter management page exposes a batch button
+  /// that flushes everything still marked dirty.
+  summary_dirty Boolean  @default(false)
+  index_dirty   Boolean  @default(false)
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
@@ -88,6 +95,8 @@ model ChapterDraft {
   @@unique([novel_id, chapter_index])
   @@index([novel_id])
   @@index([status])
+  @@index([novel_id, summary_dirty])
+  @@index([novel_id, index_dirty])
 }
 
 model ChapterSummary {

@@ -1,30 +1,29 @@
 # AI Novel — 项目状态
 
-> 最近更新：2026-05-11 · 阶段 1 + 阶段 2 + 阶段 3 已完成；阶段 3 之后追加 Phase A（DB 权限）+ Phase B（Embedding 配置）+ UI 设计刷新
+> 最近更新：2026-05-11 晚 · 阶段 1 + 阶段 2 + 阶段 3 已完成；阶段 3 之后追加 Phase A（DB 权限）+ Phase B（Embedding 配置）+ UI 设计刷新；M3.1 dirty 标脏链路（P2-4）补齐
 > 本文件是 PROGRESS / AUDIT / TASKS 三份历史状态文档的合并版本，是当前**唯一**的项目状态来源。
-> 战略路线见 `docs/ROADMAP_2_4_8_WEEKS.md`，战术任务单见 `docs/IMPLEMENTATION_TASKS.md`，阶段 3 之后的 phase 决策见 `docs/phases/`。
+> 战略路线见 `docs/ROADMAP_2_4_8_WEEKS.md`，战术任务单见 `docs/IMPLEMENTATION_TASKS.md`，阶段 3 之后的 phase 决策见 `docs/phases/`，每次任务后的体检报告见 `docs/HEALTH.md`。
 
 ---
 
-## 一、当前实测验证基线（2026-05-11，Phase A + B + UI 刷新完成后）
+## 一、当前实测验证基线（2026-05-11 晚，M3.1 dirty 链路完成后）
 
 | 命令                          | 结果                                                                                                          |
 |-----------------------------|-------------------------------------------------------------------------------------------------------------|
 | `npm run typecheck`         | ✅ 通过                                                                                                        |
 | `npm run lint` (`eslint .`) | ✅ 通过                                                                                                        |
-| `npm run test` (Vitest)     | ✅ 通过，**53 files / 337 tests**（阶段 3 后净增 38：Phase A 20 + Phase B 18）                                          |
-| `npm run build`             | ✅ 通过（16 个静态页 + 28 个动态路由；新增 `/admin/users`、`/models/embeddings` 及对应 API）                                     |
+| `npm run test` (Vitest)     | ✅ 通过，**55 files / 352 tests**（M3.1 后净增 2 files / 15 tests）                                                  |
+| `npm run build`             | ✅ 通过（16 个静态页 + 29 个动态路由；新增 `/api/novels/[id]/jobs/refresh-dirty`）                                            |
 | `tests/e2e/` (Playwright)   | ✅ 3 spec（onboarding / editor-failure / editor-candidate），**已进 CI**                                          |
-| coverage（v8）                | 🟡 已生成报告，未做 CI 门禁                                                                                            |
+| coverage（v8）                | 🟡 已生成报告（M3.1 后未重生），未做 CI 门禁                                                                                  |
 
 `.github/workflows/ci.yml` 现有两个 job：`verify`（lint/typecheck/test/build）+ `e2e`（pgvector postgres + LLM_MOCK + playwright + 失败上传 trace）。
 
-> 累计 migration（19 条），关键的近期 5 条：
-> - `20260510050000_add_chapter_target_words` — `ChapterDraft.target_words`
-> - `20260510060000_llm_usage_took_ms` — `LlmUsage.took_ms` + `(novel_id, created_at)` 复合索引
+> 累计 migration（21 条），关键的近期 5 条：
 > - `20260510070000_add_chapter_version` — `ChapterDraft.version`（乐观锁计数器，M3.6）
 > - `20260510080000_add_user_roles` — `UserRole(user_id, role)` 复合主键（Phase A）
 > - `20260511010000_add_embedding_models` — `EmbeddingModel` 表 + `(provider, model)` 唯一约束（Phase B）
+> - `20260511020000_add_chapter_dirty_flags` — `ChapterDraft.summary_dirty / index_dirty` + 双索引 + 历史数据 backfill（M3.1，2026-05-11 晚）
 >
 > 上线前需要 `npx prisma migrate deploy`。Phase A 还需在 env 里加 `SUPABASE_SERVICE_ROLE_KEY`（`/admin/users` 列用户必需）。
 
@@ -196,7 +195,7 @@
 | ~~P2-1~~ | ~~章节版本恢复 API + UI（当前只有列表无 restore）~~  | ✅ M3.2 完成（2026-05-10）       | ROADMAP M3.2                 |
 | ~~P2-2~~ | ~~版本 / 候选稿 diff 渲染~~                   | ✅ M3.2 完成（DiffView 接入历史 modal；候选稿 diff 暂未接） | ROADMAP M3.2                 |
 | ~~P2-3~~ | ~~导出中心 v1（`/novels/:id/export`，docx/epub）~~ | 🟡 M3.3 完成 docx/epub 格式扩展，仍是 ExportMenu，独立页面未做 | TASKS P-02 后续 / ROADMAP M3.3 |
-| P2-4 | 长篇记忆 dirty 字段 + 改稿不立即触发，改为标脏           | （阶段 3 重排时按下，纳入 backlog）   | TASKS L-03 续 / ROADMAP M3.1 |
+| ~~P2-4~~ | ~~长篇记忆 dirty 字段 + 改稿不立即触发，改为标脏~~     | ✅ M3.1 完成（2026-05-11 晚）：`summary_dirty / index_dirty` + PATCH 标脏 + handler 清脏 + `POST /api/novels/:id/jobs/refresh-dirty` + 章节管理页"刷新所有 dirty (N)"按钮 | TASKS L-03 续 / ROADMAP M3.1 |
 | ~~P2-5~~ | ~~UI 文案降噪 + 状态四态统一~~                  | ✅ M3.5 完成（编辑界面 26 行装饰性 chrome 移除；状态四态统一组件复用情况未审计） | TASKS P-08 / ROADMAP M3.4    |
 | ~~P2-6~~ | ~~多人协作前置（章节乐观锁）~~                    | ✅ M3.6 完成（version 列 + 409 + 加载最新横幅） | ROADMAP M3.5                 |
 

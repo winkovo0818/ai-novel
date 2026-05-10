@@ -101,6 +101,25 @@ export function ChaptersClient({
     }
   };
 
+  // M3.1 batch flush. Single round-trip; the server scans dirty flags and
+  // enqueues summarize / index for each match, plus one refresh_summaries
+  // if any chapter resummarize was queued.
+  const [batchRefreshing, setBatchRefreshing] = useState(false);
+  const dirtyCount = volumes
+    .flatMap((v) => v.rows)
+    .filter((r) => r.summary_state === "stale" || r.index_state === "stale").length;
+
+  const refreshAllDirty = async () => {
+    if (batchRefreshing) return;
+    setBatchRefreshing(true);
+    try {
+      await fetch(`/api/novels/${novelId}/jobs/refresh-dirty`, { method: "POST" });
+      router.refresh();
+    } finally {
+      setBatchRefreshing(false);
+    }
+  };
+
   const totalDrafted = volumes.flatMap((v) => v.rows).filter((r) => r.status !== "missing").length;
   const totalDone = volumes.flatMap((v) => v.rows).filter((r) => r.status === "done").length;
   const total = volumes.reduce((sum, v) => sum + v.rows.length, 0);
@@ -113,12 +132,24 @@ export function ChaptersClient({
           description={`共 ${total} 章 · 已起草 ${totalDrafted} · 已完成 ${totalDone}`}
           breadcrumb={breadcrumb}
           actions={
-            <Link href={`/editor/${novelId}`} className="btn-primary gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-              进入写作
-            </Link>
+            <div className="flex items-center gap-2">
+              {dirtyCount > 0 && (
+                <button
+                  onClick={refreshAllDirty}
+                  disabled={batchRefreshing}
+                  className="btn-secondary gap-1 text-[12px] disabled:opacity-50"
+                  title={`${dirtyCount} 个章节的摘要或索引已过期`}
+                >
+                  {batchRefreshing ? "刷新中…" : `刷新所有 dirty (${dirtyCount})`}
+                </button>
+              )}
+              <Link href={`/editor/${novelId}`} className="btn-primary gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                进入写作
+              </Link>
+            </div>
           }
         />
 

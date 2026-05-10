@@ -32,15 +32,16 @@ interface BuildArgs {
 /**
  * Decide per-chapter summary / index freshness from the raw rows.
  *
- * Rules of thumb (kept loose intentionally — production tightening is M3.1):
+ * Priority order:
  *
- * - Missing: row absent.
- * - Stale: row exists but the chapter's `updated_at` is newer than the
- *   summary/index's `updated_at`. This is the proxy for "user edited
- *   the chapter after the last summarize/index ran". Without a stored
- *   content_hash we use timestamps; tolerable for now.
- * - Running / failed: a BackgroundJob for this chapter is in those states.
- * - Fresh: row exists and isn't stale.
+ * 1. Running / failed: a BackgroundJob touching this chapter is in those
+ *    states. Job state outranks dirty bits because a successful job will
+ *    flip the bit anyway, and a failed job is a more actionable hint.
+ * 2. Missing: row absent (no summary, no chunks).
+ * 3. Stale: M3.1 dirty bit is true (PATCH set it on content change). We
+ *    fall back to a timestamp comparison so chapters edited *before* the
+ *    M3.1 migration backfill ran don't silently appear fresh.
+ * 4. Fresh: row exists, dirty bit clear, timestamps look in order.
  */
 export function buildChapterStatus(args: BuildArgs): ChapterStatusView {
   const { chapter, summary, hasMemoryChunks, latestJob } = args;
@@ -52,6 +53,7 @@ export function buildChapterStatus(args: BuildArgs): ChapterStatusView {
     if (latestJob?.type === "summarize_chapter" && isJobRunning) return "running";
     if (latestJob?.type === "summarize_chapter" && isJobFailed) return "failed";
     if (!summary) return "missing";
+    if (chapter.summary_dirty) return "stale";
     if (summary.updated_at < chapter.updated_at) return "stale";
     return "fresh";
   })();
@@ -60,7 +62,7 @@ export function buildChapterStatus(args: BuildArgs): ChapterStatusView {
     if (latestJob?.type === "index_chapter" && isJobRunning) return "running";
     if (latestJob?.type === "index_chapter" && isJobFailed) return "failed";
     if (!hasMemoryChunks) return "missing";
-    // No timestamp on chunks vs chapter — treat as fresh once present.
+    if (chapter.index_dirty) return "stale";
     return "fresh";
   })();
 

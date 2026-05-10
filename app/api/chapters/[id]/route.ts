@@ -92,9 +92,19 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const chapter = await prisma.$transaction(async (tx) => {
+      // M3.1: flag the chapter dirty when its content actually changes so the
+      // chapter management page can surface "needs refresh" without us paying
+      // for summarize/index on every autosave keystroke. We compute this once
+      // per PATCH; deletion of the chapter cascades to MemoryChunk/Summary.
+      const contentChanged =
+        updateData.content !== undefined && updateData.content !== existing.content;
+      const dirtyPatch = contentChanged
+        ? { summary_dirty: true, index_dirty: true }
+        : {};
+
       const updated = await tx.chapterDraft.update({
         where: { id },
-        data: { ...updateData, version: { increment: 1 } },
+        data: { ...updateData, ...dirtyPatch, version: { increment: 1 } },
       });
 
       // Decide whether this PATCH should create a ChapterVersion.
