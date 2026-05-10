@@ -59,7 +59,7 @@ export async function POST(request: Request, context: RouteContext) {
   }
   const { userId, session } = access;
 
-  if (isRateLimited(userId, ROUTE)) {
+  if (await isRateLimited(userId, ROUTE)) {
     return Response.json(
       {
         ok: false,

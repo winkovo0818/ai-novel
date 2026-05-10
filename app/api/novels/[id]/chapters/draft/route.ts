@@ -56,7 +56,7 @@ export async function POST(request: Request, context: RouteContext) {
   } catch {
     return jsonError("UNAUTHORIZED", "Login required", false, 401);
   }
-  if (isRateLimited(userId, ROUTE)) {
+  if (await isRateLimited(userId, ROUTE)) {
     return jsonError("RATE_LIMITED", "Too many requests, please try again later", false, 429);
   }
   if (!canAccessOwnerResource(novel.user_id, userId)) {

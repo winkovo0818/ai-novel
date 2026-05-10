@@ -21,7 +21,7 @@ export async function GET() {
     // adminGuardResponse already guarantees authentication, but keep the guard.
   }
 
-  if (isRateLimited(userId ?? "admin", ROUTE)) {
+  if (await isRateLimited(userId ?? "admin", ROUTE)) {
     return Response.json(
       {
         ok: false,

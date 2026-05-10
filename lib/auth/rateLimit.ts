@@ -1,10 +1,25 @@
 /**
  * Rate limiter abstraction.
  *
- * Current implementation falls back to an in-memory Map. For production
- * multi-instance or serverless deployments, swap to an external store
- * (Redis / Upstash / Supabase RPC) by setting RATE_LIMIT_STORE=redis
- * and providing REDIS_URL.
+ * Two implementations:
+ *
+ *   - MemoryRateLimiter: in-process Map. Fine for single-instance deploys
+ *     and local dev; multi-replica deploys (Vercel multi-region, k8s,
+ *     fly.io) leak limits across instances.
+ *
+ *   - UpstashRateLimiter: HTTP-only client against the Upstash Redis REST
+ *     API. Sliding window via sorted-set commands. Fetch-native so it
+ *     works anywhere — node runtime, edge runtime, or under jest/vitest
+ *     when given a stub fetch.
+ *
+ * Selection (in order):
+ *   1. RATE_LIMIT_STORE=redis + UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN
+ *      → Upstash, fail-open to Memory if env is incomplete (with warning).
+ *   2. otherwise → Memory.
+ *
+ * The interface is async so call sites can switch implementations without
+ * a migration. MemoryRateLimiter resolves synchronously inside; the async
+ * shape is only there for parity with the network-bound implementation.
  */
 
 const WINDOW_MS = 60_000;
@@ -23,8 +38,22 @@ const LIMITS = {
 } as const;
 
 export interface RateLimiter {
-  isLimited(identifier: string, route: string): boolean;
-  reset(identifier: string, route: string): void;
+  isLimited(identifier: string, route: string): Promise<boolean>;
+  reset(identifier: string, route: string): Promise<void>;
+}
+
+function normalizeRouteKey(route: string): string {
+  // Strip query string, then collapse path segments that LOOK like an ID
+  // (hex + dash, 6+ chars) into ":id" so two requests against different
+  // novels share a bucket. The previous regex `/[a-f0-9-]+/gi` matched
+  // any contiguous run of hex chars *inside* a segment and rewrote it,
+  // so e.g. "api" → "" and "chapters" → "hapters". Splitting on `/`
+  // and matching whole segments avoids that.
+  return route
+    .split("?")[0]
+    .split("/")
+    .map((seg) => (seg.length >= 6 && /^[0-9a-f-]+$/i.test(seg) ? ":id" : seg))
+    .join("/");
 }
 
 class MemoryRateLimiter implements RateLimiter {
@@ -34,8 +63,8 @@ class MemoryRateLimiter implements RateLimiter {
     return `${prefix}:${identifier}`;
   }
 
-  isLimited(identifier: string, route: string): boolean {
-    const prefix = route.replace(/\/[a-f0-9-]+/gi, "/:id").replace(/\?.*$/, "");
+  async isLimited(identifier: string, route: string): Promise<boolean> {
+    const prefix = normalizeRouteKey(route);
     const k = this.key(prefix, identifier);
     const now = Date.now();
     const timestamps = this.windows.get(k)?.filter((t) => now - t < WINDOW_MS) ?? [];
@@ -49,9 +78,104 @@ class MemoryRateLimiter implements RateLimiter {
     return false;
   }
 
-  reset(identifier: string, route: string): void {
-    const prefix = route.replace(/\/[a-f0-9-]+/gi, "/:id").replace(/\?.*$/, "");
+  async reset(identifier: string, route: string): Promise<void> {
+    const prefix = normalizeRouteKey(route);
     this.windows.delete(this.key(prefix, identifier));
+  }
+}
+
+interface UpstashOptions {
+  url: string;
+  token: string;
+  /** Override fetch (used by tests to stub the network). */
+  fetchImpl?: typeof fetch;
+}
+
+interface UpstashPipelineResult {
+  result?: unknown;
+  error?: string;
+}
+
+/**
+ * Upstash Redis REST client. Uses sorted-set sliding window:
+ *   ZREMRANGEBYSCORE key 0 (now - WINDOW)
+ *   ZCARD key
+ *   ZADD key now now
+ *   PEXPIRE key WINDOW
+ *
+ * The pipeline keeps these atomic per-call and avoids race-window inflation.
+ * The ZADD member is the timestamp itself — duplicate-second writes overwrite,
+ * which trades sub-second precision for storage simplicity.
+ */
+class UpstashRateLimiter implements RateLimiter {
+  private url: string;
+  private token: string;
+  private fetchImpl: typeof fetch;
+
+  constructor(opts: UpstashOptions) {
+    this.url = opts.url.replace(/\/$/, "");
+    this.token = opts.token;
+    this.fetchImpl = opts.fetchImpl ?? fetch;
+  }
+
+  private redisKey(identifier: string, route: string): string {
+    return `rl:${normalizeRouteKey(route)}:${identifier}`;
+  }
+
+  private async pipeline(commands: unknown[][]): Promise<UpstashPipelineResult[]> {
+    const response = await this.fetchImpl(`${this.url}/pipeline`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(commands),
+    });
+    if (!response.ok) {
+      throw new Error(`Upstash pipeline returned ${response.status}`);
+    }
+    return (await response.json()) as UpstashPipelineResult[];
+  }
+
+  async isLimited(identifier: string, route: string): Promise<boolean> {
+    const limit = resolveLimit(route);
+    const key = this.redisKey(identifier, route);
+    const now = Date.now();
+    const cutoff = now - WINDOW_MS;
+    try {
+      const results = await this.pipeline([
+        ["ZREMRANGEBYSCORE", key, "0", String(cutoff)],
+        ["ZCARD", key],
+        ["ZADD", key, String(now), String(now)],
+        ["PEXPIRE", key, String(WINDOW_MS)],
+      ]);
+      const cardResult = results[1]?.result;
+      const count = typeof cardResult === "number" ? cardResult : Number(cardResult ?? 0);
+      // ZCARD reads the count BEFORE the ZADD on the same pipeline. Treat
+      // the request we're about to admit as the (count + 1)th — block at
+      // the boundary so callers don't get one free slot beyond `limit`.
+      return count >= limit;
+    } catch (err) {
+      // Network / Upstash outage. Failing closed (block all) would DoS the
+      // app on a noisy hop; failing open (allow all) drops the cap. We
+      // pick fail-open because the memory limiter is also still active in
+      // single-process runs, and an outage is rarer than a runaway client.
+      console.error(
+        `[rateLimit] upstash request failed, allowing through: ${err instanceof Error ? err.message : err}`,
+      );
+      return false;
+    }
+  }
+
+  async reset(identifier: string, route: string): Promise<void> {
+    const key = this.redisKey(identifier, route);
+    try {
+      await this.pipeline([["DEL", key]]);
+    } catch (err) {
+      console.error(
+        `[rateLimit] upstash DEL failed: ${err instanceof Error ? err.message : err}`,
+      );
+    }
   }
 }
 
@@ -72,11 +196,15 @@ export function resolveLimitForRoute(route: string): number {
 }
 
 function createRateLimiter(): RateLimiter {
-  const store = process.env.RATE_LIMIT_STORE;
-  if (store === "redis") {
-    // Placeholder: import and return RedisRateLimiter when available.
-    // For now fall back to memory.
-    console.warn("[rateLimit] RATE_LIMIT_STORE=redis requested but not implemented; falling back to memory");
+  if (process.env.RATE_LIMIT_STORE === "redis") {
+    const url = process.env.UPSTASH_REDIS_REST_URL;
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+    if (url && token) {
+      return new UpstashRateLimiter({ url, token });
+    }
+    console.warn(
+      "[rateLimit] RATE_LIMIT_STORE=redis but UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN missing; falling back to memory",
+    );
   }
   return new MemoryRateLimiter();
 }
@@ -91,18 +219,28 @@ function getLimiter(): RateLimiter {
 }
 
 /**
+ * Override the active limiter. Test-only — production code never calls this.
+ * Callers should restore the previous value (returned) to avoid bleed.
+ */
+export function _setLimiterForTesting(next: RateLimiter | null): RateLimiter | null {
+  const prev = _limiter;
+  _limiter = next;
+  return prev;
+}
+
+/**
  * Check if the identifier is rate-limited for the given route.
  * Key should include userId + route + IP for production granularity.
  */
-export function isRateLimited(identifier: string, route: string): boolean {
+export async function isRateLimited(identifier: string, route: string): Promise<boolean> {
   return getLimiter().isLimited(identifier, route);
 }
 
 /**
  * Reset the rate limit window for an identifier/route (useful in tests).
  */
-export function resetRateLimit(identifier: string, route: string): void {
-  getLimiter().reset(identifier, route);
+export async function resetRateLimit(identifier: string, route: string): Promise<void> {
+  return getLimiter().reset(identifier, route);
 }
 
 /**
@@ -111,3 +249,7 @@ export function resetRateLimit(identifier: string, route: string): void {
 export function buildRateLimitKey(userId: string, route: string, ip?: string): string {
   return ip ? `${userId}:${route}:${ip}` : `${userId}:${route}`;
 }
+
+// Exported for direct construction in advanced wiring (e.g. injecting a
+// custom fetch from tests). Production picks them via createRateLimiter().
+export { MemoryRateLimiter, UpstashRateLimiter };

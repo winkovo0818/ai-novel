@@ -51,7 +51,7 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("UNAUTHORIZED", "Login required", false, 401);
   }
 
-  if (isRateLimited(userId, ROUTE)) {
+  if (await isRateLimited(userId, ROUTE)) {
     return jsonError("RATE_LIMITED", "Too many requests, please try again later", false, 429);
   }
 

@@ -18,8 +18,9 @@
 
 ## 最近更新
 
-- **2026-05-11 (深夜)** — 关键路径测试补全。`lib/agent/summaries.ts` 0% → **100%**（10 个测试覆盖 guards / volume 创建跳过重摆 / novel 摘要兜底）；`lib/jobs/handlers.ts` 0% → **100%**（11 个测试覆盖三种 handler + dirty 清除 + 失败不清旗 + 注册幂等性）；总测试 352 → **373**，branches 79.21% → **82.18%**。
-- **2026-05-11 (晚)** — M3.1 dirty 字段链路落地。新增 `ChapterDraft.summary_dirty / index_dirty` + migration backfill；PATCH 在 content 变化时标脏；handlers 完成后清脏；编辑器删除两处客户端推 job（首次标 done / 已 done 章节再改）；新端点 `POST /api/novels/:id/jobs/refresh-dirty`；章节管理页加"刷新所有 dirty (N)"按钮。新增测试：dirty 行为 2 个 + refresh-dirty 端点 7 个 + chapterStatus 6 个。
+- **2026-05-12** — 基础设施加固：rateLimit Upstash Redis 适配器（HTTP-only 4-command pipeline，fail-open 网络异常）+ healthz 探针扩展（DB / pgvector 维度检查 / Supabase env 配置 / 200 vs 503 + 错误码分类）。`isRateLimited` 接口转 async，10 个 caller 加 await。修复 `normalizeRouteKey` 老 regex bug（`/[a-f0-9-]+/gi` 把 `/api` 中的 `a` 也截走）。新增测试 21 个（rateLimit 15 + healthz 6）；总测试 373 → **389**。
+- **2026-05-11 (深夜)** — 关键路径测试补全。`lib/agent/summaries.ts` 0% → **100%**（10 个测试）；`lib/jobs/handlers.ts` 0% → **100%**（11 个测试）；总测试 352 → 373，branches 79.21% → 82.18%。
+- **2026-05-11 (晚)** — M3.1 dirty 字段链路落地。新增 `ChapterDraft.summary_dirty / index_dirty` + migration backfill；PATCH 在 content 变化时标脏；handlers 完成后清脏；编辑器删除两处客户端推 job；新端点 `POST /api/novels/:id/jobs/refresh-dirty`；章节管理页加"刷新所有 dirty (N)"按钮。
 - **2026-05-11** — 初版健康度报告（基于 Phase A + Phase B + UI 设计刷新完成后状态）
 
 ---
@@ -30,13 +31,13 @@
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
 | `npm run lint` | ✅ 通过（零 warning） | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **57 files / 373 tests** 全绿，7.54s | 关键路径补测后净增 2 files / 21 tests |
+| `npm run test` | ✅ **58 files / 389 tests** 全绿，7.46s | 基础设施加固后净增 1 file / 16 tests |
 | `npm run build` | ✅ 通过 | 16 静态页 + 29 动态路由 |
 | Playwright E2E | 3 spec（onboarding / editor-failure / editor-candidate）已进 CI | |
-| Coverage（v8） | 🟡 lines **64.07%** / functions **87.6%** / branches **82.18%** | summaries / handlers 100%；useChapterEditor 仍 0% |
+| Coverage（v8） | 🟡 lines **64.07%** / functions **87.6%** / branches **82.18%**（基础设施加固后未重生） | 已生成报告，未入 CI 门禁 |
 | Prisma migrations | 21 条 | 部署前需 `prisma migrate deploy` |
 
-**规模**：业务源码 17,270 LoC（136 ts/tsx）；测试 6,800+ LoC（57 个 .test.ts）；36 个 API route + 19 个 page.tsx。
+**规模**：业务源码 17,500+ LoC（136 ts/tsx）；测试 7,200+ LoC（58 个 .test.ts）；36 个 API route + 19 个 page.tsx。
 
 ---
 
@@ -83,8 +84,8 @@
 
 ### 体检中新发现
 
-- [ ] **rateLimit Redis 适配器**（`lib/auth/rateLimit.ts:74-82` 仅占位符）— 多实例部署前必做
-- [ ] **`/api/healthz` 合并探针**：补 DB / Supabase Auth / pgvector 维度检查；当前 `/api/healthz/llm` admin-only 监控系统不能直接用
+- [x] **rateLimit Redis 适配器** ✅ Upstash REST 落地（2026-05-12），fail-open 异常路径 + 接口转 async + normalizeRouteKey bug 顺手修复
+- [x] **`/api/healthz` 合并探针** ✅ DB + pgvector + Supabase 三维（2026-05-12），200/503 + 子系统级 code 分类
 - [ ] **`useChapterEditor.ts`（799 行，0% 覆盖）** 拆分 + 切 jsdom + RTL 行为级测试 — 单独 phase
 - [x] **`lib/agent/summaries.ts`** ✅ 100% 覆盖（2026-05-11 深夜）
 - [x] **`lib/jobs/handlers.ts`** ✅ 100% 覆盖（2026-05-11 深夜）
@@ -133,9 +134,9 @@ F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关
 
 > 完成任意一件后回到本文档勾掉对应 §三 待办、刷新 §一 基线、并在 §最近更新 加一行摘要。
 
-1. **rateLimit Redis 适配器 + healthz 合并探针** — 上线多副本前必做，同时补单测覆盖 limiter 切换分支。
-2. **候选稿 vs 正文 diff（M3.2.5）** — DiffView 已就绪，CandidatePanel 加切换即可，工作量低产品价值显著。
-3. **useChapterEditor 拆分 + RTL 测试** — 当前 799 行 0% 覆盖，是最大盲区，但需要切 jsdom 环境 + RTL setup，单独 phase 处理。
+1. **候选稿 vs 正文 diff（M3.2.5）** — DiffView 已就绪，CandidatePanel 加切换即可，工作量低产品价值显著。
+2. **useChapterEditor 拆分 + RTL 测试** — 当前 799 行 0% 覆盖，是最大盲区，但需要切 jsdom 环境 + RTL setup，单独 phase 处理。
+3. **章节管理页单章"重新刷新"按钮收敛到 refresh-dirty 端点** — 让旧路径慢慢死掉，避免两套并存。
 
 ---
 

@@ -41,7 +41,7 @@ export async function POST(_request: Request, context: RouteContext) {
     return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
   }
 
-  if (isRateLimited(userId, "/api/novels/:id/consistency")) {
+  if (await isRateLimited(userId, "/api/novels/:id/consistency")) {
     return jsonError("RATE_LIMITED", "Too many requests, please try again later", false, 429);
   }
 
