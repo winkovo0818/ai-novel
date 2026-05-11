@@ -261,3 +261,37 @@ model BackgroundJob {
   @@index([status, created_at])
   @@index([type, status])
 }
+
+/// Resumable chapter-draft SSE sessions.
+///
+/// Each AI draft POST creates one of these rows up front and writes the
+/// accumulated buffer back on a throttled cadence (every ~500ms / 256 chars)
+/// while the stream is live. If the client disconnects mid-stream, the row
+/// retains the partial buffer + final status so a subsequent /resume request
+/// can hand the user back whatever the model managed to produce — even if
+/// the underlying LLM call eventually completed without an attached reader.
+///
+/// One row per (user, novel, chapter_index). Starting a new draft for the
+/// same slot deletes the prior row, so resume always points at "the most
+/// recent draft attempt for this chapter".
+model DraftSession {
+  id            String   @id @default(uuid())
+  user_id       String
+  novel_id      String
+  chapter_index Int
+  /// Accumulated generated text. May be partial if the stream was
+  /// interrupted; check `status` before treating it as final.
+  buffer        String   @default("")
+  /// streaming | completed | failed
+  status        String   @default("streaming")
+  error_code    String?
+  error_message String?
+  /// Last retrieval-event payload emitted before the LLM stream started.
+  retrieval     Json?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  @@unique([user_id, novel_id, chapter_index])
+  @@index([user_id, novel_id])
+  @@index([updated_at])
+}

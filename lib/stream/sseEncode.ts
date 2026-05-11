@@ -6,6 +6,7 @@ export type SseEventName =
   | "first_chapter_beat"
   | "chapter_delta"
   | "retrieval"
+  | "session"
   | "done"
   | "error";
 

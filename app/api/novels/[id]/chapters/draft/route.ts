@@ -8,6 +8,12 @@ import { streamChatCompletionWithRetry } from "@/lib/llm/client";
 import { buildChapterPrompt } from "@/lib/llm/prompts/chapter";
 import { buildChapterContext } from "@/lib/agent/chapterContext";
 import { retrieveMemories, type RetrievalStatus } from "@/lib/agent/retrieval";
+import {
+  completeDraftSession,
+  createDraftBufferFlusher,
+  createDraftSession,
+  failDraftSession,
+} from "@/lib/agent/draftSession";
 import { sseEncode, sseHeartbeat } from "@/lib/stream/sseEncode";
 import { getGenerationPolicy } from "@/lib/llm/generationPolicy";
 import {
@@ -140,6 +146,16 @@ export async function POST(request: Request, context: RouteContext) {
 
   const policy = getGenerationPolicy(profile.data);
 
+  // UX3: persist this draft attempt so the client can resume if the SSE
+  // connection drops. Created before the stream opens so the row's id can
+  // be handed to the client in its very first event.
+  const sessionId = await createDraftSession({
+    userId,
+    novelId: id,
+    chapterIndex: input.chapter_index,
+  });
+  const flusher = createDraftBufferFlusher(sessionId);
+
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       let heartbeat: ReturnType<typeof setInterval> | undefined;
@@ -150,6 +166,9 @@ export async function POST(request: Request, context: RouteContext) {
       }
 
       try {
+        // Hand the resume id over before any other event so the client
+        // can store it even if the next tick disconnects.
+        send(sseEncode("session", { sessionId }));
         // M3.4: surface what RAG retrieved before the LLM stream starts so the
         // candidate panel can render the cited chunks while the model is still
         // generating. Falls between request and first delta.
@@ -174,6 +193,7 @@ export async function POST(request: Request, context: RouteContext) {
             onDelta(delta) {
               content += delta;
               send(sseEncode("chapter_delta", { delta }));
+              flusher.schedule(content);
             },
           },
         );
@@ -186,6 +206,12 @@ export async function POST(request: Request, context: RouteContext) {
           text: content,
         });
         if (!outputModeration.allowed) {
+          await flusher.flush();
+          await failDraftSession(sessionId, {
+            buffer: content,
+            code: outputModeration.code ?? "MODERATION_BLOCKED",
+            message: outputModeration.reason ?? "Generated content blocked by moderation",
+          });
           send(
             sseEncode("error", {
               code: outputModeration.code ?? "MODERATION_BLOCKED",
@@ -196,6 +222,12 @@ export async function POST(request: Request, context: RouteContext) {
           return;
         }
 
+        await flusher.flush();
+        await completeDraftSession(sessionId, {
+          buffer: content,
+          retrieval: retrievalPreview,
+        });
+
         send(
           sseEncode("done", {
             token_in: result.tokenIn,
@@ -204,12 +236,15 @@ export async function POST(request: Request, context: RouteContext) {
             took_ms: result.tookMs,
             chars: content.length,
             retrieval_status: retrievalStatus,
+            sessionId,
           }),
         );
       } catch (err) {
         const message = err instanceof Error ? err.message : "unknown error";
         const code = /timed out/i.test(message) ? "LLM_TIMEOUT" : "INTERNAL";
-        send(sseEncode("error", { code, message, retryable: true }));
+        await flusher.flush();
+        await failDraftSession(sessionId, { buffer: content, code, message });
+        send(sseEncode("error", { code, message, retryable: true, sessionId }));
       } finally {
         if (heartbeat) clearInterval(heartbeat);
         controller.close();

@@ -256,6 +256,48 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               </div>
             )}
 
+            {editor.resumableDraft && !editor.candidateOpen && (
+              <div className="mt-8 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-5 flex flex-wrap items-center justify-between gap-4 animate-slide-in">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="h-10 w-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+                    <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-bold text-indigo-900">
+                      {editor.resumableDraft.status === "completed"
+                        ? "上次起草已完成但未应用"
+                        : editor.resumableDraft.status === "failed"
+                        ? "上次起草中途失败"
+                        : "上次起草中途中断"}
+                    </p>
+                    <p className="text-[12px] text-indigo-800/80 truncate">
+                      已保留 {editor.resumableDraft.buffer.length} 字
+                      {editor.resumableDraft.errorMessage
+                        ? ` · 原因：${editor.resumableDraft.errorMessage}`
+                        : ""}
+                      ，可恢复为候选稿继续处理。
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={editor.applyResumableDraft}
+                    className="px-4 py-1.5 text-[11px] font-bold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-sm"
+                  >
+                    恢复候选稿
+                  </button>
+                  <button
+                    onClick={editor.dismissResumableDraft}
+                    className="px-4 py-1.5 text-[11px] font-bold rounded-lg border border-indigo-200 text-indigo-800 hover:bg-indigo-100 transition-colors"
+                  >
+                    丢弃
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="mt-12 relative">
               <textarea
                 className={`w-full min-h-[1000px] resize-none border-none bg-transparent p-0 font-serif ${FONT_SCALES[fontScale].textareaClass} text-text-primary placeholder:text-text-dim/20 focus:outline-none selection:bg-primary/10`}

@@ -12,8 +12,8 @@
 |-----------------------------|-------------------------------------------------------------------------------------------------------------|
 | `npm run typecheck`         | ✅ 通过                                                                                                        |
 | `npm run lint` (`eslint .`) | ✅ 通过                                                                                                        |
-| `npm run test` (Vitest)     | ✅ 通过，**66 files / 464 tests**（M3.1 后又净增多个 agent/jobs/onboarding/usage/editor utils/metrics/relations 覆盖批次）                                                  |
-| `npm run build`             | ✅ 通过（17 个静态页 + 30 个动态路由；新增 `/novels/[id]/export` 独立页面）                                            |
+| `npm run test` (Vitest)     | ✅ 通过，**68 files / 489 tests**                                                  |
+| `npm run build`             | ✅ 通过（17 个静态页 + 31 个动态路由；新增 `/api/novels/[id]/chapters/draft/resume` + `/novels/[id]/relationships`）                                            |
 | `tests/e2e/` (Playwright)   | ✅ 3 spec（onboarding / editor-failure / editor-candidate），**已进 CI**                                          |
 | coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines/statements 68 · functions 93 · branches 83，基线 70.04 / 94.24 / 85.50）                                                                                  |
 
@@ -208,7 +208,7 @@
 | ~~P3-UI~~ | ~~设计语言刷新（tokens + 6 大页面层级）~~                  | ✅ 2026-05-11 完成              | commit `6610943` 起 6 个原子 refactor commit |
 
 ### 其他遗留小项
-- UX3 — SSE 中断不可续传（暂缓）
+（已清空）
 
 ### 阶段 3 后续已完成（2026-05-11 末批）
 - ✅ **Tab 整合 `/models` ↔ `/models/embeddings`**：commit `98dcdcd` 加 `ModelsTabs` 共享 nav
@@ -225,6 +225,7 @@
 - ✅ **useChapterEditor 提纯（Phase A）**：抽出 `lib/editor/chapterUtils.ts`（resolveStartIndex / deriveChapterStateFromDraft / mergeChapterIntoList / applyAcceptMode），18 个单元测试；hook 公共 API 不变，selectChapter 与 mount 不再重复初始化逻辑
 - ✅ **Prometheus metrics 端点**：`/api/metrics`（bearer token 鉴权 via `METRICS_TOKEN`）；`lib/metrics/prometheus.ts` 自手写 text exposition formatter（无 prom-client 依赖，避开 serverless in-memory state 丢失问题）+ `lib/metrics/collector.ts` 从 Postgres 汇总 8 个 metric family（LLM 请求/Token/成本、Job 状态、Novel/Chapter 计数）；13 个测试 + .env.example 加 `METRICS_TOKEN` 注释；阈值升级到 68/68/93/83（基线 70.04/94.24/85.50）
 - ✅ **F-04 角色关系图（编辑态 MVP）**：`/novels/[id]/relationships` 拆为 `RelationshipEditor`（client wrapper，用 `useBibleEdit` 同 characters/world/outline 三页共用）+ `RelationshipGraph`（纯展示 SVG）+ `CharacterRelationsCards`（可编辑卡片）；每条 relation 输入实时显示绿色「将连边到 X」/ 黄色「未匹配」反馈；保存 PATCH `/api/novels/:id/bible`；SaveBar 沿用 characters 编辑器同款；hover 联动覆盖 SVG 节点 + 卡片双向；`lib/bible/relations.ts` 纯函数 12 单测保持不变
+- ✅ **UX3 SSE 续传**：新增 `DraftSession` 表（migration `20260512000000`，唯一 (user, novel, chapter) 槽位）；`/draft` SSE 流开始时 upsert 行，过程中 throttled flush（≥500ms 或 ≥256 字符），结束 / 失败 / moderation 阻断时持久化最终 status；首事件推 `{event:"session",sessionId}`。新增 `GET/DELETE /api/novels/:id/chapters/draft/resume?chapter_index=N`：404 NO_DRAFT_SESSION / 200 返回 buffer + status + retrieval / DELETE 清场。客户端 `useChapterEditor` 切换章节时探测 resumable session（>10 字才弹），编辑器渲染 indigo 横幅「上次起草中断，已保留 X 字」+「恢复候选稿 / 丢弃」按钮；accept / discard 后自动 DELETE 服务端会话。`lib/agent/draftSession.ts` 助手 15 单测、resume route 10 单测；阈值仍 68/68/93/83
 
 ### 暂缓（3 个月内不做）
 F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关系图 / F-05 Prompt Cache 多模型 Router / F-06 计费支付

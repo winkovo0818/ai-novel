@@ -25,6 +25,16 @@ vi.mock("@/lib/agent/retrieval", () => ({
   retrieveMemories,
 }));
 
+vi.mock("@/lib/agent/draftSession", () => ({
+  createDraftSession: vi.fn().mockResolvedValue("ds-test"),
+  createDraftBufferFlusher: vi.fn(() => ({
+    schedule: vi.fn(),
+    flush: vi.fn().mockResolvedValue(undefined),
+  })),
+  completeDraftSession: vi.fn().mockResolvedValue(undefined),
+  failDraftSession: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/moderation/moderate", () => ({
   moderateContent: () => Promise.resolve({ allowed: true }),
   stringifyForModeration: (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v)),

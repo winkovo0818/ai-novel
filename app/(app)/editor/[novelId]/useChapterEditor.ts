@@ -288,6 +288,19 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     Array<{ source: string; reason: string; score: number; text: string }>
   >([]);
   const [lastRetrievalError, setLastRetrievalError] = useState<string>();
+  // UX3: server-side draft session id, captured from the first SSE event so
+  // a dropped connection (browser refresh, lost network) can still be resumed
+  // via /api/novels/:id/chapters/draft/resume.
+  const [draftSessionId, setDraftSessionId] = useState<string | null>(null);
+  // A resumable draft surfaced on chapter load (buffer the server kept from
+  // a previous interrupted run). Distinct from candidateContent because the
+  // user hasn't accepted to re-open the candidate flow yet.
+  const [resumableDraft, setResumableDraft] = useState<{
+    sessionId: string;
+    status: "streaming" | "completed" | "failed";
+    buffer: string;
+    errorMessage: string | null;
+  } | null>(null);
   // Cursor tracking for "insert at cursor" mode. EditorClient updates this on
   // textarea selection/click events.
   const cursorPosRef = useRef<number | null>(null);
@@ -302,6 +315,82 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     setCandidateCriticLoading(false);
     setCandidateCriticResult(undefined);
     setCandidateCriticError(undefined);
+  }
+
+  // UX3: fetch any server-side buffered draft for the active chapter. Called
+  // on chapter switch so the editor can surface "上次起草中断" banners.
+  const checkResumableDraft = useCallback(
+    async (chapterIndex: number) => {
+      try {
+        const res = await fetch(
+          `/api/novels/${novelId}/chapters/draft/resume?chapter_index=${chapterIndex}`,
+        );
+        if (res.status === 404) {
+          setResumableDraft(null);
+          return;
+        }
+        const json = await res.json();
+        if (!json.ok) {
+          setResumableDraft(null);
+          return;
+        }
+        // Don't surface drafts shorter than a few characters — that's usually
+        // a near-instant abort the user doesn't care about resuming.
+        const buffer: string = json.data.buffer ?? "";
+        if (buffer.trim().length < 10) {
+          setResumableDraft(null);
+          return;
+        }
+        setResumableDraft({
+          sessionId: json.data.id,
+          status: json.data.status,
+          buffer,
+          errorMessage: json.data.error_message,
+        });
+      } catch {
+        setResumableDraft(null);
+      }
+    },
+    [novelId],
+  );
+
+  useEffect(() => {
+    void checkResumableDraft(selectedIndex);
+  }, [selectedIndex, checkResumableDraft]);
+
+  async function dismissResumableDraftServer(chapterIndex: number) {
+    try {
+      await fetch(
+        `/api/novels/${novelId}/chapters/draft/resume?chapter_index=${chapterIndex}`,
+        { method: "DELETE" },
+      );
+    } catch {
+      // dismissal is best-effort; the unique row will be replaced on next draft
+    }
+  }
+
+  function dismissResumableDraft() {
+    if (!resumableDraft) return;
+    setResumableDraft(null);
+    void dismissResumableDraftServer(selectedIndex);
+  }
+
+  function applyResumableDraft() {
+    if (!resumableDraft) return;
+    setCandidateContent(resumableDraft.buffer);
+    setCandidateOpen(true);
+    setCandidateStreaming(false);
+    setDraftSessionId(resumableDraft.sessionId);
+    setStatus("idle");
+    setMessage(
+      resumableDraft.status === "completed"
+        ? "已加载上次未完成的候选稿"
+        : "已加载上次中断的部分候选稿，可继续编辑或丢弃",
+    );
+    setResumableDraft(null);
+    // Run critic against the recovered text so the panel state matches a
+    // fresh draft.
+    void runCandidateCritic(resumableDraft.buffer);
   }
 
   async function draftChapter(beats?: BeatItem[]) {
@@ -348,6 +437,12 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
       }
 
       await readSse(response.body, (event) => {
+        if (event.event === "session") {
+          const data = event.data as { sessionId?: string };
+          if (data.sessionId) setDraftSessionId(data.sessionId);
+          return;
+        }
+
         if (event.event === "chapter_delta") {
           const data = event.data as { delta?: string };
           if (data.delta) {
@@ -430,6 +525,10 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
       clearCandidate();
       setStatus("idle");
       setMessage("候选稿已丢弃，正文未改动");
+      // UX3: drop the server-side session too so the user isn't re-prompted
+      // to resume something they explicitly discarded.
+      void dismissResumableDraftServer(selectedIndex);
+      setDraftSessionId(null);
       return;
     }
 
@@ -465,6 +564,10 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
           : "候选稿已插入光标处",
       );
       clearCandidate();
+      // UX3: candidate was successfully applied — clear the resumable
+      // session so the next chapter visit doesn't re-offer it.
+      void dismissResumableDraftServer(selectedIndex);
+      setDraftSessionId(null);
     } catch (err) {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "保存失败");
@@ -784,5 +887,10 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     conflictChapter,
     loadLatestChapter,
     dismissConflict,
+    // UX3 resumable draft sessions
+    draftSessionId,
+    resumableDraft,
+    applyResumableDraft,
+    dismissResumableDraft,
   };
 }
