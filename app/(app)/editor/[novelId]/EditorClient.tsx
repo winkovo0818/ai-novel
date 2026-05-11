@@ -147,6 +147,22 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
                 <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-500 border-2 border-white animate-bounce" />
               </button>
             )}
+
+            {editor.autoStateDiffError && (
+              <button
+                onClick={() => {
+                  editor.dismissAutoStateDiffError();
+                  editor.generateStateDiff();
+                }}
+                className="relative p-2 rounded-xl text-red-600 bg-red-50 border border-red-100 hover:bg-red-100 transition-colors shadow-sm"
+                title={`第 ${editor.autoStateDiffError.chapterIndex} 章状态分析自动生成失败 · ${editor.autoStateDiffError.message} · 点击重试`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.48 0L3.16 16.25A2 2 0 005 19z" />
+                </svg>
+                <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white" />
+              </button>
+            )}
             
             {(editor.status !== "idle" || editor.chapterStatus === "done") && (
               <StatusTag type={editor.status === "drafting" ? "drafting" : editor.status === "saving" ? "saving" : editor.chapterStatus === "done" ? "done" : "idle"} />

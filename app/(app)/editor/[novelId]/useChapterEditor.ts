@@ -150,20 +150,34 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
         try {
           const res = await fetch(`/api/chapters/${targetId}/state-diff`, { method: "POST" });
           const stateDiffJson = await res.json();
-          if (stateDiffJson.ok && stateDiffJson.data) {
-            const diff = stateDiffJson.data as StateDiff;
-            const hasChanges =
-              diff.character_updates.length > 0 ||
-              diff.timeline_events.length > 0 ||
-              diff.plot_thread_updates.length > 0 ||
-              diff.new_entities.length > 0;
-            if (hasChanges) {
-              setPendingStateDiff(diff);
-              setPendingStateDiffChapterIndex(selectedIndex);
-            }
+          if (!res.ok || !stateDiffJson.ok) {
+            // P0-7: previously this branch was a silent `catch {}`, so when
+            // the background state-diff call failed (LLM timeout, 4xx, mal-
+            // formed payload) the user had no signal that the world-state
+            // update they expected never happened. Surface it as a badge
+            // on the header so they can re-trigger it via the regular
+            // generateStateDiff() entrypoint.
+            const message =
+              stateDiffJson?.error?.message ?? "状态分析自动生成失败,请手动重试";
+            setAutoStateDiffError({ message, chapterIndex: selectedIndex });
+            return;
           }
-        } catch {
-          // Silent fail for background auto-generation
+          const diff = stateDiffJson.data as StateDiff;
+          const hasChanges =
+            diff.character_updates.length > 0 ||
+            diff.timeline_events.length > 0 ||
+            diff.plot_thread_updates.length > 0 ||
+            diff.new_entities.length > 0;
+          if (hasChanges) {
+            setPendingStateDiff(diff);
+            setPendingStateDiffChapterIndex(selectedIndex);
+          }
+        } catch (err) {
+          // P0-7: network/abort/JSON parse failures land here. Same surface
+          // as the !ok branch above — give the user a retryable badge
+          // instead of swallowing the error.
+          const message = err instanceof Error ? err.message : "状态分析自动生成失败,请手动重试";
+          setAutoStateDiffError({ message, chapterIndex: selectedIndex });
         }
       })();
     }
@@ -736,6 +750,18 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
   const [pendingStateDiff, setPendingStateDiff] = useState<StateDiff | null>(null);
   const [pendingStateDiffChapterIndex, setPendingStateDiffChapterIndex] = useState(0);
 
+  // P0-7: surface auto-state-diff failures so they're not silently lost.
+  // Carries a message plus the chapter index so the badge can name the
+  // chapter the user just marked done — useful when they've already
+  // navigated elsewhere by the time the background call fails.
+  const [autoStateDiffError, setAutoStateDiffError] = useState<
+    { message: string; chapterIndex: number } | null
+  >(null);
+
+  function dismissAutoStateDiffError() {
+    setAutoStateDiffError(null);
+  }
+
   function openPendingStateDiff() {
     if (!pendingStateDiff) return;
     setStateDiff(pendingStateDiff);
@@ -866,6 +892,8 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     pendingStateDiff,
     pendingStateDiffChapterIndex,
     openPendingStateDiff,
+    autoStateDiffError,
+    dismissAutoStateDiffError,
     // M1.3 candidate flow
     candidateOpen,
     candidateContent,
