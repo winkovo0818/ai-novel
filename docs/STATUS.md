@@ -13,7 +13,7 @@
 | `npm run typecheck`         | ✅ 通过                                                                                                        |
 | `npm run lint` (`eslint .`) | ✅ 通过                                                                                                        |
 | `npm run test` (Vitest)     | ✅ 通过，**61 files / 410 tests**（M3.1 后又净增多个 agent/jobs/onboarding 覆盖批次）                                                  |
-| `npm run build`             | ✅ 通过（16 个静态页 + 29 个动态路由；新增 `/api/novels/[id]/jobs/refresh-dirty`）                                            |
+| `npm run build`             | ✅ 通过（17 个静态页 + 30 个动态路由；新增 `/novels/[id]/export` 独立页面）                                            |
 | `tests/e2e/` (Playwright)   | ✅ 3 spec（onboarding / editor-failure / editor-candidate），**已进 CI**                                          |
 | coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines 64 / statements 64 / functions 90 / branches 80）                                                                                  |
 
@@ -210,7 +210,6 @@
 ### 其他遗留小项
 - B2 — i18n 已装但 locale 锁死 zh：删除假 i18n 或补完整路由（暂缓）
 - UX3 — SSE 中断不可续传（暂缓）
-- **独立导出中心页 `/novels/[id]/export`**（M3.3 backlog）：当前由 `ExportMenu` 承载
 
 ### 阶段 3 后续已完成（2026-05-11 末批）
 - ✅ **Tab 整合 `/models` ↔ `/models/embeddings`**：commit `98dcdcd` 加 `ModelsTabs` 共享 nav
@@ -221,6 +220,7 @@
 - ✅ **生产响应头基线**：commit `2ed876b`
 - ✅ **onboarding routes 负向 ownership 测试**：questions / loglines / bible 各加 5-6 个测试（401 / 404 / 400 INVALID_INPUT / 429 RATE_LIMITED / 429 QUOTA / REGEN_LIMIT / MODERATION_BLOCKED），原 finalize 测试已有
 - ✅ **coverage CI 门禁**：`vitest.config.ts` 加 thresholds（lines/statements 64 · functions 90 · branches 80，留 ~2 pt 缓冲）；CI verify job 由 `npm run test` 改为 `npm run test:coverage`，覆盖率回退会让 build 失败
+- ✅ **独立导出中心页 `/novels/[id]/export`**：server component + `ExportCenterClient`；3 张 StatCard（已起草 / 累计字数 / 最近编辑）+ 2×2 格式卡片（markdown / txt / docx / epub），每张卡片含说明 + 用例 + loading 状态 + 成功/错误反馈；novel 详情页 5 卡 NavCard 升至 5 列网格；编辑器 `ExportMenu` 内联入口保留
 
 ### 暂缓（3 个月内不做）
 F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关系图 / F-05 Prompt Cache 多模型 Router / F-06 计费支付

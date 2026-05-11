@@ -105,7 +105,7 @@ export default async function NovelDetailPage({ params }: PageProps) {
           <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-text-dim mb-6">
             作品管理协议 / INFRASTRUCTURE
           </h2>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <NavCard
               href={`/novels/${novel.id}/characters`}
               title="角色图谱"
@@ -129,6 +129,12 @@ export default async function NovelDetailPage({ params }: PageProps) {
               title="版本管理"
               description={`已同步 ${savedCount} 个云端草稿`}
               icon="chapters"
+            />
+            <NavCard
+              href={`/novels/${novel.id}/export`}
+              title="导出中心"
+              description="markdown · txt · docx · epub"
+              icon="export"
             />
           </div>
         </section>
@@ -237,7 +243,7 @@ function NavCard({
   href: string;
   title: string;
   description: string;
-  icon: "characters" | "world" | "outline" | "chapters";
+  icon: "characters" | "world" | "outline" | "chapters" | "export";
 }) {
   const iconPaths: Record<typeof icon, string> = {
     characters:
@@ -248,6 +254,8 @@ function NavCard({
       "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
     chapters:
       "M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4",
+    export:
+      "M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
   };
 
   return (
