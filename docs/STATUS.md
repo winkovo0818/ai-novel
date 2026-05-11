@@ -208,7 +208,6 @@
 | ~~P3-UI~~ | ~~设计语言刷新（tokens + 6 大页面层级）~~                  | ✅ 2026-05-11 完成              | commit `6610943` 起 6 个原子 refactor commit |
 
 ### 其他遗留小项
-- B2 — i18n 已装但 locale 锁死 zh：删除假 i18n 或补完整路由（暂缓）
 - UX3 — SSE 中断不可续传（暂缓）
 
 ### 阶段 3 后续已完成（2026-05-11 末批）
@@ -221,6 +220,8 @@
 - ✅ **onboarding routes 负向 ownership 测试**：questions / loglines / bible 各加 5-6 个测试（401 / 404 / 400 INVALID_INPUT / 429 RATE_LIMITED / 429 QUOTA / REGEN_LIMIT / MODERATION_BLOCKED），原 finalize 测试已有
 - ✅ **coverage CI 门禁**：`vitest.config.ts` 加 thresholds（lines/statements 64 · functions 90 · branches 80，留 ~2 pt 缓冲）；CI verify job 由 `npm run test` 改为 `npm run test:coverage`，覆盖率回退会让 build 失败
 - ✅ **独立导出中心页 `/novels/[id]/export`**：server component + `ExportCenterClient`；3 张 StatCard（已起草 / 累计字数 / 最近编辑）+ 2×2 格式卡片（markdown / txt / docx / epub），每张卡片含说明 + 用例 + loading 状态 + 成功/错误反馈；novel 详情页 5 卡 NavCard 升至 5 列网格；编辑器 `ExportMenu` 内联入口保留
+- ✅ **死代码清理 + i18n 拆除**：删除 `canClaimAnonymousResource`（无 caller 的 ownership helper）；移除 next-intl + messages/ + i18n/（0 处 `useTranslations` 调用，纯死基础设施）；layout 与 next.config.ts 简化
+- ✅ **lib/llm/usage.ts 测试满覆盖**：从 46.24% / 50% 拉到 **100% / 100%**；新增 11 个测试覆盖 logUsage / getUserUsage / checkQuota 全部分支；全仓 coverage lines 65.83→68.28、funcs 92.24→93.75、branches 83.40→84.30；阈值升级到 66/66/92/82
 
 ### 暂缓（3 个月内不做）
 F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关系图 / F-05 Prompt Cache 多模型 Router / F-06 计费支付

@@ -1,8 +1,5 @@
 import type { NextConfig } from "next";
-import createNextIntlPlugin from "next-intl/plugin";
 import path from "node:path";
-
-const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 /**
  * Baseline production security headers.
@@ -62,4 +59,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withNextIntl(nextConfig);
+export default nextConfig;

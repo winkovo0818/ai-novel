@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { NextIntlClientProvider } from "next-intl";
-import { getMessages } from "next-intl/server";
 import { Geist, Geist_Mono, Noto_Serif_SC } from "next/font/google";
 import "./globals.css";
 
@@ -25,17 +23,13 @@ export const metadata: Metadata = {
   description: "AI 协同写小说平台 — 专业创作工作台",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const messages = await getMessages();
-
   return (
     <html lang="zh-CN">
       <body className={`${geistSans.variable} ${geistMono.variable} ${notoSerif.variable} antialiased`}>
-        <NextIntlClientProvider messages={messages}>
-          {children}
-        </NextIntlClientProvider>
+        {children}
       </body>
     </html>
   );
