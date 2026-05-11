@@ -12,7 +12,7 @@
 |-----------------------------|-------------------------------------------------------------------------------------------------------------|
 | `npm run typecheck`         | ✅ 通过                                                                                                        |
 | `npm run lint` (`eslint .`) | ✅ 通过                                                                                                        |
-| `npm run test` (Vitest)     | ✅ 通过，**65 files / 452 tests**（M3.1 后又净增多个 agent/jobs/onboarding/usage/editor utils/metrics 覆盖批次）                                                  |
+| `npm run test` (Vitest)     | ✅ 通过，**66 files / 464 tests**（M3.1 后又净增多个 agent/jobs/onboarding/usage/editor utils/metrics/relations 覆盖批次）                                                  |
 | `npm run build`             | ✅ 通过（17 个静态页 + 30 个动态路由；新增 `/novels/[id]/export` 独立页面）                                            |
 | `tests/e2e/` (Playwright)   | ✅ 3 spec（onboarding / editor-failure / editor-candidate），**已进 CI**                                          |
 | coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines/statements 68 · functions 93 · branches 83，基线 70.04 / 94.24 / 85.50）                                                                                  |
@@ -224,6 +224,7 @@
 - ✅ **lib/llm/usage.ts 测试满覆盖**：从 46.24% / 50% 拉到 **100% / 100%**；新增 11 个测试覆盖 logUsage / getUserUsage / checkQuota 全部分支；全仓 coverage lines 65.83→68.28、funcs 92.24→93.75、branches 83.40→84.30；阈值升级到 66/66/92/82
 - ✅ **useChapterEditor 提纯（Phase A）**：抽出 `lib/editor/chapterUtils.ts`（resolveStartIndex / deriveChapterStateFromDraft / mergeChapterIntoList / applyAcceptMode），18 个单元测试；hook 公共 API 不变，selectChapter 与 mount 不再重复初始化逻辑
 - ✅ **Prometheus metrics 端点**：`/api/metrics`（bearer token 鉴权 via `METRICS_TOKEN`）；`lib/metrics/prometheus.ts` 自手写 text exposition formatter（无 prom-client 依赖，避开 serverless in-memory state 丢失问题）+ `lib/metrics/collector.ts` 从 Postgres 汇总 8 个 metric family（LLM 请求/Token/成本、Job 状态、Novel/Chapter 计数）；13 个测试 + .env.example 加 `METRICS_TOKEN` 注释；阈值升级到 68/68/93/83（基线 70.04/94.24/85.50）
+- ✅ **F-04 角色关系图（只读 MVP）**：`/novels/[id]/relationships` 独立页 + `RelationshipGraph` 客户端 SVG 组件（circular layout，N≤8 节点，hover 联动高亮）+ `lib/bible/relations.ts` 纯函数从 `characters[].relations` 抽取有向边（substring 匹配其他角色名），12 个单元测试；novel 详情页 NavCard 升至 6 卡 2×3 网格；编辑路径在角色管理页保留，关系图当前仅展示
 
 ### 暂缓（3 个月内不做）
 F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关系图 / F-05 Prompt Cache 多模型 Router / F-06 计费支付

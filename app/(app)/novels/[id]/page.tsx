@@ -105,12 +105,18 @@ export default async function NovelDetailPage({ params }: PageProps) {
           <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-text-dim mb-6">
             作品管理协议 / INFRASTRUCTURE
           </h2>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             <NavCard
               href={`/novels/${novel.id}/characters`}
               title="角色图谱"
               description={bibleOk ? `${bibleParse.data.characters.length} 位活跃角色` : "需先合成 Bible"}
               icon="characters"
+            />
+            <NavCard
+              href={`/novels/${novel.id}/relationships`}
+              title="角色关系图"
+              description={bibleOk ? "Bible relations 可视化" : "需先合成 Bible"}
+              icon="relationships"
             />
             <NavCard
               href={`/novels/${novel.id}/world`}
@@ -243,7 +249,7 @@ function NavCard({
   href: string;
   title: string;
   description: string;
-  icon: "characters" | "world" | "outline" | "chapters" | "export";
+  icon: "characters" | "world" | "outline" | "chapters" | "export" | "relationships";
 }) {
   const iconPaths: Record<typeof icon, string> = {
     characters:
@@ -256,6 +262,8 @@ function NavCard({
       "M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4",
     export:
       "M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+    relationships:
+      "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
   };
 
   return (
