@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { moderateContent, stringifyForModeration } from "./moderate";
+import { BLOCKED_KEYWORDS, matchBlockedKeywords, moderateContent, stringifyForModeration } from "./moderate";
 
 vi.mock("@/lib/llm/client", () => ({
   chatCompletion: vi.fn().mockResolvedValue({
@@ -107,5 +107,37 @@ describe("stringifyForModeration", () => {
   it("stringifies objects", () => {
     const result = stringifyForModeration({ a: 1 });
     expect(result).toBe('{"a":1}');
+  });
+});
+
+describe("matchBlockedKeywords (P0-8 helper)", () => {
+  it("returns null on clean text", () => {
+    expect(matchBlockedKeywords("一个寻常的春日早晨,主角推开木门")).toBeNull();
+  });
+
+  it("returns a match with the firing pattern when a banned phrase is present", () => {
+    const result = matchBlockedKeywords("xxxxx 制作炸弹 yyyyy");
+    expect(result).not.toBeNull();
+    expect(result?.pattern).toBe(BLOCKED_KEYWORDS[0]);
+    expect(result?.reason).toBe("内容包含违规关键词");
+  });
+
+  it("scans every keyword, not just the first", () => {
+    expect(matchBlockedKeywords("详细的诈骗教程")?.pattern.source).toMatch(/诈骗教程/);
+  });
+
+  it("preserves the same reason string as the legacy localKeywordCheck path", async () => {
+    // Drive moderateContent through the local-block branch (no LLM call
+    // expected) and confirm reason matches the new helper. Locks the
+    // contract so future refactors can't drift the user-facing string.
+    const res = await moderateContent({ route: "/test", text: "包含 杀人方法 教程" });
+    expect(res.allowed).toBe(false);
+    expect(res.reason).toBe("内容包含违规关键词");
+  });
+
+  it("exposes the keyword list as a readonly tuple", () => {
+    // Type-level: readonly RegExp[]; behaviorally, asserting the count
+    // is the cheapest guard against accidentally truncating the list.
+    expect(BLOCKED_KEYWORDS.length).toBeGreaterThanOrEqual(5);
   });
 });
