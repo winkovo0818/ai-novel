@@ -69,21 +69,17 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
   }
 
-  // Quota check: prevent cost overruns
-  const quota = await checkQuota(userId);
-  if (!quota.allowed) {
-    return jsonError("QUOTA_EXCEEDED", quota.reason ?? "Usage quota exceeded", false, 429);
-  }
-
-  const bible = BibleDraftSchema.safeParse(novel.bible.content);
-  const profile = NovelProfileSchema.safeParse(novel.profile);
-  if (!bible.success || !profile.success) {
-    return jsonError("INVALID_INPUT", "Novel Bible or profile is invalid", false, 400);
-  }
-
   const input = parsed.data;
 
-  // Content moderation: reject drafts with inappropriate input prompts.
+  // P0-10: input moderation runs BEFORE the quota check. Two reasons:
+  //   1. If the prompt is disallowed, the answer is "no" regardless of
+  //      remaining budget — telling a user "you're over quota" when their
+  //      input is actually unsafe sends the wrong message and might
+  //      encourage them to top up and retry the same banned prompt.
+  //   2. The moderation call itself is logged without a userId, so it
+  //      doesn't count against the caller's daily/monthly cap; running it
+  //      first costs the project a few moderation tokens but never burns
+  //      the user's allowance.
   const inputModeration = await moderateContent({
     route: ROUTE,
     text: stringifyForModeration({ title: input.title, existing_content: input.existing_content }),
@@ -95,6 +91,18 @@ export async function POST(request: Request, context: RouteContext) {
       false,
       400,
     );
+  }
+
+  // Quota check: prevent cost overruns
+  const quota = await checkQuota(userId);
+  if (!quota.allowed) {
+    return jsonError("QUOTA_EXCEEDED", quota.reason ?? "Usage quota exceeded", false, 429);
+  }
+
+  const bible = BibleDraftSchema.safeParse(novel.bible.content);
+  const profile = NovelProfileSchema.safeParse(novel.profile);
+  if (!bible.success || !profile.success) {
+    return jsonError("INVALID_INPUT", "Novel Bible or profile is invalid", false, 400);
   }
 
   // Determine which volume the current chapter belongs to
