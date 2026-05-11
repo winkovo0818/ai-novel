@@ -18,6 +18,7 @@
 
 ## 最近更新
 
+- **2026-05-12 (P0 batch 续 3)** — P0-6 `sweepStaleRunningJobs(novelId?)`:`updateMany where status:running AND started_at < TTL` 复位 pending(`attempts` 不增,因为是基础设施失活不是 handler 失败),`runPendingJobsForNovel` 开头先 sweep 后 drain,卡 running 的 job 重新进入排空流。`JOB_STALE_RUNNING_MS` env 可调。Tests 495 → 499。
 - **2026-05-12 (P0 batch 续 2)** — P0-5 `getResumableDraftSession` 读路径加 5min TTL 懒扫:`streaming` 且 `updated_at` 超龄的行被即时翻转为 `failed` + `STALE_STREAMING_TIMEOUT`,best-effort 写回 DB 失败也仍返回 `failed` 视图(下次读重试)。`DRAFT_STALE_STREAMING_MS` env 可调。无 schema 改动(已有 `updated_at @updatedAt` + `@@index([updated_at])`)。Tests 492 → 495。
 - **2026-05-12 (P0 batch 续)** — P0-4 Bible PATCH 加 `moderateContent`(序列化整个 Bible 对象,所有子字段同审,堵注入 + 违规);P0-7 章节标 done 后台 state-diff 自动失败不再 `catch {}` 静默,改为在 header 显示红色三角徽章,tooltip 携带章节号与失败原因,点击 dismiss 后走手动 `generateStateDiff()` 重试。Tests 491 → 492。
 - **2026-05-12 (P0 batch)** — P0-3 `expected_version` 改强制必传(schema 去 `.optional()` + route 简化 + test helper 默认注入 0,back-compat 用例反转为 schema 拒绝);P0-9 `dismissConflict` 在用户保留本地正文时同步 `chapterVersion = conflictChapter.version`(消除无限 409 循环);P0-10 draft 路由 input moderation 移到 quota check 之前(违规识别优先于配额);P0-11 `/draft/resume` GET + DELETE 加 `isRateLimited` 守护并补 2 个 429 测试用例。Tests 489 → 491,68 files 全绿。
@@ -39,7 +40,7 @@
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
 | `npm run lint` | ✅ 通过（零 warning） | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **68 files / 495 tests** 全绿,约 10s | +3 DraftSession stale-streaming TTL 用例 |
+| `npm run test` | ✅ **68 files / 499 tests** 全绿,约 10s | +4 BackgroundJob stale-running sweep 用例 |
 | `npm run build` | ✅ 通过 | |
 | Playwright E2E | 5 spec（onboarding / editor-failure / editor-candidate × 3）；P0-1 后按钮文案对齐 M1.3 候选稿模式 | helper 内 "Chapter Draft" 改为 `保存草稿` button 探测 |
 | Coverage（v8） | ✅ lines/statements 68 · functions 93 · branches 83 阈值入 CI；基线 70.04/94.24/85.50 | summaries / handlers / chapterStatus 100% |
