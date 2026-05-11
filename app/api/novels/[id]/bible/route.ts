@@ -1,11 +1,14 @@
 import { jsonError } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
+import { moderateContent, stringifyForModeration } from "@/lib/moderation/moderate";
 import { BibleUpdateRequestSchema } from "@/lib/validation/schemas";
 import { getRequiredUserId } from "@/utils/supabase/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const ROUTE = "/api/novels/:id/bible";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -37,6 +40,26 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
   if (!canAccessOwnerResource(novel.user_id, userId)) {
     return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
+  }
+
+  // P0-4: Bible content is later concatenated into chapter generation prompts,
+  // so an unmoderated PATCH was a prompt-injection / banned-content vector —
+  // a user could plant "Ignore previous instructions" into a character's
+  // personality field and have it ride along into every subsequent draft.
+  // Run the same moderation the chapter PATCH uses; stringifyForModeration
+  // flattens the structured Bible into a single payload so all sub-fields
+  // (characters/world/outline/beats) get scanned at once.
+  const moderation = await moderateContent({
+    route: ROUTE,
+    text: stringifyForModeration(parsed.data.content),
+  });
+  if (!moderation.allowed) {
+    return jsonError(
+      moderation.code ?? "MODERATION_BLOCKED",
+      moderation.reason ?? "Content blocked by moderation",
+      false,
+      400,
+    );
   }
 
   const updated = await prisma.bibleDraft.update({

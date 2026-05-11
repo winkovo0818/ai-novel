@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const findUnique = vi.fn();
 const bibleUpdate = vi.fn();
 const getRequiredUserId = vi.fn();
+const moderateContent = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -13,6 +14,12 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("@/utils/supabase/auth", () => ({
   getRequiredUserId,
+}));
+
+vi.mock("@/lib/moderation/moderate", () => ({
+  moderateContent,
+  stringifyForModeration: (value: unknown) =>
+    typeof value === "string" ? value : JSON.stringify(value),
 }));
 
 function makeChapter(i: number) {
@@ -42,6 +49,7 @@ describe("PATCH /api/novels/[id]/bible", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getRequiredUserId.mockResolvedValue("user-1");
+    moderateContent.mockResolvedValue({ allowed: true });
   });
 
   it("updates Bible content for the novel owner", async () => {
@@ -162,5 +170,41 @@ describe("PATCH /api/novels/[id]/bible", () => {
     expect(response.status).toBe(400);
     expect(json.error.code).toBe("INVALID_INPUT");
     expect(bibleUpdate).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 MODERATION_BLOCKED and skips DB write when moderation rejects (P0-4)", async () => {
+    const { PATCH } = await import("./route");
+    findUnique.mockResolvedValue({
+      id: "novel-1",
+      user_id: "user-1",
+      bible: { id: "bible-1", content: validBible },
+    });
+    moderateContent.mockResolvedValue({
+      allowed: false,
+      code: "MODERATION_BLOCKED",
+      reason: "包含敏感词",
+    });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/novels/novel-1/bible", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: validBible }),
+      }),
+      { params: Promise.resolve({ id: "novel-1" }) }
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(json.error.code).toBe("MODERATION_BLOCKED");
+    expect(json.error.message).toBe("包含敏感词");
+    expect(bibleUpdate).not.toHaveBeenCalled();
+    // Confirm the moderation call saw the whole flattened Bible — not just
+    // one field — so a banned phrase planted in any sub-object still
+    // gets caught.
+    expect(moderateContent).toHaveBeenCalledWith({
+      route: "/api/novels/:id/bible",
+      text: JSON.stringify(validBible),
+    });
   });
 });
