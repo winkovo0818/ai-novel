@@ -22,5 +22,9 @@ export async function completeOnboardingToEditor(page: Page, options: CompleteOn
   await page.getByRole("button", { name: "开始生成" }).click();
   await expect(page.getByText("审阅并保存 Bible")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "开始写作" }).click();
-  await expect(page.getByText("Chapter Draft")).toBeVisible({ timeout: 30_000 });
+  await expect(page).toHaveURL(/\/editor\//, { timeout: 30_000 });
+  // Editor shell is ready once the persistent "保存草稿" toolbar button mounts.
+  // Previously asserted on a "Chapter Draft" eyebrow that the M3.5 UI降噪 pass
+  // removed; using the save button keeps this resilient to chrome restyling.
+  await expect(page.getByRole("button", { name: "保存草稿" })).toBeVisible({ timeout: 15_000 });
 }

@@ -17,7 +17,7 @@ test("AI draft errors stay inside the candidate panel and never touch the editor
     });
   });
 
-  await page.getByRole("button", { name: "全文续写" }).click();
+  await page.getByRole("button", { name: "全文起草" }).click();
   // The error surfaces in the editor status line, not the body.
   await expect(page.getByText("timeout")).toBeVisible();
   await expect(editor).toHaveValue("这段原文不能被失败的 AI 起草覆盖。");

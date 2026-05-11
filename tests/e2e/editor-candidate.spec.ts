@@ -43,7 +43,7 @@ test("discarding a candidate leaves the editor body unchanged", async ({ page })
   await editor.fill(original);
   await expect(page.getByText("已自动保存")).toBeVisible({ timeout: 8_000 });
 
-  await page.getByRole("button", { name: "全文续写" }).click();
+  await page.getByRole("button", { name: "全文起草" }).click();
   await expect(page.getByText("候选稿就绪")).toBeVisible({ timeout: 15_000 });
 
   await page.getByRole("button", { name: "放弃候选稿" }).click();
@@ -60,7 +60,7 @@ test("appending a candidate keeps original content and adds AI text below it", a
   await editor.fill(original);
   await expect(page.getByText("已自动保存")).toBeVisible({ timeout: 8_000 });
 
-  await page.getByRole("button", { name: "全文续写" }).click();
+  await page.getByRole("button", { name: "全文起草" }).click();
   await expect(page.getByText("候选稿就绪")).toBeVisible({ timeout: 15_000 });
 
   await page.getByRole("button", { name: "追加到末尾" }).click();
@@ -80,7 +80,7 @@ test("replacing a non-empty body requires explicit confirm", async ({ page }) =>
   await editor.fill(original);
   await expect(page.getByText("已自动保存")).toBeVisible({ timeout: 8_000 });
 
-  await page.getByRole("button", { name: "全文续写" }).click();
+  await page.getByRole("button", { name: "全文起草" }).click();
   await expect(page.getByText("候选稿就绪")).toBeVisible({ timeout: 15_000 });
 
   await page.getByRole("button", { name: "覆盖正文" }).click();
