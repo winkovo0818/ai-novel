@@ -22,6 +22,16 @@ export default defineConfig({
         "app/**/layout.tsx",
         "lib/db.ts",
       ],
+      // Thresholds are set a couple of points below the current baseline so
+      // routine churn does not break CI, but a real regression (e.g. a new
+      // un-tested module landing at 0%) trips the gate. Bump these whenever
+      // the actual coverage rises meaningfully — see docs/STATUS.md.
+      thresholds: {
+        lines: 64,
+        statements: 64,
+        functions: 90,
+        branches: 80,
+      },
     },
   },
   resolve: {

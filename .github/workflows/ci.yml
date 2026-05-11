@@ -31,8 +31,8 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Run unit/API tests
-        run: npm run test
+      - name: Run unit/API tests with coverage gate
+        run: npm run test:coverage
 
       - name: Build
         run: npm run build

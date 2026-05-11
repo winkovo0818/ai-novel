@@ -15,7 +15,7 @@
 | `npm run test` (Vitest)     | ✅ 通过，**61 files / 410 tests**（M3.1 后又净增多个 agent/jobs/onboarding 覆盖批次）                                                  |
 | `npm run build`             | ✅ 通过（16 个静态页 + 29 个动态路由；新增 `/api/novels/[id]/jobs/refresh-dirty`）                                            |
 | `tests/e2e/` (Playwright)   | ✅ 3 spec（onboarding / editor-failure / editor-candidate），**已进 CI**                                          |
-| coverage（v8）                | 🟡 已生成报告（M3.1 后未重生），未做 CI 门禁                                                                                  |
+| coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines 64 / statements 64 / functions 90 / branches 80）                                                                                  |
 
 `.github/workflows/ci.yml` 现有两个 job：`verify`（lint/typecheck/test/build）+ `e2e`（pgvector postgres + LLM_MOCK + playwright + 失败上传 trace）。
 
@@ -210,7 +210,6 @@
 ### 其他遗留小项
 - B2 — i18n 已装但 locale 锁死 zh：删除假 i18n 或补完整路由（暂缓）
 - UX3 — SSE 中断不可续传（暂缓）
-- coverage 入 CI 门禁（commit `b652d38` 已加 v8 coverage 报告，未设阈值 / 未做 CI fail-on）
 - **独立导出中心页 `/novels/[id]/export`**（M3.3 backlog）：当前由 `ExportMenu` 承载
 
 ### 阶段 3 后续已完成（2026-05-11 末批）
@@ -221,6 +220,7 @@
 - ✅ **rateLimit Upstash adapter + healthz 子系统探针**：commit `a76af3c`
 - ✅ **生产响应头基线**：commit `2ed876b`
 - ✅ **onboarding routes 负向 ownership 测试**：questions / loglines / bible 各加 5-6 个测试（401 / 404 / 400 INVALID_INPUT / 429 RATE_LIMITED / 429 QUOTA / REGEN_LIMIT / MODERATION_BLOCKED），原 finalize 测试已有
+- ✅ **coverage CI 门禁**：`vitest.config.ts` 加 thresholds（lines/statements 64 · functions 90 · branches 80，留 ~2 pt 缓冲）；CI verify job 由 `npm run test` 改为 `npm run test:coverage`，覆盖率回退会让 build 失败
 
 ### 暂缓（3 个月内不做）
 F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关系图 / F-05 Prompt Cache 多模型 Router / F-06 计费支付
