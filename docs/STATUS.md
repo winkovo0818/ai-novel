@@ -152,7 +152,7 @@
 - LLM / Embedding 模型 SSRF 防护（URL/scheme/私网 IP）共享 `validateLlmBaseUrl`
 - RateLimiter 接口抽象（memory + Redis 占位），扩面 critic/state-diff/healthz_llm
 - `MODERATION_FAILURE_MODE`、`QUOTA_FAILURE_MODE` 生产默认 block
-- `canAccessOwnerResource` 默认拒绝空 owner，独立 `canClaimAnonymousResource`
+- `canAccessOwnerResource` 默认拒绝空 owner；anonymous onboarding session 的 claim 流程走 `authorizeOnboardingSession` 直接 update，不再用单独的 helper
 - novels/route、summaries/refresh 负向测试覆盖 401/404
 - **DB-驱动 admin 权限**：`user_roles` + env 永久 fallback（Phase A）
 
