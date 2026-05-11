@@ -1,6 +1,7 @@
 import { jsonError, jsonOk } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
+import { isRateLimited } from "@/lib/auth/rateLimit";
 import {
   dismissDraftSession,
   getResumableDraftSession,
@@ -9,6 +10,11 @@ import { getRequiredUserId } from "@/utils/supabase/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// P0-11: both verbs share one budget. A misbehaving client polling resume
+// or hammering dismiss both look the same from an abuse standpoint, so the
+// guard tracks per-(user, route) calls regardless of method.
+const ROUTE = "/api/novels/:id/chapters/draft/resume";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -46,6 +52,9 @@ export async function GET(request: Request, context: RouteContext) {
     userId = await getRequiredUserId();
   } catch {
     return jsonError("UNAUTHORIZED", "Login required", false, 401);
+  }
+  if (await isRateLimited(userId, ROUTE)) {
+    return jsonError("RATE_LIMITED", "Too many requests, please try again later", false, 429);
   }
 
   // Ownership: even though DraftSession itself carries user_id, also verify
@@ -102,6 +111,9 @@ export async function DELETE(request: Request, context: RouteContext) {
     userId = await getRequiredUserId();
   } catch {
     return jsonError("UNAUTHORIZED", "Login required", false, 401);
+  }
+  if (await isRateLimited(userId, ROUTE)) {
+    return jsonError("RATE_LIMITED", "Too many requests, please try again later", false, 429);
   }
 
   const novel = await prisma.novel.findUnique({

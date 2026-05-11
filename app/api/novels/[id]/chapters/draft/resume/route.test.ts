@@ -4,6 +4,7 @@ const getResumableDraftSession = vi.fn();
 const dismissDraftSession = vi.fn();
 const findUnique = vi.fn();
 const getRequiredUserId = vi.fn();
+const isRateLimited = vi.fn();
 
 vi.mock("@/lib/agent/draftSession", () => ({
   getResumableDraftSession,
@@ -18,8 +19,13 @@ vi.mock("@/utils/supabase/auth", () => ({
   getRequiredUserId,
 }));
 
+vi.mock("@/lib/auth/rateLimit", () => ({
+  isRateLimited,
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
+  isRateLimited.mockResolvedValue(false);
 });
 
 function buildRequest(query: string, method: "GET" | "DELETE" = "GET") {
@@ -49,6 +55,19 @@ describe("GET /api/novels/[id]/chapters/draft/resume", () => {
     const res = await GET(buildRequest("chapter_index=1"), ctx);
     expect(res.status).toBe(401);
     expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it("returns 429 RATE_LIMITED when caller exceeds rate limit (P0-11)", async () => {
+    getRequiredUserId.mockResolvedValue("user-1");
+    isRateLimited.mockResolvedValue(true);
+    const { GET } = await import("./route");
+
+    const res = await GET(buildRequest("chapter_index=1"), ctx);
+    expect(res.status).toBe(429);
+    const json = await res.json();
+    expect(json.error.code).toBe("RATE_LIMITED");
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(getResumableDraftSession).not.toHaveBeenCalled();
   });
 
   it("returns 404 when the novel does not exist", async () => {
@@ -128,6 +147,19 @@ describe("DELETE /api/novels/[id]/chapters/draft/resume", () => {
     const { DELETE } = await import("./route");
     const res = await DELETE(buildRequest("chapter_index=2", "DELETE"), ctx);
     expect(res.status).toBe(401);
+  });
+
+  it("returns 429 RATE_LIMITED when caller exceeds rate limit (P0-11)", async () => {
+    getRequiredUserId.mockResolvedValue("user-1");
+    isRateLimited.mockResolvedValue(true);
+    const { DELETE } = await import("./route");
+
+    const res = await DELETE(buildRequest("chapter_index=2", "DELETE"), ctx);
+    expect(res.status).toBe(429);
+    const json = await res.json();
+    expect(json.error.code).toBe("RATE_LIMITED");
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(dismissDraftSession).not.toHaveBeenCalled();
   });
 
   it("returns 404 when the novel is not owned by the caller", async () => {
