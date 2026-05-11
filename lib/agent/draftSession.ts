@@ -19,6 +19,20 @@ import { prisma } from "@/lib/db";
 const FLUSH_INTERVAL_MS = 500;
 const FLUSH_CHARS_BATCH = 256;
 
+/**
+ * P0-5: how long a DraftSession may stay in `streaming` before reads treat
+ * it as dead. Serverless functions can be torn down mid-SSE (Vercel timeout,
+ * Lambda cold-shedding) and the `finalize` block never runs — the row sits
+ * in `streaming` forever and `getResumableDraftSession` keeps returning a
+ * half-buffer that will never grow. Five minutes is well past the 60s draft
+ * timeout used by the chat client, so any `streaming` row older than this
+ * is provably orphaned. Override via env when running long debug sessions
+ * against a local LLM.
+ */
+const STALE_STREAMING_TIMEOUT_MS = Number(
+  process.env.DRAFT_STALE_STREAMING_MS ?? 5 * 60 * 1000,
+);
+
 export interface DraftSessionStarter {
   userId: string;
   novelId: string;
@@ -205,6 +219,46 @@ export async function getResumableDraftSession(
     },
   });
   if (!row) return null;
+
+  // P0-5: a `streaming` row whose updated_at is older than the TTL is the
+  // tell-tale signature of a Serverless function that got killed before it
+  // could mark the session failed/completed. Materialize that fact: write
+  // the row to `failed` so /resume stops handing back a frozen buffer, and
+  // return the rewritten view. Best-effort — if the DB write loses (e.g.
+  // racing with another reader), the next call will retry the same path.
+  if (
+    row.status === "streaming" &&
+    Date.now() - row.updated_at.getTime() > STALE_STREAMING_TIMEOUT_MS
+  ) {
+    const errorCode = "STALE_STREAMING_TIMEOUT";
+    const errorMessage = "上次起草超时未完成,请重新生成";
+    await prisma.draftSession
+      .update({
+        where: { id: row.id },
+        data: {
+          status: "failed",
+          error_code: errorCode,
+          error_message: errorMessage,
+        },
+      })
+      .catch((err) => {
+        console.warn(
+          `[draftSession] stale-streaming sweep failed (${row.id}):`,
+          err instanceof Error ? err.message : err,
+        );
+      });
+    return {
+      id: row.id,
+      status: "failed",
+      buffer: row.buffer,
+      errorCode,
+      errorMessage,
+      retrieval: row.retrieval,
+      chapterIndex: row.chapter_index,
+      updatedAt: row.updated_at,
+    };
+  }
+
   return {
     id: row.id,
     status: row.status as ResumableDraft["status"],

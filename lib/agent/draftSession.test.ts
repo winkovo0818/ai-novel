@@ -248,6 +248,92 @@ describe("getResumableDraftSession", () => {
     const { getResumableDraftSession } = await load();
     expect(await getResumableDraftSession("user-1", "novel-1", 99)).toBeNull();
   });
+
+  it("leaves a streaming row alone when updated_at is within the TTL (P0-5)", async () => {
+    vi.setSystemTime(new Date("2026-05-12T01:00:00Z"));
+    const updatedAt = new Date("2026-05-12T00:59:00Z"); // 1 minute ago
+    findUnique.mockResolvedValue({
+      id: "ds-1",
+      status: "streaming",
+      buffer: "partial",
+      error_code: null,
+      error_message: null,
+      retrieval: null,
+      chapter_index: 2,
+      updated_at: updatedAt,
+    });
+    const { getResumableDraftSession } = await load();
+
+    const result = await getResumableDraftSession("user-1", "novel-1", 2);
+    expect(result?.status).toBe("streaming");
+    expect(result?.buffer).toBe("partial");
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("flips a stale streaming row to failed STALE_STREAMING_TIMEOUT (P0-5)", async () => {
+    vi.setSystemTime(new Date("2026-05-12T01:00:00Z"));
+    // 6 minutes ago — past the 5-minute TTL. Stuck because the Serverless
+    // function that started the stream was torn down before completeDraft
+    // / failDraft could run.
+    const updatedAt = new Date("2026-05-12T00:54:00Z");
+    findUnique.mockResolvedValue({
+      id: "ds-stale",
+      status: "streaming",
+      buffer: "half-written",
+      error_code: null,
+      error_message: null,
+      retrieval: null,
+      chapter_index: 4,
+      updated_at: updatedAt,
+    });
+    update.mockResolvedValue({ id: "ds-stale" });
+    const { getResumableDraftSession } = await load();
+
+    const result = await getResumableDraftSession("user-1", "novel-1", 4);
+    expect(result).toEqual({
+      id: "ds-stale",
+      status: "failed",
+      buffer: "half-written",
+      errorCode: "STALE_STREAMING_TIMEOUT",
+      errorMessage: "上次起草超时未完成,请重新生成",
+      retrieval: null,
+      chapterIndex: 4,
+      updatedAt,
+    });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "ds-stale" },
+      data: {
+        status: "failed",
+        error_code: "STALE_STREAMING_TIMEOUT",
+        error_message: "上次起草超时未完成,请重新生成",
+      },
+    });
+  });
+
+  it("returns failed view even if the sweep DB write loses (P0-5 best-effort)", async () => {
+    vi.setSystemTime(new Date("2026-05-12T01:00:00Z"));
+    const updatedAt = new Date("2026-05-12T00:50:00Z"); // 10 min ago
+    findUnique.mockResolvedValue({
+      id: "ds-stale-2",
+      status: "streaming",
+      buffer: "x",
+      error_code: null,
+      error_message: null,
+      retrieval: null,
+      chapter_index: 1,
+      updated_at: updatedAt,
+    });
+    update.mockRejectedValue(new Error("connection lost"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { getResumableDraftSession } = await load();
+
+    const result = await getResumableDraftSession("user-1", "novel-1", 1);
+    // Caller sees failed even though the row in DB is still streaming —
+    // the next read will retry the sweep.
+    expect(result?.status).toBe("failed");
+    expect(result?.errorCode).toBe("STALE_STREAMING_TIMEOUT");
+    warn.mockRestore();
+  });
 });
 
 describe("dismissDraftSession", () => {
