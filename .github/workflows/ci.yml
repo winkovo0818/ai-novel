@@ -34,6 +34,9 @@ jobs:
       - name: Run unit/API tests with coverage gate
         run: npm run test:coverage
 
+      - name: Docs drift guard
+        run: npm run docs:check
+
       - name: Build
         run: npm run build
         env:

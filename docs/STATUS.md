@@ -1,29 +1,30 @@
 # AI Novel — 项目状态
 
-> 最近更新：2026-05-11 晚 · 阶段 1 + 阶段 2 + 阶段 3 已完成；阶段 3 之后追加 Phase A（DB 权限）+ Phase B（Embedding 配置）+ UI 设计刷新；M3.1 dirty 标脏链路（P2-4）补齐；4 条 backlog（Tab 整合 / 候选稿 diff / 字号切换 / 状态四态审计）已落地；新增基础设施（rateLimit Upstash / healthz subsystem probes / 生产响应头基线）
+> 最近更新：2026-05-12 · P0-1 修复 5 个失效 E2E spec（候选稿模式按钮文案对齐）；P0-2 三方文档对账 + `scripts/docs-check.ts` 防漂移
 > 本文件是 PROGRESS / AUDIT / TASKS 三份历史状态文档的合并版本，是当前**唯一**的项目状态来源。
-> 战略路线见 `docs/ROADMAP_2_4_8_WEEKS.md`，战术任务单见 `docs/IMPLEMENTATION_TASKS.md`，阶段 3 之后的 phase 决策见 `docs/phases/`，每次任务后的体检报告见 `docs/HEALTH.md`。
+> 战略路线见 `docs/ROADMAP_2_4_8_WEEKS.md`，战术任务单见 `docs/IMPLEMENTATION_TASKS.md`，阶段 3 之后的 phase 决策见 `docs/phases/`，每次任务后的体检报告见 `docs/HEALTH.md`，真实产品标准的审阅见 `docs/PROJECT_REVIEW_REPORT.md`。
 
 ---
 
-## 一、当前实测验证基线（2026-05-11 晚，M3.1 dirty 链路完成后）
+## 一、当前实测验证基线（2026-05-12，P0-2 文档对账后）
 
 | 命令                          | 结果                                                                                                          |
 |-----------------------------|-------------------------------------------------------------------------------------------------------------|
 | `npm run typecheck`         | ✅ 通过                                                                                                        |
 | `npm run lint` (`eslint .`) | ✅ 通过                                                                                                        |
-| `npm run test` (Vitest)     | ✅ 通过，**68 files / 489 tests**                                                  |
-| `npm run build`             | ✅ 通过（17 个静态页 + 31 个动态路由；新增 `/api/novels/[id]/chapters/draft/resume` + `/novels/[id]/relationships`）                                            |
-| `tests/e2e/` (Playwright)   | ✅ 3 spec（onboarding / editor-failure / editor-candidate），**已进 CI**                                          |
+| `npm run test` (Vitest)     | ✅ 通过，**68 files / 489 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
+| `npm run build`             | ✅ 通过                                                            |
+| `tests/e2e/` (Playwright)   | ✅ 5 spec（onboarding / editor-failure / editor-candidate × 3），P0-1 后按钮文案对齐 M1.3 候选稿模式                                          |
 | coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines/statements 68 · functions 93 · branches 83，基线 70.04 / 94.24 / 85.50）                                                                                  |
+| 代码规模                     | 38 个 API route · 21 个 page.tsx · 22 条 Prisma migration · 15 个 Prisma model                                                                  |
 
 `.github/workflows/ci.yml` 现有两个 job：`verify`（lint/typecheck/test/build）+ `e2e`（pgvector postgres + LLM_MOCK + playwright + 失败上传 trace）。
 
-> 累计 migration（21 条），关键的近期 5 条：
-> - `20260510070000_add_chapter_version` — `ChapterDraft.version`（乐观锁计数器，M3.6）
+> 累计 migration（22 条），关键的近期 5 条：
 > - `20260510080000_add_user_roles` — `UserRole(user_id, role)` 复合主键（Phase A）
 > - `20260511010000_add_embedding_models` — `EmbeddingModel` 表 + `(provider, model)` 唯一约束（Phase B）
 > - `20260511020000_add_chapter_dirty_flags` — `ChapterDraft.summary_dirty / index_dirty` + 双索引 + 历史数据 backfill（M3.1，2026-05-11 晚）
+> - `20260512000000_add_draft_sessions` — `DraftSession` 表（UX3 SSE 续传，2026-05-12）
 >
 > 上线前需要 `npx prisma migrate deploy`。Phase A 还需在 env 里加 `SUPABASE_SERVICE_ROLE_KEY`（`/admin/users` 列用户必需）。
 

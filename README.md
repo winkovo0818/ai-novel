@@ -2,9 +2,9 @@
 
 AI 协同写小说平台：5 步生成 Bible 草稿 → 项目层信息架构 → 多章节 AI 写作（候选稿模式） → 版本恢复 + diff、四格式导出、retrieval 可视化、章节乐观锁。
 
-当前状态：阶段 1 + 2 + 3 已完成，可演示并稳定内测的 MVP。`lint`、`typecheck`、Vitest（46 files / 299 tests）、生产构建、Playwright E2E（onboarding / editor-failure / editor-candidate）当前全绿；CI 包含 `verify` + `e2e`（pgvector + LLM_MOCK） 两个 job，coverage 已生成但未入门禁。
+当前状态：阶段 1 + 2 + 3 已完成，可演示并稳定内测的 MVP。`lint`、`typecheck`、Vitest、生产构建、Playwright E2E 当前全绿；CI 包含 `verify` + `e2e`（pgvector + LLM_MOCK）两个 job，coverage 阈值 68/68/93/83 已入门禁。
 
-详细状态见 `docs/STATUS.md`，路线图见 `docs/ROADMAP_2_4_8_WEEKS.md`，任务单见 `docs/IMPLEMENTATION_TASKS.md`。
+实测数字（测试数 / 路由数 / 完成度等）以 `docs/STATUS.md` 与 `docs/HEALTH.md` 为准——这里不再 inline 任何会过期的数字，避免文档漂移。详细状态见 `docs/STATUS.md`，体检报告见 `docs/HEALTH.md`，路线图见 `docs/ROADMAP_2_4_8_WEEKS.md`，任务单见 `docs/IMPLEMENTATION_TASKS.md`，真实产品审阅见 `docs/PROJECT_REVIEW_REPORT.md`。
 
 ---
 
@@ -178,11 +178,7 @@ npm run typecheck
 npm run test
 npm run build
 
-# 当前实测基线（2026-05-10）
-# npm run typecheck 通过
-# npm run test      46 files / 289 tests passed
-# npm run build     通过
-# npm run lint      通过
+# 实测数字以 docs/STATUS.md §一 为准；不在 README 内 inline 测试数，避免漂移。
 
 # E2E 测试（需 LLM_MOCK=1）
 $env:LLM_MOCK='1'; npm run test:e2e
@@ -204,7 +200,6 @@ $env:LLM_MOCK='1'; npm run smoke:onboarding  # 终端 2
 | DB | PostgreSQL + Prisma |
 | LLM | DeepSeek-V3（OpenAI 兼容） |
 | Auth | Supabase Auth |
-| i18n | next-intl |
 | Validation | Zod |
 | Tests | Vitest + Playwright |
 
