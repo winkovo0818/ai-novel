@@ -27,10 +27,10 @@ export default defineConfig({
       // un-tested module landing at 0%) trips the gate. Bump these whenever
       // the actual coverage rises meaningfully — see docs/STATUS.md.
       thresholds: {
-        lines: 66,
-        statements: 66,
-        functions: 92,
-        branches: 82,
+        lines: 68,
+        statements: 68,
+        functions: 93,
+        branches: 83,
       },
     },
   },

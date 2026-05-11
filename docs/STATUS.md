@@ -12,10 +12,10 @@
 |-----------------------------|-------------------------------------------------------------------------------------------------------------|
 | `npm run typecheck`         | ✅ 通过                                                                                                        |
 | `npm run lint` (`eslint .`) | ✅ 通过                                                                                                        |
-| `npm run test` (Vitest)     | ✅ 通过，**61 files / 419 tests**（M3.1 后又净增多个 agent/jobs/onboarding/usage 覆盖批次）                                                  |
+| `npm run test` (Vitest)     | ✅ 通过，**65 files / 452 tests**（M3.1 后又净增多个 agent/jobs/onboarding/usage/editor utils/metrics 覆盖批次）                                                  |
 | `npm run build`             | ✅ 通过（17 个静态页 + 30 个动态路由；新增 `/novels/[id]/export` 独立页面）                                            |
 | `tests/e2e/` (Playwright)   | ✅ 3 spec（onboarding / editor-failure / editor-candidate），**已进 CI**                                          |
-| coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines/statements 66 · functions 92 · branches 82，基线 68.28 / 93.75 / 84.30）                                                                                  |
+| coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines/statements 68 · functions 93 · branches 83，基线 70.04 / 94.24 / 85.50）                                                                                  |
 
 `.github/workflows/ci.yml` 现有两个 job：`verify`（lint/typecheck/test/build）+ `e2e`（pgvector postgres + LLM_MOCK + playwright + 失败上传 trace）。
 
@@ -222,6 +222,8 @@
 - ✅ **独立导出中心页 `/novels/[id]/export`**：server component + `ExportCenterClient`；3 张 StatCard（已起草 / 累计字数 / 最近编辑）+ 2×2 格式卡片（markdown / txt / docx / epub），每张卡片含说明 + 用例 + loading 状态 + 成功/错误反馈；novel 详情页 5 卡 NavCard 升至 5 列网格；编辑器 `ExportMenu` 内联入口保留
 - ✅ **死代码清理 + i18n 拆除**：删除 `canClaimAnonymousResource`（无 caller 的 ownership helper）；移除 next-intl + messages/ + i18n/（0 处 `useTranslations` 调用，纯死基础设施）；layout 与 next.config.ts 简化
 - ✅ **lib/llm/usage.ts 测试满覆盖**：从 46.24% / 50% 拉到 **100% / 100%**；新增 11 个测试覆盖 logUsage / getUserUsage / checkQuota 全部分支；全仓 coverage lines 65.83→68.28、funcs 92.24→93.75、branches 83.40→84.30；阈值升级到 66/66/92/82
+- ✅ **useChapterEditor 提纯（Phase A）**：抽出 `lib/editor/chapterUtils.ts`（resolveStartIndex / deriveChapterStateFromDraft / mergeChapterIntoList / applyAcceptMode），18 个单元测试；hook 公共 API 不变，selectChapter 与 mount 不再重复初始化逻辑
+- ✅ **Prometheus metrics 端点**：`/api/metrics`（bearer token 鉴权 via `METRICS_TOKEN`）；`lib/metrics/prometheus.ts` 自手写 text exposition formatter（无 prom-client 依赖，避开 serverless in-memory state 丢失问题）+ `lib/metrics/collector.ts` 从 Postgres 汇总 8 个 metric family（LLM 请求/Token/成本、Job 状态、Novel/Chapter 计数）；13 个测试 + .env.example 加 `METRICS_TOKEN` 注释；阈值升级到 68/68/93/83（基线 70.04/94.24/85.50）
 
 ### 暂缓（3 个月内不做）
 F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关系图 / F-05 Prompt Cache 多模型 Router / F-06 计费支付
