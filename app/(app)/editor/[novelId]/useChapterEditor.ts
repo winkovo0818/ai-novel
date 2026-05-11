@@ -711,6 +711,16 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
   }
 
   function dismissConflict() {
+    // P0-9: pick up the server's latest version number even when the user
+    // chose to keep their local body. Without this, the next save still
+    // sends the stale chapterVersion → server returns 409 again → the user
+    // is trapped in an infinite-conflict loop. Bumping chapterVersion here
+    // preserves the optimistic-lock guarantee (a *third* tab editing between
+    // dismiss and the next save would still trip 409) while letting the
+    // user's intentional "I know, keep my draft" actually persist.
+    if (conflictChapter && typeof conflictChapter.version === "number") {
+      setChapterVersion(conflictChapter.version);
+    }
     setConflictChapter(null);
   }
 
