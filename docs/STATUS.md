@@ -1,6 +1,6 @@
 # AI Novel — 项目状态
 
-> 最近更新：2026-05-11 晚 · 阶段 1 + 阶段 2 + 阶段 3 已完成；阶段 3 之后追加 Phase A（DB 权限）+ Phase B（Embedding 配置）+ UI 设计刷新；M3.1 dirty 标脏链路（P2-4）补齐
+> 最近更新：2026-05-11 晚 · 阶段 1 + 阶段 2 + 阶段 3 已完成；阶段 3 之后追加 Phase A（DB 权限）+ Phase B（Embedding 配置）+ UI 设计刷新；M3.1 dirty 标脏链路（P2-4）补齐；4 条 backlog（Tab 整合 / 候选稿 diff / 字号切换 / 状态四态审计）已落地；新增基础设施（rateLimit Upstash / healthz subsystem probes / 生产响应头基线）
 > 本文件是 PROGRESS / AUDIT / TASKS 三份历史状态文档的合并版本，是当前**唯一**的项目状态来源。
 > 战略路线见 `docs/ROADMAP_2_4_8_WEEKS.md`，战术任务单见 `docs/IMPLEMENTATION_TASKS.md`，阶段 3 之后的 phase 决策见 `docs/phases/`，每次任务后的体检报告见 `docs/HEALTH.md`。
 
@@ -12,7 +12,7 @@
 |-----------------------------|-------------------------------------------------------------------------------------------------------------|
 | `npm run typecheck`         | ✅ 通过                                                                                                        |
 | `npm run lint` (`eslint .`) | ✅ 通过                                                                                                        |
-| `npm run test` (Vitest)     | ✅ 通过，**55 files / 352 tests**（M3.1 后净增 2 files / 15 tests）                                                  |
+| `npm run test` (Vitest)     | ✅ 通过，**61 files / 410 tests**（M3.1 后又净增多个 agent/jobs/onboarding 覆盖批次）                                                  |
 | `npm run build`             | ✅ 通过（16 个静态页 + 29 个动态路由；新增 `/api/novels/[id]/jobs/refresh-dirty`）                                            |
 | `tests/e2e/` (Playwright)   | ✅ 3 spec（onboarding / editor-failure / editor-candidate），**已进 CI**                                          |
 | coverage（v8）                | 🟡 已生成报告（M3.1 后未重生），未做 CI 门禁                                                                                  |
@@ -210,12 +210,17 @@
 ### 其他遗留小项
 - B2 — i18n 已装但 locale 锁死 zh：删除假 i18n 或补完整路由（暂缓）
 - UX3 — SSE 中断不可续传（暂缓）
-- onboarding/sessions ownership 负向测试补齐
-- coverage 入 CI 门禁（当前已生成报告但未强制）
-- **Tab 整合 `/models` 与 `/models/embeddings`**（Phase B 决策 §B-D-05 推迟）：`app/(app)/models/page.tsx` 加 `<Link href="/models/embeddings">Embedding 节点</Link>` 即可
-- **候选稿 vs 正文 diff**（M3.2 backlog）：DiffView 已就绪可复用，candidate panel 加切换即可
+- coverage 入 CI 门禁（commit `b652d38` 已加 v8 coverage 报告，未设阈值 / 未做 CI fail-on）
 - **独立导出中心页 `/novels/[id]/export`**（M3.3 backlog）：当前由 `ExportMenu` 承载
-- **编辑器字号切换**（M3.4.4 backlog）：3 档字号供长时间阅读
+
+### 阶段 3 后续已完成（2026-05-11 末批）
+- ✅ **Tab 整合 `/models` ↔ `/models/embeddings`**：commit `98dcdcd` 加 `ModelsTabs` 共享 nav
+- ✅ **候选稿 vs 正文 diff**：commit `9cbe39b`，DiffView 接入 `CandidatePanel`
+- ✅ **编辑器字号切换（M3.4.4）**：commit `7508714`，small / medium / large 三档
+- ✅ **状态四态统一组件审计**：commit `ce9aa9c`，新增 `GeneratingState` + `StatusStates` 跨 6 页面统一
+- ✅ **rateLimit Upstash adapter + healthz 子系统探针**：commit `a76af3c`
+- ✅ **生产响应头基线**：commit `2ed876b`
+- ✅ **onboarding routes 负向 ownership 测试**：questions / loglines / bible 各加 5-6 个测试（401 / 404 / 400 INVALID_INPUT / 429 RATE_LIMITED / 429 QUOTA / REGEN_LIMIT / MODERATION_BLOCKED），原 finalize 测试已有
 
 ### 暂缓（3 个月内不做）
 F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关系图 / F-05 Prompt Cache 多模型 Router / F-06 计费支付
