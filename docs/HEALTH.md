@@ -18,6 +18,7 @@
 
 ## 最近更新
 
+- **2026-05-12 (P0 batch)** — P0-3 `expected_version` 改强制必传(schema 去 `.optional()` + route 简化 + test helper 默认注入 0,back-compat 用例反转为 schema 拒绝);P0-9 `dismissConflict` 在用户保留本地正文时同步 `chapterVersion = conflictChapter.version`(消除无限 409 循环);P0-10 draft 路由 input moderation 移到 quota check 之前(违规识别优先于配额);P0-11 `/draft/resume` GET + DELETE 加 `isRateLimited` 守护并补 2 个 429 测试用例。Tests 489 → 491,68 files 全绿。
 - **2026-05-12** — P0-1 修复 5 个失效 E2E spec（候选稿模式按钮文案对齐 + helper 加固）；P0-2 三方文档对账 + `scripts/docs-check.ts` 入 verify hook 防数字漂移；归档 `docs/PROJECT_REVIEW_REPORT.md`（真实可用产品标准的一次性审阅快照）。
 - **2026-05-13** — 生产 security headers baseline（X-Content-Type-Options / X-Frame-Options / Referrer-Policy / Permissions-Policy / HSTS）通过 `next.config.ts` 的 `headers()` 应用到全部路由。CSP 待单独 phase 处理（需要 Next.js 15 nonce middleware 才能避开 inline script 'unsafe-inline'）。
 - **2026-05-12 (深夜)** — `StatusStates.GeneratingState` 新增；`VersionsModal` 加载/空状态从裸 div 改为 LoadingState / EmptyState。M3.4.1 PageHeader 全仓审计经检视已统一。
@@ -36,7 +37,7 @@
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
 | `npm run lint` | ✅ 通过（零 warning） | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **68 files / 489 tests** 全绿，约 9s | UX3 SSE 续传单测 + resume route 单测合计 +25 |
+| `npm run test` | ✅ **68 files / 491 tests** 全绿,约 11s | +2 资源限流测试(/draft/resume GET + DELETE 各 429) |
 | `npm run build` | ✅ 通过 | |
 | Playwright E2E | 5 spec（onboarding / editor-failure / editor-candidate × 3）；P0-1 后按钮文案对齐 M1.3 候选稿模式 | helper 内 "Chapter Draft" 改为 `保存草稿` button 探测 |
 | Coverage（v8） | ✅ lines/statements 68 · functions 93 · branches 83 阈值入 CI；基线 70.04/94.24/85.50 | summaries / handlers / chapterStatus 100% |
@@ -93,12 +94,12 @@
 
 - [x] **rateLimit Redis 适配器** ✅ Upstash REST 落地（2026-05-12），fail-open 异常路径 + 接口转 async + normalizeRouteKey bug 顺手修复
 - [x] **`/api/healthz` 合并探针** ✅ DB + pgvector + Supabase 三维（2026-05-12），200/503 + 子系统级 code 分类
-- [ ] **`useChapterEditor.ts`（896 行，0% 覆盖）** 拆分 + 切 jsdom + RTL 行为级测试 — 单独 phase
+- [ ] **`useChapterEditor.ts`（906 行，0% 覆盖）** 拆分 + 切 jsdom + RTL 行为级测试 — 单独 phase
 - [x] **`lib/agent/summaries.ts`** ✅ 100% 覆盖（2026-05-11 深夜）
 - [x] **`lib/jobs/handlers.ts`** ✅ 100% 覆盖（2026-05-11 深夜）
 - [ ] **`lib/agent/chapterStatus.ts`** ✅ 100% 覆盖（2026-05-12）— buildChapterStatus + getChapterStatusesForNovel 都已覆盖
 - [ ] **`ChapterDraft.content` 80,000 char 上限**与目标字数无交互验证 — 补"接近上限"提醒
-- [ ] **`expected_version` 缺省兼容路径** 与 M3.6 防覆盖目标存在轻度冲突，可重新评估是否强制
+- [x] **`expected_version` 缺省兼容路径** ✅ P0-3 已强制必传(2026-05-12,schema 去 `.optional()` + route 简化,helper 注入默认 0,back-compat 用例反转为 schema 拒绝)
 - [x] **生产 security headers** ✅ baseline（`X-Content-Type-Options / X-Frame-Options / Referrer-Policy / Permissions-Policy / HSTS`）已加（2026-05-13，`next.config.ts:headers()`）。CSP 单独 phase（需 nonce middleware）。
 - [ ] **`refresh-dirty` 与单章"重新刷新"路径并存** — 经评估保留双端点：refresh-dirty 是 dirty-driven，row-level 是 user-forced 重摆，语义不同
 - [ ] **dirty 字段未参与 chapterStatus 全部组合的快照测试** — 加 vitest snapshot 防回归
@@ -129,7 +130,7 @@ F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关
 
 ### 待改进
 
-1. `useChapterEditor.ts` 896 行，单文件最复杂的客户端 hook（覆盖率 0%）— 建议拆 3–4 个子 hook（save / draft / version / conflict）+ 补 RTL 行为级测试
+1. `useChapterEditor.ts` 906 行，单文件最复杂的客户端 hook（覆盖率 0%）— 建议拆 3–4 个子 hook（save / draft / version / conflict）+ 补 RTL 行为级测试
 2. `lib/agent/summaries.ts`、`jobs/handlers.ts` 是改稿后台链路核心，0% 单测 → 回归风险偏高
 3. i18n 状态尴尬：locale 锁死 zh，messages/en.json 是占位 — 要么补完，要么暂时拆掉
 4. rateLimit 内存实现仅适合单实例；Redis 适配器接口已分离，需要落地
@@ -141,7 +142,7 @@ F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关
 
 > 完成任意一件后回到本文档勾掉对应 §三 待办、刷新 §一 基线、并在 §最近更新 加一行摘要。
 
-1. **useChapterEditor 拆分 + RTL 测试** — 当前 896 行 0% 覆盖，是最大盲区；需要切 jsdom 环境 + RTL setup，单独 phase 处理。
+1. **useChapterEditor 拆分 + RTL 测试** — 当前 906 行 0% 覆盖，是最大盲区；需要切 jsdom 环境 + RTL setup，单独 phase 处理。
 2. **M3.2.6 version-restore E2E** — 编辑→保存→再编辑→恢复→内容回滚，跑 LLM_MOCK，进 CI。
 3. **CSP with nonce middleware** — 当前 baseline headers 已加，但 CSP 没接（Next.js 15 hydration 注入 inline script，需要 nonce 中间件正确放行）。
 
