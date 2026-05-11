@@ -224,7 +224,7 @@
 - ✅ **lib/llm/usage.ts 测试满覆盖**：从 46.24% / 50% 拉到 **100% / 100%**；新增 11 个测试覆盖 logUsage / getUserUsage / checkQuota 全部分支；全仓 coverage lines 65.83→68.28、funcs 92.24→93.75、branches 83.40→84.30；阈值升级到 66/66/92/82
 - ✅ **useChapterEditor 提纯（Phase A）**：抽出 `lib/editor/chapterUtils.ts`（resolveStartIndex / deriveChapterStateFromDraft / mergeChapterIntoList / applyAcceptMode），18 个单元测试；hook 公共 API 不变，selectChapter 与 mount 不再重复初始化逻辑
 - ✅ **Prometheus metrics 端点**：`/api/metrics`（bearer token 鉴权 via `METRICS_TOKEN`）；`lib/metrics/prometheus.ts` 自手写 text exposition formatter（无 prom-client 依赖，避开 serverless in-memory state 丢失问题）+ `lib/metrics/collector.ts` 从 Postgres 汇总 8 个 metric family（LLM 请求/Token/成本、Job 状态、Novel/Chapter 计数）；13 个测试 + .env.example 加 `METRICS_TOKEN` 注释；阈值升级到 68/68/93/83（基线 70.04/94.24/85.50）
-- ✅ **F-04 角色关系图（只读 MVP）**：`/novels/[id]/relationships` 独立页 + `RelationshipGraph` 客户端 SVG 组件（circular layout，N≤8 节点，hover 联动高亮）+ `lib/bible/relations.ts` 纯函数从 `characters[].relations` 抽取有向边（substring 匹配其他角色名），12 个单元测试；novel 详情页 NavCard 升至 6 卡 2×3 网格；编辑路径在角色管理页保留，关系图当前仅展示
+- ✅ **F-04 角色关系图（编辑态 MVP）**：`/novels/[id]/relationships` 拆为 `RelationshipEditor`（client wrapper，用 `useBibleEdit` 同 characters/world/outline 三页共用）+ `RelationshipGraph`（纯展示 SVG）+ `CharacterRelationsCards`（可编辑卡片）；每条 relation 输入实时显示绿色「将连边到 X」/ 黄色「未匹配」反馈；保存 PATCH `/api/novels/:id/bible`；SaveBar 沿用 characters 编辑器同款；hover 联动覆盖 SVG 节点 + 卡片双向；`lib/bible/relations.ts` 纯函数 12 单测保持不变
 
 ### 暂缓（3 个月内不做）
 F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关系图 / F-05 Prompt Cache 多模型 Router / F-06 计费支付
