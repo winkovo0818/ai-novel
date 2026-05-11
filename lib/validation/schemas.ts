@@ -298,11 +298,12 @@ export const UpdateChapterDraftRequestSchema = z.object({
   /** Per-chapter word target. Null clears it; undefined leaves it unchanged. */
   target_words: z.number().int().min(100).max(50_000).nullable().optional(),
   /**
-   * Optimistic-lock guard. When provided and not equal to the row's current
-   * version, the PATCH is rejected with 409 CHAPTER_VERSION_CONFLICT and the
-   * latest server state is returned so the client can merge or replace.
+   * Optimistic-lock guard. **Required** — every PATCH must carry the version
+   * the client last saw. Omitting it used to silently bypass conflict
+   * detection (P0-3 closed that hole); callers must hydrate `version` from
+   * the GET / previous PATCH response and round-trip it here.
    */
-  expected_version: z.number().int().min(0).optional(),
+  expected_version: z.number().int().min(0),
 });
 
 export const GenerateChapterDraftRequestSchema = z.object({

@@ -52,7 +52,7 @@ describe("PATCH /api/chapters/[id]", () => {
       content: "正文",
       status: "done",
     };
-    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", novel: { user_id: "user-1" } });
+    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", version: 0, novel: { user_id: "user-1" } });
     update.mockResolvedValue(chapter);
 
     const response = await PATCH(request({ content: "正文", status: "done" }), {
@@ -82,7 +82,7 @@ describe("PATCH /api/chapters/[id]", () => {
 
   it("does NOT create a version on default (autosave) content-only PATCH", async () => {
     const { PATCH } = await import("./route");
-    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", novel: { user_id: "user-1" } });
+    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", version: 0, novel: { user_id: "user-1" } });
     update.mockResolvedValue({ id: "chapter-1", content: "new", status: "draft" });
 
     const response = await PATCH(request({ content: "new" }), {
@@ -95,7 +95,7 @@ describe("PATCH /api/chapters/[id]", () => {
 
   it("creates a version when source=manual is provided", async () => {
     const { PATCH } = await import("./route");
-    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", novel: { user_id: "user-1" } });
+    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", version: 0, novel: { user_id: "user-1" } });
     update.mockResolvedValue({ id: "chapter-1", content: "new", status: "draft" });
 
     await PATCH(request({ content: "new", source: "manual" }), {
@@ -112,7 +112,7 @@ describe("PATCH /api/chapters/[id]", () => {
 
   it("creates a version when source=ai is provided", async () => {
     const { PATCH } = await import("./route");
-    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", novel: { user_id: "user-1" } });
+    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", version: 0, novel: { user_id: "user-1" } });
     update.mockResolvedValue({ id: "chapter-1", content: "ai-out", status: "draft" });
 
     await PATCH(request({ content: "ai-out", source: "ai" }), {
@@ -129,7 +129,7 @@ describe("PATCH /api/chapters/[id]", () => {
 
   it("skips version creation when latest version has the same content_hash", async () => {
     const { PATCH } = await import("./route");
-    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "same", status: "draft", novel: { user_id: "user-1" } });
+    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "same", status: "draft", version: 0, novel: { user_id: "user-1" } });
     update.mockResolvedValue({ id: "chapter-1", content: "new", status: "draft" });
     const { createHash } = await import("node:crypto");
     const sameHash = createHash("md5").update("same").digest("hex");
@@ -144,7 +144,7 @@ describe("PATCH /api/chapters/[id]", () => {
 
   it("prunes oldest versions beyond the per-chapter cap", async () => {
     const { PATCH } = await import("./route");
-    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", novel: { user_id: "user-1" } });
+    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", version: 0, novel: { user_id: "user-1" } });
     update.mockResolvedValue({ id: "chapter-1", content: "new", status: "draft" });
     findManyVersion.mockResolvedValue([{ id: "old-1" }, { id: "old-2" }]);
 
@@ -203,7 +203,7 @@ describe("PATCH /api/chapters/[id]", () => {
 
   it("rolls back the chapter update if version creation fails", async () => {
     const { PATCH } = await import("./route");
-    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", novel: { user_id: "user-1" } });
+    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", version: 0, novel: { user_id: "user-1" } });
     update.mockResolvedValue({ id: "chapter-1", content: "new", status: "draft" });
     createVersion.mockRejectedValue(new Error("version insert failed"));
 
@@ -284,33 +284,26 @@ describe("PATCH /api/chapters/[id]", () => {
     });
   });
 
-  it("still saves and increments version when expected_version is omitted (back-compat)", async () => {
+  it("rejects with 400 INVALID_INPUT when expected_version is omitted (P0-3)", async () => {
     const { PATCH } = await import("./route");
-    createVersion.mockResolvedValue({ id: "ver-1" });
-    findUnique.mockResolvedValue({
-      id: "chapter-1",
-      title: "t",
-      content: "old",
-      status: "draft",
-      version: 9,
-      novel: { user_id: "user-1" },
+    // Bypass the test helper (which now injects a default expected_version)
+    // so we can verify the schema itself refuses requests that don't carry
+    // an optimistic-lock guard. The route must short-circuit before any
+    // DB lookup — adopting a back-compat path here is what the P0-3 fix
+    // explicitly closes.
+    const rawRequest = new Request("http://localhost/api/chapters/chapter-1", {
+      method: "PATCH",
+      body: JSON.stringify({ content: "next", source: "manual" }),
     });
-    update.mockResolvedValue({ id: "chapter-1", content: "next", status: "draft", version: 10 });
-
-    const response = await PATCH(request({ content: "next" }), {
+    const response = await PATCH(rawRequest, {
       params: Promise.resolve({ id: "chapter-1" }),
     });
+    const json = await response.json();
 
-    expect(response.status).toBe(200);
-    expect(update).toHaveBeenCalledWith({
-      where: { id: "chapter-1" },
-      data: {
-        content: "next",
-        summary_dirty: true,
-        index_dirty: true,
-        version: { increment: 1 },
-      },
-    });
+    expect(response.status).toBe(400);
+    expect(json.error.code).toBe("INVALID_INPUT");
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
   });
 
   // ─────────────────────────────────────────────
@@ -415,8 +408,13 @@ describe("DELETE /api/chapters/[id]", () => {
 });
 
 function request(body: unknown) {
+  // P0-3: expected_version is now required by the schema. Tests that don't
+  // care about optimistic locking pass through this helper, which defaults
+  // to 0 to match the mocked rows' `version: 0`. Tests that DO care about
+  // version mismatch override the field explicitly.
+  const merged = { expected_version: 0, ...(body as Record<string, unknown>) };
   return new Request("http://localhost/api/chapters/chapter-1", {
     method: "PATCH",
-    body: JSON.stringify(body),
+    body: JSON.stringify(merged),
   });
 }
