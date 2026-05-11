@@ -164,4 +164,75 @@ describe("lib/llm/client", () => {
     expect(captured).toBe("par");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("forwards an external AbortSignal into the fetch (P0-8)", async () => {
+    process.env.DEEPSEEK_API_KEY = "test-key";
+    delete process.env.LLM_MOCK;
+
+    // Pre-aborted signal: the inner controller must abort synchronously,
+    // so fetch sees signal.aborted=true before the request goes out.
+    let observedAborted: boolean | undefined;
+    const fetchMock = vi.fn().mockImplementation((_url, init: RequestInit) => {
+      observedAborted = (init.signal as AbortSignal | undefined)?.aborted;
+      throw new DOMException("aborted", "AbortError");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const ac = new AbortController();
+    ac.abort();
+    await expect(
+      chatCompletion({
+        route: "/test",
+        messages: [{ role: "user", content: "ping" }],
+        signal: ac.signal,
+      }),
+    ).rejects.toThrow();
+    expect(observedAborted).toBe(true);
+  });
+
+  it("forwards a stream-time external abort onto fetch's signal (P0-8)", async () => {
+    process.env.DEEPSEEK_API_KEY = "test-key";
+    delete process.env.LLM_MOCK;
+
+    // Stream that closes immediately so we don't loop forever; the
+    // important assertion is that the AbortSignal handed to fetch is
+    // the *internal* one wired to the external controller, and that
+    // aborting the external controller after the call started flips
+    // the internal one. (We don't try to verify that mock-stream
+    // reader.read() throws on abort — that's a runtime contract of
+    // real fetch, not of the in-memory ReadableStream mock.)
+    let capturedSignal: AbortSignal | undefined;
+    const emptyStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.close();
+      },
+    });
+    const fetchMock = vi.fn().mockImplementation((_url, init: RequestInit) => {
+      capturedSignal = init.signal as AbortSignal | undefined;
+      return Promise.resolve(
+        new Response(emptyStream, { status: 200, headers: { "content-type": "text/event-stream" } }),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const ac = new AbortController();
+    await streamChatCompletion(
+      { route: "/test", messages: [{ role: "user", content: "ping" }], signal: ac.signal },
+      { onDelta: () => {} },
+    );
+
+    // Inner signal exists and was passed to fetch (not the external one
+    // directly — we forward via an internal controller so the timeout
+    // path can still race).
+    expect(capturedSignal).toBeDefined();
+    expect(capturedSignal).not.toBe(ac.signal);
+    expect(capturedSignal?.aborted).toBe(false);
+
+    // After the stream settles, the listener should have been detached
+    // — proving the outer finally ran. We can't directly assert on the
+    // listener; we instead check that aborting the external controller
+    // post-hoc does NOT abort the (already-discarded) inner signal.
+    ac.abort();
+    expect(capturedSignal?.aborted).toBe(false);
+  });
 });

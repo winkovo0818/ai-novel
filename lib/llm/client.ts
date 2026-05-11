@@ -40,6 +40,13 @@ export interface ChatCompletionOptions {
   userId?: string;
   /** Novel ID for usage tracking */
   novelId?: string;
+  /**
+   * Caller-supplied abort signal. When the external signal aborts, the
+   * fetch underneath is aborted too — used by P0-8 streaming moderation
+   * to stop a banned generation as soon as a segment trips the guard,
+   * so DeepSeek stops yielding tokens we'd have to pay for anyway.
+   */
+  signal?: AbortSignal;
 }
 
 export interface ChatCompletionResult {
@@ -63,6 +70,10 @@ export interface ChatStreamOptions {
   userId?: string;
   /** Novel ID for usage tracking */
   novelId?: string;
+  /**
+   * Caller-supplied abort signal. See {@link ChatCompletionOptions.signal}.
+   */
+  signal?: AbortSignal;
 }
 
 export interface ChatStreamResult {
@@ -143,6 +154,30 @@ interface DeepSeekStreamChunk {
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
+/**
+ * Wire an external `AbortSignal` to an internal `AbortController`. If the
+ * caller's signal already fired, abort immediately; otherwise listen once
+ * and forward. Returns a cleanup that detaches the listener — call it
+ * after the fetch settles so we don't leak listeners across requests.
+ *
+ * Used by P0-8 streaming moderation: the route holds an AbortController
+ * it triggers when a segment trips the guard; this helper makes sure
+ * that abort actually closes the DeepSeek HTTP connection underneath.
+ */
+function forwardAbort(
+  external: AbortSignal | undefined,
+  internal: AbortController,
+): () => void {
+  if (!external) return () => {};
+  if (external.aborted) {
+    internal.abort();
+    return () => {};
+  }
+  const handler = () => internal.abort();
+  external.addEventListener("abort", handler, { once: true });
+  return () => external.removeEventListener("abort", handler);
+}
+
 function getBaseUrl(): string {
   return (
     process.env.DEEPSEEK_BASE_URL?.replace(/\/+$/, "") ??
@@ -205,6 +240,11 @@ export async function streamChatCompletion(
   let tokenIn = 0;
   let tokenOut = 0;
 
+  // Stays a no-op until the fetch wires up the external signal listener.
+  // Hoisted here so the outer finally can always detach it after the
+  // stream-read loop settles, even on the throw paths.
+  let detachExternalAbort: () => void = () => {};
+
   try {
     if (isLlmMockEnabled()) {
       const result = await mockStreamChatCompletion(opts, callbacks);
@@ -219,6 +259,7 @@ export async function streamChatCompletion(
     const apiKey = config.apiKey;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    detachExternalAbort = forwardAbort(opts.signal, controller);
 
     let response: Response;
     try {
@@ -246,6 +287,11 @@ export async function streamChatCompletion(
       throw err;
     } finally {
       clearTimeout(timer);
+      // NOTE: external-abort listener is NOT detached here — we want
+      // caller aborts during the stream-read loop below to keep
+      // propagating into the internal controller so reader.read()
+      // throws promptly. Detach happens in the outer finally after the
+      // read loop has settled.
     }
 
     if (!response.ok) {
@@ -305,6 +351,7 @@ export async function streamChatCompletion(
     if (!errCode) errCode = "UNKNOWN";
     throw err;
   } finally {
+    detachExternalAbort();
     logLlmCall({
       route: opts.route,
       agent: opts.agent,
@@ -355,6 +402,7 @@ export async function chatCompletion(
   let status: "ok" | "err" = "ok";
   let errCode: string | undefined;
   let result: ChatCompletionResult | undefined;
+  let detachExternalAbort: () => void = () => {};
 
   try {
     if (isLlmMockEnabled()) {
@@ -369,6 +417,7 @@ export async function chatCompletion(
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    detachExternalAbort = forwardAbort(opts.signal, controller);
 
     let response: Response;
     try {
@@ -426,6 +475,7 @@ export async function chatCompletion(
     if (!errCode) errCode = "UNKNOWN";
     throw err;
   } finally {
+    detachExternalAbort();
     logLlmCall({
       route: opts.route,
       agent: opts.agent,
