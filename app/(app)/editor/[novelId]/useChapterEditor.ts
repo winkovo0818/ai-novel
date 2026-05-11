@@ -6,6 +6,12 @@ import { readSse } from "@/lib/stream/readSse";
 import { getAllChapters } from "@/lib/validation/schemas";
 import type { BibleDraft, StateDiff } from "@/lib/validation/schemas";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
+import {
+  applyAcceptMode,
+  deriveChapterStateFromDraft,
+  mergeChapterIntoList,
+  resolveStartIndex,
+} from "@/lib/editor/chapterUtils";
 import type { ChapterDraftView } from "./EditorClient";
 import type {
   CandidateCriticResult,
@@ -44,33 +50,33 @@ export interface ChapterVersionView {
 export function useChapterEditor({ novelId, bible, initialChapters, initialChapterIndex }: UseChapterEditorOptions) {
   const confirm = useConfirm();
   const allOutlineChapters = getAllChapters(bible);
-  const startIndex = (() => {
-    const requested = initialChapterIndex ?? 1;
-    const inOutline = allOutlineChapters.some((c) => c.index === requested);
-    return inOutline ? requested : 1;
-  })();
+  const startIndex = resolveStartIndex(
+    allOutlineChapters.map((c) => ({ index: c.index })),
+    initialChapterIndex,
+  );
   const startOutline = allOutlineChapters.find((c) => c.index === startIndex) ?? allOutlineChapters[0];
   const startDraft = initialChapters.find((chapter) => chapter.chapter_index === startIndex);
+  const startState = deriveChapterStateFromDraft(startDraft, startOutline?.title, startIndex);
   const [chapters, setChapters] = useState(initialChapters);
   const [selectedIndex, setSelectedIndex] = useState(startIndex);
   const selectedDraft = chapters.find((chapter) => chapter.chapter_index === selectedIndex);
   const selectedOutline = allOutlineChapters.find((chapter) => chapter.index === selectedIndex) ?? startOutline;
-  const [chapterId, setChapterId] = useState(startDraft?.id);
-  const [chapterTitle, setChapterTitle] = useState(startDraft?.title ?? startOutline?.title ?? `第 ${startIndex} 章`);
-  const [content, setContent] = useState(startDraft?.content ?? "");
-  const [chapterStatus, setChapterStatus] = useState<"draft" | "done">(startDraft?.status === "done" ? "done" : "draft");
-  const [savedTitle, setSavedTitle] = useState(startDraft?.title ?? startOutline?.title ?? `第 ${startIndex} 章`);
-  const [savedContent, setSavedContent] = useState(startDraft?.content ?? "");
-  const [savedStatus, setSavedStatus] = useState<"draft" | "done">(startDraft?.status === "done" ? "done" : "draft");
-  const [targetWords, setTargetWordsState] = useState<number | null>(startDraft?.target_words ?? null);
-  const [lastSavedAt, setLastSavedAt] = useState<string | undefined>(startDraft?.updated_at);
+  const [chapterId, setChapterId] = useState(startState.chapterId);
+  const [chapterTitle, setChapterTitle] = useState(startState.title);
+  const [content, setContent] = useState(startState.content);
+  const [chapterStatus, setChapterStatus] = useState<"draft" | "done">(startState.status);
+  const [savedTitle, setSavedTitle] = useState(startState.title);
+  const [savedContent, setSavedContent] = useState(startState.content);
+  const [savedStatus, setSavedStatus] = useState<"draft" | "done">(startState.status);
+  const [targetWords, setTargetWordsState] = useState<number | null>(startState.targetWords);
+  const [lastSavedAt, setLastSavedAt] = useState<string | undefined>(startState.lastSavedAt);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "drafting" | "error">("idle");
   const [message, setMessage] = useState<string>();
   // M3.6 optimistic-lock state. Hydrated from the chapter row on selection
   // and updated from every successful PATCH/POST/restore response. When the
   // server responds 409 we stash the latest row in conflictChapter so the
   // editor can render a "load latest" banner.
-  const [chapterVersion, setChapterVersion] = useState<number>(startDraft?.version ?? 0);
+  const [chapterVersion, setChapterVersion] = useState<number>(startState.version);
   const [conflictChapter, setConflictChapter] = useState<ChapterDraftView | null>(null);
   const hasUnsavedChanges = chapterTitle !== savedTitle || content !== savedContent || chapterStatus !== savedStatus;
   const characterCount = content.replace(/\s/g, "").length;
@@ -129,12 +135,7 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     if (json.data.target_words !== undefined) {
       setTargetWordsState(json.data.target_words);
     }
-    setChapters((current) => {
-      const nextChapter = json.data as ChapterDraftView;
-      const exists = current.some((chapter) => chapter.id === nextChapter.id);
-      if (exists) return current.map((chapter) => chapter.id === nextChapter.id ? nextChapter : chapter);
-      return [...current, nextChapter].sort((a, b) => a.chapter_index - b.chapter_index);
-    });
+    setChapters((current) => mergeChapterIntoList(current, json.data as ChapterDraftView));
 
     // M3.1: server-side PATCH flips summary_dirty / index_dirty on content
     // change. The chapter management page's "refresh dirty" batch button
@@ -217,21 +218,19 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
 
     const draft = chapters.find((chapter) => chapter.chapter_index === index);
     const outline = allOutlineChapters.find((chapter) => chapter.index === index);
-    const nextTitle = draft?.title ?? outline?.title ?? `第 ${index} 章`;
-    const nextContent = draft?.content ?? "";
-    const nextStatus = draft?.status === "done" ? "done" : "draft";
+    const next = deriveChapterStateFromDraft(draft, outline?.title, index);
 
     setSelectedIndex(index);
-    setChapterId(draft?.id);
-    setChapterTitle(nextTitle);
-    setContent(nextContent);
-    setChapterStatus(nextStatus);
-    setSavedTitle(nextTitle);
-    setSavedContent(nextContent);
-    setSavedStatus(nextStatus);
-    setTargetWordsState(draft?.target_words ?? null);
-    setLastSavedAt(draft?.updated_at);
-    setChapterVersion(draft?.version ?? 0);
+    setChapterId(next.chapterId);
+    setChapterTitle(next.title);
+    setContent(next.content);
+    setChapterStatus(next.status);
+    setSavedTitle(next.title);
+    setSavedContent(next.content);
+    setSavedStatus(next.status);
+    setTargetWordsState(next.targetWords);
+    setLastSavedAt(next.lastSavedAt);
+    setChapterVersion(next.version);
     setConflictChapter(null);
     setStatus("idle");
     setMessage(undefined);
@@ -436,17 +435,7 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
 
     if (!candidateContent) return;
 
-    let nextContent = content;
-    if (mode === "replace") {
-      nextContent = candidateContent;
-    } else if (mode === "append") {
-      nextContent = content
-        ? `${content.replace(/\s+$/, "")}\n\n${candidateContent}`
-        : candidateContent;
-    } else if (mode === "insert") {
-      const pos = cursorPosRef.current ?? content.length;
-      nextContent = `${content.slice(0, pos)}${candidateContent}${content.slice(pos)}`;
-    }
+    const nextContent = applyAcceptMode(content, candidateContent, mode, cursorPosRef.current);
 
     setStatus("saving");
     setMessage("保存候选稿…");
