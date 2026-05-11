@@ -12,10 +12,10 @@
 |-----------------------------|-------------------------------------------------------------------------------------------------------------|
 | `npm run typecheck`         | ✅ 通过                                                                                                        |
 | `npm run lint` (`eslint .`) | ✅ 通过                                                                                                        |
-| `npm run test` (Vitest)     | ✅ 通过，**61 files / 410 tests**（M3.1 后又净增多个 agent/jobs/onboarding 覆盖批次）                                                  |
+| `npm run test` (Vitest)     | ✅ 通过，**61 files / 419 tests**（M3.1 后又净增多个 agent/jobs/onboarding/usage 覆盖批次）                                                  |
 | `npm run build`             | ✅ 通过（17 个静态页 + 30 个动态路由；新增 `/novels/[id]/export` 独立页面）                                            |
 | `tests/e2e/` (Playwright)   | ✅ 3 spec（onboarding / editor-failure / editor-candidate），**已进 CI**                                          |
-| coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines 64 / statements 64 / functions 90 / branches 80）                                                                                  |
+| coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines/statements 66 · functions 92 · branches 82，基线 68.28 / 93.75 / 84.30）                                                                                  |
 
 `.github/workflows/ci.yml` 现有两个 job：`verify`（lint/typecheck/test/build）+ `e2e`（pgvector postgres + LLM_MOCK + playwright + 失败上传 trace）。
 
