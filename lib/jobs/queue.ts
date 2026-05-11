@@ -47,6 +47,45 @@ export function getHandler(type: JobType): JobHandler | undefined {
 const MAX_ATTEMPTS = 3;
 
 /**
+ * P0-6: how long a job may stay in `running` before drains treat it as
+ * orphaned. The drainer is invoked inline from API routes and dies with
+ * the Serverless function — if the function is killed (timeout, OOM,
+ * cold-shed) between the claim and the finalize update, the row sits in
+ * `running` forever and `runPendingJobsForNovel` never sees it again
+ * (it only queries `pending`). Five minutes is well past every handler's
+ * own LLM timeout, so any `running` row older than this is provably
+ * abandoned. Override via env for stress tests with slow handlers.
+ */
+const STALE_RUNNING_TIMEOUT_MS = Number(
+  process.env.JOB_STALE_RUNNING_MS ?? 5 * 60 * 1000,
+);
+
+/**
+ * Reset `running` jobs whose `started_at` is past the TTL back to
+ * `pending` so the next drain re-picks them up. Returns the count
+ * resurrected. `attempts` is intentionally NOT incremented — the
+ * failure here is infrastructural (function torn down), not a handler
+ * error, and we don't want to burn the user's retry budget on it.
+ * The handler's own per-call timeout (and MAX_ATTEMPTS on real
+ * failures) is still the backstop for genuinely broken handlers.
+ */
+export async function sweepStaleRunningJobs(novelId?: string): Promise<number> {
+  const cutoff = new Date(Date.now() - STALE_RUNNING_TIMEOUT_MS);
+  const result = await prisma.backgroundJob.updateMany({
+    where: {
+      status: "running",
+      started_at: { lt: cutoff },
+      ...(novelId ? { novel_id: novelId } : {}),
+    },
+    data: {
+      status: "pending",
+      last_error: "Previous run timed out (stale running > TTL); requeued",
+    },
+  });
+  return result.count;
+}
+
+/**
  * Run a single job by id. Atomic state transitions:
  *   pending -> running (only if previous status was pending or failed)
  *   running -> done | failed
@@ -122,9 +161,13 @@ export async function runJob(jobId: string): Promise<JobStatus> {
 
 /**
  * Drain all pending jobs for a novel sequentially. Best-effort — if one job
- * fails we still try the rest. Returns the count processed.
+ * fails we still try the rest. Returns the count processed. P0-6: also
+ * resurrects any stale `running` rows for this novel before draining, so
+ * jobs killed mid-flight by a Serverless teardown don't hide forever.
  */
 export async function runPendingJobsForNovel(novelId: string): Promise<number> {
+  await sweepStaleRunningJobs(novelId);
+
   const pending = await prisma.backgroundJob.findMany({
     where: { novel_id: novelId, status: "pending" },
     orderBy: { created_at: "asc" },

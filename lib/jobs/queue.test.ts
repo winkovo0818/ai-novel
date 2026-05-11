@@ -183,4 +183,70 @@ describe("runPendingJobsForNovel", () => {
     });
     expect(handler).toHaveBeenCalledTimes(2);
   });
+
+  it("sweeps stale running rows for the novel before draining (P0-6)", async () => {
+    const { runPendingJobsForNovel } = await import("./queue");
+    findMany.mockResolvedValue([]);
+    updateMany.mockResolvedValue({ count: 1 });
+
+    await runPendingJobsForNovel("n-1");
+
+    // The very first DB call must be the sweep — bounded to this novel,
+    // matched on running + started_at older than ~5 min, and resetting
+    // to pending without touching attempts.
+    const sweepCall = updateMany.mock.calls[0][0];
+    expect(sweepCall.where.status).toBe("running");
+    expect(sweepCall.where.novel_id).toBe("n-1");
+    expect(sweepCall.where.started_at).toHaveProperty("lt");
+    expect(sweepCall.where.started_at.lt).toBeInstanceOf(Date);
+    expect(sweepCall.data.status).toBe("pending");
+    expect(sweepCall.data.last_error).toMatch(/stale running/i);
+    expect("attempts" in sweepCall.data).toBe(false);
+  });
+});
+
+describe("sweepStaleRunningJobs", () => {
+  it("scopes to a novel when given an id (P0-6)", async () => {
+    const { sweepStaleRunningJobs } = await import("./queue");
+    updateMany.mockResolvedValue({ count: 3 });
+
+    const count = await sweepStaleRunningJobs("n-7");
+
+    expect(count).toBe(3);
+    const call = updateMany.mock.calls[0][0];
+    expect(call.where.novel_id).toBe("n-7");
+    expect(call.where.status).toBe("running");
+    expect(call.where.started_at.lt).toBeInstanceOf(Date);
+  });
+
+  it("acts globally when no novel id is supplied (P0-6)", async () => {
+    const { sweepStaleRunningJobs } = await import("./queue");
+    updateMany.mockResolvedValue({ count: 0 });
+
+    await sweepStaleRunningJobs();
+
+    const call = updateMany.mock.calls[0][0];
+    expect("novel_id" in call.where).toBe(false);
+    expect(call.where.status).toBe("running");
+  });
+
+  it("respects JOB_STALE_RUNNING_MS override (P0-6)", async () => {
+    const prev = process.env.JOB_STALE_RUNNING_MS;
+    process.env.JOB_STALE_RUNNING_MS = "1000"; // 1s
+    try {
+      vi.resetModules();
+      const { sweepStaleRunningJobs } = await import("./queue");
+      updateMany.mockResolvedValue({ count: 0 });
+      const before = Date.now();
+      await sweepStaleRunningJobs("n");
+      const cutoff: Date = updateMany.mock.calls[0][0].where.started_at.lt;
+      // cutoff should be ~1s before "now" rather than the default ~5min.
+      expect(before - cutoff.getTime()).toBeGreaterThanOrEqual(900);
+      expect(before - cutoff.getTime()).toBeLessThan(60_000);
+    } finally {
+      if (prev === undefined) delete process.env.JOB_STALE_RUNNING_MS;
+      else process.env.JOB_STALE_RUNNING_MS = prev;
+      vi.resetModules();
+    }
+  });
 });
