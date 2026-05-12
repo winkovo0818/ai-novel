@@ -12,9 +12,9 @@
 |-----------------------------|-------------------------------------------------------------------------------------------------------------|
 | `npm run typecheck`         | ✅ 通过                                                                                                        |
 | `npm run lint` (`eslint .`) | ✅ 通过                                                                                                        |
-| `npm run test` (Vitest)     | ✅ 通过，**70 files / 529 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
+| `npm run test` (Vitest)     | ✅ 通过，**70 files / 532 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
 | `npm run build`             | ✅ 通过                                                            |
-| `tests/e2e/` (Playwright)   | ✅ 5 spec（onboarding / editor-failure / editor-candidate × 3），P0-1 后按钮文案对齐 M1.3 候选稿模式                                          |
+| `tests/e2e/` (Playwright)   | ✅ 6 spec（onboarding / editor-failure / editor-candidate × 4，P2-3 新增候选稿 vs 正文 diff 切换 spec），P0-1 后按钮文案对齐 M1.3 候选稿模式                                          |
 | coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines/statements 68 · functions 93 · branches 83，基线 70.04 / 94.24 / 85.50）                                                                                  |
 | 代码规模                     | 38 个 API route · 21 个 page.tsx · 22 条 Prisma migration · 15 个 Prisma model                                                                  |
 
