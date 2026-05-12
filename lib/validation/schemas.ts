@@ -283,16 +283,24 @@ export const FinalizeResponseSchema = z.object({
   action: z.enum(["start_writing", "save_only"]),
 });
 
+/**
+ * Hard cap on per-chapter `content` length. Matches `ChapterDraft.content`
+ * column constraint in Prisma and is enforced on every Create/Update path
+ * touching chapter body. Exported so the editor can render a UI warning
+ * before the user hits the wall (P1-11).
+ */
+export const CHAPTER_CONTENT_MAX_CHARS = 80_000;
+
 export const CreateChapterDraftRequestSchema = z.object({
   chapter_index: z.number().int().min(1),
   title: z.string().min(1).max(120),
-  content: z.string().max(80_000).default(""),
+  content: z.string().max(CHAPTER_CONTENT_MAX_CHARS).default(""),
   status: z.enum(["draft", "done"]).default("draft"),
 });
 
 export const UpdateChapterDraftRequestSchema = z.object({
   title: z.string().min(1).max(120).optional(),
-  content: z.string().max(80_000).optional(),
+  content: z.string().max(CHAPTER_CONTENT_MAX_CHARS).optional(),
   status: z.enum(["draft", "done"]).optional(),
   source: z.enum(["manual", "ai", "autosave", "status_change"]).optional(),
   /** Per-chapter word target. Null clears it; undefined leaves it unchanged. */
@@ -309,7 +317,7 @@ export const UpdateChapterDraftRequestSchema = z.object({
 export const GenerateChapterDraftRequestSchema = z.object({
   chapter_index: z.number().int().min(1).default(1),
   title: z.string().min(1).max(120),
-  existing_content: z.string().max(80_000).optional(),
+  existing_content: z.string().max(CHAPTER_CONTENT_MAX_CHARS).optional(),
   beat_sheet: z.object({
     beats: z.array(z.object({
       index: z.number().int().min(1),
