@@ -6,6 +6,9 @@ const streamChatCompletionWithRetry = vi.fn();
 const findUnique = vi.fn();
 const getRequiredUserId = vi.fn();
 const retrieveMemories = vi.fn();
+const matchBlockedKeywords = vi.fn();
+const failDraftSession = vi.fn().mockResolvedValue(undefined);
+const completeDraftSession = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@/lib/llm/client", () => ({
   streamChatCompletionWithRetry,
@@ -31,17 +34,14 @@ vi.mock("@/lib/agent/draftSession", () => ({
     schedule: vi.fn(),
     flush: vi.fn().mockResolvedValue(undefined),
   })),
-  completeDraftSession: vi.fn().mockResolvedValue(undefined),
-  failDraftSession: vi.fn().mockResolvedValue(undefined),
+  completeDraftSession,
+  failDraftSession,
 }));
 
 vi.mock("@/lib/moderation/moderate", () => ({
   moderateContent: () => Promise.resolve({ allowed: true }),
   stringifyForModeration: (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v)),
-  // P0-8: streamGuard imports matchBlockedKeywords from this module.
-  // Default to clean pass; tests that need to exercise the guard
-  // override via mockImplementation.
-  matchBlockedKeywords: vi.fn().mockReturnValue(null),
+  matchBlockedKeywords,
   BLOCKED_KEYWORDS: [] as readonly RegExp[],
 }));
 
@@ -100,6 +100,10 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
     vi.clearAllMocks();
     getRequiredUserId.mockResolvedValue("user-1");
     retrieveMemories.mockResolvedValue({ status: "empty", memories: [] });
+    // P0-8: guard scans every segment via matchBlockedKeywords. Default
+    // to clean pass; tests that exercise the block path override
+    // per-call with mockImplementationOnce / mockImplementation.
+    matchBlockedKeywords.mockReturnValue(null);
   });
 
   it("emits an SSE error event when the LLM times out", async () => {
@@ -237,6 +241,157 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
     expect(text).not.toContain("长".repeat(201));
     // Retrieval event is emitted before any chapter_delta
     expect(text.indexOf("event: retrieval")).toBeLessThan(text.indexOf("event: chapter_delta"));
+  });
+
+  // ─────────────────────────────────────────────
+  // P0-8: segment-level moderation integration
+  // ─────────────────────────────────────────────
+
+  function setupOwnedNovel() {
+    findUnique.mockResolvedValue({
+      id: "novel-1",
+      user_id: "user-1",
+      profile,
+      bible: { content: bible },
+      chapters: [],
+      volume_summaries: [],
+      novel_summary: null,
+    });
+  }
+
+  it("forwards every segment to the client when content is clean (P0-8)", async () => {
+    const { POST } = await import("./route");
+    setupOwnedNovel();
+    streamChatCompletionWithRetry.mockImplementation(async (_args, callbacks) => {
+      callbacks?.onDelta?.("一段普通文字。");
+      callbacks?.onDelta?.("第二段也很普通!");
+      callbacks?.onDelta?.("收尾无标点");
+      return { tokenIn: 50, tokenOut: 100, costCny: 0.0002, tookMs: 30 };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/novels/novel-1/chapters/draft", {
+        method: "POST",
+        body: JSON.stringify({ chapter_index: 1, title: "第1章" }),
+      }),
+      { params: Promise.resolve({ id: "novel-1" }) },
+    );
+    const text = await response.text();
+
+    // Three segments → three chapter_delta events. The first two are
+    // sentence-terminated, the third is flushed by flushTail() after
+    // the stream completes.
+    expect(text.match(/event: chapter_delta/g)).toHaveLength(3);
+    expect(text).toContain('"delta":"一段普通文字。"');
+    expect(text).toContain('"delta":"第二段也很普通!"');
+    expect(text).toContain('"delta":"收尾无标点"');
+    // done event present, no error
+    expect(text).toContain("event: done");
+    expect(text).not.toContain("event: error");
+    expect(failDraftSession).not.toHaveBeenCalled();
+    expect(completeDraftSession).toHaveBeenCalledOnce();
+  });
+
+  it("blocks an in-stream keyword hit with MODERATION_BLOCKED_INLINE + aborts the LLM (P0-8)", async () => {
+    const { POST } = await import("./route");
+    setupOwnedNovel();
+    // Banned phrase appears inside the first segment ("制作炸弹").
+    matchBlockedKeywords.mockImplementation((text: string) =>
+      /制作炸弹/.test(text)
+        ? { pattern: /制作炸弹/, reason: "内容包含违规关键词" }
+        : null,
+    );
+
+    let abortSignalSeen: AbortSignal | undefined;
+    let secondDeltaCalled = false;
+    streamChatCompletionWithRetry.mockImplementation(async (args, callbacks) => {
+      abortSignalSeen = args.signal;
+      // First delta contains the banned phrase and ends with `。`, so
+      // the guard runs synchronously inside onDelta and throws
+      // ModerationBlockError. Let it propagate — the route's catch
+      // branch keys on `instanceof ModerationBlockError`, so wrapping
+      // it here would push us onto the generic LLM_TIMEOUT/INTERNAL
+      // path and defeat the test.
+      callbacks?.onDelta?.("引子。这里有制作炸弹的步骤。");
+      // Should be unreachable: the line above throws.
+      secondDeltaCalled = true;
+      callbacks?.onDelta?.("永远不应该出现的第二段。");
+      return { tokenIn: 10, tokenOut: 10, costCny: 0, tookMs: 5 };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/novels/novel-1/chapters/draft", {
+        method: "POST",
+        body: JSON.stringify({ chapter_index: 1, title: "第1章" }),
+      }),
+      { params: Promise.resolve({ id: "novel-1" }) },
+    );
+    const text = await response.text();
+
+    // The SSE error event uses the inline code so we can tell it apart
+    // from the legacy full-text moderation (MODERATION_BLOCKED).
+    expect(text).toContain("event: error");
+    expect(text).toContain('"code":"MODERATION_BLOCKED_INLINE"');
+    expect(text).toContain('"retryable":false');
+    // The banned segment must NOT have been sent to the client.
+    expect(text).not.toContain("制作炸弹");
+    // The session row landed in failed state with the inline code.
+    expect(failDraftSession).toHaveBeenCalledWith(
+      "ds-test",
+      expect.objectContaining({
+        code: "MODERATION_BLOCKED_INLINE",
+      }),
+    );
+    expect(completeDraftSession).not.toHaveBeenCalled();
+    // The abort fired on the route's controller, and it's the same
+    // signal that got handed to the LLM client.
+    expect(abortSignalSeen?.aborted).toBe(true);
+    // We never re-entered onDelta after the throw.
+    expect(secondDeltaCalled).toBe(false);
+  });
+
+  it("catches keywords split across two segments via the sliding tail (P0-8 D-02)", async () => {
+    const { POST } = await import("./route");
+    setupOwnedNovel();
+    matchBlockedKeywords.mockImplementation((text: string) =>
+      /制作炸弹/.test(text)
+        ? { pattern: /制作炸弹/, reason: "内容包含违规关键词" }
+        : null,
+    );
+
+    // Construct a real cross-segment hit. The segmenter's natural
+    // boundary chars (。!?\n) are themselves part of the emitted
+    // segment, so a keyword can only span two segments when the
+    // first segment ends via the 200-char HARD CAP rather than a
+    // punctuation char. Build a payload that runs exactly to that
+    // cap with "制" as the last char, then has the rest of the
+    // banned word at the start of the next delta.
+    const firstSegmentTail = "啊".repeat(199) + "制"; // 200 chars, no punctuation → hard-cap flush
+    streamChatCompletionWithRetry.mockImplementation(async (_args, callbacks) => {
+      callbacks?.onDelta?.(firstSegmentTail);
+      callbacks?.onDelta?.("作炸弹的方法。"); // sliding tail of seg1 + this seg's head = "...制作炸弹..."
+      return { tokenIn: 5, tokenOut: 5, costCny: 0, tookMs: 1 };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/novels/novel-1/chapters/draft", {
+        method: "POST",
+        body: JSON.stringify({ chapter_index: 1, title: "第1章" }),
+      }),
+      { params: Promise.resolve({ id: "novel-1" }) },
+    );
+    const text = await response.text();
+
+    expect(text).toContain('"code":"MODERATION_BLOCKED_INLINE"');
+    // First segment (200 啊+制) was clean in isolation and got forwarded.
+    expect(text).toContain(firstSegmentTail);
+    // The cross-boundary segment that completed the banned phrase
+    // was rejected and never reached the client.
+    expect(text).not.toContain("作炸弹的方法");
+    expect(failDraftSession).toHaveBeenCalledWith(
+      "ds-test",
+      expect.objectContaining({ code: "MODERATION_BLOCKED_INLINE" }),
+    );
   });
 });
 
