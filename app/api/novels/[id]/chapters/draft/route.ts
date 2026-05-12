@@ -302,6 +302,15 @@ export async function POST(request: Request, context: RouteContext) {
         // not the AbortError that the LLM client may surface as a
         // side-effect of our own abortController.abort() call.
         if (err instanceof ModerationBlockError) {
+          // P0-8 observability: emit a structured one-liner that
+          // log-aggregation tooling (Vercel/CloudWatch/Logflare) can
+          // count over time. We deliberately don't go through
+          // lib/metrics/prometheus.ts — that file is scrape-time DB
+          // aggregation by design (Serverless cold starts reset
+          // in-memory counters), and a per-event counter doesn't fit.
+          console.warn(
+            `[moderation] INLINE_BLOCK route=${ROUTE} novel_id=${id} user_id=${userId} code=${err.code} chars=${content.length}`,
+          );
           await flusher.flush();
           await failDraftSession(sessionId, {
             buffer: content,

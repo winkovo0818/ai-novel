@@ -301,6 +301,7 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
         ? { pattern: /制作炸弹/, reason: "内容包含违规关键词" }
         : null,
     );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     let abortSignalSeen: AbortSignal | undefined;
     let secondDeltaCalled = false;
@@ -348,6 +349,18 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
     expect(abortSignalSeen?.aborted).toBe(true);
     // We never re-entered onDelta after the throw.
     expect(secondDeltaCalled).toBe(false);
+    // P0-8 observability hook: one structured warn-line per block,
+    // log-aggregator friendly, carries route/novel/user/code/chars.
+    // (Other unrelated warn calls may happen — e.g. usage logging
+    // best-effort warnings — so we assert the INLINE_BLOCK line
+    // shows up at least once rather than as the only call.)
+    const inlineLine = warn.mock.calls
+      .map((c) => String(c[0]))
+      .find((s) => s.includes("INLINE_BLOCK"));
+    expect(inlineLine).toBeDefined();
+    expect(inlineLine).toMatch(/code=MODERATION_BLOCKED_INLINE/);
+    expect(inlineLine).toMatch(/novel_id=novel-1/);
+    warn.mockRestore();
   });
 
   it("catches keywords split across two segments via the sliding tail (P0-8 D-02)", async () => {
