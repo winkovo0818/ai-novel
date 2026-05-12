@@ -1,8 +1,11 @@
+import { isRateLimited } from "@/lib/auth/rateLimit";
 import { collectMetrics } from "@/lib/metrics/collector";
 import { formatMetrics } from "@/lib/metrics/prometheus";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const ROUTE = "/api/metrics";
 
 /**
  * GET /api/metrics — Prometheus text exposition.
@@ -15,8 +18,27 @@ export const dynamic = "force-dynamic";
  *
  * Configure a Prometheus scrape job with `bearer_token` set to the same
  * value to start ingesting.
+ *
+ * P1-8: also rate-limited per source IP. The bearer token is the
+ * primary auth, but a leaked token would otherwise let an attacker
+ * burst-scrape the endpoint and hammer the DB through `collectMetrics`
+ * (which runs several Postgres aggregates per request). The limit
+ * applies regardless of whether the token check passes — token-guess
+ * attempts also burn the IP's budget, so brute-force probes get
+ * throttled too.
  */
 export async function GET(request: Request) {
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "anon";
+  if (await isRateLimited(`ip:${ip}`, ROUTE)) {
+    return new Response("rate limited\n", {
+      status: 429,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+
   const expected = process.env.METRICS_TOKEN;
   if (!expected) {
     return new Response("metrics endpoint disabled (METRICS_TOKEN unset)", {

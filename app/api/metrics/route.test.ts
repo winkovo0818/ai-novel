@@ -1,14 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const collectMetrics = vi.fn();
+const isRateLimited = vi.fn();
 
 vi.mock("@/lib/metrics/collector", () => ({
   collectMetrics,
 }));
 
+vi.mock("@/lib/auth/rateLimit", () => ({
+  isRateLimited,
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
+  isRateLimited.mockResolvedValue(false);
 });
 
 function buildRequest(headers: Record<string, string> = {}): Request {
@@ -87,6 +93,54 @@ describe("GET /api/metrics", () => {
     const res = await GET(buildRequest({ authorization: "Bearer secret" }));
     expect(res.status).toBe(500);
     expect(await res.text()).toContain("db down");
+    vi.unstubAllEnvs();
+  });
+
+  it("returns 429 when the source IP exceeds the rate limit (P1-8)", async () => {
+    vi.stubEnv("METRICS_TOKEN", "secret");
+    isRateLimited.mockResolvedValue(true);
+    const { GET } = await import("./route");
+
+    const res = await GET(
+      buildRequest({
+        authorization: "Bearer secret",
+        "x-forwarded-for": "203.0.113.7",
+      }),
+    );
+    expect(res.status).toBe(429);
+    expect(collectMetrics).not.toHaveBeenCalled();
+    // Limiter keys on the source IP so token-guessing waves get
+    // throttled regardless of whether the bearer is valid.
+    expect(isRateLimited).toHaveBeenCalledWith("ip:203.0.113.7", "/api/metrics");
+    vi.unstubAllEnvs();
+  });
+
+  it("falls back to x-real-ip when x-forwarded-for is absent (P1-8)", async () => {
+    vi.stubEnv("METRICS_TOKEN", "secret");
+    isRateLimited.mockResolvedValue(true);
+    const { GET } = await import("./route");
+
+    const res = await GET(
+      buildRequest({
+        authorization: "Bearer secret",
+        "x-real-ip": "198.51.100.42",
+      }),
+    );
+    expect(res.status).toBe(429);
+    expect(isRateLimited).toHaveBeenCalledWith("ip:198.51.100.42", "/api/metrics");
+    vi.unstubAllEnvs();
+  });
+
+  it("rate-limit check runs before the bearer-token check (P1-8)", async () => {
+    // No METRICS_TOKEN at all: ordinarily this would return 503. The
+    // rate limiter is the first gate, so a flooded IP still gets 429
+    // and never reaches the env-check branch.
+    vi.stubEnv("METRICS_TOKEN", "");
+    isRateLimited.mockResolvedValue(true);
+    const { GET } = await import("./route");
+
+    const res = await GET(buildRequest({ "x-forwarded-for": "203.0.113.99" }));
+    expect(res.status).toBe(429);
     vi.unstubAllEnvs();
   });
 });
