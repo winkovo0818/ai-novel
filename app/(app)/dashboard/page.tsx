@@ -303,19 +303,13 @@ export default async function DashboardPage() {
                    </div>
                  )}
 
-                 <div className="pt-4 border-t border-border-subtle">
-                   <div className="flex items-center justify-between mb-2">
-                     <span className="text-[11px] font-bold text-text-dim uppercase tracking-wider">系统可用性</span>
-                     <span className="text-[10px] font-bold text-emerald-500 uppercase">100% Online</span>
-                   </div>
-                   <div className="flex gap-1">
-                     {Array.from({ length: 24 }).map((_, i) => (
-                       <div key={i} className="h-4 flex-1 rounded-sm bg-emerald-500/20 group relative">
-                          <div className="absolute inset-0 bg-emerald-500 scale-y-75 opacity-80 rounded-sm" />
-                       </div>
-                     ))}
-                   </div>
-                 </div>
+                 {/* P1-12: the old "100% Online" 24-bar uptime strip was
+                     hardcoded — no underlying probe history table, no
+                     scrape job, no truthful source. Better to show nothing
+                     than to imply an SLO we aren't measuring. When we add
+                     a real uptime backend (Sentry / external probe with
+                     persisted samples), this slot can come back with the
+                     same SectionCard layout. */}
               </div>
             </SectionCard>
           </div>
