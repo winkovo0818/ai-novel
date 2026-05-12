@@ -4,6 +4,9 @@ import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { isRateLimited } from "@/lib/auth/rateLimit";
 import { checkQuota } from "@/lib/llm/usage";
 import { moderateContent, stringifyForModeration } from "@/lib/moderation/moderate";
+import { StreamModerationGuard } from "@/lib/moderation/streamGuard";
+import { ModerationBlockError } from "@/lib/moderation/errors";
+import { StreamSegmenter } from "@/lib/agent/streamSegmenter";
 import { streamChatCompletionWithRetry } from "@/lib/llm/client";
 import { buildChapterPrompt } from "@/lib/llm/prompts/chapter";
 import { buildChapterContext } from "@/lib/agent/chapterContext";
@@ -169,8 +172,36 @@ export async function POST(request: Request, context: RouteContext) {
       let heartbeat: ReturnType<typeof setInterval> | undefined;
       let content = "";
 
+      // P0-8: segment-level pipeline. Every delta is appended to a
+      // segmenter; only complete segments (sentence-ending punctuation
+      // or 200-char hard cap) are scanned by the keyword guard and
+      // forwarded to the client. A guard hit on a segment throws
+      // ModerationBlockError synchronously inside onDelta, which
+      // bubbles up to the outer catch — and we also fire abortController
+      // so the DeepSeek HTTP connection actually closes instead of
+      // continuing to bill us for tokens we'll never use.
+      const segmenter = new StreamSegmenter();
+      const guard = new StreamModerationGuard();
+      const abortController = new AbortController();
+
       function send(text: string) {
         controller.enqueue(encoder.encode(text));
+      }
+
+      function emitSegment(segment: string): void {
+        const verdict = guard.check(segment);
+        if (!verdict.allowed) {
+          // Don't send the offending segment to the client. Trigger an
+          // abort so the LLM stream stops yielding, then throw so the
+          // outer catch handles the failure path uniformly.
+          abortController.abort();
+          throw new ModerationBlockError(
+            verdict.reason ?? "内容包含违规关键词",
+            verdict.code ?? "MODERATION_BLOCKED_INLINE",
+          );
+        }
+        send(sseEncode("chapter_delta", { delta: segment }));
+        flusher.schedule(content);
       }
 
       try {
@@ -196,19 +227,36 @@ export async function POST(request: Request, context: RouteContext) {
             }),
             temperature: policy.temperature,
             timeoutMs: 60_000,
+            signal: abortController.signal,
           },
           {
             onDelta(delta) {
               content += delta;
-              send(sseEncode("chapter_delta", { delta }));
-              flusher.schedule(content);
+              // P0-8: do NOT forward `delta` directly to the client.
+              // Feed the segmenter; only completed segments are scanned
+              // and forwarded. The throw inside emitSegment propagates
+              // up through streamChatCompletion → the outer try/catch.
+              const segments = segmenter.feed(delta);
+              for (const seg of segments) {
+                emitSegment(seg);
+              }
             },
           },
         );
 
-        // Best-effort output moderation: if the full generated text is blocked,
-        // emit an error instead of "done". The client may have already seen
-        // deltas; this prevents persisting harmful content server-side.
+        // Stream finished cleanly — drain whatever the segmenter has
+        // left so the final unfinished sentence still gets scanned and
+        // forwarded.
+        const tail = segmenter.flushTail();
+        if (tail) {
+          emitSegment(tail);
+        }
+
+        // Best-effort full-text LLM moderation: keyword guard only
+        // catches the patterns we know about; the LLM pass catches
+        // semantic violations that slipped through. Kept in place
+        // intentionally (plan D-09) — local-keyword pre-screen does
+        // not replace the broader audit.
         const outputModeration = await moderateContent({
           route: ROUTE,
           text: content,
@@ -248,6 +296,28 @@ export async function POST(request: Request, context: RouteContext) {
           }),
         );
       } catch (err) {
+        // P0-8: inline moderation block takes precedence over the
+        // generic timeout/internal branches — the user-visible message
+        // and the persisted error_code should reflect why we stopped,
+        // not the AbortError that the LLM client may surface as a
+        // side-effect of our own abortController.abort() call.
+        if (err instanceof ModerationBlockError) {
+          await flusher.flush();
+          await failDraftSession(sessionId, {
+            buffer: content,
+            code: err.code,
+            message: err.reason,
+          });
+          send(
+            sseEncode("error", {
+              code: err.code,
+              message: err.reason,
+              retryable: false,
+              sessionId,
+            }),
+          );
+          return;
+        }
         const message = err instanceof Error ? err.message : "unknown error";
         const code = /timed out/i.test(message) ? "LLM_TIMEOUT" : "INTERNAL";
         await flusher.flush();

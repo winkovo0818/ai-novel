@@ -38,6 +38,11 @@ vi.mock("@/lib/agent/draftSession", () => ({
 vi.mock("@/lib/moderation/moderate", () => ({
   moderateContent: () => Promise.resolve({ allowed: true }),
   stringifyForModeration: (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v)),
+  // P0-8: streamGuard imports matchBlockedKeywords from this module.
+  // Default to clean pass; tests that need to exercise the guard
+  // override via mockImplementation.
+  matchBlockedKeywords: vi.fn().mockReturnValue(null),
+  BLOCKED_KEYWORDS: [] as readonly RegExp[],
 }));
 
 const profile: NovelProfile = {
