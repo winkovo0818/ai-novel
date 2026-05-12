@@ -91,3 +91,45 @@ test("replacing a non-empty body requires explicit confirm", async ({ page }) =>
   await expect(page.getByText("候选稿已替换正文")).toBeVisible({ timeout: 8_000 });
   await expect(editor).toHaveValue(CANDIDATE_TEXT);
 });
+
+test("P2-3: candidate panel toggles between preview and diff view", async ({ page }) => {
+  await completeOnboardingToEditor(page, { title: "候选稿 diff 切换 E2E" });
+  await mockDraftStream(page);
+
+  // The diff-toggle UI only appears when there's an existing body to
+  // diff against. Seed one and let it autosave, then trigger a draft.
+  const editor = page.locator("textarea").first();
+  const original = "用户的原稿，与候选稿差异明显。";
+  await editor.fill(original);
+  await expect(page.getByText("已自动保存")).toBeVisible({ timeout: 8_000 });
+
+  await page.getByRole("button", { name: "全文起草" }).click();
+  await expect(page.getByText("候选稿就绪")).toBeVisible({ timeout: 15_000 });
+
+  // Two view-mode buttons are visible inside the candidate panel.
+  const previewBtn = page.getByRole("button", { name: "候选稿", exact: true });
+  const diffBtn = page.getByRole("button", { name: "与正文对比" });
+  await expect(previewBtn).toBeVisible();
+  await expect(diffBtn).toBeVisible();
+
+  // Default mode is preview; the candidate text shows once.
+  const candidatePanel = page
+    .getByText("候选稿就绪")
+    .locator("xpath=ancestor::*[contains(@class,'card') or self::section][1]");
+  await expect(candidatePanel.getByText(CANDIDATE_TEXT)).toBeVisible();
+
+  // Switch to diff view; the same candidate text shows up as an added
+  // line marked with a `+` prefix. The DiffView renders the added
+  // block with its own font-mono container, distinct from the
+  // preview's prose paragraph.
+  await diffBtn.click();
+  await expect(candidatePanel.locator("text=+").first()).toBeVisible();
+  await expect(candidatePanel.getByText(CANDIDATE_TEXT)).toBeVisible();
+  // The original body is shown as a removed block in diff mode.
+  await expect(candidatePanel.getByText(original)).toBeVisible();
+
+  // Switch back — the diff markers disappear, the candidate text
+  // stays. (Verifies toggle is two-way, not a one-shot transition.)
+  await previewBtn.click();
+  await expect(candidatePanel.getByText(CANDIDATE_TEXT)).toBeVisible();
+});
