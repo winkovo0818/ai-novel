@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import type { BibleDraft } from "@/lib/validation/schemas";
-import { CHAPTER_CONTENT_MAX_CHARS } from "@/lib/validation/schemas";
 import { applyStateDiff } from "@/lib/validation/stateDiffMerge";
+import { getChapterContentLimitState } from "@/lib/editor/chapterUtils";
 import { EditorSidebar } from "./EditorSidebar";
 import { EditorToolbar } from "./EditorToolbar";
 import { useChapterEditor } from "./useChapterEditor";
@@ -63,6 +63,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
   // Default to "md" on the server render to avoid hydration mismatch; the
   // effect below pulls the persisted preference on the client.
   const [fontScale, setFontScale] = useState<FontScale>("md");
+  const contentLimit = getChapterContentLimitState(editor.content);
 
   useEffect(() => {
     setFontScale(readStoredFontScale());
@@ -318,22 +319,18 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
             <div className="mt-12 relative">
               {/* P1-11: chapter body has an 80K-char schema cap; warn when
                   the user approaches it so the failure isn't a save-time
-                  surprise. Two states — amber at ≥95%, red at the cap. */}
-              {editor.content.length >= Math.floor(CHAPTER_CONTENT_MAX_CHARS * 0.95) && (
+                  surprise. */}
+              {contentLimit.level !== "ok" && contentLimit.message && (
                 <div
                   role="status"
                   aria-live="polite"
                   className={`mb-3 rounded-lg border px-3 py-2 text-xs ${
-                    editor.content.length >= CHAPTER_CONTENT_MAX_CHARS
+                    contentLimit.level === "at" || contentLimit.level === "over"
                       ? "border-red-200 bg-red-50 text-red-800"
                       : "border-amber-200 bg-amber-50 text-amber-800"
                   }`}
                 >
-                  {editor.content.length >= CHAPTER_CONTENT_MAX_CHARS
-                    ? `已达到本章上限 ${CHAPTER_CONTENT_MAX_CHARS.toLocaleString()} 字，再写一字将无法保存。建议拆为下一章。`
-                    : `当前 ${editor.content.length.toLocaleString()} / ${CHAPTER_CONTENT_MAX_CHARS.toLocaleString()} 字，剩余 ${(
-                        CHAPTER_CONTENT_MAX_CHARS - editor.content.length
-                      ).toLocaleString()} 字，接近本章上限。`}
+                  {contentLimit.message}
                 </div>
               )}
               <textarea

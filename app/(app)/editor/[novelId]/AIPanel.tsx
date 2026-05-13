@@ -1,6 +1,6 @@
 import React from "react";
 import type { BibleDraft } from "@/lib/validation/schemas";
-import type { ConsistencyResult } from "./useChapterEditor";
+import type { ConsistencyResult } from "./useChapterActions";
 import { BeatSheetPanel, type BeatItem } from "./BeatSheetPanel";
 
 interface AIPanelProps {

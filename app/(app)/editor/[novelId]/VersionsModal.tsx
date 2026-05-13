@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import type { ChapterVersionView } from "./useChapterEditor";
+import type { ChapterVersionView } from "./useChapterVersions";
 import type { ChapterDraftView } from "./EditorClient";
 import { DiffView } from "@/components/ui/DiffView";
 import { useConfirm } from "@/components/ui/ConfirmDialog";

@@ -170,12 +170,12 @@ function WordTarget({
         <span className="font-bold">
           {characterCount.toLocaleString()} / {target.toLocaleString()} 字 · {pct}%
         </span>
-        <span className="block w-16 h-1 bg-secondary rounded-full overflow-hidden">
-          <span
-            className={`block h-full ${pct >= 100 ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" : "bg-primary"} transition-all duration-1000`}
-            style={{ width: `${pct}%` }}
-          />
-        </span>
+        <progress
+          className={`progress-bar h-1 w-16 ${pct >= 100 ? "progress-bar-complete" : ""}`}
+          max={100}
+          value={pct}
+          aria-label="章节目标进度"
+        />
       </button>
     );
   }
