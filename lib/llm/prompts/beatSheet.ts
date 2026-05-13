@@ -1,5 +1,6 @@
 import type { ChatMessage } from "../client";
 import type { BibleDraft, StoryStateV1 } from "../../validation/schemas";
+import { PROMPT_SAFETY_PREAMBLE, wrap, wrapOr } from "../promptSafety";
 
 export interface BeatSheetPromptInput {
   bible: BibleDraft;
@@ -27,25 +28,33 @@ export function buildBeatSheetPrompt(input: BeatSheetPromptInput): ChatMessage[]
       lines.push("角色状态：");
       for (const char of storyState.characters) {
         const parts: string[] = [];
-        if (char.current_location) parts.push(`位置：${char.current_location}`);
-        if (char.emotional_state) parts.push(`情绪：${char.emotional_state}`);
-        if (char.current_goal) parts.push(`目标：${char.current_goal}`);
-        lines.push(`- ${char.name}：${parts.join("；")}`);
+        if (char.current_location) parts.push(`位置：${wrap(char.current_location, "story_state")}`);
+        if (char.emotional_state) parts.push(`情绪：${wrap(char.emotional_state, "story_state")}`);
+        if (char.current_goal) parts.push(`目标：${wrap(char.current_goal, "story_state")}`);
+        lines.push(`- ${wrap(char.name, "character_name")}：${parts.join("；")}`);
       }
     }
     if (storyState.plot_threads?.length) {
       lines.push("活跃线索：");
       for (const thread of storyState.plot_threads) {
-        lines.push(`- ${thread.title}（${thread.status}）`);
+        lines.push(`- ${wrap(thread.title, "plot_thread")}（${thread.status}）`);
       }
     }
     if (lines.length > 0) stateSection = `\n${lines.join("\n")}\n`;
   }
 
+  const outlineLine = chapterSummary
+    ? `章节大纲：${wrap(chapterSummary, "outline_summary")}`
+    : outline?.summary
+      ? `章节大纲：${wrap(outline.summary, "outline_summary")}`
+      : "（本章未预设大纲）";
+
   return [
     {
       role: "system",
       content: `你是一个小说大纲写作助手。你的任务是为给定章节生成 5-8 个节拍（beat），指导正文写作。
+
+${PROMPT_SAFETY_PREAMBLE}
 
 每个节拍包含：
 - index: 节拍序号（从 1 开始）
@@ -59,12 +68,12 @@ export function buildBeatSheetPrompt(input: BeatSheetPromptInput): ChatMessage[]
     },
     {
       role: "user",
-      content: `小说标题：${bible.meta.suggested_title}
-章节：第 ${chapterIndex} 章《${chapterTitle}》
+      content: `小说标题：${wrap(bible.meta.suggested_title, "outline_title")}
+章节：第 ${chapterIndex} 章《${wrap(chapterTitle, "chapter_title")}》
 
-主角：${protagonist?.name ?? "主角"}（${protagonist?.personality ?? "待定"}；动机：${protagonist?.motivation ?? "待定"}）
-${chapterSummary ? `章节大纲：${chapterSummary}` : outline?.summary ? `章节大纲：${outline.summary}` : "（本章未预设大纲）"}
-${previousChapterSummary ? `\n上一章摘要：\n${previousChapterSummary}\n` : ""}${stateSection}${chapterGoal ? `\n本章目标：${chapterGoal}\n` : ""}
+主角：${wrapOr(protagonist?.name, "character_name", "主角")}（${wrapOr(protagonist?.personality, "character_personality", "待定")}；动机：${wrapOr(protagonist?.motivation, "character_motivation", "待定")}）
+${outlineLine}
+${previousChapterSummary ? `\n上一章摘要：\n${wrap(previousChapterSummary, "previous_summary")}\n` : ""}${stateSection}${chapterGoal ? `\n本章目标：${wrap(chapterGoal, "outline_summary")}\n` : ""}
 
 请生成 5-8 个节拍，输出 JSON 格式：
 {"beats": [{"index": 1, "description": "..."}]}`,

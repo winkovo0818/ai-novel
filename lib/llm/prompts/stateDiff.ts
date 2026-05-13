@@ -1,5 +1,6 @@
 import type { ChatMessage } from "../client";
 import type { BibleDraft, StoryStateV1 } from "../../validation/schemas";
+import { PROMPT_SAFETY_PREAMBLE, sanitizeForPrompt, wrap } from "../promptSafety";
 
 export interface StateDiffPromptInput {
   bible: BibleDraft;
@@ -10,18 +11,22 @@ export interface StateDiffPromptInput {
 }
 
 export function buildStateDiffPrompt(input: StateDiffPromptInput): ChatMessage[] {
+  // storyState is serialized as JSON — wrap the entire blob as data so any
+  // user-controlled strings inside (names, notes, etc) can't break out.
   const stateJson = input.storyState
-    ? JSON.stringify(input.storyState, null, 2)
+    ? `<story_state>${sanitizeForPrompt(JSON.stringify(input.storyState, null, 2))}</story_state>`
     : "（尚无运行时状态记录）";
 
   const characters = input.bible.characters
-    .map((c) => `- ${c.name}（${c.role}）：${c.personality}；动机：${c.motivation}`)
+    .map((c) => `- ${wrap(c.name, "character_name")}（${c.role}）：${wrap(c.personality, "character_personality")}；动机：${wrap(c.motivation, "character_motivation")}`)
     .join("\n");
 
   return [
     {
       role: "system",
       content: `你是小说状态追踪器。你的任务是阅读一章正文，对比当前 Story Bible 和运行时状态，输出本章带来的结构化状态变更（state diff）。
+
+${PROMPT_SAFETY_PREAMBLE}
 
 输出必须且只能是 JSON，格式如下：
 {
@@ -54,10 +59,10 @@ ${characters}
 ${stateJson}
 
 ## 本章信息
-第 ${input.chapterIndex} 章《${input.chapterTitle}》
+第 ${input.chapterIndex} 章《${wrap(input.chapterTitle, "chapter_title")}》
 
 ## 本章正文
-${input.chapterContent.slice(0, 6000)}
+${wrap(input.chapterContent.slice(0, 6000), "chapter_content")}
 
 请分析本章带来的状态变更，输出 JSON。`,
     },

@@ -71,10 +71,10 @@ describe("buildStateDiffPrompt", () => {
       chapterTitle: "x",
       chapterContent: "x",
     });
-    expect(user.content).toContain("沈言（protagonist）");
-    expect(user.content).toContain("查清旧案");
-    expect(user.content).toContain("陆衍（antagonist）");
-    expect(user.content).toContain("夺剑魂");
+    expect(user.content).toContain("<character_name>沈言</character_name>（protagonist）");
+    expect(user.content).toContain("<character_motivation>查清旧案</character_motivation>");
+    expect(user.content).toContain("<character_name>陆衍</character_name>（antagonist）");
+    expect(user.content).toContain("<character_motivation>夺剑魂</character_motivation>");
   });
 
   it("falls back to a placeholder when storyState is absent", () => {
@@ -112,7 +112,7 @@ describe("buildStateDiffPrompt", () => {
       chapterTitle: "断魂",
       chapterContent: long,
     });
-    expect(user.content).toContain("第 12 章《断魂》");
+    expect(user.content).toContain("第 12 章《<chapter_title>断魂</chapter_title>》");
     expect(user.content.match(/字/g)?.length).toBe(6000);
   });
 });

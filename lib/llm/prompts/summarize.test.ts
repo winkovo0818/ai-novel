@@ -37,9 +37,9 @@ describe("buildContextRetrievalPrompt", () => {
   it("uses the query as the user message and lists summaries in the system message", () => {
     const prompt = buildContextRetrievalPrompt("主角的师承", summaries);
     expect(prompt).toHaveLength(2);
-    expect(prompt[1].content).toBe("主角的师承");
-    expect(prompt[0].content).toContain("第1章《村庄被毁》");
-    expect(prompt[0].content).toContain("第5章《拜师》");
+    expect(prompt[1].content).toBe("<user_query>主角的师承</user_query>");
+    expect(prompt[0].content).toContain("第1章《<chapter_title>村庄被毁</chapter_title>》");
+    expect(prompt[0].content).toContain("第5章《<chapter_title>拜师</chapter_title>》");
   });
 
   it("preserves the relative order of provided summaries", () => {

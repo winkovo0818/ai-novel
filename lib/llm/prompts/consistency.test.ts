@@ -50,9 +50,9 @@ describe("buildConsistencyPrompt", () => {
 
   it("renders character roster and world rules joined by Chinese semicolon", () => {
     const [, user] = buildConsistencyPrompt({ bible, profile, chapters: [] });
-    expect(user.content).toContain("沈言（protagonist）");
-    expect(user.content).toContain("陆衍（antagonist）");
-    expect(user.content).toContain("剑魂不可强夺；灵脉每月只能开启一次");
+    expect(user.content).toContain("<character_name>沈言</character_name>（protagonist）");
+    expect(user.content).toContain("<character_name>陆衍</character_name>（antagonist）");
+    expect(user.content).toContain("<world_rule>剑魂不可强夺</world_rule>；<world_rule>灵脉每月只能开启一次</world_rule>");
   });
 
   it("truncates each chapter excerpt to 600 chars and preserves chapter heading", () => {
@@ -62,7 +62,7 @@ describe("buildConsistencyPrompt", () => {
       profile,
       chapters: [{ index: 4, title: "断魂", content: long }],
     });
-    expect(user.content).toContain("第4章《断魂》：");
+    expect(user.content).toContain("第4章《<chapter_title>断魂</chapter_title>》：");
     // Expect 600 of "正" in the body, not 800.
     expect(user.content.match(/正/g)?.length).toBe(600);
   });

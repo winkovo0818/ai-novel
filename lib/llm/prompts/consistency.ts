@@ -1,5 +1,6 @@
 import type { BibleDraft, NovelProfile } from "@/lib/validation/schemas";
 import type { ChatMessage } from "@/lib/llm/client";
+import { PROMPT_SAFETY_PREAMBLE, wrap } from "@/lib/llm/promptSafety";
 
 interface ConsistencyCheckInput {
   bible: BibleDraft;
@@ -9,13 +10,13 @@ interface ConsistencyCheckInput {
 
 export function buildConsistencyPrompt(input: ConsistencyCheckInput): ChatMessage[] {
   const characterList = input.bible.characters
-    .map((c) => `  - ${c.name}（${c.role}）: ${c.personality}`)
+    .map((c) => `  - ${wrap(c.name, "character_name")}（${c.role}）: ${wrap(c.personality, "character_personality")}`)
     .join("\n");
 
-  const rules = input.bible.world.rules.join("；");
+  const rules = input.bible.world.rules.map((r) => wrap(r, "world_rule")).join("；");
 
   const chapterSummaries = input.chapters
-    .map((c) => `第${c.index}章《${c.title}》：${c.content.replace(/\s+/g, " ").trim().slice(0, 600)}`)
+    .map((c) => `第${c.index}章《${wrap(c.title, "chapter_title")}》：${wrap(c.content.replace(/\s+/g, " ").trim().slice(0, 600), "chapter_content")}`)
     .join("\n\n");
 
   return [
@@ -26,6 +27,8 @@ export function buildConsistencyPrompt(input: ConsistencyCheckInput): ChatMessag
 2. 世界规则是否被违反
 3. 情节是否出现逻辑矛盾（如时间线、地点、角色状态）
 4. 人物称呼是否前后一致
+
+${PROMPT_SAFETY_PREAMBLE}
 
 回复 JSON 格式：
 - 如果一切一致：{"consistent": true}

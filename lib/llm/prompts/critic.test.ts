@@ -100,10 +100,10 @@ describe("buildCriticPrompt", () => {
       chapterIndex: 1,
     });
     expect(user.content).toContain("当前运行时状态");
-    expect(user.content).toContain("沈言：位置：雨宗");
-    expect(user.content).toContain("目标：逃出柴饦门");
-    expect(user.content).toContain("情绪：戒备");
-    expect(user.content).toContain("线索「灭门旧案」状态：open");
+    expect(user.content).toContain("<character_name>沈言</character_name>：位置：<story_state>雨宗</story_state>");
+    expect(user.content).toContain("目标：<story_state>逃出柴饦门</story_state>");
+    expect(user.content).toContain("情绪：<story_state>戒备</story_state>");
+    expect(user.content).toContain("线索「<plot_thread>灭门旧案</plot_thread>」状态：open");
   });
 
   it("omits the runtime state section when storyState is absent", () => {

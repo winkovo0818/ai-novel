@@ -29,9 +29,9 @@ describe("buildVolumeSummaryPrompt", () => {
       volumeName: "断魂",
       chapterSummaries: ["x", "y", "z"],
     });
-    expect(user.content).toContain("第 3 卷《断魂》共 3 章");
-    expect(user.content).toContain("第1章摘要：x");
-    expect(user.content).toContain("第3章摘要：z");
+    expect(user.content).toContain("第 3 卷《<volume_name>断魂</volume_name>》共 3 章");
+    expect(user.content).toContain("第1章摘要：<chapter_summary>x</chapter_summary>");
+    expect(user.content).toContain("第3章摘要：<chapter_summary>z</chapter_summary>");
   });
 });
 
@@ -56,7 +56,7 @@ describe("buildNovelSummaryPrompt", () => {
         { volumeIndex: 2, volumeName: "归乡", summary: "回到故里" },
       ],
     });
-    expect(user.content).toContain("第 1 卷《启程》：主角崛起");
-    expect(user.content).toContain("第 2 卷《归乡》：回到故里");
+    expect(user.content).toContain("第 1 卷《<volume_name>启程</volume_name>》：<chapter_summary>主角崛起</chapter_summary>");
+    expect(user.content).toContain("第 2 卷《<volume_name>归乡</volume_name>》：<chapter_summary>回到故里</chapter_summary>");
   });
 });
