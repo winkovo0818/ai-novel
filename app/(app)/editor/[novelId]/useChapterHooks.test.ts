@@ -858,6 +858,234 @@ describe("useChapterDrafting", () => {
     expect(hook.candidateOpen).toBe(false);
     expect(hook.draftSessionId).toBeNull();
   });
+
+  it("P1-6: persists critic failure beyond panel close and clears it on discard", async () => {
+    const resumePayload = okJson({
+      ok: true,
+      data: {
+        id: "resume-1",
+        status: "completed",
+        buffer: "一段长度足够的候选稿正文",
+        error_message: null,
+      },
+    });
+    const criticFailPayload = okJson({ ok: false, error: { message: "LLM 超时" } });
+    // Route by URL so useEffect re-fires don't consume the critic mock and
+    // skew the response order.
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      const path = typeof url === "string" ? url : url.toString();
+      if (path.includes("/draft/resume")) return resumePayload;
+      if (path.includes("/chapters/critic")) return criticFailPayload;
+      return okJson({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const hookOptions = {
+      novelId: "novel-1",
+      selectedIndex: 4,
+      chapterId: "chapter-4",
+      chapterTitle: "第四章",
+      content: "当前正文",
+      chapterStatus: "draft" as const,
+      persistChapter: vi.fn().mockResolvedValue(chapter()),
+      setContent: vi.fn(),
+      setStatus: vi.fn(),
+      setMessage: vi.fn(),
+    };
+
+    let hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    await flushAsyncEffects();
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    hook.applyResumableDraft();
+    // Drain critic fetch microtasks (fetch -> json -> catch -> setState).
+    await flushAsyncEffects();
+    await flushAsyncEffects();
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+
+    // Critic failed — in-panel error AND persistent failure must both be set.
+    expect(hook.candidateCriticError).toBe("LLM 超时");
+    expect(hook.criticFailure).toEqual({ message: "LLM 超时", chapterIndex: 4 });
+
+    // Discard the candidate — persistent failure is no longer relevant.
+    await hook.acceptCandidate("discard");
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    expect(hook.criticFailure).toBeNull();
+  });
+
+  it("P1-6: retryLastCritic success clears the persistent failure and surfaces a status message", async () => {
+    const resumePayload = okJson({
+      ok: true,
+      data: {
+        id: "resume-1",
+        status: "completed",
+        buffer: "一段长度足够的候选稿正文",
+        error_message: null,
+      },
+    });
+    let criticCalls = 0;
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      const path = typeof url === "string" ? url : url.toString();
+      if (path.includes("/draft/resume")) return resumePayload;
+      if (path.includes("/chapters/critic")) {
+        criticCalls += 1;
+        return criticCalls === 1
+          ? okJson({ ok: false, error: { message: "首次失败" } })
+          : okJson({ ok: true, data: { consistent: true, issues: [] } });
+      }
+      return okJson({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const setMessage = vi.fn();
+    const hookOptions = {
+      novelId: "novel-1",
+      selectedIndex: 2,
+      chapterId: "chapter-2",
+      chapterTitle: "第二章",
+      content: "当前正文",
+      chapterStatus: "draft" as const,
+      persistChapter: vi.fn(),
+      setContent: vi.fn(),
+      setStatus: vi.fn(),
+      setMessage,
+    };
+
+    let hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    await flushAsyncEffects();
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    hook.applyResumableDraft();
+    await flushAsyncEffects();
+    await flushAsyncEffects();
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    expect(hook.criticFailure?.message).toBe("首次失败");
+
+    await hook.retryLastCritic();
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    expect(hook.criticFailure).toBeNull();
+    expect(setMessage).toHaveBeenLastCalledWith("审校通过");
+    expect(criticCalls).toBe(2);
+
+    // The retry hit the critic endpoint with current chapter content.
+    const criticCallBodies = (fetchMock.mock.calls as unknown as Array<[string, RequestInit | undefined]>)
+      .filter((c) => typeof c[0] === "string" && c[0].includes("/chapters/critic"))
+      .map((c) => c[1]?.body);
+    expect(criticCallBodies[1]).toBe(
+      JSON.stringify({ chapter_index: 2, content: "当前正文" }),
+    );
+  });
+
+  it("P1-6: retryLastCritic finding issues clears failure and reports issue count with blocking breakdown", async () => {
+    const resumePayload = okJson({
+      ok: true,
+      data: {
+        id: "resume-1",
+        status: "completed",
+        buffer: "一段长度足够的候选稿正文",
+        error_message: null,
+      },
+    });
+    let criticCalls = 0;
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      const path = typeof url === "string" ? url : url.toString();
+      if (path.includes("/draft/resume")) return resumePayload;
+      if (path.includes("/chapters/critic")) {
+        criticCalls += 1;
+        return criticCalls === 1
+          ? okJson({ ok: false, error: { message: "失败" } })
+          : okJson({
+              ok: true,
+              data: {
+                consistent: false,
+                issues: [
+                  { type: "character", severity: "major", description: "x" },
+                  { type: "tone", severity: "minor", description: "y" },
+                  { type: "world_rule", severity: "critical", description: "z" },
+                ],
+              },
+            });
+      }
+      return okJson({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const setMessage = vi.fn();
+    const hookOptions = {
+      novelId: "novel-1",
+      selectedIndex: 3,
+      chapterId: "chapter-3",
+      chapterTitle: "第三章",
+      content: "当前正文",
+      chapterStatus: "draft" as const,
+      persistChapter: vi.fn(),
+      setContent: vi.fn(),
+      setStatus: vi.fn(),
+      setMessage,
+    };
+
+    let hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    await flushAsyncEffects();
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    hook.applyResumableDraft();
+    await flushAsyncEffects();
+    await flushAsyncEffects();
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+
+    await hook.retryLastCritic();
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    expect(hook.criticFailure).toBeNull();
+    expect(setMessage).toHaveBeenLastCalledWith("审校发现 3 条问题（critical/major: 2）");
+  });
+
+  it("P1-6: retryLastCritic failure updates the persistent failure with the new message", async () => {
+    const resumePayload = okJson({
+      ok: true,
+      data: {
+        id: "resume-1",
+        status: "completed",
+        buffer: "一段长度足够的候选稿正文",
+        error_message: null,
+      },
+    });
+    let criticCalls = 0;
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      const path = typeof url === "string" ? url : url.toString();
+      if (path.includes("/draft/resume")) return resumePayload;
+      if (path.includes("/chapters/critic")) {
+        criticCalls += 1;
+        return criticCalls === 1
+          ? okJson({ ok: false, error: { message: "首次失败" } })
+          : okJson({ ok: false, error: { message: "再次失败" } });
+      }
+      return okJson({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const hookOptions = {
+      novelId: "novel-1",
+      selectedIndex: 5,
+      chapterId: "chapter-5",
+      chapterTitle: "第五章",
+      content: "当前正文",
+      chapterStatus: "draft" as const,
+      persistChapter: vi.fn(),
+      setContent: vi.fn(),
+      setStatus: vi.fn(),
+      setMessage: vi.fn(),
+    };
+
+    let hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    await flushAsyncEffects();
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    hook.applyResumableDraft();
+    await flushAsyncEffects();
+    await flushAsyncEffects();
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    expect(hook.criticFailure?.message).toBe("首次失败");
+
+    await hook.retryLastCritic();
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    expect(hook.criticFailure).toEqual({ message: "再次失败", chapterIndex: 5 });
+  });
 });
 
 describe("useChapterStateDiff", () => {

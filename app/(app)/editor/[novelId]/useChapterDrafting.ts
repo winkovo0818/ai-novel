@@ -64,6 +64,16 @@ export function useChapterDrafting({
   const [candidateCriticLoading, setCandidateCriticLoading] = useState(false);
   const [candidateCriticResult, setCandidateCriticResult] = useState<CandidateCriticResult>();
   const [candidateCriticError, setCandidateCriticError] = useState<string>();
+  // P1-6: critic failure that persists after the candidate panel closes.
+  // When critic fails, candidateCriticError is shown in-panel BUT the panel can
+  // close (X / discard / accept) and the error would be gone. We mirror it into
+  // criticFailure so the editor header can keep showing a "审校未完成 · 点击重试"
+  // badge until the user retries or switches chapters.
+  const [criticFailure, setCriticFailure] = useState<{
+    message: string;
+    chapterIndex: number;
+  } | null>(null);
+  const [criticRetrying, setCriticRetrying] = useState(false);
   const [lastRetrievalStatus, setLastRetrievalStatus] = useState<string>();
   const [lastRetrievedMemories, setLastRetrievedMemories] = useState<
     Array<{ source: string; reason: string; score: number; text: string }>
@@ -122,15 +132,65 @@ export function useChapterDrafting({
         const json = await response.json();
         if (!json.ok) throw new Error(json.error?.message ?? "审校失败");
         setCandidateCriticResult(json.data as CandidateCriticResult);
+        // Success — clear any persisted failure from a previous attempt.
+        setCriticFailure(null);
       } catch (err) {
         // Critic failure is non-blocking. Display warning, don't gate the user.
-        setCandidateCriticError(err instanceof Error ? err.message : "审校失败");
+        const message = err instanceof Error ? err.message : "审校失败";
+        setCandidateCriticError(message);
+        // P1-6: persist so the badge survives panel close.
+        setCriticFailure({ message, chapterIndex: selectedIndex });
       } finally {
         setCandidateCriticLoading(false);
       }
     },
     [novelId, selectedIndex],
   );
+
+  // P1-6: retry the last failed critic against the currently selected
+  // chapter's content. On success, clear the persistent failure badge and
+  // surface the result via the status line. On failure, update the badge.
+  const retryLastCritic = useCallback(async () => {
+    if (!criticFailure || criticRetrying) return;
+    setCriticRetrying(true);
+    try {
+      const request = buildCandidateCriticRequest({
+        novelId,
+        selectedIndex,
+        content,
+      });
+      const response = await fetch(request.url, {
+        method: request.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request.payload),
+      });
+      const json = await response.json();
+      if (!json.ok) throw new Error(json.error?.message ?? "审校失败");
+      const result = json.data as CandidateCriticResult;
+      setCriticFailure(null);
+      if (result.consistent) {
+        setMessage("审校通过");
+      } else {
+        const blocking = result.issues.filter(
+          (i) => i.severity === "critical" || i.severity === "major",
+        ).length;
+        setMessage(
+          blocking > 0
+            ? `审校发现 ${result.issues.length} 条问题（critical/major: ${blocking}）`
+            : `审校发现 ${result.issues.length} 条问题`,
+        );
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "审校失败";
+      setCriticFailure({ message, chapterIndex: selectedIndex });
+    } finally {
+      setCriticRetrying(false);
+    }
+  }, [content, criticFailure, criticRetrying, novelId, selectedIndex, setMessage]);
+
+  const dismissCriticFailure = useCallback(() => {
+    setCriticFailure(null);
+  }, []);
 
   const checkResumableDraft = useCallback(
     async (chapterIndex: number) => {
@@ -266,6 +326,9 @@ export function useChapterDrafting({
         setMessage("候选稿已丢弃，正文未改动");
         void dismissResumableDraftServer(selectedIndex);
         setDraftSessionId(null);
+        // Discarding the candidate also obsoletes any pending critic failure —
+        // the failure was about the discarded text, not the chapter body.
+        setCriticFailure(null);
         return;
       }
 
@@ -331,5 +394,10 @@ export function useChapterDrafting({
     resumableDraft,
     applyResumableDraft,
     dismissResumableDraft,
+    // P1-6: persistent critic-failure surface for the editor header badge.
+    criticFailure,
+    criticRetrying,
+    retryLastCritic,
+    dismissCriticFailure,
   };
 }

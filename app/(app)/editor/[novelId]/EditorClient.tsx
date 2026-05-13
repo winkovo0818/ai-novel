@@ -165,7 +165,22 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
                 <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white" />
               </button>
             )}
-            
+
+            {editor.criticFailure && (
+              <button
+                onClick={() => void editor.retryLastCritic()}
+                disabled={editor.criticRetrying}
+                className="relative p-2 rounded-xl text-amber-700 bg-amber-50 border border-amber-100 hover:bg-amber-100 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-wait"
+                title={`第 ${editor.criticFailure.chapterIndex} 章 AI 审校未完成 · ${editor.criticFailure.message}${editor.criticRetrying ? " · 重试中…" : " · 点击重试"}`}
+                aria-label="AI 审校未完成 · 点击重试"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-500 border-2 border-white" />
+              </button>
+            )}
+
             {(editor.status !== "idle" || editor.chapterStatus === "done") && (
               <StatusTag type={editor.status === "drafting" ? "drafting" : editor.status === "saving" ? "saving" : editor.chapterStatus === "done" ? "done" : "idle"} />
             )}

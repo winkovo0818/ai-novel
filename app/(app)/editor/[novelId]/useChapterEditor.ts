@@ -120,6 +120,10 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     resumableDraft,
     applyResumableDraft,
     dismissResumableDraft,
+    criticFailure,
+    criticRetrying,
+    retryLastCritic,
+    dismissCriticFailure,
   } = useChapterDrafting({
     novelId,
     selectedIndex,
@@ -294,5 +298,10 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     resumableDraft,
     applyResumableDraft,
     dismissResumableDraft,
+    // P1-6 persistent critic failure
+    criticFailure,
+    criticRetrying,
+    retryLastCritic,
+    dismissCriticFailure,
   };
 }
