@@ -2,13 +2,17 @@ import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { getRequiredUserId } from "@/utils/supabase/auth";
 import {
+  applyExportRange,
   formatNovel,
   contentTypeFor,
   fileExtensionFor,
+  parseExportRange,
+  parseIncludeBibleParam,
   sanitizeFilename,
   type ExportFormat,
 } from "@/lib/export/formatNovel";
 import { moderateContent, stringifyForModeration } from "@/lib/moderation/moderate";
+import { BibleDraftSchema } from "@/lib/validation/schemas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,11 +67,36 @@ export async function GET(request: Request, context: RouteContext) {
     );
   }
 
-  const allContent = novel.chapters.map((ch) => ch.content).join("\n");
-  if (allContent.trim().length > 0) {
+  const rangeResult = parseExportRange(url.searchParams.get("range"));
+  if (!rangeResult.ok) {
+    return Response.json(
+      { ok: false, error: { code: "INVALID_RANGE", message: rangeResult.error, retryable: false } },
+      { status: 400 },
+    );
+  }
+
+  const includeBible = parseIncludeBibleParam(url.searchParams.get("include_bible"));
+  if (includeBible === null) {
+    return Response.json(
+      { ok: false, error: { code: "INVALID_INCLUDE_BIBLE", message: "include_bible must be true or false", retryable: false } },
+      { status: 400 },
+    );
+  }
+
+  const selectedChapters = applyExportRange(novel.chapters, rangeResult.range);
+  const bible = includeBible && novel.bible
+    ? BibleDraftSchema.safeParse(novel.bible.content)
+    : null;
+
+  const moderationPayload = {
+    chapters: selectedChapters.map((ch) => ch.content).join("\n"),
+    ...(bible?.success ? { bible: bible.data } : {}),
+  };
+  const moderationText = stringifyForModeration(moderationPayload);
+  if (moderationPayload.chapters.trim().length > 0 || bible?.success) {
     const moderation = await moderateContent({
       route: `/api/novels/:id/export`,
-      text: stringifyForModeration(allContent),
+      text: moderationText,
     });
     if (!moderation.allowed) {
       return Response.json(
@@ -79,12 +108,13 @@ export async function GET(request: Request, context: RouteContext) {
 
   const exportData = {
     title: novel.title,
-    chapters: novel.chapters.map((ch) => ({
+    chapters: selectedChapters.map((ch) => ({
       chapter_index: ch.chapter_index,
       title: ch.title,
       content: ch.content,
       status: ch.status,
     })),
+    ...(bible?.success ? { bible: bible.data } : {}),
   };
 
   const body = await formatNovel(exportData, format);

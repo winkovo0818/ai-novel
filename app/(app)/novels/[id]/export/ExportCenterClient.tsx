@@ -73,13 +73,18 @@ export function ExportCenterClient({ novelId, disabled = false }: ExportCenterCl
   const [pending, setPending] = useState<Format | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastDownload, setLastDownload] = useState<{ format: Format; filename: string } | null>(null);
+  const [range, setRange] = useState("");
+  const [includeBible, setIncludeBible] = useState(false);
 
   async function handleExport(format: Format) {
     if (pending || disabled) return;
     setPending(format);
     setError(null);
     try {
-      const res = await fetch(`/api/novels/${novelId}/export?format=${format}`);
+      const params = new URLSearchParams({ format });
+      if (range.trim()) params.set("range", range.trim());
+      if (includeBible) params.set("include_bible", "true");
+      const res = await fetch(`/api/novels/${novelId}/export?${params.toString()}`);
       if (!res.ok) {
         const json = await res.json().catch(() => null);
         setError(json?.error?.message ?? "导出失败，请稍后重试");
@@ -125,6 +130,33 @@ export function ExportCenterClient({ novelId, disabled = false }: ExportCenterCl
           已下载 <span className="font-semibold">{lastDownload.filename}</span>。如未自动保存，请检查浏览器下载栏。
         </div>
       )}
+
+      <div className="card bg-white p-5">
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+          <label className="block">
+            <span className="block text-[11px] font-bold uppercase tracking-[0.18em] text-text-dim mb-2">
+              章节范围
+            </span>
+            <input
+              value={range}
+              onChange={(event) => setRange(event.target.value)}
+              placeholder="全部章节，或输入 1-10 / 1,3,5-8"
+              disabled={disabled || pending !== null}
+              className="w-full rounded-xl border border-border-strong bg-secondary/30 px-4 py-3 text-sm text-text-primary outline-none transition focus:border-primary disabled:opacity-50"
+            />
+          </label>
+          <label className="flex items-center gap-3 rounded-xl border border-border-strong bg-secondary/30 px-4 py-3 text-sm text-text-muted">
+            <input
+              type="checkbox"
+              checked={includeBible}
+              onChange={(event) => setIncludeBible(event.target.checked)}
+              disabled={disabled || pending !== null}
+              className="h-4 w-4 rounded border-border-strong text-primary focus:ring-primary"
+            />
+            附带作品 Bible
+          </label>
+        </div>
+      </div>
 
       <div className="grid gap-6 sm:grid-cols-2">
         {FORMATS.map((meta) => {

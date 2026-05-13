@@ -130,6 +130,12 @@ export default async function ExportCenterPage({ params }: PageProps) {
               所有格式都会按章节顺序拼接，标题与正文之间保留一个空行。
             </li>
             <li>
+              章节范围可留空导出全书，也可输入单章、区间或逗号组合，例如 3、1-10、1,3,5-8。
+            </li>
+            <li>
+              勾选「附带作品 Bible」会把角色、世界、章节大纲与当前故事状态作为附录加入导出文件。
+            </li>
+            <li>
               EPUB / DOCX 会保留章节硬换行；Markdown / TXT 直接输出原始字符。
             </li>
             <li>
