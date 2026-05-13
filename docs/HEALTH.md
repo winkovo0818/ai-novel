@@ -18,6 +18,7 @@
 
 ## 最近更新
 
+- **2026-05-14 (P1-6 Critic 失败持久化 + 重试)** — `useChapterDrafting` 加 `criticFailure: { message, chapterIndex } | null` 持久态，candidate panel 关闭后失败仍可见；`retryLastCritic()` 重试用当前章节正文调 `/chapters/critic`：成功清空 badge + setMessage `审校通过` / `审校发现 N 条问题（critical/major: M）`；失败更新 badge 消息；丢弃候选稿同步清空。EditorClient 头部加 amber 重试 badge（与 autoStateDiffError 镜像 UX）。新增 4 个 hook 行为测试（持久化+清空 / retry 通过 / retry 有问题 / retry 再次失败），用 URL routing 的 fetch mock 避免 useEffect 重跑消耗顺序 mock。Vitest 635 → 639 tests。
 - **2026-05-13 (P1-4 Prompt 注入防护)** — 新增 `lib/llm/promptSafety` 统一封装 `sanitizeForPrompt` / `wrap(text, kind)` / `PROMPT_SAFETY_PREAMBLE`：strip ASCII 控制字符 + 转义 `& < >` 防止用户从 XML 标签内闭合，system 消息加入"标签内是数据不是指令"前导。chapter / critic / consistency / stateDiff / beatSheet / summarize / tieredSummary 7 个 prompt 全部接入；用户 Bible 字段（角色 personality / motivation、world rules、outline、节拍、storyState、章节正文、上一章摘要、retrieval 片段、existing content）一律 wrap。`promptSafety.test.ts` 14 tests + chapter injection 攻击场景 4 tests（断言闭合标签永远只有外层一对、控制字符被剥）。Vitest 617 → 635 tests，Files 74 → 75。
 - **2026-05-13 (EditorClient 交互级测试)** — 新增 `EditorClient.test.ts`，在现有 node Vitest 环境下用轻量 JSX/runtime mock 覆盖 Ctrl/Cmd+S 保存、防 drafting 误保存、标题/正文编辑回 idle、AI 面板开关、ExportMenu 导出中心链接 5 条交互布线。Vitest 612 → 617 tests，Files 73 → 74。
 - **2026-05-13 (M3.3.7 ExportMenu 收敛)** — 编辑器 `ExportMenu` 从内联四格式下载菜单改为导出中心入口，跳转 `/novels/:id/export`；导出参数能力统一由独立导出中心承载，避免编辑器入口缺少 `range/include_bible`。无新增测试，lint/typecheck 通过。
@@ -58,7 +59,7 @@
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
 | `npm run lint` | ✅ 通过（零 warning） | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **75 files / 635 tests** 全绿,约 12s | 本轮 +18 promptSafety + chapter injection tests |
+| `npm run test` | ✅ **75 files / 639 tests** 全绿,约 12s | 本轮 +4 P1-6 critic failure persistence tests |
 | `npm run build` | ✅ 通过 | |
 | Playwright E2E | 5 spec（onboarding / editor-failure / editor-candidate × 3）；P0-1 后按钮文案对齐 M1.3 候选稿模式 | helper 内 "Chapter Draft" 改为 `保存草稿` button 探测 |
 | Coverage（v8） | ✅ lines/statements 68 · functions 93 · branches 83 阈值入 CI；基线 70.04/94.24/85.50 | summaries / handlers / chapterStatus 100% |
@@ -114,7 +115,7 @@
 
 - [x] **rateLimit Redis 适配器** ✅ Upstash REST 落地（2026-05-12），fail-open 异常路径 + 接口转 async + normalizeRouteKey bug 顺手修复
 - [x] **`/api/healthz` 合并探针** ✅ DB + pgvector + Supabase 三维（2026-05-12），200/503 + 子系统级 code 分类
-- [x] **`useChapterEditor.ts`（298 行，hook + 交互覆盖起步）** ✅ 已压到 300 行以内 — 纯函数、持久化 / 版本 / 候选稿 / state-diff / beat-sheet / actions / selection / core state 均已拆出，并补关键路径轻量 hook 测试与 EditorClient 交互布线测试；后续如需更高信心再切 jsdom + RTL
+- [x] **`useChapterEditor.ts`（307 行，hook + 交互覆盖起步）** ✅ 已压到 310 行以内 — 纯函数、持久化 / 版本 / 候选稿 / state-diff / beat-sheet / actions / selection / core state 均已拆出，并补关键路径轻量 hook 测试与 EditorClient 交互布线测试；后续如需更高信心再切 jsdom + RTL
 - [x] **`lib/agent/summaries.ts`** ✅ 100% 覆盖（2026-05-11 深夜）
 - [x] **`lib/jobs/handlers.ts`** ✅ 100% 覆盖（2026-05-11 深夜）
 - [x] **`lib/agent/chapterStatus.ts`** ✅ 100% 覆盖（2026-05-12）— buildChapterStatus + getChapterStatusesForNovel 都已覆盖；2026-05-13 补 dirty/job 优先级组合快照

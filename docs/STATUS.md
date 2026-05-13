@@ -1,6 +1,6 @@
 # AI Novel — 项目状态
 
-> 最近更新：2026-05-13 · P1-4 Prompt 注入防护：`lib/llm/promptSafety` 统一 sanitize + XML 标签包裹用户 Bible 字段；7 个 prompt 全部接入；18 个新测试（含 4 个 injection 攻击场景）
+> 最近更新：2026-05-14 · P1-6 Critic 失败持久化：useChapterDrafting 加 `criticFailure` 持久态 + `retryLastCritic`，EditorClient 头部 amber 重试 badge；4 个新 hook 行为测试
 > 本文件是 PROGRESS / AUDIT / TASKS 三份历史状态文档的合并版本，是当前**唯一**的项目状态来源。
 > 战略路线见 `docs/ROADMAP_2_4_8_WEEKS.md`，战术任务单见 `docs/IMPLEMENTATION_TASKS.md`，阶段 3 之后的 phase 决策见 `docs/phases/`，每次任务后的体检报告见 `docs/HEALTH.md`，真实产品标准的审阅见 `docs/PROJECT_REVIEW_REPORT.md`。
 
@@ -12,7 +12,7 @@
 |-----------------------------|-------------------------------------------------------------------------------------------------------------|
 | `npm run typecheck`         | ✅ 通过                                                                                                        |
 | `npm run lint` (`eslint .`) | ✅ 通过                                                                                                        |
-| `npm run test` (Vitest)     | ✅ 通过，**75 files / 635 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
+| `npm run test` (Vitest)     | ✅ 通过，**75 files / 639 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
 | `npm run build`             | ✅ 通过                                                            |
 | `tests/e2e/` (Playwright)   | ✅ 6 spec（onboarding / editor-failure / editor-candidate × 4，P2-3 新增候选稿 vs 正文 diff 切换 spec），P0-1 后按钮文案对齐 M1.3 候选稿模式                                          |
 | coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines/statements 68 · functions 93 · branches 83，基线 70.04 / 94.24 / 85.50）                                                                                  |
