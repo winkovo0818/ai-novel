@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { errorMessage, logError, logWarn } from "@/lib/observability/logger";
 
 export interface UsageLogEntry {
   userId: string;
@@ -33,7 +34,14 @@ export async function logUsage(entry: UsageLogEntry): Promise<void> {
       },
     });
   } catch (err) {
-    console.error("[usage] failed to persist usage log:", err instanceof Error ? err.message : err);
+    logError("usage.persist_failed", {
+      user_id: entry.userId,
+      novel_id: entry.novelId,
+      route: entry.route,
+      agent: entry.agent,
+      status: entry.status,
+      error: errorMessage(err),
+    });
   }
 }
 
@@ -150,9 +158,13 @@ export async function checkQuota(userId: string): Promise<QuotaCheck> {
     monthlyCalls = monthlyUsage._count;
   } catch (err) {
     const mode = getQuotaFailureMode();
-    const errorMessage = err instanceof Error ? err.message : String(err);
+    const message = errorMessage(err);
     if (mode === "block") {
-      console.error(`[usage] quota check failed, BLOCKING request: ${errorMessage}`);
+      logError("usage.quota_check_failed", {
+        user_id: userId,
+        mode,
+        error: message,
+      });
       return {
         allowed: false,
         reason: "Usage quota service is temporarily unavailable, please try again later",
@@ -163,7 +175,11 @@ export async function checkQuota(userId: string): Promise<QuotaCheck> {
         monthlyLimitCny: MONTHLY_COST_LIMIT_CNY,
       };
     }
-    console.warn(`[usage] quota check failed, allowing request: ${errorMessage}`);
+    logWarn("usage.quota_check_failed", {
+      user_id: userId,
+      mode,
+      error: message,
+    });
     return {
       allowed: true,
       dailyCostCny: 0,

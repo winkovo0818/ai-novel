@@ -1,4 +1,5 @@
 import { chatCompletion } from "@/lib/llm/client";
+import { errorMessage, logError, logWarn } from "@/lib/observability/logger";
 
 export type ModerationFailureMode = "allow" | "block" | "review";
 
@@ -112,25 +113,37 @@ export async function moderateContent(input: ModerationInput): Promise<Moderatio
     return { allowed: true };
   } catch (err) {
     const mode = getFailureMode();
-    const errorMessage = err instanceof Error ? err.message : "审核服务异常";
+    const message = errorMessage(err, "审核服务异常");
 
     if (mode === "block") {
-      console.error(`[moderation] BLOCKED due to service failure on ${input.route}: ${errorMessage}`);
+      logError("moderation.service_failed", {
+        route: input.route,
+        mode,
+        error: message,
+      });
       return {
         allowed: false,
         code: "MODERATION_BLOCKED",
-        reason: `内容审核服务暂时不可用（${errorMessage}），请稍后重试`,
+        reason: `内容审核服务暂时不可用（${message}），请稍后重试`,
       };
     }
 
     if (mode === "review") {
-      console.warn(`[moderation] REVIEW due to service failure on ${input.route}: ${errorMessage}`);
+      logWarn("moderation.service_failed", {
+        route: input.route,
+        mode,
+        error: message,
+      });
       // In review mode we allow but flag; caller can log or queue for human review.
       return { allowed: true };
     }
 
     // mode === "allow"
-    console.warn(`[moderation] ALLOWED due to service failure on ${input.route}: ${errorMessage}`);
+    logWarn("moderation.service_failed", {
+      route: input.route,
+      mode,
+      error: message,
+    });
     return { allowed: true };
   }
 }

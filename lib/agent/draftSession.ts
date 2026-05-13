@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
+import { errorMessage as formatErrorMessage, logWarn } from "@/lib/observability/logger";
 
 /**
  * Throttled buffer writer for resumable AI chapter drafts.
@@ -110,10 +111,10 @@ export function createDraftBufferFlusher(sessionId: string): DraftBufferFlusher 
       inFlight = persist(snapshot).catch((err) => {
         // Persistence failures are best-effort: don't break the stream
         // for the user just because resume support degraded.
-        console.warn(
-          `[draftSession] flush failed (${sessionId}):`,
-          err instanceof Error ? err.message : err,
-        );
+        logWarn("draft_session.flush_failed", {
+          session_id: sessionId,
+          error: formatErrorMessage(err),
+        });
       }).finally(() => {
         inFlight = null;
       });
@@ -126,10 +127,10 @@ export function createDraftBufferFlusher(sessionId: string): DraftBufferFlusher 
         const snapshot = pending;
         pending = null;
         await persist(snapshot).catch((err) => {
-          console.warn(
-            `[draftSession] final flush failed (${sessionId}):`,
-            err instanceof Error ? err.message : err,
-          );
+          logWarn("draft_session.final_flush_failed", {
+            session_id: sessionId,
+            error: formatErrorMessage(err),
+          });
         });
       }
     },
@@ -158,10 +159,10 @@ export async function completeDraftSession(
       },
     })
     .catch((err) => {
-      console.warn(
-        `[draftSession] complete failed (${sessionId}):`,
-        err instanceof Error ? err.message : err,
-      );
+      logWarn("draft_session.complete_failed", {
+        session_id: sessionId,
+        error: formatErrorMessage(err),
+      });
     });
 }
 
@@ -186,10 +187,10 @@ export async function failDraftSession(
       },
     })
     .catch((err) => {
-      console.warn(
-        `[draftSession] fail-state write failed (${sessionId}):`,
-        err instanceof Error ? err.message : err,
-      );
+      logWarn("draft_session.fail_state_write_failed", {
+        session_id: sessionId,
+        error: formatErrorMessage(err),
+      });
     });
 }
 
@@ -242,10 +243,10 @@ export async function getResumableDraftSession(
         },
       })
       .catch((err) => {
-        console.warn(
-          `[draftSession] stale-streaming sweep failed (${row.id}):`,
-          err instanceof Error ? err.message : err,
-        );
+        logWarn("draft_session.stale_streaming_sweep_failed", {
+          session_id: row.id,
+          error: formatErrorMessage(err),
+        });
       });
     return {
       id: row.id,
@@ -285,9 +286,11 @@ export async function dismissDraftSession(
       },
     })
     .catch((err) => {
-      console.warn(
-        `[draftSession] dismiss failed:`,
-        err instanceof Error ? err.message : err,
-      );
+      logWarn("draft_session.dismiss_failed", {
+        user_id: userId,
+        novel_id: novelId,
+        chapter_index: chapterIndex,
+        error: formatErrorMessage(err),
+      });
     });
 }

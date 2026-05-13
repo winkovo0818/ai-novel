@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { createEmbedding } from "@/lib/llm/embeddings";
 import type { BibleDraft } from "@/lib/validation/schemas";
 import type { RetrievalResult } from "@/lib/agent/contracts";
+import { errorMessage, logError } from "@/lib/observability/logger";
 
 export type { RetrievalStatus } from "@/lib/agent/contracts";
 
@@ -131,8 +132,12 @@ export async function retrieveMemories(
 
     return { status: "success", memories: results };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "unknown error";
-    console.error(`[retrieval] failed for novel=${novelId} chapter=${chapterIndex}: ${message}`);
+    const message = errorMessage(err);
+    logError("retrieval.failed", {
+      novel_id: novelId,
+      chapter_index: chapterIndex,
+      error: message,
+    });
     return { status: "error", memories: [], errorMessage: message };
   }
 }

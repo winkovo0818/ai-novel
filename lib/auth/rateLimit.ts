@@ -22,6 +22,8 @@
  * shape is only there for parity with the network-bound implementation.
  */
 
+import { errorMessage, logError, logWarn } from "@/lib/observability/logger";
+
 const WINDOW_MS = 60_000;
 
 /** Limits per route category (per identifier per minute). */
@@ -160,9 +162,10 @@ class UpstashRateLimiter implements RateLimiter {
       // app on a noisy hop; failing open (allow all) drops the cap. We
       // pick fail-open because the memory limiter is also still active in
       // single-process runs, and an outage is rarer than a runaway client.
-      console.error(
-        `[rateLimit] upstash request failed, allowing through: ${err instanceof Error ? err.message : err}`,
-      );
+      logError("rate_limit.upstash_request_failed", {
+        route,
+        error: errorMessage(err),
+      });
       return false;
     }
   }
@@ -172,9 +175,10 @@ class UpstashRateLimiter implements RateLimiter {
     try {
       await this.pipeline([["DEL", key]]);
     } catch (err) {
-      console.error(
-        `[rateLimit] upstash DEL failed: ${err instanceof Error ? err.message : err}`,
-      );
+      logError("rate_limit.upstash_reset_failed", {
+        route,
+        error: errorMessage(err),
+      });
     }
   }
 }
@@ -202,9 +206,10 @@ function createRateLimiter(): RateLimiter {
     if (url && token) {
       return new UpstashRateLimiter({ url, token });
     }
-    console.warn(
-      "[rateLimit] RATE_LIMIT_STORE=redis but UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN missing; falling back to memory",
-    );
+    logWarn("rate_limit.redis_env_missing", {
+      store: "redis",
+      fallback: "memory",
+    });
   }
   return new MemoryRateLimiter();
 }

@@ -16,6 +16,7 @@ import {
 } from "./mock";
 import { decryptApiKey } from "./encryption";
 import { logUsage } from "./usage";
+import { logInfo } from "@/lib/observability/logger";
 
 export type ChatRole = "system" | "user" | "assistant";
 
@@ -120,11 +121,19 @@ interface LlmLogEntry {
 }
 
 function logLlmCall(entry: LlmLogEntry): void {
-  const errPart = entry.errCode ? ` err_code=${entry.errCode}` : "";
-  const agentPart = entry.agent ? ` agent=${entry.agent}` : "";
-  console.log(
-    `[LLM] route=${entry.route}${agentPart} model=${entry.model} token_in=${entry.tokenIn} token_out=${entry.tokenOut} cost_cny=${entry.costCny.toFixed(4)} took_ms=${entry.tookMs} status=${entry.status}${errPart}`,
-  );
+  logInfo("llm.call", {
+    route: entry.route,
+    agent: entry.agent,
+    model: entry.model,
+    token_in: entry.tokenIn,
+    token_out: entry.tokenOut,
+    cost_cny: Number(entry.costCny.toFixed(6)),
+    took_ms: entry.tookMs,
+    status: entry.status,
+    err_code: entry.errCode,
+    user_id: entry.userId,
+    novel_id: entry.novelId,
+  });
 
   // Persist usage to database (fire-and-forget)
   if (entry.userId) {
