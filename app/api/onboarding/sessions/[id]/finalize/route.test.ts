@@ -111,6 +111,58 @@ const validProfile = { genre_main: "web", genre_sub: "xuanhuan" };
 const validBody = { bible_draft: validBible, profile: validProfile, action: "save_only" };
 
 describe("POST /api/onboarding/sessions/[id]/finalize", () => {
+  it("returns 401 when the caller is not authenticated", async () => {
+    authorizeOnboardingSession.mockResolvedValue({
+      ok: false,
+      code: "UNAUTHORIZED",
+      message: "Login required",
+      status: 401,
+    });
+
+    const { POST } = await import("./route");
+    const res = await POST(
+      new Request("http://localhost/x", {
+        method: "POST",
+        body: JSON.stringify(validBody),
+      }),
+      { params: Promise.resolve({ id: "session-1" }) },
+    );
+
+    expect(res.status).toBe(401);
+    const json = await res.json();
+    expect(json.error.code).toBe("UNAUTHORIZED");
+    expect(moderateContent).not.toHaveBeenCalled();
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("hides another user's session as 404 without finalizing anything", async () => {
+    authorizeOnboardingSession.mockResolvedValue({
+      ok: false,
+      code: "SESSION_NOT_FOUND",
+      message: "Onboarding session not found",
+      status: 404,
+    });
+
+    const { POST } = await import("./route");
+    const res = await POST(
+      new Request("http://localhost/x", {
+        method: "POST",
+        body: JSON.stringify(validBody),
+      }),
+      { params: Promise.resolve({ id: "someone-elses" }) },
+    );
+
+    expect(res.status).toBe(404);
+    const json = await res.json();
+    expect(json.error.code).toBe("SESSION_NOT_FOUND");
+    expect(moderateContent).not.toHaveBeenCalled();
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it("creates a novel when session is valid and Bible passes moderation", async () => {
     authorizeOnboardingSession.mockResolvedValue({
       ok: true,

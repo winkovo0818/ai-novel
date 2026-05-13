@@ -19,6 +19,7 @@ import {
 } from "@/lib/agent/draftSession";
 import { sseEncode, sseHeartbeat } from "@/lib/stream/sseEncode";
 import { getGenerationPolicy } from "@/lib/llm/generationPolicy";
+import { logWarn } from "@/lib/observability/logger";
 import {
   BibleDraftSchema,
   GenerateChapterDraftRequestSchema,
@@ -308,9 +309,13 @@ export async function POST(request: Request, context: RouteContext) {
           // lib/metrics/prometheus.ts — that file is scrape-time DB
           // aggregation by design (Serverless cold starts reset
           // in-memory counters), and a per-event counter doesn't fit.
-          console.warn(
-            `[moderation] INLINE_BLOCK route=${ROUTE} novel_id=${id} user_id=${userId} code=${err.code} chars=${content.length}`,
-          );
+          logWarn("moderation.inline_block", {
+            route: ROUTE,
+            novel_id: id,
+            user_id: userId,
+            code: err.code,
+            chars: content.length,
+          });
           await flusher.flush();
           await failDraftSession(sessionId, {
             buffer: content,

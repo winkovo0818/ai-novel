@@ -7,6 +7,7 @@ const createJob = vi.fn();
 const updateMany = vi.fn();
 const updateJob = vi.fn();
 const findUniqueJob = vi.fn();
+const count = vi.fn();
 const getRequiredUserId = vi.fn();
 
 vi.mock("@/lib/db", () => ({
@@ -19,6 +20,7 @@ vi.mock("@/lib/db", () => ({
       updateMany,
       update: updateJob,
       findUnique: findUniqueJob,
+      count,
     },
   },
 }));
@@ -34,6 +36,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   // Default: drain finds no pending rows so the fire-and-forget call resolves.
   findManyJobs.mockResolvedValue([]);
+  updateMany.mockResolvedValue({ count: 0 });
+  count.mockResolvedValue(0);
 });
 
 describe("POST /api/novels/[id]/jobs/refresh-dirty", () => {
@@ -97,6 +101,36 @@ describe("POST /api/novels/[id]/jobs/refresh-dirty", () => {
       chapters_dirty: 0,
     });
     expect(createJob).not.toHaveBeenCalled();
+  });
+
+  it("scans only dirty rows instead of forcing work for every chapter", async () => {
+    findUniqueNovel.mockResolvedValue({ id: "n-1", user_id: "u-1" });
+    getRequiredUserId.mockResolvedValue("u-1");
+    findManyChapters.mockResolvedValue([
+      { id: "c-1", summary_dirty: true, index_dirty: false, content: "正文 1" },
+    ]);
+    createJob.mockResolvedValue({ id: "j-x" });
+
+    const { POST } = await import("./route");
+    const res = await POST(
+      new Request("http://localhost/api/novels/n-1/jobs/refresh-dirty", { method: "POST" }),
+      { params: Promise.resolve({ id: "n-1" }) },
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(findManyChapters).toHaveBeenCalledWith({
+      where: {
+        novel_id: "n-1",
+        OR: [{ summary_dirty: true }, { index_dirty: true }],
+      },
+      select: { id: true, summary_dirty: true, index_dirty: true, content: true },
+    });
+    expect(json.data).toMatchObject({
+      summarize_queued: 1,
+      index_queued: 0,
+      chapters_dirty: 1,
+    });
   });
 
   it("enqueues only the dirty side per chapter and adds refresh_summaries when any summary fired", async () => {

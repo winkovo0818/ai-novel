@@ -351,15 +351,17 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
     expect(secondDeltaCalled).toBe(false);
     // P0-8 observability hook: one structured warn-line per block,
     // log-aggregator friendly, carries route/novel/user/code/chars.
-    // (Other unrelated warn calls may happen — e.g. usage logging
-    // best-effort warnings — so we assert the INLINE_BLOCK line
-    // shows up at least once rather than as the only call.)
-    const inlineLine = warn.mock.calls
-      .map((c) => String(c[0]))
-      .find((s) => s.includes("INLINE_BLOCK"));
-    expect(inlineLine).toBeDefined();
-    expect(inlineLine).toMatch(/code=MODERATION_BLOCKED_INLINE/);
-    expect(inlineLine).toMatch(/novel_id=novel-1/);
+    const inlineLog = warn.mock.calls
+      .map((c) => JSON.parse(String(c[0])) as Record<string, unknown>)
+      .find((line) => line.event === "moderation.inline_block");
+    expect(inlineLog).toMatchObject({
+      level: "warn",
+      event: "moderation.inline_block",
+      code: "MODERATION_BLOCKED_INLINE",
+      novel_id: "novel-1",
+      user_id: "user-1",
+      route: "/api/novels/:id/chapters/draft",
+    });
     warn.mockRestore();
   });
 

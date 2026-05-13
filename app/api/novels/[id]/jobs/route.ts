@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { enqueueJob, runPendingJobsForNovel, type JobType } from "@/lib/jobs/queue";
+import { errorMessage, logError } from "@/lib/observability/logger";
 import { getRequiredUserId } from "@/utils/supabase/auth";
 import { z } from "zod";
 
@@ -73,7 +74,10 @@ export async function POST(request: Request, context: RouteContext) {
   // Drain best-effort. We don't await it because the caller doesn't need
   // to block on memory work — failures stay visible via GET /jobs.
   void runPendingJobsForNovel(id).catch((err) => {
-    console.error(`[jobs] drain failed for novel ${id}:`, err instanceof Error ? err.message : err);
+    logError("jobs.drain_failed", {
+      novel_id: id,
+      error: errorMessage(err),
+    });
   });
 
   return jsonOk({ enqueued: created });

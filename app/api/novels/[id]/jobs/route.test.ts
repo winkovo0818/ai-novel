@@ -6,6 +6,7 @@ const create = vi.fn();
 const updateMany = vi.fn();
 const update = vi.fn();
 const findUniqueJob = vi.fn();
+const count = vi.fn();
 const getRequiredUserId = vi.fn();
 
 vi.mock("@/lib/db", () => ({
@@ -17,6 +18,7 @@ vi.mock("@/lib/db", () => ({
       updateMany,
       update,
       findUnique: findUniqueJob,
+      count,
     },
   },
 }));
@@ -32,6 +34,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   // Default: drained queue so background drain calls find nothing.
   findMany.mockResolvedValue([]);
+  updateMany.mockResolvedValue({ count: 0 });
+  count.mockResolvedValue(0);
 });
 
 describe("POST /api/novels/[id]/jobs", () => {
@@ -122,6 +126,39 @@ describe("POST /api/novels/[id]/jobs", () => {
         status: "pending",
       },
     });
+  });
+
+  it("preserves user-forced row refresh semantics without reading dirty flags", async () => {
+    findUnique.mockResolvedValue({ id: "n-1", user_id: "u-1" });
+    getRequiredUserId.mockResolvedValue("u-1");
+    create
+      .mockResolvedValueOnce({ id: "j-1", type: "summarize_chapter", status: "pending" })
+      .mockResolvedValueOnce({ id: "j-2", type: "index_chapter", status: "pending" });
+
+    const { POST } = await import("./route");
+    const res = await POST(
+      new Request("http://localhost/api/novels/n-1/jobs", {
+        method: "POST",
+        body: JSON.stringify({
+          jobs: [
+            { type: "summarize_chapter", payload: { chapter_id: "clean-chapter" } },
+            { type: "index_chapter", payload: { novel_id: "n-1", chapter_id: "clean-chapter" } },
+          ],
+        }),
+      }),
+      { params: Promise.resolve({ id: "n-1" }) },
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.data.enqueued).toEqual([
+      { id: "j-1", type: "summarize_chapter", status: "pending" },
+      { id: "j-2", type: "index_chapter", status: "pending" },
+    ]);
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(create).not.toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ type: "refresh_summaries" }),
+    }));
   });
 });
 

@@ -2,6 +2,7 @@ import { jsonError, jsonOk } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { enqueueJob, runPendingJobsForNovel } from "@/lib/jobs/queue";
+import { errorMessage, logError } from "@/lib/observability/logger";
 import { getRequiredUserId } from "@/utils/supabase/auth";
 
 // Side-effect import: registers job handlers on first load.
@@ -94,7 +95,10 @@ export async function POST(_request: Request, context: RouteContext) {
   // Drain best-effort, same pattern as POST /jobs.
   if (summarizeQueued + indexQueued + summariesQueued > 0) {
     void runPendingJobsForNovel(id).catch((err) => {
-      console.error(`[jobs] refresh-dirty drain failed for novel ${id}:`, err instanceof Error ? err.message : err);
+      logError("jobs.refresh_dirty_drain_failed", {
+        novel_id: id,
+        error: errorMessage(err),
+      });
     });
   }
 

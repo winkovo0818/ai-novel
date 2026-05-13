@@ -1,6 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const useBuilt = process.env.E2E_USE_BUILT === "1" || process.env.CI === "true";
+const databaseUrl =
+  process.env.E2E_DATABASE_URL ??
+  "postgresql://ai_novel:sffBA4NBWXGXMMtr@47.107.28.214:5432/ai_novel";
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -21,6 +24,10 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       LLM_MOCK: "1",
+      E2E_AUTH_BYPASS: "1",
+      E2E_TEST_USER_ID: "e2e-user",
+      DATABASE_URL: databaseUrl,
+      DIRECT_URL: process.env.E2E_DIRECT_URL ?? databaseUrl,
     },
   },
   projects: [

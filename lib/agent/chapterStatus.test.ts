@@ -54,6 +54,23 @@ function summary(updatedAt: Date, chapterId = "c-1") {
   };
 }
 
+function job(overrides: Partial<NonNullable<Parameters<typeof buildChapterStatus>[0]["latestJob"]>>) {
+  return {
+    id: "j-1",
+    novel_id: "n-1",
+    type: "summarize_chapter",
+    payload: { chapter_id: "c-1" },
+    status: "running",
+    attempts: 0,
+    last_error: null,
+    created_at: new Date("2026-01-06"),
+    updated_at: new Date("2026-01-06"),
+    started_at: new Date("2026-01-06"),
+    finished_at: null,
+    ...overrides,
+  } as NonNullable<Parameters<typeof buildChapterStatus>[0]["latestJob"]>;
+}
+
 describe("buildChapterStatus — M3.1 dirty bits", () => {
   it("treats summary_dirty=true as stale even when timestamps look fresh", async () => {
     const view = buildChapterStatus({
@@ -126,6 +143,190 @@ describe("buildChapterStatus — M3.1 dirty bits", () => {
     });
     expect(view.summary).toBe("missing");
     expect(view.index).toBe("missing");
+  });
+
+  it("snapshots dirty-bit, missing-data, and job-priority combinations", () => {
+    const staleChapter = chapter({
+      updated_at: new Date("2026-01-05"),
+      summary_dirty: false,
+      index_dirty: false,
+    });
+    const freshSummary = summary(new Date("2026-01-06"));
+    const oldSummary = summary(new Date("2026-01-01"));
+    const cases = [
+      {
+        name: "clean rows are fresh",
+        args: { chapter: staleChapter, summary: freshSummary, hasMemoryChunks: true },
+      },
+      {
+        name: "summary timestamp older than chapter is stale",
+        args: { chapter: staleChapter, summary: oldSummary, hasMemoryChunks: true },
+      },
+      {
+        name: "summary dirty bit makes summary stale",
+        args: {
+          chapter: chapter({ summary_dirty: true }),
+          summary: freshSummary,
+          hasMemoryChunks: true,
+        },
+      },
+      {
+        name: "index dirty bit makes index stale",
+        args: {
+          chapter: chapter({ index_dirty: true }),
+          summary: freshSummary,
+          hasMemoryChunks: true,
+        },
+      },
+      {
+        name: "both dirty bits can be stale together",
+        args: {
+          chapter: chapter({ summary_dirty: true, index_dirty: true }),
+          summary: freshSummary,
+          hasMemoryChunks: true,
+        },
+      },
+      {
+        name: "missing rows stay missing",
+        args: { chapter: chapter({ summary_dirty: true, index_dirty: true }), summary: null, hasMemoryChunks: false },
+      },
+      {
+        name: "pending summarize job outranks dirty summary",
+        args: {
+          chapter: chapter({ summary_dirty: true, index_dirty: true }),
+          summary: freshSummary,
+          hasMemoryChunks: true,
+          latestJob: job({ type: "summarize_chapter", status: "pending" }),
+        },
+      },
+      {
+        name: "failed summarize job outranks dirty summary",
+        args: {
+          chapter: chapter({ summary_dirty: true, index_dirty: true }),
+          summary: freshSummary,
+          hasMemoryChunks: true,
+          latestJob: job({ type: "summarize_chapter", status: "failed", last_error: "summary failed" }),
+        },
+      },
+      {
+        name: "running index job outranks dirty index",
+        args: {
+          chapter: chapter({ summary_dirty: true, index_dirty: true }),
+          summary: freshSummary,
+          hasMemoryChunks: true,
+          latestJob: job({ type: "index_chapter", status: "running" }),
+        },
+      },
+      {
+        name: "failed index job outranks dirty index",
+        args: {
+          chapter: chapter({ summary_dirty: true, index_dirty: true }),
+          summary: freshSummary,
+          hasMemoryChunks: true,
+          latestJob: job({ type: "index_chapter", status: "failed", last_error: "index failed" }),
+        },
+      },
+    ] satisfies Array<{
+      name: string;
+      args: Parameters<typeof buildChapterStatus>[0];
+    }>;
+
+    const matrix = cases.map(({ name, args }) => {
+      const view = buildChapterStatus(args);
+      return {
+        name,
+        summary: view.summary,
+        index: view.index,
+        lastJobStatus: view.lastJobStatus ?? null,
+        lastJobType: view.lastJobType ?? null,
+        lastJobError: view.lastJobError ?? null,
+      };
+    });
+
+    expect(matrix).toMatchInlineSnapshot(`
+      [
+        {
+          "index": "fresh",
+          "lastJobError": null,
+          "lastJobStatus": null,
+          "lastJobType": null,
+          "name": "clean rows are fresh",
+          "summary": "fresh",
+        },
+        {
+          "index": "fresh",
+          "lastJobError": null,
+          "lastJobStatus": null,
+          "lastJobType": null,
+          "name": "summary timestamp older than chapter is stale",
+          "summary": "stale",
+        },
+        {
+          "index": "fresh",
+          "lastJobError": null,
+          "lastJobStatus": null,
+          "lastJobType": null,
+          "name": "summary dirty bit makes summary stale",
+          "summary": "stale",
+        },
+        {
+          "index": "stale",
+          "lastJobError": null,
+          "lastJobStatus": null,
+          "lastJobType": null,
+          "name": "index dirty bit makes index stale",
+          "summary": "fresh",
+        },
+        {
+          "index": "stale",
+          "lastJobError": null,
+          "lastJobStatus": null,
+          "lastJobType": null,
+          "name": "both dirty bits can be stale together",
+          "summary": "stale",
+        },
+        {
+          "index": "missing",
+          "lastJobError": null,
+          "lastJobStatus": null,
+          "lastJobType": null,
+          "name": "missing rows stay missing",
+          "summary": "missing",
+        },
+        {
+          "index": "stale",
+          "lastJobError": null,
+          "lastJobStatus": "pending",
+          "lastJobType": "summarize_chapter",
+          "name": "pending summarize job outranks dirty summary",
+          "summary": "running",
+        },
+        {
+          "index": "stale",
+          "lastJobError": "summary failed",
+          "lastJobStatus": "failed",
+          "lastJobType": "summarize_chapter",
+          "name": "failed summarize job outranks dirty summary",
+          "summary": "failed",
+        },
+        {
+          "index": "running",
+          "lastJobError": null,
+          "lastJobStatus": "running",
+          "lastJobType": "index_chapter",
+          "name": "running index job outranks dirty index",
+          "summary": "stale",
+        },
+        {
+          "index": "failed",
+          "lastJobError": "index failed",
+          "lastJobStatus": "failed",
+          "lastJobType": "index_chapter",
+          "name": "failed index job outranks dirty index",
+          "summary": "stale",
+        },
+      ]
+    `);
   });
 });
 
