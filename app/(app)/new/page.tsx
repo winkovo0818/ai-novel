@@ -245,8 +245,8 @@ function Step3() {
         ) : (
           <div className="flex flex-col gap-10">
             <div className="grid gap-6">
-              {store.inputs.questions.map((question, i) => (
-                <div key={question.key} className="animate-fade-in" style={{ animationDelay: `${i * 100}ms` }}>
+              {store.inputs.questions.map((question) => (
+                <div key={question.key} className="animate-fade-in">
                    <QuestionBlock question={question} />
                 </div>
               ))}

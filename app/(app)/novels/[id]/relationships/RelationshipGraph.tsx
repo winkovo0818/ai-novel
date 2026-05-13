@@ -23,8 +23,9 @@ const NODE_RADIUS = 44;
 // Pull the ring in enough that node labels don't clip the SVG edge on
 // 8-character bibles. Tuned by eye for VIEWBOX_HEIGHT=600.
 const ORBIT_RADIUS = 200;
+export type CharacterRole = Character["role"];
 
-const ROLE_COLOR: Record<Character["role"], { fill: string; stroke: string; label: string }> = {
+const ROLE_COLOR: Record<CharacterRole, { fill: string; stroke: string; label: string }> = {
   protagonist: { fill: "#6366f1", stroke: "#4338ca", label: "主角" },
   mentor: { fill: "#10b981", stroke: "#047857", label: "导师" },
   antagonist: { fill: "#ef4444", stroke: "#b91c1c", label: "反派" },
@@ -116,7 +117,7 @@ export function RelationshipGraph({ characters, hoveredName, onHover }: Relation
             <g
               key={c.name}
               transform={`translate(${pos.x}, ${pos.y})`}
-              style={{ cursor: "pointer" }}
+              className="cursor-pointer"
               onMouseEnter={() => onHover(c.name)}
               onMouseLeave={() => onHover(null)}
               opacity={isOtherActive ? 0.45 : 1}
@@ -133,7 +134,7 @@ export function RelationshipGraph({ characters, hoveredName, onHover }: Relation
                 fontSize="14"
                 fontWeight="700"
                 fill="white"
-                style={{ pointerEvents: "none" }}
+                pointerEvents="none"
               >
                 {c.name}
               </text>
@@ -143,7 +144,7 @@ export function RelationshipGraph({ characters, hoveredName, onHover }: Relation
                 fontSize="11"
                 fontWeight="600"
                 fill={color.stroke}
-                style={{ pointerEvents: "none" }}
+                pointerEvents="none"
               >
                 {color.label}
               </text>

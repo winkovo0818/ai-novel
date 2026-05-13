@@ -20,10 +20,18 @@ function isPublicPath(pathname: string): boolean {
   return false;
 }
 
-export async function updateSession(request: NextRequest) {
+export async function updateSession(request: NextRequest, requestHeaders = request.headers) {
+  if (process.env.E2E_AUTH_BYPASS === "1" && process.env.E2E_TEST_USER_ID) {
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+  }
+
   let supabaseResponse = NextResponse.next({
     request: {
-      headers: request.headers,
+      headers: requestHeaders,
     },
   });
 
@@ -34,7 +42,11 @@ export async function updateSession(request: NextRequest) {
       },
       setAll(cookiesToSet: CookieToSet[]) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        supabaseResponse = NextResponse.next({ request });
+        supabaseResponse = NextResponse.next({
+          request: {
+            headers: requestHeaders,
+          },
+        });
         cookiesToSet.forEach(({ name, value, options }) =>
           supabaseResponse.cookies.set(name, value, options),
         );

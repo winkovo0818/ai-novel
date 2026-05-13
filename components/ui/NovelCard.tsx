@@ -47,12 +47,7 @@ export function NovelCard({ id, title, chapterCount, doneCount, updatedAt, hasBi
             </span>
           </div>
           
-          <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-primary transition-all duration-1000 ease-out" 
-              style={{ width: `${progress}%` }}
-            />
-          </div>
+          <progress className="progress-bar h-1.5 w-full" max={100} value={progress} aria-label="创作进度" />
           
           <div className="mt-3 flex items-center gap-2">
              <span className="text-xs font-bold text-text-secondary">

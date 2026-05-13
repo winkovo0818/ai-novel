@@ -17,10 +17,8 @@ import path from "node:path";
  *      set unconditionally; production reverse proxies (Vercel,
  *      Cloudflare) terminate TLS so this kicks in there.
  *
- *   ❌ Content-Security-Policy — Next.js 15 hydration injects inline
- *      scripts. A correct CSP needs nonce middleware; a lazy
- *      `'unsafe-inline'` would shred the protection. Tracked as a
- *      separate phase — see HEALTH.md.
+ *   ✅ Content-Security-Policy — applied in middleware because Next.js
+ *      needs a per-request nonce in both request and response headers.
  */
 const SECURITY_HEADERS = [
   { key: "X-Content-Type-Options", value: "nosniff" },

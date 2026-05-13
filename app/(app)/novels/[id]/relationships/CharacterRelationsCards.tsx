@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import type { Character } from "@/lib/validation/schemas";
 import { extractRelationEdges } from "@/lib/bible/relations";
 
-import { ROLE_COLOR } from "./RelationshipGraph";
+import { ROLE_COLOR, type CharacterRole } from "./RelationshipGraph";
 
 interface CharacterRelationsCardsProps {
   characters: Character[];
@@ -13,6 +13,14 @@ interface CharacterRelationsCardsProps {
   onHover(name: string | null): void;
   onUpdateRelations(index: number, relations: string[]): void;
 }
+
+const ROLE_DOT_CLASS: Record<CharacterRole, string> = {
+  protagonist: "bg-indigo-500",
+  mentor: "bg-emerald-500",
+  antagonist: "bg-red-500",
+  sidekick: "bg-amber-500",
+  hidden: "bg-gray-500",
+};
 
 /**
  * Editable per-character cards under the graph. Each card lets the user
@@ -47,10 +55,7 @@ export function CharacterRelationsCards({
               }`}
             >
               <div className="flex items-center gap-3 mb-4">
-                <div
-                  className="h-3 w-3 rounded-full"
-                  style={{ background: ROLE_COLOR[c.role].fill }}
-                />
+                <div className={`h-3 w-3 rounded-full ${ROLE_DOT_CLASS[c.role]}`} />
                 <h3 className="text-[15px] font-bold text-text-primary">{c.name}</h3>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-text-dim ml-auto">
                   {ROLE_COLOR[c.role].label}

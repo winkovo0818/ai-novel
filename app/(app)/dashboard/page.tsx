@@ -180,12 +180,12 @@ export default async function DashboardPage() {
                     >
                       <p className="text-base font-bold text-text-primary truncate group-hover:text-primary transition-colors">{n.title}</p>
                       <div className="flex items-center gap-3 mt-3">
-                        <div className="flex-1 h-1 bg-border-subtle rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-primary" 
-                            style={{ width: `${n.chapters.length > 0 ? (n.chapters.filter(c => c.status === 'done').length / n.chapters.length) * 100 : 0}%` }}
-                          />
-                        </div>
+                        <progress
+                          className="progress-bar h-1 flex-1"
+                          max={n.chapters.length}
+                          value={n.chapters.filter((c) => c.status === "done").length}
+                          aria-label={`${n.title} 创作进度`}
+                        />
                         <span className="text-[11px] font-bold text-text-muted">
                           {n.chapters.filter((c) => c.status === "done").length}/{n.chapters.length}
                         </span>

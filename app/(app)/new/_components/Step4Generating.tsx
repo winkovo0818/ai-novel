@@ -105,9 +105,12 @@ export function Step4Generating() {
             </div>
             <span className="text-xl font-bold text-primary">{phase.percent}%</span>
           </div>
-          <div className="h-2 bg-secondary rounded-full overflow-hidden">
-            <div className="h-full bg-primary transition-all duration-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]" style={{ width: `${phase.percent}%` }} />
-          </div>
+          <progress
+            className="progress-bar h-2 w-full"
+            max={100}
+            value={phase.percent}
+            aria-label="叙事圣经生成进度"
+          />
         </div>
 
         <BibleStreamCards draft={store.bible_draft} eventsCount={events.length} />

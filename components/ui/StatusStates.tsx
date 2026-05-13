@@ -87,12 +87,12 @@ export function GeneratingState({
       {message && <p className="text-sm text-text-secondary mb-4 max-w-sm mx-auto">{message}</p>}
       {clamped !== undefined && (
         <div className="w-64 max-w-full mt-2">
-          <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all duration-500 ease-out"
-              style={{ width: `${clamped}%` }}
-            />
-          </div>
+          <progress
+            className="progress-bar h-1.5 w-full"
+            max={100}
+            value={clamped}
+            aria-label="生成进度"
+          />
           <p className="mt-2 text-[10px] font-bold text-text-dim uppercase tracking-[0.2em] tabular-nums">
             {clamped.toFixed(0)}%
           </p>

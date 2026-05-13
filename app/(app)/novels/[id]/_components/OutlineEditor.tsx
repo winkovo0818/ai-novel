@@ -59,7 +59,7 @@ export function OutlineEditor({ novelId, bible: initialBible, draftedIndexes }: 
 
         <div className="mt-12 space-y-12">
           {volumes.map((volume, vi) => (
-            <section key={vi} className="animate-fade-in" style={{ animationDelay: `${vi * 150}ms` }}>
+            <section key={vi} className="animate-fade-in">
               <header className="flex items-center justify-between mb-6 border-b border-border-strong/50 pb-4">
                 <div className="flex items-baseline gap-4">
                   <h3 className="text-xl font-serif font-bold text-text-primary">
