@@ -175,17 +175,17 @@
 | 3.2.5 | [P] | 候选稿 vs 正文 diff | M1.3 的 `CandidatePanel` 增"显示差异"切换 | （**backlog** — DiffView 已就绪可复用） |
 | 3.2.6 | [E2E] | `tests/e2e/version-restore.spec.ts` | 编辑 → 保存 → 再编辑 → 恢复 → 内容回滚 | （**backlog**） |
 
-### M3.3 导出 / 发布中心 v1（🟡 多格式已落地，独立页面 backlog）
+### M3.3 导出 / 发布中心 v1（✅ 独立页面 + 参数已落地）
 
 | # | 类型 | 任务 | 路径 / 产物 | 验收 |
 |---|---|---|---|---|
-| 3.3.1 | [P] | `app/(app)/novels/[id]/export/page.tsx` | 左侧选项 / 右侧实时预览 | （**backlog**，目前由 `ExportMenu` 承载） |
-| 3.3.2 | [API] | `GET /api/novels/:id/export?format=md\|txt&range=&include_bible=` | range / include_bible 暂未做 | （**部分 backlog**） |
+| ~~3.3.1~~ | [P] | ~~`app/(app)/novels/[id]/export/page.tsx`~~ | ✅ 独立导出中心页：统计卡 + 4 格式卡 + range / Bible 参数 | 页面已落地 |
+| ~~3.3.2~~ | [API] | ~~`GET /api/novels/:id/export?format=md\|txt&range=&include_bible=`~~ | ✅ `range` 支持单章 / 区间 / 逗号组合；`include_bible=true` 追加 Bible 附录 | route/helper UT：非法参数、range 筛选、Bible 附录 |
 | ~~3.3.3~~ | [LIB] | ~~docx 导出~~ | ✅ `lib/export/formatNovel.ts` `formatAsDocx`（HEADING_1 + 每行 Paragraph） | UT：ZIP `PK` 头 + 空章节稳健 |
 | ~~3.3.4~~ | [LIB] | ~~epub 导出~~ | ✅ `lib/export/formatNovel.ts` `formatAsEpub`（`epub-gen-memory`，HTML 转义 `<p>` 段落） | UT：ZIP 签名 + 空章节稳健 |
 | ~~3.3.5~~ | [API] | ~~导出格式扩 docx/epub~~ | ✅ `/api/novels/:id/export?format=docx\|epub`，`formatNovel` 改 async 返回 `string \| ArrayBuffer` | content-type / disposition 测试 |
-| 3.3.6 | [P] | 导出前审核状态说明 | 独立页面承载，未做 | （**backlog**） |
-| 3.3.7 | [P] | 编辑器 `ExportMenu` 改为"打开导出中心"链接 | 待独立页面落地后再切 | （**backlog**） |
+| ~~3.3.6~~ | [P] | ~~导出前审核状态说明~~ | ✅ 导出中心 notes 说明导出前审核与失败语义 | 页面说明 |
+| ~~3.3.7~~ | [P] | ~~编辑器 `ExportMenu` 改为"打开导出中心"链接~~ | ✅ 顶栏导出图标跳 `/novels/:id/export` | lint/typecheck |
 
 ### M3.4 UI 统一与降噪（🟡 编辑界面已降噪；状态四态组件统一未审计）
 

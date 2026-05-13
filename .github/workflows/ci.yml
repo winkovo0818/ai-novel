@@ -68,6 +68,8 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ai_novel_e2e
       DIRECT_URL: postgresql://postgres:postgres@localhost:5432/ai_novel_e2e
+      E2E_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ai_novel_e2e
+      E2E_DIRECT_URL: postgresql://postgres:postgres@localhost:5432/ai_novel_e2e
       # LLM_MOCK=1 skips real DeepSeek calls — the mock returns deterministic
       # bibles + chapter prose so specs can assert on exact text.
       LLM_MOCK: "1"
@@ -81,6 +83,8 @@ jobs:
       # default to allow under mock mode.
       QUOTA_FAILURE_MODE: allow
       MODERATION_FAILURE_MODE: allow
+      E2E_AUTH_BYPASS: "1"
+      E2E_TEST_USER_ID: e2e-user
 
     steps:
       - uses: actions/checkout@v4

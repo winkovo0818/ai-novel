@@ -62,7 +62,7 @@ Onboarding 5 步生成 Bible 草稿
 | Mark chapter done → 自动 state diff → 用户审核 → 写回 Bible | 🟡 半闭环 | **state diff 自动生成失败时 `useChapterEditor.ts:165` 是 `catch {}` 空 handler，用户完全不知道**（silent fail） |
 | Critic 检测 → 用户决策 → 处理候选稿 | ✅ 闭环 | — |
 | 版本恢复 + diff | ✅ 闭环 | — |
-| 4 格式导出 | ✅ 闭环 | range / include_bible 参数未做（长篇用户没法只导一卷） |
+| 4 格式导出 | ✅ 闭环 | range / include_bible 已补齐；后续主要是 E2E 覆盖 |
 | Job 失败 → JobsBadge 重试 | 🟡 半闭环 | **无 cron / 长驻 drainer；Serverless 重启后 in-flight job 永远 `running`，用户看不到、也无法 retry**（drainer 只看 `pending`） |
 | 长篇 dirty 标脏 → 批量刷新 | ✅ 闭环 | — |
 | 双端冲突 → 409 → 加载最新 | 🟡 半闭环 | **`expected_version: z.number().optional()`，不传则完全绕过乐观锁**；冲突横幅"暂不处理"后再保存会无限 409（hook 没更新 `chapterVersion`） |
@@ -558,7 +558,7 @@ AI 可控：
 
 - [ ] CSP enforced（无 unsafe-inline，hydration 正常）
 - [ ] "反馈微调"机制可用：用户在候选稿基础上输入文字反馈 → 重新生成（保留对话）
-- [ ] 导出中心支持 `range=1-10` 与 `include_bible=true`
+- [x] 导出中心支持 `range=1-10` 与 `include_bible=true`
 - [ ] retrieval 黄金 fixture 跑分脚本独立可跑且接入 CI 警报
 - [ ] SSE p95 < 8s baseline，回归 > 15% 时 CI fail
 - [ ] Migration reversibility 检查脚本入 CI

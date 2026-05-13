@@ -1,18 +1,18 @@
 # AI Novel — 项目状态
 
-> 最近更新：2026-05-12 · P0-1 修复 5 个失效 E2E spec（候选稿模式按钮文案对齐）；P0-2 三方文档对账 + `scripts/docs-check.ts` 防漂移
+> 最近更新：2026-05-13 · EditorClient 交互级测试：新增 node Vitest 轻量组件布线测试，覆盖 Ctrl/Cmd+S、drafting 防保存、编辑回 idle、AI 面板开关、导出中心链接
 > 本文件是 PROGRESS / AUDIT / TASKS 三份历史状态文档的合并版本，是当前**唯一**的项目状态来源。
 > 战略路线见 `docs/ROADMAP_2_4_8_WEEKS.md`，战术任务单见 `docs/IMPLEMENTATION_TASKS.md`，阶段 3 之后的 phase 决策见 `docs/phases/`，每次任务后的体检报告见 `docs/HEALTH.md`，真实产品标准的审阅见 `docs/PROJECT_REVIEW_REPORT.md`。
 
 ---
 
-## 一、当前实测验证基线（2026-05-12，P0-2 文档对账后）
+## 一、当前实测验证基线（2026-05-13，EditorClient 交互测试后）
 
 | 命令                          | 结果                                                                                                          |
 |-----------------------------|-------------------------------------------------------------------------------------------------------------|
 | `npm run typecheck`         | ✅ 通过                                                                                                        |
 | `npm run lint` (`eslint .`) | ✅ 通过                                                                                                        |
-| `npm run test` (Vitest)     | ✅ 通过，**70 files / 532 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
+| `npm run test` (Vitest)     | ✅ 通过，**74 files / 617 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
 | `npm run build`             | ✅ 通过                                                            |
 | `tests/e2e/` (Playwright)   | ✅ 6 spec（onboarding / editor-failure / editor-candidate × 4，P2-3 新增候选稿 vs 正文 diff 切换 spec），P0-1 后按钮文案对齐 M1.3 候选稿模式                                          |
 | coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines/statements 68 · functions 93 · branches 83，基线 70.04 / 94.24 / 85.50）                                                                                  |
@@ -35,7 +35,7 @@
 | 模块                    | 状态 |    完成度 | 说明                                                                                     |
 |-----------------------|----|-------:|----------------------------------------------------------------------------------------|
 | Onboarding 5 步开书      | ✅  | 80-88% | 闭环可用；跳过 / 中断恢复 / 重复 finalize 仍待打磨                                                      |
-| 多章节编辑器 MVP            | ✅  | 85-90% | 多章节、保存、AI 起草、删除、版本恢复 + diff、Critic、State Diff、retrieval 可视化、乐观锁、四格式导出已实现             |
+| 多章节编辑器 MVP            | ✅  | 86-91% | 多章节、保存、AI 起草、删除、版本恢复 + diff、Critic、State Diff、retrieval 可视化、乐观锁、导出中心已实现             |
 | 账号与 Ownership         | ✅  | 70-80% | Supabase Auth + middleware + 应用层 ownership；RLS 已禁用                                     |
 | **DB-驱动权限**           | ✅  | 80-85% | **Phase A（2026-05-10）**：`user_roles` 多对多表 + `/admin/users` 页 + grant/revoke API；env allowlist 永久兜底 |
 | LLM 基础设施              | ✅  | 78-85% | client / stream / mock / 加密 key / 用量 / 配额覆盖完整                                          |
@@ -46,7 +46,7 @@
 | 多 Agent 协作            | 🟡 | 55-65% | Writer / Critic / StateUpdater / Outline(BeatSheet) / Retrieval 都有；Outline UI 已接，自动回炉无 |
 | 工程验证                  | ✅  | 80-85% | lint/typecheck/test/build 都过                                                           |
 | CI/CD                 | 🟡 | 65-75% | 基础 verify 已接；E2E + coverage 仍未入门禁                                                      |
-| 产品化能力                 | 🟡 | 70-80% | 候选稿、项目层信息架构、Dashboard、生成历史、版本恢复 + diff、四格式导出、retrieval 命中可视化、UI 降噪 + 设计刷新、乐观锁均已落地；导出仍是菜单非独立中心，dirty 标脏未做 |
+| 产品化能力                 | 🟡 | 77-83% | 候选稿、项目层信息架构、Dashboard、生成历史、版本恢复 + diff、独立导出中心、四格式导出、retrieval 命中可视化、UI 降噪 + 设计刷新、乐观锁、核心编辑器交互布线测试均已落地；发布前仍缺部分 E2E |
 | **UI 设计语言**           | ✅  | 85-90% | **2026-05-11 一次性刷新**：tokens（颜色 / 阴影 / 字体节奏）+ 6 大页面层级（auth / onboarding / workspace / 详情 / 编辑器）一致采用；新增 SectionCard / StatCard 原语 |
 
 ---
@@ -95,7 +95,7 @@
 > 优先级在阶段开工时重排为：版本恢复 → 导出中心 → retrieval 可视化 → UI 降噪 → 乐观锁。M3.1（dirty 字段）按 ROADMAP 原计划暂缓。
 
 - **章节版本恢复 + diff（M3.2）**：`POST /api/chapters/:id/versions/:versionId/restore` 在事务里先把当前正文存为 manual 版本（同 hash 时跳过）再覆盖 draft，restore 行也参与乐观锁的 version 自增；`VersionsModal` 升级为可操作的历史面板，每行有"与当前对比"打开 `components/ui/DiffView`（按行 diff，超过 8 行未变的段折叠为"省略 N 行"）和"恢复此版本"（带 ConfirmDialog 警告）；恢复后 hook 通过 `applyRestoredChapter` 同步本地状态而不是整页刷新。
-- **四格式导出（M3.3）**：`lib/export/formatNovel` 在 markdown / txt 之上扩出 `formatAsDocx`（用 `docx` 包，每个章节是 HEADING_1 + 每行一个 Paragraph 保留硬换行）和 `formatAsEpub`（用 `epub-gen-memory`，每行 `<p>` HTML 转义，作者缺省时填"佚名"）；`formatNovel` 改为 async 返回 `string | ArrayBuffer`；`/api/novels/:id/export` 接受 `format=docx|epub`，`ExportMenu` 由 2 项扩为 4 项；测试覆盖 ZIP 头 `PK` 字节、空章节稳健、disposition 文件名。
+- **四格式导出（M3.3）**：`lib/export/formatNovel` 在 markdown / txt 之上扩出 `formatAsDocx`（用 `docx` 包，每个章节是 HEADING_1 + 每行一个 Paragraph 保留硬换行）和 `formatAsEpub`（用 `epub-gen-memory`，每行 `<p>` HTML 转义，作者缺省时填"佚名"）；`formatNovel` 改为 async 返回 `string | ArrayBuffer`；`/api/novels/:id/export` 接受 `format=docx|epub`，并支持 `range=1-10` / `1,3,5-8` 与 `include_bible=true`；导出中心页提供章节范围输入和 Bible 附录开关；编辑器 `ExportMenu` 统一跳转导出中心；测试覆盖 ZIP 头 `PK` 字节、空章节稳健、disposition 文件名、range 筛选、非法参数和 Bible 附录。
 - **Retrieval 可视化（M3.4）**：draft SSE 在第一个 `chapter_delta` 之前推送 `event: retrieval` 携带 `{status, error?, memories: [{source, reason, score, text}]}`，每条 text 截断到 200 字 + 省略号；`useChapterEditor` 解析后把命中片段交给 `CandidatePanel`，渲染为可折叠的"已引用 N 条历史记忆"区块（source / 三位小数相似度 / reason / 截断片段）；`retrieval_status` 在 `done` 事件里保留以兼容旧客户端。
 - **UI 降噪（M3.5）**：编辑界面减去 26 行装饰性 chrome —— 标题上方的 `Unit XX · Manuscript Draft` chip 行去掉、placeholder 由"在此处镌刻章节标题..."改为"章节标题"、"正在创作" eyebrow 删除、StatusTag 闲时不渲染、pendingStateDiff 收成琥珀小圆点图标、画布底部"云端同步协议已激活"+ 重复字数行整段移除、CandidatePanel 检索块绿色降为中性 secondary；候选稿"sim"前缀去掉只留数字。
 - **章节乐观锁（M3.6）**：`ChapterDraft.version Int @default(0)` 计数器，PATCH 与 restore 都自增；`UpdateChapterDraftRequestSchema` 新增 `expected_version`，不匹配时返回 `409 CHAPTER_VERSION_CONFLICT` 并把最新行同时回吐；`useChapterEditor` 维护 `chapterVersion`，autosave / manual / ai / target_words 四条 PATCH 路径全部带 expected_version；命中 409 后存 `conflictChapter`，编辑器在工具栏下方渲染琥珀色冲突横幅（"加载最新" / "暂不处理"），本地正文保留以便复制。候选稿应用前的快照保存改走 `persistChapter("manual")` 避免与紧随的 ai PATCH 自我冲突。
@@ -220,10 +220,11 @@
 - ✅ **生产响应头基线**：commit `2ed876b`
 - ✅ **onboarding routes 负向 ownership 测试**：questions / loglines / bible 各加 5-6 个测试（401 / 404 / 400 INVALID_INPUT / 429 RATE_LIMITED / 429 QUOTA / REGEN_LIMIT / MODERATION_BLOCKED），原 finalize 测试已有
 - ✅ **coverage CI 门禁**：`vitest.config.ts` 加 thresholds（lines/statements 64 · functions 90 · branches 80，留 ~2 pt 缓冲）；CI verify job 由 `npm run test` 改为 `npm run test:coverage`，覆盖率回退会让 build 失败
-- ✅ **独立导出中心页 `/novels/[id]/export`**：server component + `ExportCenterClient`；3 张 StatCard（已起草 / 累计字数 / 最近编辑）+ 2×2 格式卡片（markdown / txt / docx / epub），每张卡片含说明 + 用例 + loading 状态 + 成功/错误反馈；novel 详情页 5 卡 NavCard 升至 5 列网格；编辑器 `ExportMenu` 内联入口保留
+- ✅ **独立导出中心页 `/novels/[id]/export`**：server component + `ExportCenterClient`；3 张 StatCard（已起草 / 累计字数 / 最近编辑）+ 2×2 格式卡片（markdown / txt / docx / epub），每张卡片含说明 + 用例 + loading 状态 + 成功/错误反馈；novel 详情页 5 卡 NavCard 升至 5 列网格；编辑器 `ExportMenu` 已收敛为导出中心入口
 - ✅ **死代码清理 + i18n 拆除**：删除 `canClaimAnonymousResource`（无 caller 的 ownership helper）；移除 next-intl + messages/ + i18n/（0 处 `useTranslations` 调用，纯死基础设施）；layout 与 next.config.ts 简化
 - ✅ **lib/llm/usage.ts 测试满覆盖**：从 46.24% / 50% 拉到 **100% / 100%**；新增 11 个测试覆盖 logUsage / getUserUsage / checkQuota 全部分支；全仓 coverage lines 65.83→68.28、funcs 92.24→93.75、branches 83.40→84.30；阈值升级到 66/66/92/82
-- ✅ **useChapterEditor 提纯（Phase A）**：抽出 `lib/editor/chapterUtils.ts`（resolveStartIndex / deriveChapterStateFromDraft / mergeChapterIntoList / applyAcceptMode），18 个单元测试；hook 公共 API 不变，selectChapter 与 mount 不再重复初始化逻辑
+- ✅ **useChapterEditor 提纯（Phase A + 续批）**：抽出 `lib/editor/chapterUtils.ts`（resolveStartIndex / deriveChapterStateFromDraft / mergeChapterIntoList / patchChapterInList / hasUnsavedChapterChanges / shouldAutoSaveChapter / build*Request / applyDraftSseEvent / applyAcceptMode / candidateAcceptedMessage / resumableDraftLoadedMessage / hasStateDiffChanges / normalizeResumableDraftPayload），53 个单元测试；保存 / 版本 / 候选稿 / state-diff / beat-sheet / actions / selection / core state 已拆为子 hook，主 hook 298 行且公共 API 不变；轻量 hook runtime 覆盖 20 条关键行为，并修复删除章节后 targetWords / lastSavedAt / version 等派生状态残留
+- ✅ **EditorClient 交互级测试**：`EditorClient.test.ts` 在不新增 jsdom / Testing Library 的前提下，用轻量 JSX/runtime mock 覆盖 Ctrl/Cmd+S 保存、防 drafting 误保存、标题/正文编辑回 idle、AI 面板开关和 ExportMenu 导出中心链接 5 条测试。
 - ✅ **Prometheus metrics 端点**：`/api/metrics`（bearer token 鉴权 via `METRICS_TOKEN`）；`lib/metrics/prometheus.ts` 自手写 text exposition formatter（无 prom-client 依赖，避开 serverless in-memory state 丢失问题）+ `lib/metrics/collector.ts` 从 Postgres 汇总 8 个 metric family（LLM 请求/Token/成本、Job 状态、Novel/Chapter 计数）；13 个测试 + .env.example 加 `METRICS_TOKEN` 注释；阈值升级到 68/68/93/83（基线 70.04/94.24/85.50）
 - ✅ **F-04 角色关系图（编辑态 MVP）**：`/novels/[id]/relationships` 拆为 `RelationshipEditor`（client wrapper，用 `useBibleEdit` 同 characters/world/outline 三页共用）+ `RelationshipGraph`（纯展示 SVG）+ `CharacterRelationsCards`（可编辑卡片）；每条 relation 输入实时显示绿色「将连边到 X」/ 黄色「未匹配」反馈；保存 PATCH `/api/novels/:id/bible`；SaveBar 沿用 characters 编辑器同款；hover 联动覆盖 SVG 节点 + 卡片双向；`lib/bible/relations.ts` 纯函数 12 单测保持不变
 - ✅ **UX3 SSE 续传**：新增 `DraftSession` 表（migration `20260512000000`，唯一 (user, novel, chapter) 槽位）；`/draft` SSE 流开始时 upsert 行，过程中 throttled flush（≥500ms 或 ≥256 字符），结束 / 失败 / moderation 阻断时持久化最终 status；首事件推 `{event:"session",sessionId}`。新增 `GET/DELETE /api/novels/:id/chapters/draft/resume?chapter_index=N`：404 NO_DRAFT_SESSION / 200 返回 buffer + status + retrieval / DELETE 清场。客户端 `useChapterEditor` 切换章节时探测 resumable session（>10 字才弹），编辑器渲染 indigo 横幅「上次起草中断，已保留 X 字」+「恢复候选稿 / 丢弃」按钮；accept / discard 后自动 DELETE 服务端会话。`lib/agent/draftSession.ts` 助手 15 单测、resume route 10 单测；阈值仍 68/68/93/83
