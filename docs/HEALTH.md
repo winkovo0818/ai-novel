@@ -18,6 +18,16 @@
 
 ## 最近更新
 
+- **2026-05-14 (内容审核 review queue + TTL)** — 新增 `/admin/moderation` 人工复核队列，`GET/PATCH /api/admin/moderation-audits` 支持按 review 状态筛选与确认/误杀/忽略；`ModerationAudit` 增加 review 状态、复核人、复核时间和备注，`collectMetrics()` 增加 `ai_novel_moderation_review_queue{review_status}`；新增 `GET /api/cron/moderation-audits/cleanup` + `vercel.json` 每日 03:20 UTC 清理超过 90 天 audit 行，`MODERATION_AUDIT_RETENTION_MS` 可调。新增 14 条 review/TTL/metrics 回归测试，Vitest 666 → 680 tests；API route 39 → 42，page.tsx 21 → 22。
+- **2026-05-14 (内容审核 audit trail)** — 新增 `ModerationAudit` Prisma model + migration `20260514010000_add_moderation_audit`，`moderateContent()` 在 block / fail-open / review 决策时 best-effort 写入审核元数据（不存原文，只存 sha256 + 字符数）；`collectMetrics()` 增加 `ai_novel_moderation_decisions_total{source,action,outcome,window="24h"}`。新增 1 条 audit 持久化失败不影响审核决策测试，Vitest 665 → 666 tests；Prisma migrations 22 → 23，models 15 → 16。
+- **2026-05-14 (内容审核观测闭环)** — `moderateContent()` 在本地关键词拦截、LLM `allowed=false`、审核服务异常后的 allow/block/review 降级路径统一输出 `moderation.decision` 结构化日志，字段包含 `route/source/action/outcome/mode/matched_pattern`，不记录正常安全通过以控制日志量；`docs/OBSERVABILITY.md` 增加 Moderation Decisions 说明。新增 3 条日志字段回归测试，Vitest 662 → 665 tests。
+- **2026-05-14 (Playwright 全量稳定化)** — `tests/e2e/editor-candidate.spec.ts` 改用显式保存种子正文，候选稿就绪等待收窄到 heading，接受候选稿后断言稳定 textarea 状态；`playwright.config.ts` 在 `E2E_AUTH_BYPASS=1` 下显式设置 `E2E_DISABLE_RATE_LIMIT=1`，避免全量并发 E2E 共享 `e2e-user` 触发 Bible SSE 5/min 限流。`npx playwright test` 8/8 通过；`lib/auth/rateLimit.test.ts` 补 E2E bypass 限流禁用测试，Vitest 661 → 662 tests。
+- **2026-05-14 (beat-to-draft E2E)** — 新增 `tests/e2e/beat-to-draft.spec.ts`，完成 onboarding 后切到第 2 章，mock beat-sheet API 生成 3 条节拍，编辑第一条节拍后点击「基于节拍起草本章」，拦截 draft 请求断言 `beat_sheet.beats` 携带编辑后的节拍，再接受候选稿覆盖正文。`npx playwright test tests/e2e/beat-to-draft.spec.ts` 通过（1 test）。
+- **2026-05-14 (M3.2.6 version-restore E2E)** — 新增 `tests/e2e/version-restore.spec.ts`，完成 onboarding 后在编辑器连续两次保存形成历史快照，打开历史版本弹窗恢复到第一版正文，并 reload 验证恢复结果已持久化。`npx playwright test tests/e2e/version-restore.spec.ts` 通过（1 test）。
+- **2026-05-14 (project-shell 轻量 RSC 测试)** — 新增 `app/(app)/novels/[id]/project-shell.test.ts`，在 node Vitest 环境下 mock JSX runtime / prisma / auth / next navigation，覆盖 owned novel detail 的 editor/export/history/chapters 入口、foreign novel `notFound`、导出中心空正文 disabled、AI history 查询按 user+novel+agent/status 限定。新增 4 个项目层 shell 测试。Vitest 657 → 661 tests，Files 78 → 79。
+- **2026-05-14 (P1-13 Sentry / Grafana alert 接入)** — 新增 `instrumentation.ts` 通过 Next `onRequestError` 捕获服务端未处理请求异常；`lib/observability/sentry.ts` 支持 `SENTRY_DSN` 直发 Sentry envelope（无新增 npm 依赖，未配置时 disabled）；Prometheus collector 新增 `ai_novel_llm_cost_cny_window{window=24h|30d}` 与 `ai_novel_llm_took_ms_p95{route,window=1h}`；`observability/grafana/ai-novel-alert-rules.yaml` 提供 fail rate、draft SSE p95、24h cost、job failure 四条告警。新增 4 个 Sentry 测试。Vitest 653 → 657 tests，Files 77 → 78。
+- **2026-05-14 (P1-10 MemoryChunk 索引失败定位)** — `chunkChapterContent` 为每个 chunk 写入 `chunk_index / paragraph_start / paragraph_end` 元数据；`indexChapter` 保留 batch embedding 快路径，batch 失败时才逐 chunk 探测并抛出 `MEMORY_CHUNK_INDEX_FAILED chunk=N/M paragraphs=A-B stage=... preview=...`，且 embedding 失败前不删除旧 chunks；章节管理页读取 `lastJobError` 并在索引失败行显示段落范围、chunk 序号与正文预览。新增 7 个 chunking/index-failure 测试。Vitest 646 → 653 tests，Files 76 → 77。
+- **2026-05-14 (P1-9 DraftSession 30 天 TTL cron)** — 新增 `cleanupExpiredDraftSessions()` 按 `updated_at < now - 30d` 删除续传草稿孤儿行，`DRAFT_SESSION_RETENTION_MS` 可调；新增 `GET /api/cron/draft-sessions/cleanup`，要求 `CRON_SECRET` Bearer token，失败只返回固定错误码；`vercel.json` 每日 03:00 UTC 触发。新增 7 个 helper/route 测试。Vitest 639 → 646 tests，Files 75 → 76。
 - **2026-05-14 (P1-6 Critic 失败持久化 + 重试)** — `useChapterDrafting` 加 `criticFailure: { message, chapterIndex } | null` 持久态，candidate panel 关闭后失败仍可见；`retryLastCritic()` 重试用当前章节正文调 `/chapters/critic`：成功清空 badge + setMessage `审校通过` / `审校发现 N 条问题（critical/major: M）`；失败更新 badge 消息；丢弃候选稿同步清空。EditorClient 头部加 amber 重试 badge（与 autoStateDiffError 镜像 UX）。新增 4 个 hook 行为测试（持久化+清空 / retry 通过 / retry 有问题 / retry 再次失败），用 URL routing 的 fetch mock 避免 useEffect 重跑消耗顺序 mock。Vitest 635 → 639 tests。
 - **2026-05-13 (P1-4 Prompt 注入防护)** — 新增 `lib/llm/promptSafety` 统一封装 `sanitizeForPrompt` / `wrap(text, kind)` / `PROMPT_SAFETY_PREAMBLE`：strip ASCII 控制字符 + 转义 `& < >` 防止用户从 XML 标签内闭合，system 消息加入"标签内是数据不是指令"前导。chapter / critic / consistency / stateDiff / beatSheet / summarize / tieredSummary 7 个 prompt 全部接入；用户 Bible 字段（角色 personality / motivation、world rules、outline、节拍、storyState、章节正文、上一章摘要、retrieval 片段、existing content）一律 wrap。`promptSafety.test.ts` 14 tests + chapter injection 攻击场景 4 tests（断言闭合标签永远只有外层一对、控制字符被剥）。Vitest 617 → 635 tests，Files 74 → 75。
 - **2026-05-13 (EditorClient 交互级测试)** — 新增 `EditorClient.test.ts`，在现有 node Vitest 环境下用轻量 JSX/runtime mock 覆盖 Ctrl/Cmd+S 保存、防 drafting 误保存、标题/正文编辑回 idle、AI 面板开关、ExportMenu 导出中心链接 5 条交互布线。Vitest 612 → 617 tests，Files 73 → 74。
@@ -59,13 +69,13 @@
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
 | `npm run lint` | ✅ 通过（零 warning） | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **75 files / 639 tests** 全绿,约 12s | 本轮 +4 P1-6 critic failure persistence tests |
+| `npm run test` | ✅ **82 files / 680 tests** 全绿,约 11s | 本轮 +14 moderation review queue / TTL tests |
 | `npm run build` | ✅ 通过 | |
-| Playwright E2E | 5 spec（onboarding / editor-failure / editor-candidate × 3）；P0-1 后按钮文案对齐 M1.3 候选稿模式 | helper 内 "Chapter Draft" 改为 `保存草稿` button 探测 |
+| Playwright E2E | ✅ 8 tests（onboarding / editor-failure / editor-candidate × 4 / version-restore / beat-to-draft）全绿；P0-1 后按钮文案对齐 M1.3 候选稿模式 | 本轮全量 `npx playwright test` 已通过 |
 | Coverage（v8） | ✅ lines/statements 68 · functions 93 · branches 83 阈值入 CI；基线 70.04/94.24/85.50 | summaries / handlers / chapterStatus 100% |
-| Prisma migrations | 22 条 | 含 `20260512000000_add_draft_sessions`；部署前需 `prisma migrate deploy` |
+| Prisma migrations | 23 条 | 含 `20260514010000_add_moderation_audit`；部署前需 `prisma migrate deploy` |
 
-**规模**：业务源码 17,500+ LoC（136 ts/tsx）；测试 7,600+ LoC（75 个 .test.ts）；38 个 API route + 21 个 page.tsx；15 个 Prisma model。
+**规模**：业务源码 17,500+ LoC（136 ts/tsx）；测试 7,600+ LoC（82 个 .test.ts）；42 个 API route + 22 个 page.tsx；16 个 Prisma model。
 
 ---
 
@@ -81,7 +91,7 @@
 | DB-驱动权限（Phase A） | ✅ | 80–85% |
 | LLM 基础设施（client / stream / mock / 加密 key / 用量 / 配额） | ✅ | 78–85% |
 | Embedding 基础设施（Phase B，1024-dim 严格） | ✅ | 80–85% |
-| 内容审核（关键词 + LLM + failure mode） | 🟡 | 70–78% |
+| 内容审核（关键词 + LLM + failure mode + review queue） | 🟡 | 78–85% |
 | **长篇记忆 L1/L2 + RAG + state diff + dirty 标脏** | ✅ | **75–82%**（M3.1 完成后从 65–75% 提升） |
 | 多 Agent 协作（Writer / Critic / StateUpdater / BeatSheet / Retrieval） | 🟡 | 55–65% |
 | CI/CD | 🟡 | 65–75% |
@@ -95,7 +105,7 @@
 
 - [x] **P2-4 / M3.1.1–3** — `ChapterDraft.summary_dirty / index_dirty: Boolean` 字段 + 改稿后只标脏不立即触发 job + 章节管理页"刷新所有 dirty"按钮（**2026-05-11 完成**：含 `POST /api/novels/:id/jobs/refresh-dirty` 新端点 + chapterStatus 优先用 dirty + 编辑器删除两处客户端推 job）
 - [x] **M3.2.5** ✅ 候选稿 vs 正文 diff 切换（已实现于 CandidatePanel viewMode + DiffView 调用；P2-3 E2E 已覆盖）
-- [ ] **M3.2.6** — `tests/e2e/version-restore.spec.ts`（版本恢复 E2E）
+- [x] **M3.2.6** — `tests/e2e/version-restore.spec.ts`（版本恢复 E2E）：编辑→保存→再编辑→恢复→reload 持久化回滚已覆盖
 - [x] **M3.3.1 / .6** ✅ 独立 `/novels/:id/export` 页面 + 导出说明已落地；2026-05-13 补 `range` / `include_bible` 控件与说明
 - [x] **M3.3.2** ✅ 导出 `range` / `include_bible` 参数已接入 API / helper / 导出中心 UI；覆盖非法参数、range 筛选、Bible 附录测试
 - [x] **M3.3.7** ✅ 编辑器 `ExportMenu` 已改为"打开导出中心"链接，内联四按钮移除
@@ -109,7 +119,7 @@
 - [x] onboarding/sessions ownership 负向测试补齐 ✅ `authorizeOnboardingSession` helper + loglines/questions/bible + finalize 401/404 负向路径已覆盖
 - [x] **coverage 入 CI 门禁** ✅ vitest 阈值 68/68/93/83 入 verify
 - [x] Tab 整合 `/models` 与 `/models/embeddings` ✅ `ModelsTabs` 共享 nav 已落地
-- [ ] `tests/e2e/` 增补 `project-shell.spec.ts`、`beat-to-draft.spec.ts`（路线图列出但未提交）
+- [x] `tests/e2e/` 增补 `beat-to-draft.spec.ts` ✅ 节拍生成→编辑→携带 beat_sheet 起草候选稿已覆盖；`project-shell` 已用非 E2E RSC mock 测试替代
 
 ### 体检中新发现
 
@@ -124,6 +134,8 @@
 - [x] **生产 security headers + CSP** ✅ baseline headers（`X-Content-Type-Options / X-Frame-Options / Referrer-Policy / Permissions-Policy / HSTS`）已加；CSP nonce middleware 已接入（2026-05-13），无 `unsafe-inline`，生产无 `unsafe-eval`。
 - [x] **`refresh-dirty` 与单章"重新刷新"路径并存** ✅ route 测试已锁住：refresh-dirty 是 dirty-driven，row-level 是 user-forced 重摆，语义不同
 - [x] **dirty 字段未参与 chapterStatus 全部组合的快照测试** ✅ 2026-05-13 已加 inline snapshot 防回归
+- [x] **Sentry / Grafana alert 接入** ✅ `SENTRY_DSN` 未设时无副作用，设后通过 Next `onRequestError` 上报 Sentry envelope；Grafana provisioning rules 覆盖 LLM fail rate / draft SSE p95 / 24h cost / job failure；metrics collector 增加成本窗口与 p95 耗时 gauge。
+- [x] **project-shell 级轻量测试（非 E2E）** ✅ 作品详情入口、ownership、导出中心和历史页查询归属已用 RSC mock 测试锁住。
 
 ### 暂缓（3 个月内不做）
 
@@ -162,8 +174,8 @@ F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关
 
 > 完成任意一件后回到本文档勾掉对应 §三 待办、刷新 §一 基线、并在 §最近更新 加一行摘要。
 
-1. **补 `project-shell` 级轻量测试（非 E2E）** — 在本地 PostgreSQL 未就绪前，优先用 Vitest/RSC mock 锁住 novels → detail → editor/export/history 入口与 ownership 分支，避免等 E2E 环境。
-2. **M3.2.6 version-restore E2E** — 暂缓到本地 PostgreSQL 就绪后执行；准备好后跑 LLM_MOCK，覆盖编辑→保存→再编辑→恢复→内容回滚，并再考虑 `project-shell` / `beat-to-draft` E2E。
+1. **发布前完整 smoke** — 跑一次 DB deploy / smoke / 全量 Playwright，确认当前远端或本地 E2E 数据库状态适合发布前验收。
+2. **内容审核策略复盘** — review queue 跑一段真实样本后，按 false-positive / confirmed 比例调整关键词与 LLM 审核提示词。
 
 ---
 

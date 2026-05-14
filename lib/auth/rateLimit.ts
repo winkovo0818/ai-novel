@@ -86,6 +86,16 @@ class MemoryRateLimiter implements RateLimiter {
   }
 }
 
+class AllowAllRateLimiter implements RateLimiter {
+  async isLimited(): Promise<boolean> {
+    return false;
+  }
+
+  async reset(): Promise<void> {
+    return undefined;
+  }
+}
+
 interface UpstashOptions {
   url: string;
   token: string;
@@ -200,6 +210,10 @@ export function resolveLimitForRoute(route: string): number {
 }
 
 function createRateLimiter(): RateLimiter {
+  if (process.env.E2E_AUTH_BYPASS === "1" && process.env.E2E_DISABLE_RATE_LIMIT === "1") {
+    return new AllowAllRateLimiter();
+  }
+
   if (process.env.RATE_LIMIT_STORE === "redis") {
     const url = process.env.UPSTASH_REDIS_REST_URL;
     const token = process.env.UPSTASH_REDIS_REST_TOKEN;

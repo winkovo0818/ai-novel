@@ -167,6 +167,8 @@ describe("UpstashRateLimiter (mocked fetch)", () => {
 describe("limiter selection", () => {
   beforeEach(() => {
     _setLimiterForTesting(null);
+    delete process.env.E2E_AUTH_BYPASS;
+    delete process.env.E2E_DISABLE_RATE_LIMIT;
     delete process.env.RATE_LIMIT_STORE;
     delete process.env.UPSTASH_REDIS_REST_URL;
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -182,5 +184,14 @@ describe("limiter selection", () => {
     _setLimiterForTesting(stub);
     expect(await isRateLimited("u", "/anything")).toBe(true);
     _setLimiterForTesting(null);
+  });
+
+  it("can disable limits only for the explicit E2E auth bypass environment", async () => {
+    process.env.E2E_AUTH_BYPASS = "1";
+    process.env.E2E_DISABLE_RATE_LIMIT = "1";
+
+    for (let i = 0; i < 20; i++) {
+      expect(await isRateLimited("e2e-user", "/api/onboarding/sessions/x/bible")).toBe(false);
+    }
   });
 });

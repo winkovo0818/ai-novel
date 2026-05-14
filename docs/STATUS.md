@@ -1,30 +1,31 @@
 # AI Novel — 项目状态
 
-> 最近更新：2026-05-14 · P1-6 Critic 失败持久化：useChapterDrafting 加 `criticFailure` 持久态 + `retryLastCritic`，EditorClient 头部 amber 重试 badge；4 个新 hook 行为测试
+> 最近更新：2026-05-14 · 内容审核 review queue + TTL：ModerationAudit 支持后台人工复核、队列指标与 90 天清理 cron
 > 本文件是 PROGRESS / AUDIT / TASKS 三份历史状态文档的合并版本，是当前**唯一**的项目状态来源。
 > 战略路线见 `docs/ROADMAP_2_4_8_WEEKS.md`，战术任务单见 `docs/IMPLEMENTATION_TASKS.md`，阶段 3 之后的 phase 决策见 `docs/phases/`，每次任务后的体检报告见 `docs/HEALTH.md`，真实产品标准的审阅见 `docs/PROJECT_REVIEW_REPORT.md`。
 
 ---
 
-## 一、当前实测验证基线（2026-05-13，EditorClient 交互测试后）
+## 一、当前实测验证基线（2026-05-14，project-shell 轻量测试后）
 
 | 命令                          | 结果                                                                                                          |
 |-----------------------------|-------------------------------------------------------------------------------------------------------------|
 | `npm run typecheck`         | ✅ 通过                                                                                                        |
 | `npm run lint` (`eslint .`) | ✅ 通过                                                                                                        |
-| `npm run test` (Vitest)     | ✅ 通过，**75 files / 639 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
+| `npm run test` (Vitest)     | ✅ 通过，**82 files / 680 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
 | `npm run build`             | ✅ 通过                                                            |
-| `tests/e2e/` (Playwright)   | ✅ 6 spec（onboarding / editor-failure / editor-candidate × 4，P2-3 新增候选稿 vs 正文 diff 切换 spec），P0-1 后按钮文案对齐 M1.3 候选稿模式                                          |
+| `tests/e2e/` (Playwright)   | ✅ 8 tests（onboarding / editor-failure / editor-candidate × 4 / version-restore / beat-to-draft），P0-1 后按钮文案对齐 M1.3 候选稿模式                                          |
 | coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines/statements 68 · functions 93 · branches 83，基线 70.04 / 94.24 / 85.50）                                                                                  |
-| 代码规模                     | 38 个 API route · 21 个 page.tsx · 22 条 Prisma migration · 15 个 Prisma model                                                                  |
+| 代码规模                     | 42 个 API route · 22 个 page.tsx · 23 条 Prisma migration · 16 个 Prisma model                                                                  |
 
 `.github/workflows/ci.yml` 现有两个 job：`verify`（lint/typecheck/test/build）+ `e2e`（pgvector postgres + LLM_MOCK + playwright + 失败上传 trace）。
 
-> 累计 migration（22 条），关键的近期 5 条：
+> 累计 migration（23 条），关键的近期 5 条：
 > - `20260510080000_add_user_roles` — `UserRole(user_id, role)` 复合主键（Phase A）
 > - `20260511010000_add_embedding_models` — `EmbeddingModel` 表 + `(provider, model)` 唯一约束（Phase B）
 > - `20260511020000_add_chapter_dirty_flags` — `ChapterDraft.summary_dirty / index_dirty` + 双索引 + 历史数据 backfill（M3.1，2026-05-11 晚）
 > - `20260512000000_add_draft_sessions` — `DraftSession` 表（UX3 SSE 续传，2026-05-12）
+> - `20260514010000_add_moderation_audit` — `ModerationAudit` 审核决策元数据、人工复核状态与 24h / 队列指标基础（不存原文）
 >
 > 上线前需要 `npx prisma migrate deploy`。Phase A 还需在 env 里加 `SUPABASE_SERVICE_ROLE_KEY`（`/admin/users` 列用户必需）。
 
@@ -40,7 +41,7 @@
 | **DB-驱动权限**           | ✅  | 80-85% | **Phase A（2026-05-10）**：`user_roles` 多对多表 + `/admin/users` 页 + grant/revoke API；env allowlist 永久兜底 |
 | LLM 基础设施              | ✅  | 78-85% | client / stream / mock / 加密 key / 用量 / 配额覆盖完整                                          |
 | **Embedding 基础设施**    | ✅  | 80-85% | **Phase B（2026-05-11）**：`embedding_models` 表 + `/models/embeddings` 页 + DB→env fallback；维度严格 1024 |
-| 内容审核                  | 🟡 | 70-78% | 关键词 + LLM + `MODERATION_FAILURE_MODE` 策略化；Bible 编辑路径仍缺                                 |
+| 内容审核                  | 🟡 | 78-85% | 关键词 + LLM + `MODERATION_FAILURE_MODE` 策略化；`ModerationAudit` 持久化 + 后台复核队列 + TTL cron 已闭环 |
 | 长篇记忆 L1/L2            | 🟡 | 65-75% | Bible / Story State / 章节摘要 / 卷摘要 / 全书摘要 / state diff / 级联刷新已实现；dirty 检测仍粗              |
 | RAG / MemoryChunk     | 🟡 | 65-75% | pgvector + HNSW + 混合检索已落地；M3.4 命中片段对用户可见；索引失败可观测性、召回评估未生产化                            |
 | 多 Agent 协作            | 🟡 | 55-65% | Writer / Critic / StateUpdater / Outline(BeatSheet) / Retrieval 都有；Outline UI 已接，自动回炉无 |
@@ -145,6 +146,7 @@
 - `GET/POST /api/llm-models`、`PATCH/DELETE /api/llm-models/:id`
 - `GET/POST /api/embedding-models`、`PATCH/DELETE /api/embedding-models/:id`（**Phase B**）
 - `GET /api/admin/users`、`POST /api/admin/users/:id/roles`、`DELETE /api/admin/users/:id/roles/:role`（**Phase A**）
+- `GET /api/admin/moderation-audits`、`PATCH /api/admin/moderation-audits/:id`（内容审核人工复核队列）
 - `GET /api/healthz/llm`
 
 ### 安全 / 成本（S-01 ~ S-07，全部完成；Phase A 加固）
@@ -225,7 +227,11 @@
 - ✅ **lib/llm/usage.ts 测试满覆盖**：从 46.24% / 50% 拉到 **100% / 100%**；新增 11 个测试覆盖 logUsage / getUserUsage / checkQuota 全部分支；全仓 coverage lines 65.83→68.28、funcs 92.24→93.75、branches 83.40→84.30；阈值升级到 66/66/92/82
 - ✅ **useChapterEditor 提纯（Phase A + 续批）**：抽出 `lib/editor/chapterUtils.ts`（resolveStartIndex / deriveChapterStateFromDraft / mergeChapterIntoList / patchChapterInList / hasUnsavedChapterChanges / shouldAutoSaveChapter / build*Request / applyDraftSseEvent / applyAcceptMode / candidateAcceptedMessage / resumableDraftLoadedMessage / hasStateDiffChanges / normalizeResumableDraftPayload），53 个单元测试；保存 / 版本 / 候选稿 / state-diff / beat-sheet / actions / selection / core state 已拆为子 hook，主 hook 298 行且公共 API 不变；轻量 hook runtime 覆盖 20 条关键行为，并修复删除章节后 targetWords / lastSavedAt / version 等派生状态残留
 - ✅ **EditorClient 交互级测试**：`EditorClient.test.ts` 在不新增 jsdom / Testing Library 的前提下，用轻量 JSX/runtime mock 覆盖 Ctrl/Cmd+S 保存、防 drafting 误保存、标题/正文编辑回 idle、AI 面板开关和 ExportMenu 导出中心链接 5 条测试。
-- ✅ **Prometheus metrics 端点**：`/api/metrics`（bearer token 鉴权 via `METRICS_TOKEN`）；`lib/metrics/prometheus.ts` 自手写 text exposition formatter（无 prom-client 依赖，避开 serverless in-memory state 丢失问题）+ `lib/metrics/collector.ts` 从 Postgres 汇总 8 个 metric family（LLM 请求/Token/成本、Job 状态、Novel/Chapter 计数）；13 个测试 + .env.example 加 `METRICS_TOKEN` 注释；阈值升级到 68/68/93/83（基线 70.04/94.24/85.50）
+- ✅ **Prometheus metrics 端点**：`/api/metrics`（bearer token 鉴权 via `METRICS_TOKEN`）；`lib/metrics/prometheus.ts` 自手写 text exposition formatter（无 prom-client 依赖，避开 serverless in-memory state 丢失问题）+ `lib/metrics/collector.ts` 从 Postgres 汇总 10 个 metric family（LLM 请求/Token/成本/24h 与 30d 成本窗口/p95 耗时、Job 状态、Novel/Chapter 计数）；13 个测试 + .env.example 加 `METRICS_TOKEN` 注释；阈值升级到 68/68/93/83（基线 70.04/94.24/85.50）
+- ✅ **Sentry / Grafana alert 接入（P1-13）**：`instrumentation.ts` 通过 `onRequestError` 捕获服务端未处理请求异常；`lib/observability/sentry.ts` 按 `SENTRY_DSN` 直发 Sentry envelope（无新增 SDK 依赖，未配置时无副作用）；`observability/grafana/ai-novel-alert-rules.yaml` 提供 LLM fail rate >5%、draft SSE p95 >8s、24h cost、background job failed 四条 Grafana provisioning rule；`docs/OBSERVABILITY.md` 记录接入方式；新增 4 个 Sentry 单测。
+- ✅ **内容审核 audit trail**：`ModerationAudit` 持久化本地关键词拦截、LLM `allowed=false`、审核服务异常后的 allow/block/review 降级决策；只存 route/source/action/outcome/mode/reason/matched_pattern、sha256 与字符数，不存原文；`/api/metrics` 暴露 `ai_novel_moderation_decisions_total{source,action,outcome,window="24h"}`，可聚合 block volume、fail-open volume 与 route 热点。
+- ✅ **内容审核 review queue + TTL**：新增 `/admin/moderation` 后台复核页，按 `pending / confirmed / false_positive / ignored` 队列筛选并 PATCH 标记复核结果；`ModerationAudit` 增加 review 状态、复核人、复核时间和备注；`/api/metrics` 增加 `ai_novel_moderation_review_queue{review_status}`；`GET /api/cron/moderation-audits/cleanup` 通过 `CRON_SECRET` 每日清理超过 90 天的 audit 行，`MODERATION_AUDIT_RETENTION_MS` 可调。
+- ✅ **project-shell 轻量 RSC 测试**：`app/(app)/novels/[id]/project-shell.test.ts` 用 Vitest mock RSC 页面依赖，覆盖 owned novel detail 的 editor/export/history/chapters 入口、foreign novel notFound、导出中心空正文 disabled、AI history 查询按 user+novel+filter 限定；在本地 PostgreSQL 未就绪前先锁住项目层导航和 ownership 分支。
 - ✅ **F-04 角色关系图（编辑态 MVP）**：`/novels/[id]/relationships` 拆为 `RelationshipEditor`（client wrapper，用 `useBibleEdit` 同 characters/world/outline 三页共用）+ `RelationshipGraph`（纯展示 SVG）+ `CharacterRelationsCards`（可编辑卡片）；每条 relation 输入实时显示绿色「将连边到 X」/ 黄色「未匹配」反馈；保存 PATCH `/api/novels/:id/bible`；SaveBar 沿用 characters 编辑器同款；hover 联动覆盖 SVG 节点 + 卡片双向；`lib/bible/relations.ts` 纯函数 12 单测保持不变
 - ✅ **UX3 SSE 续传**：新增 `DraftSession` 表（migration `20260512000000`，唯一 (user, novel, chapter) 槽位）；`/draft` SSE 流开始时 upsert 行，过程中 throttled flush（≥500ms 或 ≥256 字符），结束 / 失败 / moderation 阻断时持久化最终 status；首事件推 `{event:"session",sessionId}`。新增 `GET/DELETE /api/novels/:id/chapters/draft/resume?chapter_index=N`：404 NO_DRAFT_SESSION / 200 返回 buffer + status + retrieval / DELETE 清场。客户端 `useChapterEditor` 切换章节时探测 resumable session（>10 字才弹），编辑器渲染 indigo 横幅「上次起草中断，已保留 X 字」+「恢复候选稿 / 丢弃」按钮；accept / discard 后自动 DELETE 服务端会话。`lib/agent/draftSession.ts` 助手 15 单测、resume route 10 单测；阈值仍 68/68/93/83
 
@@ -278,6 +284,9 @@ F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关
 | `app/api/admin/users/**`                          | **Phase A**：list / grant / revoke   |
 | `app/api/llm-models/**` + `app/api/embedding-models/**` | 模型配置 REST                       |
 | `lib/moderation/moderate.ts`                      | 内容审核 + `MODERATION_FAILURE_MODE`  |
+| `app/(app)/admin/moderation/page.tsx`             | 内容审核人工复核队列                    |
+| `app/api/admin/moderation-audits/**`              | 审核 audit 列表 + review 状态更新       |
+| `app/api/cron/moderation-audits/cleanup/route.ts` | `ModerationAudit` 保留期清理 cron      |
 
 ### 共享 UI / 数据
 | 文件                                                | 用途                                |

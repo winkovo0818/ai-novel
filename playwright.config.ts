@@ -25,6 +25,7 @@ export default defineConfig({
     env: {
       LLM_MOCK: "1",
       E2E_AUTH_BYPASS: "1",
+      E2E_DISABLE_RATE_LIMIT: "1",
       E2E_TEST_USER_ID: "e2e-user",
       DATABASE_URL: databaseUrl,
       DIRECT_URL: process.env.E2E_DIRECT_URL ?? databaseUrl,
