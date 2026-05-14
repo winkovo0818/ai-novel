@@ -1,12 +1,57 @@
 import { prisma } from "@/lib/db";
-import { createEmbeddings } from "@/lib/llm/embeddings";
+import { createEmbedding, createEmbeddings } from "@/lib/llm/embeddings";
 
 export type ChunkType = "scene" | "dialogue" | "character_fact" | "world_rule" | "plot_thread" | "summary";
 
 export interface Chunk {
   chunk_type: ChunkType;
   text: string;
-  metadata?: Record<string, unknown>;
+  metadata: ChunkMetadata;
+}
+
+interface ChunkMetadata {
+  length: number;
+  chunk_index: number;
+  paragraph_start: number;
+  paragraph_end: number;
+}
+
+interface IndexedParagraph {
+  text: string;
+  paragraphIndex: number;
+}
+
+interface MergedChunk {
+  text: string;
+  paragraphStart: number;
+  paragraphEnd: number;
+}
+
+class MemoryChunkIndexError extends Error {
+  constructor(
+    stage: "embedding" | "insert",
+    chunk: Chunk,
+    chunkIndex: number,
+    totalChunks: number,
+    cause: unknown,
+  ) {
+    const paragraphs =
+      chunk.metadata.paragraph_start === chunk.metadata.paragraph_end
+        ? String(chunk.metadata.paragraph_start)
+        : `${chunk.metadata.paragraph_start}-${chunk.metadata.paragraph_end}`;
+    const causeMessage = cause instanceof Error ? cause.message : String(cause);
+    const preview = chunk.text.slice(0, 80).replace(/\s+/g, " ");
+    super(
+      [
+        `MEMORY_CHUNK_INDEX_FAILED chunk=${chunkIndex + 1}/${totalChunks}`,
+        `paragraphs=${paragraphs}`,
+        `stage=${stage}`,
+        `preview="${preview}"`,
+        `cause="${causeMessage.slice(0, 300)}"`,
+      ].join(" "),
+    );
+    this.name = "MemoryChunkIndexError";
+  }
 }
 
 const MAX_CHUNK_LENGTH = 800;
@@ -24,28 +69,42 @@ function classifyChunk(text: string): ChunkType {
   return "scene";
 }
 
-function splitByParagraphs(content: string): string[] {
+function splitByParagraphs(content: string): IndexedParagraph[] {
   return content
     .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter((p) => p.length >= MIN_CHUNK_LENGTH);
+    .map((p, index) => ({ text: p.trim(), paragraphIndex: index + 1 }))
+    .filter((p) => p.text.length >= MIN_CHUNK_LENGTH);
 }
 
-function mergeShortChunks(paragraphs: string[]): string[] {
-  const result: string[] = [];
-  let current = "";
+function mergeShortChunks(paragraphs: IndexedParagraph[]): MergedChunk[] {
+  const result: MergedChunk[] = [];
+  let current: MergedChunk | null = null;
 
   for (const p of paragraphs) {
-    if (current.length + p.length > MAX_CHUNK_LENGTH && current.length >= MIN_CHUNK_LENGTH) {
-      result.push(current.trim());
-      current = p;
+    if (current && current.text.length + p.text.length > MAX_CHUNK_LENGTH && current.text.length >= MIN_CHUNK_LENGTH) {
+      result.push({ ...current, text: current.text.trim() });
+      current = {
+        text: p.text,
+        paragraphStart: p.paragraphIndex,
+        paragraphEnd: p.paragraphIndex,
+      };
     } else {
-      current = current ? `${current}\n\n${p}` : p;
+      current = current
+        ? {
+            text: `${current.text}\n\n${p.text}`,
+            paragraphStart: current.paragraphStart,
+            paragraphEnd: p.paragraphIndex,
+          }
+        : {
+            text: p.text,
+            paragraphStart: p.paragraphIndex,
+            paragraphEnd: p.paragraphIndex,
+          };
     }
   }
 
-  if (current.trim().length >= MIN_CHUNK_LENGTH) {
-    result.push(current.trim());
+  if (current && current.text.trim().length >= MIN_CHUNK_LENGTH) {
+    result.push({ ...current, text: current.text.trim() });
   }
 
   return result;
@@ -58,10 +117,15 @@ export function chunkChapterContent(content: string): Chunk[] {
   const paragraphs = splitByParagraphs(content);
   const merged = mergeShortChunks(paragraphs);
 
-  return merged.map((text) => ({
-    chunk_type: classifyChunk(text),
-    text,
-    metadata: { length: text.length },
+  return merged.map((chunk, index) => ({
+    chunk_type: classifyChunk(chunk.text),
+    text: chunk.text,
+    metadata: {
+      length: chunk.text.length,
+      chunk_index: index + 1,
+      paragraph_start: chunk.paragraphStart,
+      paragraph_end: chunk.paragraphEnd,
+    },
   }));
 }
 
@@ -77,28 +141,46 @@ export async function indexChapter(
   const chunks = chunkChapterContent(content);
   if (chunks.length === 0) return { chunks: 0 };
 
-  // Delete existing chunks for this chapter to avoid duplicates
+  const embeddings = await createEmbeddings(chunks.map((c) => c.text)).catch(async (batchErr) => {
+    const located: number[][] = [];
+    for (let i = 0; i < chunks.length; i++) {
+      try {
+        located.push(await createEmbedding(chunks[i].text));
+      } catch (err) {
+        throw new MemoryChunkIndexError("embedding", chunks[i], i, chunks.length, err);
+      }
+    }
+    return located.length === chunks.length
+      ? located
+      : Promise.reject(new MemoryChunkIndexError("embedding", chunks[0], 0, chunks.length, batchErr));
+  });
+
+  // Delete existing chunks for this chapter only after embeddings succeed.
+  // If the provider rejects one paragraph, old chunks remain queryable and
+  // the failure still points at the exact source paragraph.
   await prisma.memoryChunk.deleteMany({ where: { chapter_id: chapterId } });
 
-  const embeddings = await createEmbeddings(chunks.map((c) => c.text));
-
-  // Insert using raw SQL since embedding is a vector(1024) column
+  // Insert using raw SQL since embedding is a vector(1024) column.
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
     const embedding = embeddings[i];
     if (!embedding || embedding.length !== 1024) continue;
 
     const embeddingStr = `[${embedding.join(",")}]`;
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO "MemoryChunk" (id, novel_id, chapter_id, chunk_type, text, embedding, metadata)
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5::vector, $6)`,
-      novelId,
-      chapterId,
-      chunk.chunk_type as string,
-      chunk.text,
-      embeddingStr,
-      (chunk.metadata ?? {}) as object,
-    );
+    try {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "MemoryChunk" (id, novel_id, chapter_id, chunk_type, text, embedding, metadata)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5::vector, $6)`,
+        novelId,
+        chapterId,
+        chunk.chunk_type as string,
+        chunk.text,
+        embeddingStr,
+        chunk.metadata,
+      );
+    } catch (err) {
+      throw new MemoryChunkIndexError("insert", chunk, i, chunks.length, err);
+    }
   }
 
   return { chunks: chunks.length };

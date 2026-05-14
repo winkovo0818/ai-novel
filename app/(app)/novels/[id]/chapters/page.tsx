@@ -63,6 +63,7 @@ export default async function ChaptersPage({ params, searchParams }: PageProps) 
         index_state: status?.index,
         last_job_status: status?.lastJobStatus,
         last_job_type: status?.lastJobType,
+        last_job_error: status?.lastJobError,
         chapter_id: draft?.id,
       };
     }),

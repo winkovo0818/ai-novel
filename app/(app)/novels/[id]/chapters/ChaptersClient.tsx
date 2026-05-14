@@ -6,6 +6,10 @@ import { useState, useTransition } from "react";
 
 import { PageHeader } from "@/components/ui/PageHeader";
 import type { ChapterFreshness } from "@/lib/agent/chapterStatus";
+import {
+  formatMemoryIndexFailureLocation,
+  parseMemoryIndexFailure,
+} from "@/lib/agent/indexFailure";
 
 interface ChapterRow {
   chapter_index: number;
@@ -19,6 +23,7 @@ interface ChapterRow {
   index_state?: ChapterFreshness;
   last_job_status?: string;
   last_job_type?: string;
+  last_job_error?: string;
   chapter_id?: string;
 }
 
@@ -223,6 +228,9 @@ function ChapterRowItem({
   onRefresh(): void;
 }) {
   const isMissing = row.status === "missing";
+  const indexFailure = row.index_state === "failed"
+    ? parseMemoryIndexFailure(row.last_job_error)
+    : null;
   return (
     <div className="grid grid-cols-1 md:grid-cols-[80px_1fr_240px] gap-3 px-5 py-4 hover:bg-secondary/40 transition-colors items-center">
       <span className="text-[10px] font-bold uppercase tracking-widest text-text-muted">
@@ -236,6 +244,15 @@ function ChapterRowItem({
           {row.title}
         </Link>
         <p className="mt-0.5 text-[11px] text-text-muted line-clamp-1">{row.outline_summary}</p>
+        {indexFailure && (
+          <p
+            className="mt-1 text-[11px] text-red-600 line-clamp-2"
+            title={`${formatMemoryIndexFailureLocation(indexFailure)}：${indexFailure.preview}`}
+          >
+            {formatMemoryIndexFailureLocation(indexFailure)}
+            {indexFailure.preview ? ` · ${indexFailure.preview}` : ""}
+          </p>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-2 justify-start md:justify-end">
         <StatusBadge status={row.status} />
