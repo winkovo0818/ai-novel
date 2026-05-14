@@ -34,6 +34,10 @@ const STALE_STREAMING_TIMEOUT_MS = Number(
   process.env.DRAFT_STALE_STREAMING_MS ?? 5 * 60 * 1000,
 );
 
+const DRAFT_SESSION_RETENTION_MS = Number(
+  process.env.DRAFT_SESSION_RETENTION_MS ?? 30 * 24 * 60 * 60 * 1000,
+);
+
 export interface DraftSessionStarter {
   userId: string;
   novelId: string;
@@ -293,4 +297,20 @@ export async function dismissDraftSession(
         error: formatErrorMessage(err),
       });
     });
+}
+
+/**
+ * P1-9: remove DraftSession rows that have not been touched within the
+ * retention window. These rows are purely resumability scratch state; once
+ * the user has ignored or abandoned them for 30 days, keeping them only grows
+ * Postgres storage without improving recovery.
+ */
+export async function cleanupExpiredDraftSessions(): Promise<number> {
+  const cutoff = new Date(Date.now() - DRAFT_SESSION_RETENTION_MS);
+  const result = await prisma.draftSession.deleteMany({
+    where: {
+      updated_at: { lt: cutoff },
+    },
+  });
+  return result.count;
 }

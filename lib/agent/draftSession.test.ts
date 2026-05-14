@@ -358,3 +358,43 @@ describe("dismissDraftSession", () => {
     await expect(dismissDraftSession("user-1", "novel-1", 5)).resolves.toBeUndefined();
   });
 });
+
+describe("cleanupExpiredDraftSessions", () => {
+  it("deletes rows whose updated_at is older than the 30-day retention window (P1-9)", async () => {
+    vi.setSystemTime(new Date("2026-05-14T00:00:00Z"));
+    deleteMany.mockResolvedValue({ count: 4 });
+    const { cleanupExpiredDraftSessions } = await load();
+
+    const count = await cleanupExpiredDraftSessions();
+
+    expect(count).toBe(4);
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: {
+        updated_at: { lt: new Date("2026-04-14T00:00:00Z") },
+      },
+    });
+  });
+
+  it("respects DRAFT_SESSION_RETENTION_MS override (P1-9)", async () => {
+    const prev = process.env.DRAFT_SESSION_RETENTION_MS;
+    process.env.DRAFT_SESSION_RETENTION_MS = String(24 * 60 * 60 * 1000);
+    try {
+      vi.resetModules();
+      vi.setSystemTime(new Date("2026-05-14T12:00:00Z"));
+      deleteMany.mockResolvedValue({ count: 1 });
+      const { cleanupExpiredDraftSessions } = await load();
+
+      await cleanupExpiredDraftSessions();
+
+      expect(deleteMany).toHaveBeenCalledWith({
+        where: {
+          updated_at: { lt: new Date("2026-05-13T12:00:00Z") },
+        },
+      });
+    } finally {
+      if (prev === undefined) delete process.env.DRAFT_SESSION_RETENTION_MS;
+      else process.env.DRAFT_SESSION_RETENTION_MS = prev;
+      vi.resetModules();
+    }
+  });
+});
