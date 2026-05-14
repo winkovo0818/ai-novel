@@ -240,6 +240,43 @@ model LlmUsage {
   @@index([route])
 }
 
+/// Durable audit trail for moderation decisions.
+///
+/// This intentionally stores metadata and a sha256 of the moderated text,
+/// not the text itself. The row is enough to build review queues and route
+/// hot-spot metrics without turning the audit table into a second content
+/// store. Writes are best-effort from `moderateContent()` so an audit outage
+/// never changes the moderation decision returned to the caller.
+model ModerationAudit {
+  id              String   @id @default(uuid())
+  user_id          String?
+  novel_id         String?
+  route            String
+  source           String   // local_keyword | llm | failure_mode
+  action           String   // block | allow | review
+  outcome          String   // blocked | allowed
+  mode             String?
+  code             String?
+  reason           String?
+  matched_pattern  String?
+  /// pending | confirmed | false_positive | ignored
+  review_status    String   @default("pending")
+  reviewed_by      String?
+  reviewed_at      DateTime?
+  review_note      String?
+  text_hash        String
+  text_chars       Int
+  created_at       DateTime @default(now())
+
+  @@index([created_at])
+  @@index([review_status, created_at])
+  @@index([route, created_at])
+  @@index([source, action, created_at])
+  @@index([outcome, created_at])
+  @@index([user_id, created_at])
+  @@index([novel_id, created_at])
+}
+
 /// Background job queue for fire-and-forget memory work
 /// (chapter summarize, chunk index, tiered-summary refresh).
 /// Persisting these turns silent failures into observable rows
