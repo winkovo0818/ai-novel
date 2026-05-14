@@ -1,0 +1,161 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: ai-novel-production
+    folder: AI Novel
+    interval: 1m
+    rules:
+      - uid: ai-novel-llm-fail-rate-high
+        title: AI Novel LLM fail rate > 5%
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              expr: |
+                sum(rate(ai_novel_llm_requests_total{status="err"}[5m]))
+                /
+                clamp_min(sum(rate(ai_novel_llm_requests_total[5m])), 0.001)
+              instant: true
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0.05]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              refId: C
+              type: classic_conditions
+        for: 10m
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          summary: LLM request failure rate is above 5% for 10 minutes.
+        labels:
+          service: ai-novel
+          severity: warning
+
+      - uid: ai-novel-draft-sse-p95-high
+        title: AI Novel draft SSE p95 > 8s
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              expr: ai_novel_llm_took_ms_p95{route="/api/novels/[id]/chapters/draft",window="1h"}
+              instant: true
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [8000]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              refId: C
+              type: classic_conditions
+        for: 15m
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          summary: Chapter draft streaming p95 latency is above 8 seconds.
+        labels:
+          service: ai-novel
+          severity: warning
+
+      - uid: ai-novel-daily-cost-high
+        title: AI Novel 24h LLM cost high
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              expr: ai_novel_llm_cost_cny_window{window="24h"}
+              instant: true
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [40]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              refId: C
+              type: classic_conditions
+        for: 5m
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          summary: LLM cost over the last 24h is above 40 CNY.
+        labels:
+          service: ai-novel
+          severity: warning
+
+      - uid: ai-novel-background-job-failures
+        title: AI Novel background job failures
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              expr: increase(ai_novel_jobs_total{status="failed"}[15m])
+              instant: true
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              refId: C
+              type: classic_conditions
+        for: 1m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: At least one background job failed in the last 15 minutes.
+        labels:
+          service: ai-novel
+          severity: warning
