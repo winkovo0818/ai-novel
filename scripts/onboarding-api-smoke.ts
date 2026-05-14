@@ -74,7 +74,7 @@ async function main() {
   assert(Boolean(finalized.novel_id), "novel_id should be returned");
   console.log(`[smoke] finalized=${finalized.editor_url}`);
 
-  const chapter = await postJson<{ id: string; content: string }>(
+  const chapter = await postJson<{ id: string; content: string; version: number }>(
     `/api/novels/${finalized.novel_id}/chapters`,
     {
       chapter_index: 1,
@@ -96,7 +96,7 @@ async function main() {
 
   const updated = await patchJson<{ id: string; content: string }>(
     `/api/chapters/${chapter.id}`,
-    { content: generated },
+    { content: generated, expected_version: chapter.version },
   );
   assert(updated.content === generated, "chapter update should persist generated content");
   console.log("[smoke] chapter updated");
@@ -123,8 +123,8 @@ async function main() {
   console.log(`[smoke] chapter 2 generated chars=${generatedSecond.length}`);
 
   await expectPostFailure(`/api/novels/${finalized.novel_id}/chapters`, {
-    chapter_index: 99,
-    title: "越界章节",
+    chapter_index: 0,
+    title: "非法章节",
     content: "不应保存。",
     status: "draft",
   }, "INVALID_INPUT");
