@@ -1,5 +1,8 @@
+import { createHash } from "node:crypto";
+
+import { prisma } from "@/lib/db";
 import { chatCompletion } from "@/lib/llm/client";
-import { errorMessage, logError, logWarn } from "@/lib/observability/logger";
+import { errorMessage, logError, logEvent, logWarn, type LogLevel } from "@/lib/observability/logger";
 
 export type ModerationFailureMode = "allow" | "block" | "review";
 
@@ -19,6 +22,19 @@ export interface ModerationResult {
 export interface ModerationInput {
   route: string;
   text: string;
+  userId?: string | null;
+  novelId?: string | null;
+}
+
+interface ModerationDecisionFields {
+  source: "local_keyword" | "llm" | "failure_mode";
+  action: "block" | "allow" | "review";
+  outcome: "blocked" | "allowed";
+  mode?: ModerationFailureMode;
+  code?: "MODERATION_BLOCKED";
+  reason?: string;
+  matched_pattern?: string;
+  error?: string;
 }
 
 const MODERATION_PROMPT = `你是一个内容安全审核员。判断以下文本是否包含违法违规内容，包括但不限于：
@@ -33,6 +49,10 @@ const MODERATION_PROMPT = `你是一个内容安全审核员。判断以下文�
 - 违规内容：{"allowed": false, "reason": "简要说明违规类型"}
 
 仅回复 JSON，不要其他内容。`;
+
+const MODERATION_AUDIT_RETENTION_MS = Number(
+  process.env.MODERATION_AUDIT_RETENTION_MS ?? 90 * 24 * 60 * 60 * 1000,
+);
 
 /**
  * Hard-blocked keyword patterns. A match is ALWAYS rejected regardless of
@@ -70,20 +90,23 @@ export function matchBlockedKeywords(text: string): BlockedKeywordMatch | null {
   return null;
 }
 
-function localKeywordCheck(text: string): ModerationResult | null {
-  const match = matchBlockedKeywords(text);
-  if (!match) return null;
-  return {
-    allowed: false,
-    code: "MODERATION_BLOCKED",
-    reason: match.reason,
-  };
-}
-
 export async function moderateContent(input: ModerationInput): Promise<ModerationResult> {
   // Local keywords are ALWAYS a hard block, regardless of failure mode.
-  const localResult = localKeywordCheck(input.text);
-  if (localResult) return localResult;
+  const localHit = matchBlockedKeywords(input.text);
+  if (localHit) {
+    await recordModerationDecision("warn", input, {
+      source: "local_keyword",
+      action: "block",
+      outcome: "blocked",
+      code: "MODERATION_BLOCKED",
+      matched_pattern: localHit.pattern.source,
+    });
+    return {
+      allowed: false,
+      code: "MODERATION_BLOCKED",
+      reason: localHit.reason,
+    };
+  }
 
   try {
     const result = await chatCompletion({
@@ -103,6 +126,13 @@ export async function moderateContent(input: ModerationInput): Promise<Moderatio
     };
 
     if (parsed.allowed === false) {
+      await recordModerationDecision("warn", input, {
+        source: "llm",
+        action: "block",
+        outcome: "blocked",
+        code: "MODERATION_BLOCKED",
+        reason: parsed.reason ?? "内容审核未通过",
+      });
       return {
         allowed: false,
         code: "MODERATION_BLOCKED",
@@ -121,6 +151,14 @@ export async function moderateContent(input: ModerationInput): Promise<Moderatio
         mode,
         error: message,
       });
+      await recordModerationDecision("error", input, {
+        source: "failure_mode",
+        action: "block",
+        outcome: "blocked",
+        mode,
+        code: "MODERATION_BLOCKED",
+        error: message,
+      });
       return {
         allowed: false,
         code: "MODERATION_BLOCKED",
@@ -134,6 +172,13 @@ export async function moderateContent(input: ModerationInput): Promise<Moderatio
         mode,
         error: message,
       });
+      await recordModerationDecision("warn", input, {
+        source: "failure_mode",
+        action: "review",
+        outcome: "allowed",
+        mode,
+        error: message,
+      });
       // In review mode we allow but flag; caller can log or queue for human review.
       return { allowed: true };
     }
@@ -144,6 +189,13 @@ export async function moderateContent(input: ModerationInput): Promise<Moderatio
       mode,
       error: message,
     });
+    await recordModerationDecision("warn", input, {
+      source: "failure_mode",
+      action: "allow",
+      outcome: "allowed",
+      mode,
+      error: message,
+    });
     return { allowed: true };
   }
 }
@@ -151,4 +203,62 @@ export async function moderateContent(input: ModerationInput): Promise<Moderatio
 export function stringifyForModeration(value: unknown): string {
   if (typeof value === "string") return value;
   return JSON.stringify(value);
+}
+
+export async function cleanupExpiredModerationAudits(): Promise<number> {
+  const cutoff = new Date(Date.now() - MODERATION_AUDIT_RETENTION_MS);
+  const result = await prisma.moderationAudit.deleteMany({
+    where: {
+      created_at: { lt: cutoff },
+    },
+  });
+  return result.count;
+}
+
+async function recordModerationDecision(
+  level: LogLevel,
+  input: ModerationInput,
+  decision: ModerationDecisionFields,
+): Promise<void> {
+  const fields = {
+    route: input.route,
+    ...decision,
+  };
+
+  logEvent(level, "moderation.decision", fields);
+
+  try {
+    const auditClient = (
+      prisma as typeof prisma & {
+        moderationAudit?: {
+          create: typeof prisma.moderationAudit.create;
+        };
+      }
+    ).moderationAudit;
+    if (!auditClient) return;
+
+    await auditClient.create({
+      data: {
+        user_id: input.userId ?? null,
+        novel_id: input.novelId ?? null,
+        route: input.route,
+        source: decision.source,
+        action: decision.action,
+        outcome: decision.outcome,
+        mode: decision.mode ?? null,
+        code: decision.code ?? null,
+        reason: decision.reason ?? null,
+        matched_pattern: decision.matched_pattern ?? null,
+        text_hash: createHash("sha256").update(input.text).digest("hex"),
+        text_chars: input.text.length,
+      },
+    });
+  } catch (err) {
+    logWarn("moderation.audit_persist_failed", {
+      route: input.route,
+      source: decision.source,
+      action: decision.action,
+      error: errorMessage(err),
+    });
+  }
 }

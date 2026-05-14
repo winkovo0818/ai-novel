@@ -19,6 +19,11 @@ export async function collectMetrics(): Promise<MetricFamily[]> {
   const [
     llmByStatus,
     llmByAgent,
+    llmCost24h,
+    llmCost30d,
+    llmP95ByRoute,
+    moderationDecisions24h,
+    moderationReviewQueue,
     jobsByStatus,
     jobsActive,
     novelCount,
@@ -32,6 +37,40 @@ export async function collectMetrics(): Promise<MetricFamily[]> {
       by: ["agent"],
       _count: { _all: true },
       _sum: { token_in: true, token_out: true, cost_cny: true },
+    }),
+    prisma.llmUsage.aggregate({
+      where: {
+        status: "ok",
+        created_at: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      },
+      _sum: { cost_cny: true },
+    }),
+    prisma.llmUsage.aggregate({
+      where: {
+        status: "ok",
+        created_at: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      },
+      _sum: { cost_cny: true },
+    }),
+    prisma.$queryRaw<Array<{ route: string; p95_ms: number | bigint }>>`
+      SELECT
+        route,
+        percentile_disc(0.95) WITHIN GROUP (ORDER BY took_ms) AS p95_ms
+      FROM "LlmUsage"
+      WHERE took_ms IS NOT NULL
+        AND created_at >= NOW() - INTERVAL '1 hour'
+      GROUP BY route
+    `,
+    prisma.moderationAudit.groupBy({
+      by: ["source", "action", "outcome"],
+      where: {
+        created_at: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      },
+      _count: { _all: true },
+    }),
+    prisma.moderationAudit.groupBy({
+      by: ["review_status"],
+      _count: { _all: true },
     }),
     prisma.backgroundJob.groupBy({
       by: ["status"],
@@ -94,6 +133,57 @@ export async function collectMetrics(): Promise<MetricFamily[]> {
     samples: llmByAgent.map((row) => ({
       labels: { agent: row.agent ?? "unknown" },
       value: Number((row._sum.cost_cny ?? 0).toFixed(6)),
+    })),
+  });
+
+  families.push({
+    name: "ai_novel_llm_cost_cny_window",
+    help: "LLM cost in CNY over recent alerting windows.",
+    type: "gauge",
+    samples: [
+      {
+        labels: { window: "24h" },
+        value: Number((llmCost24h._sum.cost_cny ?? 0).toFixed(6)),
+      },
+      {
+        labels: { window: "30d" },
+        value: Number((llmCost30d._sum.cost_cny ?? 0).toFixed(6)),
+      },
+    ],
+  });
+
+  families.push({
+    name: "ai_novel_llm_took_ms_p95",
+    help: "LLM request p95 latency in milliseconds by route over the last hour.",
+    type: "gauge",
+    samples: llmP95ByRoute.map((row) => ({
+      labels: { route: row.route, window: "1h" },
+      value: Number(row.p95_ms),
+    })),
+  });
+
+  families.push({
+    name: "ai_novel_moderation_decisions_total",
+    help: "Moderation decisions over recent alerting windows.",
+    type: "gauge",
+    samples: moderationDecisions24h.map((row) => ({
+      labels: {
+        source: row.source,
+        action: row.action,
+        outcome: row.outcome,
+        window: "24h",
+      },
+      value: row._count._all,
+    })),
+  });
+
+  families.push({
+    name: "ai_novel_moderation_review_queue",
+    help: "Current moderation audit rows by review status.",
+    type: "gauge",
+    samples: moderationReviewQueue.map((row) => ({
+      labels: { review_status: row.review_status },
+      value: row._count._all,
     })),
   });
 

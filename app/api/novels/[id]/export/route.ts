@@ -97,6 +97,8 @@ export async function GET(request: Request, context: RouteContext) {
     const moderation = await moderateContent({
       route: `/api/novels/:id/export`,
       text: moderationText,
+      userId,
+      novelId: id,
     });
     if (!moderation.allowed) {
       return Response.json(

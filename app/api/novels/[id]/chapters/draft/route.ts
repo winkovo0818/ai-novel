@@ -87,6 +87,8 @@ export async function POST(request: Request, context: RouteContext) {
   const inputModeration = await moderateContent({
     route: ROUTE,
     text: stringifyForModeration({ title: input.title, existing_content: input.existing_content }),
+    userId,
+    novelId: id,
   });
   if (!inputModeration.allowed) {
     return jsonError(
@@ -261,6 +263,8 @@ export async function POST(request: Request, context: RouteContext) {
         const outputModeration = await moderateContent({
           route: ROUTE,
           text: content,
+          userId,
+          novelId: id,
         });
         if (!outputModeration.allowed) {
           await flusher.flush();

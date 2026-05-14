@@ -52,6 +52,8 @@ export async function PATCH(request: Request, context: RouteContext) {
   const moderation = await moderateContent({
     route: ROUTE,
     text: stringifyForModeration(parsed.data.content),
+    userId,
+    novelId: id,
   });
   if (!moderation.allowed) {
     return jsonError(

@@ -205,6 +205,8 @@ describe("PATCH /api/novels/[id]/bible", () => {
     expect(moderateContent).toHaveBeenCalledWith({
       route: "/api/novels/:id/bible",
       text: JSON.stringify(validBible),
+      userId: "user-1",
+      novelId: "novel-1",
     });
   });
 });

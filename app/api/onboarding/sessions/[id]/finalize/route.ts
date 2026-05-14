@@ -43,6 +43,7 @@ export async function POST(request: Request, context: RouteContext) {
     const moderation = await moderateContent({
       route: "/api/onboarding/sessions/:id/finalize",
       text: stringifyForModeration(draft),
+      userId,
     });
     if (!moderation.allowed) {
       return jsonError(

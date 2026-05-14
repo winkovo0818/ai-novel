@@ -81,7 +81,12 @@ export async function PATCH(request: Request, context: RouteContext) {
         title: updateData.title ?? existing.title,
         content: updateData.content ?? existing.content,
       });
-      const moderation = await moderateContent({ route: "/api/chapters/:id", text });
+      const moderation = await moderateContent({
+        route: "/api/chapters/:id",
+        text,
+        userId,
+        novelId: existing.novel_id,
+      });
       if (!moderation.allowed) {
         return jsonError(
           moderation.code ?? "MODERATION_BLOCKED",

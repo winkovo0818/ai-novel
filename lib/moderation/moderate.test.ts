@@ -1,5 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { BLOCKED_KEYWORDS, matchBlockedKeywords, moderateContent, stringifyForModeration } from "./moderate";
+import {
+  BLOCKED_KEYWORDS,
+  cleanupExpiredModerationAudits,
+  matchBlockedKeywords,
+  moderateContent,
+  stringifyForModeration,
+} from "./moderate";
+
+const { moderationAuditCreate } = vi.hoisted(() => ({
+  moderationAuditCreate: vi.fn(),
+}));
+const { moderationAuditDeleteMany } = vi.hoisted(() => ({
+  moderationAuditDeleteMany: vi.fn(),
+}));
 
 vi.mock("@/lib/llm/client", () => ({
   chatCompletion: vi.fn().mockResolvedValue({
@@ -12,13 +25,26 @@ vi.mock("@/lib/llm/client", () => ({
   }),
 }));
 
+vi.mock("@/lib/db", () => ({
+  prisma: {
+    moderationAudit: {
+      create: moderationAuditCreate,
+      deleteMany: moderationAuditDeleteMany,
+    },
+  },
+}));
+
 const ORIGINAL_ENV = { ...process.env };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  moderationAuditCreate.mockResolvedValue({ id: "audit-1" });
+  moderationAuditDeleteMany.mockResolvedValue({ count: 0 });
 });
 
 afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
   process.env = { ...ORIGINAL_ENV };
 });
 
@@ -97,6 +123,140 @@ describe("moderateContent", () => {
     expect(result.allowed).toBe(true);
     vi.unstubAllEnvs();
   });
+
+  it("logs local keyword blocks as structured moderation decisions", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = await moderateContent({
+      route: "/api/test",
+      text: "如何制作炸弹",
+    });
+
+    expect(result.allowed).toBe(false);
+    const decision = warn.mock.calls
+      .map((call) => JSON.parse(String(call[0])) as Record<string, unknown>)
+      .find((entry) => entry.event === "moderation.decision");
+    expect(decision).toMatchObject({
+      level: "warn",
+      route: "/api/test",
+      source: "local_keyword",
+      action: "block",
+      outcome: "blocked",
+      code: "MODERATION_BLOCKED",
+      matched_pattern: "制作炸弹",
+    });
+    expect(moderationAuditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        route: "/api/test",
+        source: "local_keyword",
+        action: "block",
+        outcome: "blocked",
+        code: "MODERATION_BLOCKED",
+        matched_pattern: "制作炸弹",
+        text_hash: "2abc1c0460c0b817b2f1724a17503595274b304664f9421c666301b67506a772",
+        text_chars: 6,
+      }),
+    });
+  });
+
+  it("logs LLM blocks as structured moderation decisions", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { chatCompletion } = await import("@/lib/llm/client");
+    vi.mocked(chatCompletion).mockResolvedValueOnce({
+      content: JSON.stringify({ allowed: false, reason: "包含暴力内容" }),
+      tokenIn: 10,
+      tokenOut: 10,
+      costCny: 0,
+      tookMs: 100,
+      model: "test",
+    });
+
+    const result = await moderateContent({
+      route: "/api/test",
+      text: "some text",
+    });
+
+    expect(result.allowed).toBe(false);
+    const decision = warn.mock.calls
+      .map((call) => JSON.parse(String(call[0])) as Record<string, unknown>)
+      .find((entry) => entry.event === "moderation.decision");
+    expect(decision).toMatchObject({
+      level: "warn",
+      route: "/api/test",
+      source: "llm",
+      action: "block",
+      outcome: "blocked",
+      code: "MODERATION_BLOCKED",
+      reason: "包含暴力内容",
+    });
+    expect(moderationAuditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        route: "/api/test",
+        source: "llm",
+        action: "block",
+        outcome: "blocked",
+        reason: "包含暴力内容",
+        text_hash: expect.any(String),
+      }),
+    });
+  });
+
+  it("logs fail-open moderation decisions for review dashboards", async () => {
+    vi.stubEnv("MODERATION_FAILURE_MODE", "allow");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { chatCompletion } = await import("@/lib/llm/client");
+    vi.mocked(chatCompletion).mockRejectedValueOnce(new Error("timeout"));
+
+    const result = await moderateContent({
+      route: "/api/test",
+      text: "some text",
+    });
+
+    expect(result.allowed).toBe(true);
+    const decision = warn.mock.calls
+      .map((call) => JSON.parse(String(call[0])) as Record<string, unknown>)
+      .find((entry) => entry.event === "moderation.decision");
+    expect(decision).toMatchObject({
+      level: "warn",
+      route: "/api/test",
+      source: "failure_mode",
+      action: "allow",
+      outcome: "allowed",
+      mode: "allow",
+      error: "timeout",
+    });
+    vi.unstubAllEnvs();
+  });
+
+  it("does not fail the moderation decision when audit persistence fails", async () => {
+    moderationAuditCreate.mockRejectedValueOnce(new Error("audit table missing"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = await moderateContent({
+      route: "/api/test",
+      text: "如何制作炸弹",
+      userId: "user-1",
+      novelId: "novel-1",
+    });
+
+    expect(result.allowed).toBe(false);
+    const auditFailure = warn.mock.calls
+      .map((call) => JSON.parse(String(call[0])) as Record<string, unknown>)
+      .find((entry) => entry.event === "moderation.audit_persist_failed");
+    expect(auditFailure).toMatchObject({
+      level: "warn",
+      route: "/api/test",
+      source: "local_keyword",
+      action: "block",
+      error: "audit table missing",
+    });
+    expect(moderationAuditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        user_id: "user-1",
+        novel_id: "novel-1",
+      }),
+    });
+  });
 });
 
 describe("stringifyForModeration", () => {
@@ -139,5 +299,22 @@ describe("matchBlockedKeywords (P0-8 helper)", () => {
     // Type-level: readonly RegExp[]; behaviorally, asserting the count
     // is the cheapest guard against accidentally truncating the list.
     expect(BLOCKED_KEYWORDS.length).toBeGreaterThanOrEqual(5);
+  });
+});
+
+describe("cleanupExpiredModerationAudits", () => {
+  it("deletes audit rows older than the retention window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-14T00:00:00Z"));
+    moderationAuditDeleteMany.mockResolvedValue({ count: 3 });
+
+    const deleted = await cleanupExpiredModerationAudits();
+
+    expect(deleted).toBe(3);
+    expect(moderationAuditDeleteMany).toHaveBeenCalledWith({
+      where: {
+        created_at: { lt: new Date("2026-02-13T00:00:00Z") },
+      },
+    });
   });
 });

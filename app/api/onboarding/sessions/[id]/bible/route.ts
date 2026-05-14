@@ -107,6 +107,7 @@ export async function POST(request: Request, context: RouteContext) {
   const moderation = await moderateContent({
     route: ROUTE,
     text: stringifyForModeration({ logline: input.logline, answers: input.answers }),
+    userId,
   });
   if (!moderation.allowed) {
     return Response.json(
@@ -218,6 +219,7 @@ export async function POST(request: Request, context: RouteContext) {
         const outputModeration = await moderateContent({
           route: ROUTE,
           text: stringifyForModeration(draft),
+          userId,
         });
         if (!outputModeration.allowed) {
           send(
