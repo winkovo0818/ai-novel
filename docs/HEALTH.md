@@ -18,6 +18,7 @@
 
 ## 最近更新
 
+- **2026-05-15 (本地 smoke 通过)** — `scripts/onboarding-api-smoke.ts` 跟随当前章节乐观锁契约更新：章节 PATCH 带 `expected_version`，负向章节创建用 `chapter_index=0` 断言 `INVALID_INPUT`。本地 `npm run smoke:onboarding` 已通过，覆盖 onboarding session、logline、questions、Bible SSE、finalize、章节创建、章节起草 SSE、章节 PATCH 持久化、novel 回读、第二章起草和非法章节拒绝。
 - **2026-05-14 (内容审核 review queue + TTL)** — 新增 `/admin/moderation` 人工复核队列，`GET/PATCH /api/admin/moderation-audits` 支持按 review 状态筛选与确认/误杀/忽略；`ModerationAudit` 增加 review 状态、复核人、复核时间和备注，`collectMetrics()` 增加 `ai_novel_moderation_review_queue{review_status}`；新增 `GET /api/cron/moderation-audits/cleanup` + `vercel.json` 每日 03:20 UTC 清理超过 90 天 audit 行，`MODERATION_AUDIT_RETENTION_MS` 可调。新增 14 条 review/TTL/metrics 回归测试，Vitest 666 → 680 tests；API route 39 → 42，page.tsx 21 → 22。
 - **2026-05-14 (内容审核 audit trail)** — 新增 `ModerationAudit` Prisma model + migration `20260514010000_add_moderation_audit`，`moderateContent()` 在 block / fail-open / review 决策时 best-effort 写入审核元数据（不存原文，只存 sha256 + 字符数）；`collectMetrics()` 增加 `ai_novel_moderation_decisions_total{source,action,outcome,window="24h"}`。新增 1 条 audit 持久化失败不影响审核决策测试，Vitest 665 → 666 tests；Prisma migrations 22 → 23，models 15 → 16。
 - **2026-05-14 (内容审核观测闭环)** — `moderateContent()` 在本地关键词拦截、LLM `allowed=false`、审核服务异常后的 allow/block/review 降级路径统一输出 `moderation.decision` 结构化日志，字段包含 `route/source/action/outcome/mode/matched_pattern`，不记录正常安全通过以控制日志量；`docs/OBSERVABILITY.md` 增加 Moderation Decisions 说明。新增 3 条日志字段回归测试，Vitest 662 → 665 tests。
@@ -72,6 +73,7 @@
 | `npm run test` | ✅ **82 files / 680 tests** 全绿,约 11s | 本轮 +14 moderation review queue / TTL tests |
 | `npm run build` | ✅ 通过 | |
 | Playwright E2E | ✅ 8 tests（onboarding / editor-failure / editor-candidate × 4 / version-restore / beat-to-draft）全绿；P0-1 后按钮文案对齐 M1.3 候选稿模式 | 本轮全量 `npx playwright test` 已通过 |
+| `npm run smoke:onboarding` | ✅ 通过 | 2026-05-15 本地生产服务 + `LLM_MOCK=1` |
 | Coverage（v8） | ✅ lines/statements 68 · functions 93 · branches 83 阈值入 CI；基线 70.04/94.24/85.50 | summaries / handlers / chapterStatus 100% |
 | Prisma migrations | 23 条 | 含 `20260514010000_add_moderation_audit`；部署前需 `prisma migrate deploy` |
 
@@ -174,7 +176,7 @@ F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关
 
 > 完成任意一件后回到本文档勾掉对应 §三 待办、刷新 §一 基线、并在 §最近更新 加一行摘要。
 
-1. **发布前完整 smoke** — 跑一次 DB deploy / smoke / 全量 Playwright，确认当前远端或本地 E2E 数据库状态适合发布前验收。
+1. **生产环境发布 smoke** — 部署后对生产地址跑 `/api/healthz`、登录、onboarding、起草、导出和 cron 鉴权检查，确认 env 与数据库迁移状态一致。
 2. **内容审核策略复盘** — review queue 跑一段真实样本后，按 false-positive / confirmed 比例调整关键词与 LLM 审核提示词。
 
 ---
