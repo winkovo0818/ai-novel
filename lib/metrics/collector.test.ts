@@ -166,6 +166,33 @@ describe("collectMetrics", () => {
     ]);
   });
 
+  it("bounds the moderation review_queue groupBy with a 30d created_at window", async () => {
+    llmGroupBy.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    llmAggregate
+      .mockResolvedValueOnce({ _sum: { cost_cny: null } })
+      .mockResolvedValueOnce({ _sum: { cost_cny: null } });
+    queryRaw.mockResolvedValue([]);
+    moderationGroupBy.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    jobGroupBy.mockResolvedValue([]);
+    jobCount.mockResolvedValue(0);
+    novelCount.mockResolvedValue(0);
+    chapterGroupBy.mockResolvedValue([]);
+
+    const before = Date.now();
+    const { collectMetrics } = await import("./collector");
+    await collectMetrics();
+    const after = Date.now();
+
+    const reviewCall = moderationGroupBy.mock.calls.find(
+      (call) => call[0]?.by?.[0] === "review_status",
+    );
+    expect(reviewCall).toBeDefined();
+    const gte = reviewCall![0].where.created_at.gte as Date;
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    expect(gte.getTime()).toBeGreaterThanOrEqual(before - thirtyDaysMs);
+    expect(gte.getTime()).toBeLessThanOrEqual(after - thirtyDaysMs);
+  });
+
   it("treats null _sum aggregates as zero so empty tables don't emit NaN", async () => {
     llmGroupBy
       .mockResolvedValueOnce([])

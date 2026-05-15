@@ -70,6 +70,13 @@ export async function collectMetrics(): Promise<MetricFamily[]> {
     }),
     prisma.moderationAudit.groupBy({
       by: ["review_status"],
+      // Bound the scan with the leading column of @@index([review_status,
+      // created_at]) — without a window this becomes a full-table seq scan
+      // as the 90-day retention grows. 30d matches the operational horizon
+      // for unresolved review backlog; older rows fall off the audit dashboard.
+      where: {
+        created_at: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+      },
       _count: { _all: true },
     }),
     prisma.backgroundJob.groupBy({
