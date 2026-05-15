@@ -1,4 +1,5 @@
 import { cleanupExpiredDraftSessions } from "@/lib/agent/draftSession";
+import { errorMessage, logError } from "@/lib/observability/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +34,12 @@ export async function GET(request: Request) {
       { ok: true, deleted },
       { status: 200, headers: { "Cache-Control": "no-store" } },
     );
-  } catch {
+  } catch (err) {
+    // Vercel cron retries are at most once per schedule, so a silent failure
+    // would be invisible until the audit / draft tables visibly bloat. Log a
+    // structured event so the existing log pipeline catches it; the response
+    // body still hides internals.
+    logError("cron.draft_sessions_cleanup.failed", { error: errorMessage(err) });
     return Response.json(
       { error: "draft_session_cleanup_failed" },
       { status: 500, headers: { "Cache-Control": "no-store" } },

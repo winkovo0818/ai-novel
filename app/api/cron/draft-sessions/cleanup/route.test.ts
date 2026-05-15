@@ -69,11 +69,18 @@ describe("GET /api/cron/draft-sessions/cleanup", () => {
   it("returns 500 without leaking internals when cleanup throws", async () => {
     vi.stubEnv("CRON_SECRET", "secret");
     cleanupExpiredDraftSessions.mockRejectedValue(new Error("db password leaked here"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const { GET } = await import("./route");
 
     const res = await GET(buildRequest({ authorization: "Bearer secret" }));
 
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "draft_session_cleanup_failed" });
+    // Cron failures must be observable — silent catch swallows real DB outages.
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    const logLine = consoleError.mock.calls[0][0] as string;
+    expect(logLine).toContain('"event":"cron.draft_sessions_cleanup.failed"');
+    expect(logLine).toContain("db password leaked here");
+    consoleError.mockRestore();
   });
 });

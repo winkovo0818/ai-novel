@@ -1,4 +1,5 @@
 import { cleanupExpiredModerationAudits } from "@/lib/moderation/moderate";
+import { errorMessage, logError } from "@/lib/observability/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +28,10 @@ export async function GET(request: Request) {
       { ok: true, deleted },
       { status: 200, headers: { "Cache-Control": "no-store" } },
     );
-  } catch {
+  } catch (err) {
+    // See draft-sessions/cleanup/route.ts for rationale: cron failures
+    // need a structured log line so they don't go unnoticed.
+    logError("cron.moderation_audits_cleanup.failed", { error: errorMessage(err) });
     return Response.json(
       { error: "moderation_audit_cleanup_failed" },
       { status: 500, headers: { "Cache-Control": "no-store" } },
