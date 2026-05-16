@@ -40,7 +40,7 @@
 - **2026-05-13 (chapterStatus dirty 组合快照)** — `lib/agent/chapterStatus.test.ts` 增加 summary/index dirty 位、missing rows、pending/running/failed job 优先级 inline snapshot，锁住章节管理页状态徽章判定矩阵。Vitest 590 → 591 tests。
 - **2026-05-13 (P2-9 结构化 logger)** — 新增 `lib/observability/logger.ts`，统一输出 `{ts,level,event,...fields}` JSON 单行日志；`llm.call`、usage quota/persist、moderation fallback/inline block、rate-limit Upstash、draft session best-effort、retrieval、jobs drain 运行时日志全部从裸 `console.*` 收敛为事件字段。新增 `logger.test.ts` 3 tests，Vitest 587 → 590 tests，Files 72 → 73。
 - **2026-05-13 (编辑器 selection/core hook 拆分)** — 将章节切换确认/候选稿丢弃/reset 流程抽到 `useChapterSelection.ts`，基础 editor state + `resetEditorState` 抽到 `useChapterCoreState.ts`；`useChapterEditor.ts` 342 → 298 行，`useChapterHooks.test.ts` 补章节切换 3 条测试，Vitest 579 → 582 tests。
-- **2026-05-13 (CSP nonce middleware)** — `middleware.ts` 每请求生成 nonce，`lib/security/csp.ts` 注入 request/response `Content-Security-Policy` + `x-nonce`，Supabase middleware 保留 forwarded headers；策略无 `unsafe-inline`，生产无 `unsafe-eval`，同时清理 JSX `style={{...}}` 为 `progress` / class / SVG 属性。新增 `csp.test.ts` 5 tests，Vitest 582 → 587 tests。
+- **2026-05-13 (CSP nonce middleware)** — `middleware.ts` 每请求生成 nonce，`lib/security/csp.ts` 注入 request/response `Content-Security-Policy` + `x-nonce`，Auth.js middleware 保留 forwarded headers；策略无 `unsafe-inline`，生产无 `unsafe-eval`，同时清理 JSX `style={{...}}` 为 `progress` / class / SVG 属性。新增 `csp.test.ts` 5 tests，Vitest 582 → 587 tests。
 - **2026-05-13 (编辑器 actions hook 拆分)** — 将删除章节与全书一致性检查抽到 `useChapterActions.ts`，`AIPanel` 的 `ConsistencyResult` 类型改从 actions hook 导入；`useChapterEditor.ts` 393 → 342 行，`useChapterHooks.test.ts` 补删除确认/取消、一致性成功/失败 4 条测试，Vitest 575 → 579 tests。
 - **2026-05-13 (编辑器 hook 行为测试扩展)** — `useChapterHooks.test.ts` 用轻量 hook runtime 覆盖 `useChapterPersistence` 保存同步 / 409 冲突、`useChapterVersions` 历史加载 / 恢复回填 / 保留本地冲突稿、`useChapterDrafting` SSE 起草 / 候选稿追加接受 / 丢弃续传 session、`useChapterStateDiff` 手动/待处理 diff、`useChapterBeatSheet` 生成/第 1 章拒绝；Vitest 70 → 71 files，563 → 575 tests。
 - **2026-05-13 (useChapterEditor 子 hook 拆分)** — 将章节保存 / autosave / 目标字数 PATCH 抽到 `useChapterPersistence.ts`，历史版本加载、恢复回填、409 冲突加载/保留抽到 `useChapterVersions.ts`，候选稿生成/接受/续传草稿抽到 `useChapterDrafting.ts`，状态分析抽到 `useChapterStateDiff.ts`，章节拍抽到 `useChapterBeatSheet.ts`；`useChapterEditor.ts` 895 → 393 行，编辑器主 hook 只保留章节选择、删除、consistency 编排。
@@ -70,14 +70,14 @@
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
 | `npm run lint` | ✅ 通过（零 warning） | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **82 files / 680 tests** 全绿,约 11s | 本轮 +14 moderation review queue / TTL tests |
+| `npm run test` | ✅ **86 files / 689 tests** 全绿,约 12s | 本轮 +9 Auth.js/password tests |
 | `npm run build` | ✅ 通过 | |
 | Playwright E2E | ✅ 8 tests（onboarding / editor-failure / editor-candidate × 4 / version-restore / beat-to-draft）全绿；P0-1 后按钮文案对齐 M1.3 候选稿模式 | 本轮全量 `npx playwright test` 已通过 |
 | `npm run smoke:onboarding` | ✅ 通过 | 2026-05-15 本地生产服务 + `LLM_MOCK=1` |
 | Coverage（v8） | ✅ lines/statements 68 · functions 93 · branches 83 阈值入 CI；基线 70.04/94.24/85.50 | summaries / handlers / chapterStatus 100% |
-| Prisma migrations | 23 条 | 含 `20260514010000_add_moderation_audit`；部署前需 `prisma migrate deploy` |
+| Prisma migrations | 24 条 | 含 `20260515010000_add_authjs_tables`；部署前需 `prisma migrate deploy` |
 
-**规模**：业务源码 17,500+ LoC（136 ts/tsx）；测试 7,600+ LoC（82 个 .test.ts）；42 个 API route + 22 个 page.tsx；16 个 Prisma model。
+**规模**：业务源码 17,500+ LoC（136 ts/tsx）；测试 7,600+ LoC（86 个 .test.ts）；46 个 API route + 22 个 page.tsx；20 个 Prisma model。
 
 ---
 
@@ -126,7 +126,7 @@
 ### 体检中新发现
 
 - [x] **rateLimit Redis 适配器** ✅ Upstash REST 落地（2026-05-12），fail-open 异常路径 + 接口转 async + normalizeRouteKey bug 顺手修复
-- [x] **`/api/healthz` 合并探针** ✅ DB + pgvector + Supabase 三维（2026-05-12），200/503 + 子系统级 code 分类
+- [x] **`/api/healthz` 合并探针** ✅ DB + pgvector + Auth.js config 三维（2026-05-12/15），200/503 + 子系统级 code 分类
 - [x] **`useChapterEditor.ts`（307 行，hook + 交互覆盖起步）** ✅ 已压到 310 行以内 — 纯函数、持久化 / 版本 / 候选稿 / state-diff / beat-sheet / actions / selection / core state 均已拆出，并补关键路径轻量 hook 测试与 EditorClient 交互布线测试；后续如需更高信心再切 jsdom + RTL
 - [x] **`lib/agent/summaries.ts`** ✅ 100% 覆盖（2026-05-11 深夜）
 - [x] **`lib/jobs/handlers.ts`** ✅ 100% 覆盖（2026-05-11 深夜）

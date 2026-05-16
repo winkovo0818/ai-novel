@@ -12,22 +12,22 @@
 |-----------------------------|-------------------------------------------------------------------------------------------------------------|
 | `npm run typecheck`         | ✅ 通过                                                                                                        |
 | `npm run lint` (`eslint .`) | ✅ 通过                                                                                                        |
-| `npm run test` (Vitest)     | ✅ 通过，**82 files / 680 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
+| `npm run test` (Vitest)     | ✅ 通过，**86 files / 689 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
 | `npm run build`             | ✅ 通过                                                            |
 | `tests/e2e/` (Playwright)   | ✅ 8 tests（onboarding / editor-failure / editor-candidate × 4 / version-restore / beat-to-draft），P0-1 后按钮文案对齐 M1.3 候选稿模式                                          |
 | coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines/statements 68 · functions 93 · branches 83，基线 70.04 / 94.24 / 85.50）                                                                                  |
-| 代码规模                     | 42 个 API route · 22 个 page.tsx · 23 条 Prisma migration · 16 个 Prisma model                                                                  |
+| 代码规模                     | 46 个 API route · 22 个 page.tsx · 24 条 Prisma migration · 20 个 Prisma model                                                                  |
 
 `.github/workflows/ci.yml` 现有两个 job：`verify`（lint/typecheck/test/build）+ `e2e`（pgvector postgres + LLM_MOCK + playwright + 失败上传 trace）。
 
-> 累计 migration（23 条），关键的近期 5 条：
-> - `20260510080000_add_user_roles` — `UserRole(user_id, role)` 复合主键（Phase A）
+> 累计 migration（24 条），关键的近期 5 条：
 > - `20260511010000_add_embedding_models` — `EmbeddingModel` 表 + `(provider, model)` 唯一约束（Phase B）
 > - `20260511020000_add_chapter_dirty_flags` — `ChapterDraft.summary_dirty / index_dirty` + 双索引 + 历史数据 backfill（M3.1，2026-05-11 晚）
 > - `20260512000000_add_draft_sessions` — `DraftSession` 表（UX3 SSE 续传，2026-05-12）
 > - `20260514010000_add_moderation_audit` — `ModerationAudit` 审核决策元数据、人工复核状态与 24h / 队列指标基础（不存原文）
+> - `20260515010000_add_authjs_tables` — Auth.js `User` / `Account` / `Session` / `VerificationToken` 本地身份表
 >
-> 上线前需要 `npx prisma migrate deploy`。Phase A 还需在 env 里加 `SUPABASE_SERVICE_ROLE_KEY`（`/admin/users` 列用户必需）。
+> 上线前需要 `npx prisma migrate deploy`，生产环境还必须配置 `AUTH_SECRET`。
 
 ---
 
@@ -37,7 +37,7 @@
 |-----------------------|----|-------:|----------------------------------------------------------------------------------------|
 | Onboarding 5 步开书      | ✅  | 80-88% | 闭环可用；跳过 / 中断恢复 / 重复 finalize 仍待打磨                                                      |
 | 多章节编辑器 MVP            | ✅  | 86-91% | 多章节、保存、AI 起草、删除、版本恢复 + diff、Critic、State Diff、retrieval 可视化、乐观锁、导出中心已实现             |
-| 账号与 Ownership         | ✅  | 70-80% | Supabase Auth + middleware + 应用层 ownership；RLS 已禁用                                     |
+| 账号与 Ownership         | ✅  | 70-80% | Auth.js credentials + middleware + 应用层 ownership；RLS 已禁用                              |
 | **DB-驱动权限**           | ✅  | 80-85% | **Phase A（2026-05-10）**：`user_roles` 多对多表 + `/admin/users` 页 + grant/revoke API；env allowlist 永久兜底 |
 | LLM 基础设施              | ✅  | 78-85% | client / stream / mock / 加密 key / 用量 / 配额覆盖完整                                          |
 | **Embedding 基础设施**    | ✅  | 80-85% | **Phase B（2026-05-11）**：`embedding_models` 表 + `/models/embeddings` 页 + DB→env fallback；维度严格 1024 |
@@ -107,9 +107,9 @@
 
 - **`UserRole` 多对多表**：`(user_id, role)` 复合主键 + `granted_by` + `created_at`；`role` 是字符串字段，Phase A 只填 `'admin'`，后续 phase 加 `'embedding_admin'` 等不动 schema。
 - **`checkAdmin()` 改为 DB-then-env**：`lib/auth/admin.ts:36-48` 先查 `user_roles`，未命中或 DB 抛错时 fallback 到 `ADMIN_USER_IDS` / `ADMIN_EMAILS` env。env 永久兜底，应对 DB 删空 / 最后一个 admin 误删的死锁场景。
-- **`/admin/users` 管理页**：列出 supabase auth.users + 当前 roles + grant/revoke 按钮；403 网关页风格与 `/models` 一致。
+- **`/admin/users` 管理页**：列出本地 Auth.js `User` 表 + 当前 roles + grant/revoke 按钮；403 网关页风格与 `/models` 一致。
 - **REST API（admin-only）**：`GET /api/admin/users` 列表（含 roles）、`POST /api/admin/users/:id/roles` 授权、`DELETE /api/admin/users/:id/roles/:role` 收回。Role allowlist 当前只接受 `'admin'`。
-- **Service-role Supabase client**：`lib/supabase/admin.ts` 单例，封装 `SUPABASE_SERVICE_ROLE_KEY`；服务器端独占，永不暴露给浏览器。
+- **无 service-role auth 依赖**：用户列表与角色校验都走本地 Prisma 表；不再需要 `SUPABASE_SERVICE_ROLE_KEY`。
 - **零自我保护护栏**：admin 可以撤回自己 / 删到 0 个 admin（依赖 env fallback 兑底）。无 `role_changes` 审计表（个人项目当前不需要）。
 
 ### Phase B — Embedding 配置入 UI（2026-05-11）
@@ -274,7 +274,7 @@ F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关
 | `lib/auth/admin.ts`                               | **Phase A**：`checkAdmin` DB-then-env，`adminGuardResponse` 通用 gate |
 | `lib/auth/ownership.ts`                           | 资源归属校验（应用层唯一隔离）                   |
 | `lib/auth/rateLimit.ts`                           | RateLimiter 接口（memory + Redis 占位） |
-| `lib/supabase/admin.ts`                           | **Phase A**：service-role client，封装 `SUPABASE_SERVICE_ROLE_KEY` |
+| `lib/auth/session.ts`                             | Auth.js 当前用户读取 helper，替代原 Supabase auth helper |
 | `lib/validation/llmModel.ts`                      | LLM 配置 zod + SSRF guard            |
 | `lib/validation/embeddingModel.ts`                | **Phase B**：Embedding zod，dim 严格 1024 |
 | `lib/validation/userRole.ts`                      | **Phase A**：role allowlist（当前只 `'admin'`） |
