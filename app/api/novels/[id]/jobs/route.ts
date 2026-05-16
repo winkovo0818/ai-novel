@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { enqueueJob, runPendingJobsForNovel, type JobType } from "@/lib/jobs/queue";
 import { errorMessage, logError } from "@/lib/observability/logger";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 import { z } from "zod";
 
 // Side-effect import: registers job handlers on first load.

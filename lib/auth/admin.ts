@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 
 /**
@@ -50,13 +50,12 @@ async function hasAdminRoleInDb(userId: string): Promise<boolean> {
 }
 
 export async function checkAdmin(): Promise<AdminCheckResult> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) {
+  const user = await getCurrentUser();
+  if (!user) {
     return { ok: false, reason: "UNAUTHORIZED" };
   }
-  const userId = data.user.id;
-  const email = data.user.email ?? null;
+  const userId = user.id;
+  const email = user.email;
 
   if (await hasAdminRoleInDb(userId)) {
     return { ok: true, userId, email };

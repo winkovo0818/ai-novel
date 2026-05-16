@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { moderateContent, stringifyForModeration } from "@/lib/moderation/moderate";
 import { UpdateChapterDraftRequestSchema } from "@/lib/validation/schemas";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

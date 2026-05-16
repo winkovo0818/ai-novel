@@ -20,7 +20,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/utils/supabase/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getRequiredUserId,
 }));
 
@@ -241,6 +241,39 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
     expect(text).not.toContain("长".repeat(201));
     // Retrieval event is emitted before any chapter_delta
     expect(text.indexOf("event: retrieval")).toBeLessThan(text.indexOf("event: chapter_delta"));
+  });
+
+  it("treats malformed retrieval output as empty instead of crashing the prompt", async () => {
+    const { POST } = await import("./route");
+    findUnique.mockResolvedValue({
+      id: "novel-1",
+      user_id: "user-1",
+      profile,
+      bible: { content: bible },
+      chapters: [],
+      volume_summaries: [],
+      novel_summary: null,
+    });
+    retrieveMemories.mockResolvedValue({ status: "success" });
+    streamChatCompletionWithRetry.mockImplementation(async (_args, callbacks) => {
+      callbacks?.onDelta?.("章节正文片段。");
+      return { tokenIn: 100, tokenOut: 50, costCny: 0.0001, tookMs: 10 };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/novels/novel-1/chapters/draft", {
+        method: "POST",
+        body: JSON.stringify({ chapter_index: 1, title: "第1章" }),
+      }),
+      { params: Promise.resolve({ id: "novel-1" }) },
+    );
+    const text = await response.text();
+
+    expect(text).toContain("event: retrieval");
+    expect(text).toContain('"status":"success"');
+    expect(text).toContain('"memories":[]');
+    expect(text).toContain("event: done");
+    expect(text).not.toContain("Cannot read properties");
   });
 
   // ─────────────────────────────────────────────

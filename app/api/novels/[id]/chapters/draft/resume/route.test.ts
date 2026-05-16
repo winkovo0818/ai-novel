@@ -15,7 +15,7 @@ vi.mock("@/lib/db", () => ({
   prisma: { novel: { findUnique } },
 }));
 
-vi.mock("@/utils/supabase/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getRequiredUserId,
 }));
 

@@ -4,7 +4,7 @@ const findMany = vi.fn();
 const create = vi.fn();
 const updateMany = vi.fn();
 const userRoleFindUnique = vi.fn();
-const getUser = vi.fn();
+const getCurrentUser = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -13,8 +13,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/utils/supabase/server", () => ({
-  createClient: async () => ({ auth: { getUser } }),
+vi.mock("@/lib/auth/session", () => ({
+  getCurrentUser,
 }));
 
 const ORIGINAL_ENV = { ...process.env };
@@ -33,13 +33,13 @@ beforeEach(() => {
 });
 
 function asAdminViaEnv(userId = "admin-1") {
-  getUser.mockResolvedValue({ data: { user: { id: userId, email: null } }, error: null });
+  getCurrentUser.mockResolvedValue({ id: userId, email: null });
   process.env.ADMIN_USER_IDS = userId;
 }
 
 describe("GET /api/embedding-models", () => {
   it("returns 401 when unauthenticated", async () => {
-    getUser.mockResolvedValue({ data: { user: null }, error: null });
+    getCurrentUser.mockResolvedValue(null);
     const { GET } = await import("./route");
     const res = await GET();
     expect(res.status).toBe(401);
@@ -47,10 +47,7 @@ describe("GET /api/embedding-models", () => {
   });
 
   it("returns 403 for non-admin", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "user-1", email: "user@example.com" } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "user-1", email: "user@example.com"  });
     const { GET } = await import("./route");
     const res = await GET();
     expect(res.status).toBe(403);
@@ -72,10 +69,7 @@ describe("GET /api/embedding-models", () => {
 
 describe("POST /api/embedding-models", () => {
   it("returns 403 for non-admin", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "user-1", email: null } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "user-1", email: null  });
     const { POST } = await import("./route");
     const res = await POST(
       new Request("http://localhost/api/embedding-models", {

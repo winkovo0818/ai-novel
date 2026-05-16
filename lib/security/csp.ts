@@ -1,8 +1,8 @@
-const DEFAULT_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const DEFAULT_CONNECT_ORIGINS = process.env.NEXT_PUBLIC_CONNECT_ORIGINS;
 
 interface BuildContentSecurityPolicyOptions {
   isDev?: boolean;
-  supabaseUrl?: string;
+  connectOrigins?: string;
 }
 
 function compactPolicy(policy: string): string {
@@ -18,9 +18,12 @@ function originFromUrl(value: string | undefined): string | undefined {
   }
 }
 
-function websocketOriginFromHttps(origin: string | undefined): string | undefined {
-  if (!origin?.startsWith("https://")) return undefined;
-  return `wss://${origin.slice("https://".length)}`;
+function parseConnectOrigins(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((entry) => originFromUrl(entry.trim()))
+    .filter((entry): entry is string => Boolean(entry));
 }
 
 export function createCspNonce(): string {
@@ -34,15 +37,12 @@ export function buildContentSecurityPolicy(
   nonce: string,
   {
     isDev = process.env.NODE_ENV !== "production",
-    supabaseUrl = DEFAULT_SUPABASE_URL,
+    connectOrigins = DEFAULT_CONNECT_ORIGINS,
   }: BuildContentSecurityPolicyOptions = {},
 ): string {
-  const supabaseOrigin = originFromUrl(supabaseUrl);
-  const supabaseWsOrigin = websocketOriginFromHttps(supabaseOrigin);
   const connectSrc = [
     "'self'",
-    supabaseOrigin,
-    supabaseWsOrigin,
+    ...parseConnectOrigins(connectOrigins),
     isDev ? "http://localhost:*" : undefined,
     isDev ? "ws://localhost:*" : undefined,
   ].filter(Boolean);
@@ -50,8 +50,8 @@ export function buildContentSecurityPolicy(
   const directives = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
-    `style-src 'self' 'nonce-${nonce}'`,
-    "style-src-attr 'none'",
+    `style-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-inline'" : ""}`,
+    isDev ? undefined : "style-src-attr 'none'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
     `connect-src ${connectSrc.join(" ")}`,

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 import { BibleDraftSchema, getAllChapters } from "@/lib/validation/schemas";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
@@ -76,7 +76,7 @@ export default async function ExportCenterPage({ params }: PageProps) {
                 : "尚未生成大纲"
             }
             icon={
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             }
@@ -86,7 +86,7 @@ export default async function ExportCenterPage({ params }: PageProps) {
             value={totalWords.toLocaleString("zh-CN")}
             subValue={hasContent ? "已统计所有章节" : "暂无可导出的正文"}
             icon={
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
               </svg>
             }
@@ -100,7 +100,7 @@ export default async function ExportCenterPage({ params }: PageProps) {
                 : "建议先在编辑器写一章再来导出"
             }
             icon={
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             }

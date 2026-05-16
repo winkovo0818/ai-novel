@@ -77,7 +77,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/utils/supabase/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getRequiredUserId: mocks.getRequiredUserId,
 }));
 

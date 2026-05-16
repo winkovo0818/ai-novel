@@ -1,7 +1,7 @@
 import { chatCompletionWithRetry } from "@/lib/llm/client";
 import { adminGuardResponse } from "@/lib/auth/admin";
 import { isRateLimited } from "@/lib/auth/rateLimit";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 // 始终调用 LLM，不要被构建期或边缘缓存掉

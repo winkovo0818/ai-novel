@@ -1,4 +1,4 @@
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 import { getUserUsage, checkQuota } from "@/lib/llm/usage";
 
 export const runtime = "nodejs";

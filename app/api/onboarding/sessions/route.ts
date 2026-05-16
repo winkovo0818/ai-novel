@@ -6,7 +6,7 @@ import {
   CreateSessionRequestSchema,
   CreateSessionResponseSchema,
 } from "@/lib/validation/schemas";
-import { getOptionalUserId } from "@/utils/supabase/auth";
+import { getOptionalUserId } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

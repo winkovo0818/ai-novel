@@ -21,7 +21,7 @@ describe("POST /api/novels/[id]/summaries/refresh", () => {
 
   it("returns 401 when unauthenticated", async () => {
     findUnique.mockResolvedValue({ id: "n1", user_id: "user-1", bible: { id: "b1" } });
-    vi.doMock("@/utils/supabase/auth", () => ({
+    vi.doMock("@/lib/auth/session", () => ({
       getRequiredUserId: vi.fn().mockRejectedValue(new Error("UNAUTHORIZED")),
     }));
     const { POST } = await import("./route");
@@ -34,7 +34,7 @@ describe("POST /api/novels/[id]/summaries/refresh", () => {
   });
 
   it("returns 404 for a novel owned by another user", async () => {
-    vi.doMock("@/utils/supabase/auth", () => ({
+    vi.doMock("@/lib/auth/session", () => ({
       getRequiredUserId: vi.fn().mockResolvedValue("user-1"),
     }));
     findUnique.mockResolvedValue({ id: "n1", user_id: "owner-1", bible: { id: "b1" } });
@@ -48,7 +48,7 @@ describe("POST /api/novels/[id]/summaries/refresh", () => {
   });
 
   it("returns 404 when novel does not exist", async () => {
-    vi.doMock("@/utils/supabase/auth", () => ({
+    vi.doMock("@/lib/auth/session", () => ({
       getRequiredUserId: vi.fn().mockResolvedValue("user-1"),
     }));
     findUnique.mockResolvedValue(null);
@@ -62,7 +62,7 @@ describe("POST /api/novels/[id]/summaries/refresh", () => {
   });
 
   it("refreshes summaries when caller is owner", async () => {
-    vi.doMock("@/utils/supabase/auth", () => ({
+    vi.doMock("@/lib/auth/session", () => ({
       getRequiredUserId: vi.fn().mockResolvedValue("user-1"),
     }));
     findUnique.mockResolvedValue({ id: "n1", user_id: "user-1", bible: { id: "b1" } });

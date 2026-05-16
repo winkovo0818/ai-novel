@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 import { BibleDraftSchema } from "@/lib/validation/schemas";
 import { EditorClient } from "./EditorClient";
 

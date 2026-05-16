@@ -11,13 +11,13 @@ describe("content security policy helpers", () => {
   it("builds a nonce-based production CSP without unsafe-inline", () => {
     const policy = buildContentSecurityPolicy("nonce-1", {
       isDev: false,
-      supabaseUrl: "https://project.supabase.co",
+      connectOrigins: "https://auth.example.com",
     });
 
     expect(policy).toContain("script-src 'self' 'nonce-nonce-1' 'strict-dynamic'");
     expect(policy).toContain("style-src 'self' 'nonce-nonce-1'");
     expect(policy).toContain("style-src-attr 'none'");
-    expect(policy).toContain("connect-src 'self' https://project.supabase.co wss://project.supabase.co");
+    expect(policy).toContain("connect-src 'self' https://auth.example.com");
     expect(policy).toContain("frame-ancestors 'none'");
     expect(policy).toContain("upgrade-insecure-requests");
     expect(policy).not.toContain("'unsafe-inline'");
@@ -28,8 +28,10 @@ describe("content security policy helpers", () => {
     const policy = buildContentSecurityPolicy("dev-nonce", { isDev: true });
 
     expect(policy).toContain("'unsafe-eval'");
+    expect(policy).toContain("'unsafe-inline'");
     expect(policy).toContain("http://localhost:*");
     expect(policy).toContain("ws://localhost:*");
+    expect(policy).not.toContain("style-src-attr 'none'");
     expect(policy).not.toContain("upgrade-insecure-requests");
   });
 

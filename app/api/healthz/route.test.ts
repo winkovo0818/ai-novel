@@ -10,11 +10,11 @@ const ORIGINAL_ENV = { ...process.env };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_x";
+  vi.stubEnv("NODE_ENV", "test");
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   for (const key of Object.keys(process.env)) {
     if (!(key in ORIGINAL_ENV)) delete process.env[key];
   }
@@ -47,7 +47,7 @@ function setupQueryRaw(answers: { db?: "ok" | Error; pgvector?: { installed: boo
 }
 
 describe("GET /api/healthz", () => {
-  it("returns 200 with ok=true when DB + pgvector + Supabase env all pass", async () => {
+  it("returns 200 with ok=true when DB + pgvector + auth config all pass", async () => {
     setupQueryRaw({ db: "ok", pgvector: { installed: true } });
     const { GET } = await import("./route");
     const res = await GET();
@@ -57,7 +57,7 @@ describe("GET /api/healthz", () => {
     expect(json.ok).toBe(true);
     expect(json.checks.db.ok).toBe(true);
     expect(json.checks.pgvector.ok).toBe(true);
-    expect(json.checks.supabase.ok).toBe(true);
+    expect(json.checks.auth.ok).toBe(true);
     expect(typeof json.checks.db.took_ms).toBe("number");
   });
 
@@ -73,7 +73,7 @@ describe("GET /api/healthz", () => {
     expect(json.checks.pgvector.code).toBe("PGVECTOR_MISSING");
     // Other checks should still report their state — failures are independent.
     expect(json.checks.db.ok).toBe(true);
-    expect(json.checks.supabase.ok).toBe(true);
+    expect(json.checks.auth.ok).toBe(true);
   });
 
   it("returns 503 with code=DB_UNREACHABLE when SELECT 1 throws", async () => {
@@ -89,16 +89,17 @@ describe("GET /api/healthz", () => {
     expect(json.checks.db.message).toContain("connection refused");
   });
 
-  it("flags Supabase config holes without hitting the network", async () => {
-    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+  it("flags missing production AUTH_SECRET without hitting the network", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    delete process.env.AUTH_SECRET;
     setupQueryRaw({ db: "ok", pgvector: { installed: true } });
     const { GET } = await import("./route");
     const res = await GET();
     const json = await res.json();
 
     expect(res.status).toBe(503);
-    expect(json.checks.supabase.ok).toBe(false);
-    expect(json.checks.supabase.code).toBe("SUPABASE_CONFIG_MISSING");
+    expect(json.checks.auth.ok).toBe(false);
+    expect(json.checks.auth.code).toBe("AUTH_SECRET_MISSING");
     // No extra DB calls beyond the two real probes.
     expect($queryRaw).toHaveBeenCalledTimes(2);
   });

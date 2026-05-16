@@ -13,7 +13,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/utils/supabase/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getRequiredUserId: () => {
     if (!mockUserId) throw new Error("Unauthorized");
     return Promise.resolve(mockUserId);

@@ -6,7 +6,7 @@ import { checkQuota } from "@/lib/llm/usage";
 import { chatCompletionWithRetry } from "@/lib/llm/client";
 import { buildStateDiffPrompt } from "@/lib/llm/prompts/stateDiff";
 import { BibleDraftSchema, StateDiffSchema } from "@/lib/validation/schemas";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

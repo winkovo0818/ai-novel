@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const findMany = vi.fn();
 const create = vi.fn();
 const updateMany = vi.fn();
-const getUser = vi.fn();
+const getCurrentUser = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -11,10 +11,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/utils/supabase/server", () => ({
-  createClient: async () => ({
-    auth: { getUser },
-  }),
+vi.mock("@/lib/auth/session", () => ({
+  getCurrentUser,
 }));
 
 const ORIGINAL_ENV = { ...process.env };
@@ -31,7 +29,7 @@ beforeEach(() => {
 
 describe("GET /api/llm-models", () => {
   it("returns 401 when unauthenticated", async () => {
-    getUser.mockResolvedValue({ data: { user: null }, error: null });
+    getCurrentUser.mockResolvedValue(null);
     const { GET } = await import("./route");
     const res = await GET();
     expect(res.status).toBe(401);
@@ -41,10 +39,7 @@ describe("GET /api/llm-models", () => {
   });
 
   it("returns 403 for a non-admin user", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "user-1", email: "user@example.com" } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "user-1", email: "user@example.com"  });
     process.env.ADMIN_USER_IDS = "admin-1";
     process.env.ADMIN_EMAILS = "boss@example.com";
     const { GET } = await import("./route");
@@ -56,10 +51,7 @@ describe("GET /api/llm-models", () => {
   });
 
   it("allows an admin via ADMIN_USER_IDS", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "admin-1", email: null } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "admin-1", email: null  });
     process.env.ADMIN_USER_IDS = "admin-1";
     findMany.mockResolvedValue([]);
     const { GET } = await import("./route");
@@ -71,10 +63,7 @@ describe("GET /api/llm-models", () => {
   });
 
   it("allows an admin via ADMIN_EMAILS (case-insensitive)", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "u-99", email: "Boss@Example.com" } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "u-99", email: "Boss@Example.com"  });
     process.env.ADMIN_EMAILS = "boss@example.com";
     findMany.mockResolvedValue([]);
     const { GET } = await import("./route");
@@ -85,7 +74,7 @@ describe("GET /api/llm-models", () => {
 
 describe("POST /api/llm-models", () => {
   it("returns 401 unauthenticated", async () => {
-    getUser.mockResolvedValue({ data: { user: null }, error: null });
+    getCurrentUser.mockResolvedValue(null);
     const { POST } = await import("./route");
     const res = await POST(
       new Request("http://localhost/api/llm-models", {
@@ -98,10 +87,7 @@ describe("POST /api/llm-models", () => {
   });
 
   it("returns 403 for non-admin", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "user-1", email: "user@example.com" } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "user-1", email: "user@example.com"  });
     const { POST } = await import("./route");
     const res = await POST(
       new Request("http://localhost/api/llm-models", {
@@ -120,10 +106,7 @@ describe("POST /api/llm-models", () => {
   });
 
   it("creates the model when caller is admin", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "admin-1", email: null } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "admin-1", email: null  });
     process.env.ADMIN_USER_IDS = "admin-1";
     create.mockResolvedValue({ id: "m1" });
     const { POST } = await import("./route");
@@ -144,10 +127,7 @@ describe("POST /api/llm-models", () => {
   });
 
   it("rejects private/internal base_url", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "admin-1", email: null } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "admin-1", email: null  });
     process.env.ADMIN_USER_IDS = "admin-1";
     const { POST } = await import("./route");
     const res = await POST(

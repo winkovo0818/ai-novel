@@ -11,6 +11,7 @@ import { streamChatCompletionWithRetry } from "@/lib/llm/client";
 import { buildChapterPrompt } from "@/lib/llm/prompts/chapter";
 import { buildChapterContext } from "@/lib/agent/chapterContext";
 import { retrieveMemories, type RetrievalStatus } from "@/lib/agent/retrieval";
+import type { RetrievalResult } from "@/lib/agent/contracts";
 import {
   completeDraftSession,
   createDraftBufferFlusher,
@@ -26,16 +27,29 @@ import {
   NovelProfileSchema,
   getVolumes,
 } from "@/lib/validation/schemas";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ROUTE = "/api/novels/:id/chapters/draft";
 const encoder = new TextEncoder();
+const RETRIEVAL_STATUSES = new Set<RetrievalStatus>(["success", "empty", "error"]);
 
 interface RouteContext {
   params: Promise<{ id: string }>;
+}
+
+function normalizeRetrievalResult(result: Partial<RetrievalResult> | null | undefined): RetrievalResult {
+  const status = typeof result?.status === "string" && RETRIEVAL_STATUSES.has(result.status as RetrievalStatus)
+    ? result.status as RetrievalStatus
+    : "empty";
+  const memories = Array.isArray(result?.memories) ? result.memories : [];
+  return {
+    status,
+    memories,
+    errorMessage: typeof result?.errorMessage === "string" ? result.errorMessage : undefined,
+  };
 }
 
 export async function POST(request: Request, context: RouteContext) {
@@ -130,7 +144,9 @@ export async function POST(request: Request, context: RouteContext) {
   // Retrieve relevant memories (RAG v2) — propagate status to prompt
   let retrievedMemories: Array<{ source: string; text: string; reason: string }> = [];
   let retrievalStatus: RetrievalStatus = "empty";
-  const retrievalResult = await retrieveMemories(id, bible.data, input.chapter_index, 5);
+  const retrievalResult = normalizeRetrievalResult(
+    await retrieveMemories(id, bible.data, input.chapter_index, 5),
+  );
   retrievedMemories = retrievalResult.memories;
   retrievalStatus = retrievalResult.status;
 

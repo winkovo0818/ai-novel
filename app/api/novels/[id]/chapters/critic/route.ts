@@ -7,7 +7,7 @@ import { chatCompletionWithRetry } from "@/lib/llm/client";
 import { buildCriticPrompt } from "@/lib/llm/prompts/critic";
 import { buildChapterContext } from "@/lib/agent/chapterContext";
 import { BibleDraftSchema, NovelProfileSchema } from "@/lib/validation/schemas";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

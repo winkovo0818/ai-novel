@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { enqueueJob, runPendingJobsForNovel } from "@/lib/jobs/queue";
 import { errorMessage, logError } from "@/lib/observability/logger";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 
 // Side-effect import: registers job handlers on first load.
 import "@/lib/jobs/handlers";

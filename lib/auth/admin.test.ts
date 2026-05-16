@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const findUnique = vi.fn();
-const getUser = vi.fn();
+const getCurrentUser = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -9,10 +9,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/utils/supabase/server", () => ({
-  createClient: async () => ({
-    auth: { getUser },
-  }),
+vi.mock("@/lib/auth/session", () => ({
+  getCurrentUser,
 }));
 
 const ORIGINAL_ENV = { ...process.env };
@@ -29,8 +27,8 @@ beforeEach(() => {
 });
 
 describe("checkAdmin", () => {
-  it("returns UNAUTHORIZED when supabase has no user", async () => {
-    getUser.mockResolvedValue({ data: { user: null }, error: null });
+  it("returns UNAUTHORIZED when there is no current user", async () => {
+    getCurrentUser.mockResolvedValue(null);
     const { checkAdmin } = await import("./admin");
     const result = await checkAdmin();
     expect(result).toEqual({ ok: false, reason: "UNAUTHORIZED" });
@@ -38,10 +36,7 @@ describe("checkAdmin", () => {
   });
 
   it("returns ok when user has admin role in DB", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "u-1", email: "person@example.com" } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "u-1", email: "person@example.com" });
     findUnique.mockResolvedValue({ user_id: "u-1" });
     const { checkAdmin } = await import("./admin");
     const result = await checkAdmin();
@@ -53,10 +48,7 @@ describe("checkAdmin", () => {
   });
 
   it("falls back to env allowlist (ADMIN_USER_IDS) when DB has no row", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "u-2", email: null } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "u-2", email: null });
     findUnique.mockResolvedValue(null);
     process.env.ADMIN_USER_IDS = "u-2";
     const { checkAdmin } = await import("./admin");
@@ -65,10 +57,7 @@ describe("checkAdmin", () => {
   });
 
   it("falls back to env allowlist (ADMIN_EMAILS, case-insensitive)", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "u-3", email: "Boss@Example.com" } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "u-3", email: "Boss@Example.com" });
     findUnique.mockResolvedValue(null);
     process.env.ADMIN_EMAILS = "boss@example.com";
     const { checkAdmin } = await import("./admin");
@@ -77,10 +66,7 @@ describe("checkAdmin", () => {
   });
 
   it("returns FORBIDDEN when DB has no row and env has no match", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "u-4", email: "outsider@example.com" } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "u-4", email: "outsider@example.com" });
     findUnique.mockResolvedValue(null);
     const { checkAdmin } = await import("./admin");
     const result = await checkAdmin();
@@ -93,10 +79,7 @@ describe("checkAdmin", () => {
   });
 
   it("falls back to env when DB query throws (schema not migrated yet)", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "u-5", email: null } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "u-5", email: null });
     findUnique.mockRejectedValue(new Error("relation user_roles does not exist"));
     process.env.ADMIN_USER_IDS = "u-5";
     const { checkAdmin } = await import("./admin");

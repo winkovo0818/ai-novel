@@ -14,7 +14,7 @@ vi.mock("@/lib/llm/client", () => ({
   chatCompletionWithRetry,
 }));
 
-vi.mock("@/utils/supabase/auth", () => ({
+vi.mock("@/lib/auth/session", () => ({
   getRequiredUserId,
 }));
 

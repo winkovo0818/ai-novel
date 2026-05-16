@@ -4,7 +4,7 @@ const update = vi.fn();
 const updateMany = vi.fn();
 const deleteFn = vi.fn();
 const userRoleFindUnique = vi.fn();
-const getUser = vi.fn();
+const getCurrentUser = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -13,8 +13,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/utils/supabase/server", () => ({
-  createClient: async () => ({ auth: { getUser } }),
+vi.mock("@/lib/auth/session", () => ({
+  getCurrentUser,
 }));
 
 const ORIGINAL_ENV = { ...process.env };
@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 
 function asAdminViaEnv(userId = "admin-1") {
-  getUser.mockResolvedValue({ data: { user: { id: userId, email: null } }, error: null });
+  getCurrentUser.mockResolvedValue({ id: userId, email: null });
   process.env.ADMIN_USER_IDS = userId;
 }
 
@@ -41,7 +41,7 @@ const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 
 describe("PATCH /api/embedding-models/[id]", () => {
   it("returns 403 for non-admin", async () => {
-    getUser.mockResolvedValue({ data: { user: { id: "user-1", email: null } }, error: null });
+    getCurrentUser.mockResolvedValue({ id: "user-1", email: null });
     const { PATCH } = await import("./route");
     const res = await PATCH(
       new Request("http://localhost", {
@@ -104,7 +104,7 @@ describe("PATCH /api/embedding-models/[id]", () => {
 
 describe("DELETE /api/embedding-models/[id]", () => {
   it("returns 403 for non-admin", async () => {
-    getUser.mockResolvedValue({ data: { user: { id: "user-1", email: null } }, error: null });
+    getCurrentUser.mockResolvedValue({ id: "user-1", email: null });
     const { DELETE } = await import("./route");
     const res = await DELETE(new Request("http://localhost"), ctx("m1"));
     expect(res.status).toBe(403);

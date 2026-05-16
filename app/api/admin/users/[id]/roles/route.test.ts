@@ -2,21 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const findUnique = vi.fn();
 const upsert = vi.fn();
-const getUser = vi.fn();
-const getUserById = vi.fn();
+const userFindUnique = vi.fn();
+const getCurrentUser = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     userRole: { findUnique, upsert },
+    user: { findUnique: userFindUnique },
   },
 }));
 
-vi.mock("@/utils/supabase/server", () => ({
-  createClient: async () => ({ auth: { getUser } }),
-}));
-
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({ auth: { admin: { getUserById } } }),
+vi.mock("@/lib/auth/session", () => ({
+  getCurrentUser,
 }));
 
 const ORIGINAL_ENV = { ...process.env };
@@ -34,7 +31,7 @@ beforeEach(() => {
 });
 
 function asAdminViaEnv(userId = "admin-1") {
-  getUser.mockResolvedValue({ data: { user: { id: userId, email: null } }, error: null });
+  getCurrentUser.mockResolvedValue({ id: userId, email: null });
   process.env.ADMIN_USER_IDS = userId;
 }
 
@@ -50,7 +47,7 @@ const ctx = { params: Promise.resolve({ id: "u-2" }) };
 
 describe("POST /api/admin/users/[id]/roles", () => {
   it("returns 401 when unauthenticated", async () => {
-    getUser.mockResolvedValue({ data: { user: null }, error: null });
+    getCurrentUser.mockResolvedValue(null);
     const { POST } = await import("./route");
     const res = await POST(makeRequest({ role: "admin" }), ctx);
     expect(res.status).toBe(401);
@@ -58,10 +55,7 @@ describe("POST /api/admin/users/[id]/roles", () => {
   });
 
   it("returns 403 when caller is not admin", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "user-1", email: null } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "user-1", email: null });
     const { POST } = await import("./route");
     const res = await POST(makeRequest({ role: "admin" }), ctx);
     expect(res.status).toBe(403);
@@ -78,7 +72,7 @@ describe("POST /api/admin/users/[id]/roles", () => {
 
   it("returns 404 when target user does not exist", async () => {
     asAdminViaEnv();
-    getUserById.mockResolvedValue({ data: { user: null }, error: { message: "not found" } });
+    userFindUnique.mockResolvedValue(null);
     const { POST } = await import("./route");
     const res = await POST(makeRequest({ role: "admin" }), ctx);
     expect(res.status).toBe(404);
@@ -87,7 +81,7 @@ describe("POST /api/admin/users/[id]/roles", () => {
 
   it("upserts the role with granted_by set to caller", async () => {
     asAdminViaEnv("admin-1");
-    getUserById.mockResolvedValue({ data: { user: { id: "u-2" } }, error: null });
+    userFindUnique.mockResolvedValue({ id: "u-2" });
     upsert.mockResolvedValue({ user_id: "u-2", role: "admin" });
     const { POST } = await import("./route");
     const res = await POST(makeRequest({ role: "admin" }), ctx);

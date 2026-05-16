@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const findUnique = vi.fn();
 const update = vi.fn();
-const getUser = vi.fn();
+const getCurrentUser = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -11,8 +11,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/utils/supabase/server", () => ({
-  createClient: async () => ({ auth: { getUser } }),
+vi.mock("@/lib/auth/session", () => ({
+  getCurrentUser,
 }));
 
 const ORIGINAL_ENV = { ...process.env };
@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 
 function asAdminViaEnv(userId = "admin-1") {
-  getUser.mockResolvedValue({ data: { user: { id: userId, email: null } }, error: null });
+  getCurrentUser.mockResolvedValue({ id: userId, email: null });
   process.env.ADMIN_USER_IDS = userId;
 }
 
@@ -46,7 +46,7 @@ const ctx = { params: Promise.resolve({ id: "audit-1" }) };
 
 describe("PATCH /api/admin/moderation-audits/[id]", () => {
   it("returns 401 when unauthenticated", async () => {
-    getUser.mockResolvedValue({ data: { user: null }, error: null });
+    getCurrentUser.mockResolvedValue(null);
     const { PATCH } = await import("./route");
 
     const res = await PATCH(makeRequest({ review_status: "confirmed" }), ctx);
@@ -56,7 +56,7 @@ describe("PATCH /api/admin/moderation-audits/[id]", () => {
   });
 
   it("returns 403 when caller is not admin", async () => {
-    getUser.mockResolvedValue({ data: { user: { id: "user-1", email: null } }, error: null });
+    getCurrentUser.mockResolvedValue({ id: "user-1", email: null });
     const { PATCH } = await import("./route");
 
     const res = await PATCH(makeRequest({ review_status: "confirmed" }), ctx);

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { jsonError, jsonOk } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

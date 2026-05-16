@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const findUnique = vi.fn();
 const deleteFn = vi.fn();
-const getUser = vi.fn();
+const getCurrentUser = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -10,8 +10,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/utils/supabase/server", () => ({
-  createClient: async () => ({ auth: { getUser } }),
+vi.mock("@/lib/auth/session", () => ({
+  getCurrentUser,
 }));
 
 const ORIGINAL_ENV = { ...process.env };
@@ -29,7 +29,7 @@ beforeEach(() => {
 });
 
 function asAdminViaEnv(userId = "admin-1") {
-  getUser.mockResolvedValue({ data: { user: { id: userId, email: null } }, error: null });
+  getCurrentUser.mockResolvedValue({ id: userId, email: null });
   process.env.ADMIN_USER_IDS = userId;
 }
 
@@ -37,7 +37,7 @@ const ctx = (id: string, role: string) => ({ params: Promise.resolve({ id, role 
 
 describe("DELETE /api/admin/users/[id]/roles/[role]", () => {
   it("returns 401 when unauthenticated", async () => {
-    getUser.mockResolvedValue({ data: { user: null }, error: null });
+    getCurrentUser.mockResolvedValue(null);
     const { DELETE } = await import("./route");
     const res = await DELETE(new Request("http://localhost"), ctx("u-2", "admin"));
     expect(res.status).toBe(401);
@@ -45,7 +45,7 @@ describe("DELETE /api/admin/users/[id]/roles/[role]", () => {
   });
 
   it("returns 403 when caller is not admin", async () => {
-    getUser.mockResolvedValue({ data: { user: { id: "u-1", email: null } }, error: null });
+    getCurrentUser.mockResolvedValue({ id: "u-1", email: null });
     const { DELETE } = await import("./route");
     const res = await DELETE(new Request("http://localhost"), ctx("u-2", "admin"));
     expect(res.status).toBe(403);

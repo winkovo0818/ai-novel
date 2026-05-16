@@ -1,7 +1,7 @@
 import { jsonError, jsonOk } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 import { runJob } from "@/lib/jobs/queue";
 
 import "@/lib/jobs/handlers";

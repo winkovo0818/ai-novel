@@ -147,8 +147,8 @@ model EmbeddingModel {
 /// DB-driven role grants. Composite PK (user_id, role) lets a user hold
 /// multiple roles without schema churn — Phase A only fills 'admin', later
 /// phases (e.g. 'embedding_admin') just insert new rows. user_id is not a
-/// FK because Supabase auth.users lives outside Prisma; deletes there must
-/// be paired with a manual cleanup of dangling rows.
+/// FK to keep role grants decoupled from auth provider storage. Deletes in
+/// the auth user table should be paired with manual cleanup of dangling rows.
 model UserRole {
   user_id    String
   role       String
@@ -157,6 +157,59 @@ model UserRole {
 
   @@id([user_id, role])
   @@index([role])
+}
+
+model User {
+  id            String    @id @default(uuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password_hash String?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
 model ChapterVersion {

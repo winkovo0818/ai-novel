@@ -66,21 +66,12 @@ async function checkPgVector(): Promise<CheckResult> {
   }
 }
 
-/**
- * Lightweight Supabase config check. We don't make a network call — just
- * confirm the env vars exist so a misconfigured deploy fails fast on the
- * health probe instead of at the first auth attempt. Public probe stays
- * unauthenticated; deeper Supabase auth probes belong in /healthz/llm-style
- * admin-only endpoints.
- */
-function checkSupabaseConfig(): CheckResult {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) {
+function checkAuthConfig(): CheckResult {
+  if (process.env.NODE_ENV === "production" && !process.env.AUTH_SECRET) {
     return {
       ok: false,
-      code: "SUPABASE_CONFIG_MISSING",
-      message: "NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is unset",
+      code: "AUTH_SECRET_MISSING",
+      message: "AUTH_SECRET is required in production",
     };
   }
   return { ok: true };
@@ -95,7 +86,7 @@ function classify(err: unknown, fallbackCode: string): CheckResult {
 /**
  * GET /api/healthz — public liveness/readiness probe.
  *
- * Aggregates DB + pgvector + Supabase config checks. Returns 200 when all
+ * Aggregates DB + pgvector + auth config checks. Returns 200 when all
  * are green, 503 when any required check fails. Each failure carries a
  * short `code` so monitoring can alert on specific subsystems.
  *
@@ -105,10 +96,10 @@ function classify(err: unknown, fallbackCode: string): CheckResult {
  */
 export async function GET() {
   const [db, pgvector] = await Promise.all([checkDb(), checkPgVector()]);
-  const supabase = checkSupabaseConfig();
+  const auth = checkAuthConfig();
 
-  const checks = { db, pgvector, supabase };
-  const allOk = db.ok && pgvector.ok && supabase.ok;
+  const checks = { db, pgvector, auth };
+  const allOk = db.ok && pgvector.ok && auth.ok;
 
   return Response.json(
     {

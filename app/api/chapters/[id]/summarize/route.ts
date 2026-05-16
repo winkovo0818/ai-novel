@@ -5,7 +5,7 @@ import { isRateLimited } from "@/lib/auth/rateLimit";
 import { chatCompletion } from "@/lib/llm/client";
 import { checkQuota } from "@/lib/llm/usage";
 import { buildSummarizePrompt } from "@/lib/llm/prompts/summarize";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

@@ -2,7 +2,7 @@ import { jsonError, jsonOk } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { BibleDraftSchema, CreateChapterDraftRequestSchema } from "@/lib/validation/schemas";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 import { getChapterStatusesForNovel } from "@/lib/agent/chapterStatus";
 
 export const runtime = "nodejs";

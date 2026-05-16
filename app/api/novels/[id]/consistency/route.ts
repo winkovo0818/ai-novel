@@ -6,7 +6,7 @@ import { chatCompletion } from "@/lib/llm/client";
 import { checkQuota } from "@/lib/llm/usage";
 import { buildConsistencyPrompt } from "@/lib/llm/prompts/consistency";
 import { BibleDraftSchema, NovelProfileSchema } from "@/lib/validation/schemas";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

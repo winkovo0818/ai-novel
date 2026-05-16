@@ -4,7 +4,7 @@ const findUnique = vi.fn();
 const update = vi.fn();
 const updateMany = vi.fn();
 const del = vi.fn();
-const getUser = vi.fn();
+const getCurrentUser = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
@@ -12,10 +12,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/utils/supabase/server", () => ({
-  createClient: async () => ({
-    auth: { getUser },
-  }),
+vi.mock("@/lib/auth/session", () => ({
+  getCurrentUser,
 }));
 
 const ORIGINAL_ENV = { ...process.env };
@@ -32,7 +30,7 @@ beforeEach(() => {
 
 describe("PATCH /api/llm-models/[id]", () => {
   it("returns 401 unauthenticated", async () => {
-    getUser.mockResolvedValue({ data: { user: null }, error: null });
+    getCurrentUser.mockResolvedValue(null);
     const { PATCH } = await import("./route");
     const res = await PATCH(
       new Request("http://localhost/x", {
@@ -46,10 +44,7 @@ describe("PATCH /api/llm-models/[id]", () => {
   });
 
   it("returns 403 for non-admin", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "user-1", email: "u@example.com" } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "user-1", email: "u@example.com"  });
     const { PATCH } = await import("./route");
     const res = await PATCH(
       new Request("http://localhost/x", {
@@ -63,10 +58,7 @@ describe("PATCH /api/llm-models/[id]", () => {
   });
 
   it("updates when admin", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "admin-1", email: null } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "admin-1", email: null  });
     process.env.ADMIN_USER_IDS = "admin-1";
     update.mockResolvedValue({ id: "m1", name: "n" });
     const { PATCH } = await import("./route");
@@ -84,7 +76,7 @@ describe("PATCH /api/llm-models/[id]", () => {
 
 describe("DELETE /api/llm-models/[id]", () => {
   it("returns 401 unauthenticated", async () => {
-    getUser.mockResolvedValue({ data: { user: null }, error: null });
+    getCurrentUser.mockResolvedValue(null);
     const { DELETE } = await import("./route");
     const res = await DELETE(
       new Request("http://localhost/x", { method: "DELETE" }),
@@ -95,10 +87,7 @@ describe("DELETE /api/llm-models/[id]", () => {
   });
 
   it("returns 403 for non-admin", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "user-1", email: "u@example.com" } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "user-1", email: "u@example.com"  });
     const { DELETE } = await import("./route");
     const res = await DELETE(
       new Request("http://localhost/x", { method: "DELETE" }),
@@ -109,10 +98,7 @@ describe("DELETE /api/llm-models/[id]", () => {
   });
 
   it("deletes when admin", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "admin-1", email: null } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "admin-1", email: null  });
     process.env.ADMIN_USER_IDS = "admin-1";
     del.mockResolvedValue({});
     const { DELETE } = await import("./route");

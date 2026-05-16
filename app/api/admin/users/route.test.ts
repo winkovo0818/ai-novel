@@ -2,21 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const findUnique = vi.fn();
 const findMany = vi.fn();
-const getUser = vi.fn();
-const listUsers = vi.fn();
+const userFindMany = vi.fn();
+const getCurrentUser = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     userRole: { findUnique, findMany },
+    user: { findMany: userFindMany },
   },
 }));
 
-vi.mock("@/utils/supabase/server", () => ({
-  createClient: async () => ({ auth: { getUser } }),
-}));
-
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: () => ({ auth: { admin: { listUsers } } }),
+vi.mock("@/lib/auth/session", () => ({
+  getCurrentUser,
 }));
 
 const ORIGINAL_ENV = { ...process.env };
@@ -34,41 +31,33 @@ beforeEach(() => {
 });
 
 function asAdminViaEnv(userId = "admin-1") {
-  getUser.mockResolvedValue({ data: { user: { id: userId, email: null } }, error: null });
+  getCurrentUser.mockResolvedValue({ id: userId, email: null });
   process.env.ADMIN_USER_IDS = userId;
 }
 
 describe("GET /api/admin/users", () => {
   it("returns 401 when unauthenticated", async () => {
-    getUser.mockResolvedValue({ data: { user: null }, error: null });
+    getCurrentUser.mockResolvedValue(null);
     const { GET } = await import("./route");
     const res = await GET(new Request("http://localhost/api/admin/users"));
     expect(res.status).toBe(401);
-    expect(listUsers).not.toHaveBeenCalled();
+    expect(userFindMany).not.toHaveBeenCalled();
   });
 
   it("returns 403 when caller is not admin", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "user-1", email: "user@example.com" } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "user-1", email: "user@example.com" });
     const { GET } = await import("./route");
     const res = await GET(new Request("http://localhost/api/admin/users"));
     expect(res.status).toBe(403);
-    expect(listUsers).not.toHaveBeenCalled();
+    expect(userFindMany).not.toHaveBeenCalled();
   });
 
-  it("joins supabase users with their roles", async () => {
+  it("joins local users with their roles", async () => {
     asAdminViaEnv("admin-1");
-    listUsers.mockResolvedValue({
-      data: {
-        users: [
-          { id: "admin-1", email: "boss@example.com", created_at: "2026-01-01", last_sign_in_at: "2026-05-09" },
-          { id: "u-2", email: "writer@example.com", created_at: "2026-02-01", last_sign_in_at: null },
-        ],
-      },
-      error: null,
-    });
+    userFindMany.mockResolvedValue([
+      { id: "admin-1", email: "boss@example.com", created_at: new Date("2026-01-01T00:00:00.000Z") },
+      { id: "u-2", email: "writer@example.com", created_at: new Date("2026-02-01T00:00:00.000Z") },
+    ]);
     findMany.mockResolvedValue([{ user_id: "admin-1", role: "admin" }]);
 
     const { GET } = await import("./route");
@@ -80,26 +69,23 @@ describe("GET /api/admin/users", () => {
       {
         id: "admin-1",
         email: "boss@example.com",
-        created_at: "2026-01-01",
-        last_sign_in_at: "2026-05-09",
+        created_at: "2026-01-01T00:00:00.000Z",
+        last_sign_in_at: null,
         roles: ["admin"],
       },
       {
         id: "u-2",
         email: "writer@example.com",
-        created_at: "2026-02-01",
+        created_at: "2026-02-01T00:00:00.000Z",
         last_sign_in_at: null,
         roles: [],
       },
     ]);
-    expect(listUsers).toHaveBeenCalledWith({ page: 1, perPage: 50 });
-  });
-
-  it("returns 502 when supabase admin API fails", async () => {
-    asAdminViaEnv();
-    listUsers.mockResolvedValue({ data: { users: [] }, error: { message: "rate limited" } });
-    const { GET } = await import("./route");
-    const res = await GET(new Request("http://localhost/api/admin/users"));
-    expect(res.status).toBe(502);
+    expect(userFindMany).toHaveBeenCalledWith({
+      orderBy: { created_at: "desc" },
+      skip: 0,
+      take: 50,
+      select: { id: true, email: true, created_at: true },
+    });
   });
 });

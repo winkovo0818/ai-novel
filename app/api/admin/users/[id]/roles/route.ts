@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/db";
 import { checkAdmin } from "@/lib/auth/admin";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { jsonError, jsonOk } from "@/lib/http/json";
 import { GrantRoleSchema } from "@/lib/validation/userRole";
 
@@ -34,19 +33,11 @@ export async function POST(request: Request, context: RouteContext) {
   }
   const { role } = parsed.data;
 
-  let supabase;
-  try {
-    supabase = createAdminClient();
-  } catch (err) {
-    return jsonError(
-      "ADMIN_NOT_CONFIGURED",
-      err instanceof Error ? err.message : "Service role key missing",
-      false,
-      500,
-    );
-  }
-  const { data, error } = await supabase.auth.admin.getUserById(targetUserId);
-  if (error || !data.user) {
+  const targetUser = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { id: true },
+  });
+  if (!targetUser) {
     return jsonError("USER_NOT_FOUND", "Target user does not exist", false, 404);
   }
 

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 import type { OnboardingSession } from "@prisma/client";
 
 export type OnboardingAccessResult =

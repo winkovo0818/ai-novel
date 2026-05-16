@@ -1,13 +1,11 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
-const getUser = vi.fn();
+const getCurrentUser = vi.fn();
 const chatCompletionWithRetry = vi.fn();
 const userRoleFindUnique = vi.fn();
 
-vi.mock("@/utils/supabase/server", () => ({
-  createClient: async () => ({
-    auth: { getUser },
-  }),
+vi.mock("@/lib/auth/session", () => ({
+  getCurrentUser,
 }));
 
 vi.mock("@/lib/llm/client", () => ({
@@ -34,7 +32,7 @@ beforeEach(() => {
 
 describe("GET /api/healthz/llm", () => {
   it("returns 401 when unauthenticated", async () => {
-    getUser.mockResolvedValue({ data: { user: null }, error: null });
+    getCurrentUser.mockResolvedValue(null);
     const { GET } = await import("./route");
     const res = await GET();
     expect(res.status).toBe(401);
@@ -42,10 +40,7 @@ describe("GET /api/healthz/llm", () => {
   });
 
   it("returns 403 for a non-admin user", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "user-1", email: "user@example.com" } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "user-1", email: "user@example.com"  });
     process.env.ADMIN_USER_IDS = "admin-1";
     process.env.ADMIN_EMAILS = "boss@example.com";
     const { GET } = await import("./route");
@@ -55,10 +50,7 @@ describe("GET /api/healthz/llm", () => {
   });
 
   it("returns LLM health data for an admin", async () => {
-    getUser.mockResolvedValue({
-      data: { user: { id: "admin-1", email: null } },
-      error: null,
-    });
+    getCurrentUser.mockResolvedValue({ id: "admin-1", email: null  });
     process.env.ADMIN_USER_IDS = "admin-1";
     chatCompletionWithRetry.mockResolvedValue({
       content: "ok",
