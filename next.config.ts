@@ -44,6 +44,25 @@ const SECURITY_HEADERS = [
 const nextConfig: NextConfig = {
   output: process.env.DOCKER_BUILD === "1" ? "standalone" : undefined,
   outputFileTracingRoot: path.join(__dirname),
+  webpack(config, { dev }) {
+    if (dev) {
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: [
+          "**/.git/**",
+          "**/.next/**",
+          "**/node_modules/**",
+          "**/coverage/**",
+          "**/test-results/**",
+          "**/System Volume Information/**",
+          "**/pagefile.sys",
+          "D:/System Volume Information/**",
+          "D:/pagefile.sys",
+        ],
+      };
+    }
+    return config;
+  },
   async headers() {
     return [
       {
