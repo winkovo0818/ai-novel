@@ -59,6 +59,25 @@ export interface EmbeddingResult {
   model: string;
 }
 
+interface OpenAIEmbeddingResult {
+  data?: Array<{ embedding?: number[] }>;
+  model?: string;
+}
+
+function extractEmbeddings(json: unknown): number[][] {
+  const direct = json as Partial<EmbeddingResult>;
+  if (Array.isArray(direct.embeddings)) {
+    return direct.embeddings;
+  }
+
+  const openAi = json as OpenAIEmbeddingResult;
+  if (Array.isArray(openAi.data)) {
+    return openAi.data.map((item) => item.embedding).filter((item): item is number[] => Array.isArray(item));
+  }
+
+  throw new Error("Embedding response shape is invalid: expected `embeddings` or OpenAI-compatible `data[].embedding`");
+}
+
 export async function createEmbeddings(texts: string[]): Promise<number[][]> {
   const cfg = await resolveConfig();
 
@@ -79,16 +98,23 @@ export async function createEmbeddings(texts: string[]): Promise<number[][]> {
     throw new Error(`Embedding request failed: ${response.status} ${body}`);
   }
 
-  const json = (await response.json()) as EmbeddingResult;
-  for (let i = 0; i < json.embeddings.length; i++) {
-    const dim = json.embeddings[i].length;
+  const json = await response.json();
+  const embeddings = extractEmbeddings(json);
+  if (embeddings.length !== texts.length) {
+    throw new Error(
+      `Embedding response count mismatch (model=${cfg.model}, source=${cfg.source}): expected ${texts.length}, got ${embeddings.length}`,
+    );
+  }
+
+  for (let i = 0; i < embeddings.length; i++) {
+    const dim = embeddings[i].length;
     if (dim !== EXPECTED_DIM) {
       throw new Error(
         `Embedding dimension mismatch (model=${cfg.model}, source=${cfg.source}): expected ${EXPECTED_DIM}, got ${dim} at index ${i}`,
       );
     }
   }
-  return json.embeddings;
+  return embeddings;
 }
 
 export async function createEmbedding(text: string): Promise<number[]> {

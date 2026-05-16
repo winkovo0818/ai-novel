@@ -133,4 +133,50 @@ describe("POST /api/onboarding/sessions/[id]/loglines — auth + input gating", 
     expect(json.error.code).toBe("QUOTA_EXCEEDED");
     expect(chatCompletionWithRetry).not.toHaveBeenCalled();
   });
+
+  it("passes the saved title and genre labels into the logline prompt", async () => {
+    authorizeOnboardingSession.mockResolvedValue({
+      ok: true,
+      userId: "user-1",
+      session: {
+        id: "session-1",
+        title: "青铜雨巷",
+        genre_main: "literary",
+        genre_sub: "江南市井、代际创伤、现实主义",
+      },
+    });
+    chatCompletionWithRetry.mockResolvedValue({
+      content: JSON.stringify({
+        loglines: [
+          "青铜雨巷里，修伞匠追索父亲沉默半生的旧案，逼出三代人的创伤真相。",
+          "一条即将拆迁的雨巷牵出家族旧债，年轻记者在现实主义追问中重写故乡。",
+          "青铜匠人的遗物重现江南雨巷，让母女两代不得不面对被隐瞒的时代伤痕。",
+          "小城雨巷的老茶馆将关闭，返乡青年在邻里证词中拼出祖辈失语的历史。",
+          "一场梅雨困住江南旧街，也困住三代人的秘密，直到失踪多年的信件归来。",
+        ],
+      }),
+      tokenIn: 1,
+      tokenOut: 1,
+      costCny: 0,
+      tookMs: 1,
+      model: "test",
+    });
+    update.mockResolvedValue({});
+
+    const { POST } = await import("./route");
+    const res = await POST(buildRequest(validBody), {
+      params: Promise.resolve({ id: "session-1" }),
+    });
+
+    expect(res.status).toBe(200);
+    const messages = chatCompletionWithRetry.mock.calls[0][0].messages;
+    const userMessage = messages.find((message: { role: string }) => message.role === "user");
+    expect(userMessage.content).toContain("青铜雨巷");
+    expect(userMessage.content).toContain("严肃文学");
+    expect(userMessage.content).toContain("江南市井、代际创伤、现实主义");
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "session-1" },
+      data: { logline_suggestions: expect.any(Array) },
+    });
+  });
 });

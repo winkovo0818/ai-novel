@@ -163,6 +163,18 @@ interface DeepSeekStreamChunk {
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
+interface AnthropicResponse {
+  content?: Array<{ type?: string; text?: string }>;
+  usage?: { input_tokens?: number; output_tokens?: number };
+}
+
+interface AnthropicStreamChunk {
+  type?: string;
+  delta?: { type?: string; text?: string };
+  message?: { usage?: { input_tokens?: number; output_tokens?: number } };
+  usage?: { input_tokens?: number; output_tokens?: number };
+}
+
 /**
  * Wire an external `AbortSignal` to an internal `AbortController`. If the
  * caller's signal already fired, abort immediately; otherwise listen once
@@ -198,6 +210,7 @@ interface ResolvedModelConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  provider: string;
 }
 
 /**
@@ -223,6 +236,7 @@ async function resolveModelConfig(opts: { model?: string }): Promise<ResolvedMod
         baseUrl: row.base_url.replace(/\/+$/, ""),
         apiKey: decryptApiKey(row.api_key),
         model: opts.model ?? row.model,
+        provider: row.provider,
       };
     }
   } catch {
@@ -232,6 +246,68 @@ async function resolveModelConfig(opts: { model?: string }): Promise<ResolvedMod
     baseUrl: getBaseUrl(),
     apiKey: requireEnv("DEEPSEEK_API_KEY"),
     model: opts.model ?? DEFAULT_MODEL,
+    provider: "deepseek",
+  };
+}
+
+function isAnthropicConfig(config: ResolvedModelConfig): boolean {
+  if (config.provider === "anthropic") return true;
+  try {
+    return new URL(config.baseUrl).pathname.toLowerCase().split("/").includes("anthropic");
+  } catch {
+    return false;
+  }
+}
+
+function anthropicMessagesUrl(baseUrl: string): string {
+  const normalized = baseUrl.replace(/\/+$/, "");
+  const pathname = new URL(normalized).pathname.replace(/\/+$/, "");
+  return pathname.endsWith("/v1") ? `${normalized}/messages` : `${normalized}/v1/messages`;
+}
+
+function splitAnthropicMessages(messages: ChatMessage[]): {
+  system?: string;
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+} {
+  const system = messages
+    .filter((message) => message.role === "system")
+    .map((message) => message.content)
+    .join("\n\n")
+    .trim();
+
+  const anthropicMessages = messages
+    .filter((message) => message.role !== "system")
+    .map((message) => ({
+      role: message.role === "assistant" ? "assistant" as const : "user" as const,
+      content: message.content,
+    }));
+
+  return {
+    system: system || undefined,
+    messages: anthropicMessages.length
+      ? anthropicMessages
+      : [{ role: "user", content: "" }],
+  };
+}
+
+function buildAnthropicBody(opts: ChatCompletionOptions | ChatStreamOptions, model: string, stream: boolean) {
+  const { system, messages } = splitAnthropicMessages(opts.messages);
+  return {
+    model,
+    messages,
+    system,
+    temperature: opts.temperature ?? 0.7,
+    max_tokens: Number(process.env.ANTHROPIC_MAX_TOKENS ?? 4096),
+    stream,
+  };
+}
+
+function anthropicHeaders(apiKey: string): HeadersInit {
+  return {
+    "Content-Type": "application/json",
+    "x-api-key": apiKey,
+    Authorization: `Bearer ${apiKey}`,
+    "anthropic-version": "2023-06-01",
   };
 }
 
@@ -266,25 +342,32 @@ export async function streamChatCompletion(
     const config = await resolveModelConfig({ model: opts.model });
     model = config.model;
     const apiKey = config.apiKey;
+    const anthropic = isAnthropicConfig(config);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     detachExternalAbort = forwardAbort(opts.signal, controller);
 
     let response: Response;
     try {
-      response = await fetch(`${config.baseUrl}/chat/completions`, {
+      response = await fetch(anthropic ? anthropicMessagesUrl(config.baseUrl) : `${config.baseUrl}/chat/completions`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: opts.messages,
-          temperature: opts.temperature ?? 0.7,
-          stream: true,
-          stream_options: { include_usage: true },
-        }),
+        headers: anthropic
+          ? anthropicHeaders(apiKey)
+          : {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+        body: JSON.stringify(
+          anthropic
+            ? buildAnthropicBody(opts, model, true)
+            : {
+                model,
+                messages: opts.messages,
+                temperature: opts.temperature ?? 0.7,
+                stream: true,
+                stream_options: { include_usage: true },
+              },
+        ),
         signal: controller.signal,
       });
     } catch (err) {
@@ -307,7 +390,7 @@ export async function streamChatCompletion(
       const text = await response.text().catch(() => "");
       errCode = `HTTP_${response.status}`;
       throw new Error(
-        `DeepSeek API error: ${response.status} ${text.slice(0, 500)}`,
+        `${anthropic ? "Anthropic" : "DeepSeek"} API error: ${response.status} ${text.slice(0, 500)}`,
       );
     }
 
@@ -335,14 +418,22 @@ export async function streamChatCompletion(
         const data = line.slice(5).trim();
         if (data === "[DONE]") continue;
 
-        const chunk = JSON.parse(data) as DeepSeekStreamChunk;
-        const delta = chunk.choices?.[0]?.delta?.content ?? "";
+        const chunk = JSON.parse(data) as DeepSeekStreamChunk & AnthropicStreamChunk;
+        const delta = anthropic
+          ? chunk.type === "content_block_delta" && chunk.delta?.type === "text_delta"
+            ? chunk.delta.text ?? ""
+            : ""
+          : chunk.choices?.[0]?.delta?.content ?? "";
         if (delta) {
           content += delta;
           await callbacks.onDelta(delta);
         }
-        tokenIn = chunk.usage?.prompt_tokens ?? tokenIn;
-        tokenOut = chunk.usage?.completion_tokens ?? tokenOut;
+        tokenIn = anthropic
+          ? chunk.message?.usage?.input_tokens ?? chunk.usage?.input_tokens ?? tokenIn
+          : chunk.usage?.prompt_tokens ?? tokenIn;
+        tokenOut = anthropic
+          ? chunk.message?.usage?.output_tokens ?? chunk.usage?.output_tokens ?? tokenOut
+          : chunk.usage?.completion_tokens ?? tokenOut;
       }
     }
 
@@ -423,6 +514,7 @@ export async function chatCompletion(
     model = config.model;
     const apiKey = config.apiKey;
     const baseUrl = config.baseUrl;
+    const anthropic = isAnthropicConfig(config);
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -430,21 +522,27 @@ export async function chatCompletion(
 
     let response: Response;
     try {
-      response = await fetch(`${baseUrl}/chat/completions`, {
+      response = await fetch(anthropic ? anthropicMessagesUrl(baseUrl) : `${baseUrl}/chat/completions`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: opts.messages,
-          temperature: opts.temperature ?? 0.7,
-          stream: false,
-          ...(opts.responseFormat
-            ? { response_format: { type: opts.responseFormat } }
-            : {}),
-        }),
+        headers: anthropic
+          ? anthropicHeaders(apiKey)
+          : {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+        body: JSON.stringify(
+          anthropic
+            ? buildAnthropicBody(opts, model, false)
+            : {
+                model,
+                messages: opts.messages,
+                temperature: opts.temperature ?? 0.7,
+                stream: false,
+                ...(opts.responseFormat
+                  ? { response_format: { type: opts.responseFormat } }
+                  : {}),
+              },
+        ),
         signal: controller.signal,
       });
     } catch (err) {
@@ -462,16 +560,18 @@ export async function chatCompletion(
       const text = await response.text().catch(() => "");
       errCode = `HTTP_${response.status}`;
       throw new Error(
-        `DeepSeek API error: ${response.status} ${text.slice(0, 500)}`,
+        `${anthropic ? "Anthropic" : "DeepSeek"} API error: ${response.status} ${text.slice(0, 500)}`,
       );
     }
 
-    const data = (await response.json()) as DeepSeekResponse;
-    const tokenIn = data.usage?.prompt_tokens ?? 0;
-    const tokenOut = data.usage?.completion_tokens ?? 0;
+    const data = (await response.json()) as DeepSeekResponse & AnthropicResponse;
+    const tokenIn = anthropic ? data.usage?.input_tokens ?? 0 : data.usage?.prompt_tokens ?? 0;
+    const tokenOut = anthropic ? data.usage?.output_tokens ?? 0 : data.usage?.completion_tokens ?? 0;
 
     result = {
-      content: data.choices?.[0]?.message?.content ?? "",
+      content: anthropic
+        ? data.content?.filter((item) => item.type === "text").map((item) => item.text ?? "").join("") ?? ""
+        : data.choices?.[0]?.message?.content ?? "",
       tokenIn,
       tokenOut,
       costCny: calcCostCny(tokenIn, tokenOut),

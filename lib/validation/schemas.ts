@@ -22,7 +22,7 @@ export type GenreMain = z.infer<typeof GenreMainEnum>;
 
 export const NovelProfileSchema = z.object({
   genre_main: GenreMainEnum,
-  genre_sub: z.string().min(1).max(12),
+  genre_sub: z.string().min(1).max(40),
   audience: z.enum(["male", "female", "general"]).default("general"),
   length: z
     .enum(["short", "mid", "long", "super_long"])
@@ -249,7 +249,7 @@ export function getAllChapters(bible: BibleDraft) {
 export const CreateSessionRequestSchema = z.object({
   title: z.string().max(64).optional(),
   genre_main: GenreMainEnum,
-  genre_sub: z.string().min(1).max(12),
+  genre_sub: z.string().min(1).max(40),
 });
 
 export const CreateSessionResponseSchema = z.object({

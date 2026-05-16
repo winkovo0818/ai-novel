@@ -15,6 +15,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ROUTE = "/api/onboarding/sessions/:id/loglines";
+const GENRE_MAIN_LABELS: Record<string, string> = {
+  web: "网文",
+  literary: "严肃文学",
+  script: "剧本",
+  fanfic: "同人",
+  shortstory: "短篇集",
+};
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -54,7 +61,12 @@ export async function POST(request: Request, context: RouteContext) {
       route: ROUTE,
       agent: "outline",
       userId,
-      messages: buildLoglinePrompt(profile),
+      messages: buildLoglinePrompt({
+        profile,
+        title: session.title,
+        genreMainLabel: GENRE_MAIN_LABELS[String(session.genre_main)] ?? String(session.genre_main),
+        genreSub: session.genre_sub,
+      }),
       responseFormat: "json_object",
       temperature: parsed.data.regenerate ? 0.9 : 0.7,
       timeoutMs: 15_000,

@@ -36,6 +36,15 @@ function okResponse(embeddings: number[][]) {
   } as unknown as Response;
 }
 
+function openAiOkResponse(embeddings: number[][]) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({ data: embeddings.map((embedding) => ({ embedding })), model: "test" }),
+    text: async () => "",
+  } as unknown as Response;
+}
+
 function makeVec(dim: number) {
   return Array.from({ length: dim }, (_, i) => i / dim);
 }
@@ -98,5 +107,27 @@ describe("createEmbeddings — DB-first resolver", () => {
     fetchMock.mockResolvedValue(okResponse([makeVec(512)]));
     const { createEmbeddings } = await import("./embeddings");
     await expect(createEmbeddings(["x"])).rejects.toThrow(/dimension mismatch/);
+  });
+
+  it("accepts OpenAI-compatible data[].embedding responses", async () => {
+    findFirst.mockResolvedValue(null);
+    process.env.EDGEFN_API_KEY = "k";
+    fetchMock.mockResolvedValue(openAiOkResponse([makeVec(1024)]));
+    const { createEmbeddings } = await import("./embeddings");
+    const out = await createEmbeddings(["x"]);
+    expect(out[0]).toHaveLength(1024);
+  });
+
+  it("throws a clear error when the response shape is unsupported", async () => {
+    findFirst.mockResolvedValue(null);
+    process.env.EDGEFN_API_KEY = "k";
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ object: "list" }),
+      text: async () => "",
+    } as unknown as Response);
+    const { createEmbeddings } = await import("./embeddings");
+    await expect(createEmbeddings(["x"])).rejects.toThrow(/response shape is invalid/);
   });
 });

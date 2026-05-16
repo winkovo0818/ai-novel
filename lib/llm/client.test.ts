@@ -9,9 +9,12 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { chatCompletion, chatCompletionWithRetry, streamChatCompletion, streamChatCompletionWithRetry } from "./client";
+import { encryptApiKey } from "./encryption";
+import { prisma } from "@/lib/db";
 
 const ORIG_KEY = process.env.DEEPSEEK_API_KEY;
 const ORIG_MOCK = process.env.LLM_MOCK;
+const ORIG_MODEL_KEY_SECRET = process.env.MODEL_KEY_ENCRYPTION_SECRET;
 
 describe("lib/llm/client", () => {
   beforeEach(() => {
@@ -29,6 +32,12 @@ describe("lib/llm/client", () => {
     } else {
       process.env.LLM_MOCK = ORIG_MOCK;
     }
+    if (ORIG_MODEL_KEY_SECRET === undefined) {
+      delete process.env.MODEL_KEY_ENCRYPTION_SECRET;
+    } else {
+      process.env.MODEL_KEY_ENCRYPTION_SECRET = ORIG_MODEL_KEY_SECRET;
+    }
+    vi.mocked(prisma.llmModel.findFirst).mockResolvedValue(null);
     vi.restoreAllMocks();
   });
 
@@ -38,6 +47,7 @@ describe("lib/llm/client", () => {
 
   it("retries chatCompletion once on timeout", async () => {
     process.env.DEEPSEEK_API_KEY = "test-key";
+    delete process.env.LLM_MOCK;
     const fetchMock = vi
       .fn()
       .mockRejectedValueOnce(new DOMException("The operation was aborted", "AbortError"))
@@ -234,5 +244,89 @@ describe("lib/llm/client", () => {
     // post-hoc does NOT abort the (already-discarded) inner signal.
     ac.abort();
     expect(capturedSignal?.aborted).toBe(false);
+  });
+
+  it("uses Anthropic messages API for /anthropic model endpoints", async () => {
+    delete process.env.LLM_MOCK;
+    process.env.MODEL_KEY_ENCRYPTION_SECRET = "test-secret";
+    vi.mocked(prisma.llmModel.findFirst).mockResolvedValueOnce({
+      provider: "custom",
+      base_url: "https://token-plan-cn.xiaomimimo.com/anthropic",
+      api_key: encryptApiKey("row-key"),
+      model: "mimo-v2.5-pro",
+      created_at: new Date(),
+    } as never);
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      Response.json({
+        content: [{ type: "text", text: "{\"loglines\":[\"ok\"]}" }],
+        usage: { input_tokens: 7, output_tokens: 3 },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await chatCompletion({
+      route: "/api/onboarding/sessions/:id/loglines",
+      messages: [
+        { role: "system", content: "system rules" },
+        { role: "user", content: "make json" },
+      ],
+      responseFormat: "json_object",
+    });
+
+    expect(result.content).toBe("{\"loglines\":[\"ok\"]}");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://token-plan-cn.xiaomimimo.com/anthropic/v1/messages",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "x-api-key": "row-key",
+          "anthropic-version": "2023-06-01",
+        }),
+        body: JSON.stringify({
+          model: "mimo-v2.5-pro",
+          messages: [{ role: "user", content: "make json" }],
+          system: "system rules",
+          temperature: 0.7,
+          max_tokens: 4096,
+          stream: false,
+        }),
+      }),
+    );
+  });
+
+  it("parses Anthropic streaming deltas", async () => {
+    delete process.env.LLM_MOCK;
+    process.env.MODEL_KEY_ENCRYPTION_SECRET = "test-secret";
+    vi.mocked(prisma.llmModel.findFirst).mockResolvedValueOnce({
+      provider: "anthropic",
+      base_url: "https://api.anthropic.com",
+      api_key: encryptApiKey("row-key"),
+      model: "claude-sonnet",
+      created_at: new Date(),
+    } as never);
+
+    const body = [
+      'data: {"type":"message_start","message":{"usage":{"input_tokens":5}}}\n\n',
+      'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"he"}}\n\n',
+      'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"llo"}}\n\n',
+      'data: {"type":"message_delta","usage":{"output_tokens":2}}\n\n',
+    ].join("");
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    let captured = "";
+    const result = await streamChatCompletion(
+      { route: "/api/onboarding/sessions/:id/bible", messages: [{ role: "user", content: "draft" }] },
+      { onDelta: (delta) => { captured += delta; } },
+    );
+
+    expect(captured).toBe("hello");
+    expect(result.content).toBe("hello");
+    expect(result.tokenIn).toBe(5);
+    expect(result.tokenOut).toBe(2);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.anthropic.com/v1/messages");
   });
 });
