@@ -2,10 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/db";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { formatDate } from "@/lib/format/datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -90,7 +91,7 @@ export default async function DashboardPage() {
           description="欢迎回来。在这里查看您的创作进度、AI 调用统计以及待办任务。"
           actions={
             <Link href="/new" className="btn-primary gap-2 px-6">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               新建文学作品
@@ -99,33 +100,41 @@ export default async function DashboardPage() {
         />
 
         {/* Suggestion & Quick Stats */}
-        <div className="mt-12 grid gap-6 lg:grid-cols-4">
+        <div className="mt-12 grid gap-8 lg:grid-cols-4">
           <div className="lg:col-span-2">
             {suggestion ? (
               <Link
                 href={suggestion.href}
-                className="card bg-text-primary text-white border-text-primary flex items-center justify-between gap-8 h-full group hover:shadow-premium transition-all duration-300"
+                aria-label={`智能建议: ${suggestion.title}. ${suggestion.detail}`}
+                className="card bg-text-primary text-white border-text-primary flex items-center justify-between gap-8 h-full group hover:shadow-[0_24px_48px_-12px_rgba(0,0,0,0.2)] transition-[box-shadow] duration-500"
               >
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60 mb-2">
-                    智能下一步建议
+                <div className="flex-1">
+                  <div className="inline-flex items-center gap-2 px-2 py-0.5 bg-white/10 rounded-md mb-4">
+                     <span className="h-1 w-1 rounded-full bg-accent animate-pulse" />
+                     <p className="text-[9px] font-bold uppercase tracking-[0.2em] opacity-80">
+                       智能创作协议 / DIRECTIVE
+                     </p>
+                  </div>
+                  <h3 className="text-2xl font-serif font-bold group-hover:translate-x-1 transition-transform duration-300 leading-tight">
+                    {suggestion.title}
+                  </h3>
+                  <p className="text-sm opacity-60 mt-3 leading-relaxed">
+                    {suggestion.detail}
                   </p>
-                  <h3 className="text-xl font-serif font-bold group-hover:translate-x-1 transition-transform">{suggestion.title}</h3>
-                  <p className="text-sm opacity-70 mt-2 leading-relaxed">{suggestion.detail}</p>
                 </div>
-                <div className="h-12 w-12 rounded-full bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition-colors">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                <div className="h-16 w-16 rounded-full bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition duration-300 group-hover:scale-110">
+                  <svg aria-hidden="true" className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                   </svg>
                 </div>
               </Link>
             ) : (
               <div className="card bg-white h-full flex flex-col justify-center">
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-dim mb-2">
-                  当前状态
+                  当前状态 / STATUS
                 </p>
-                <h3 className="text-xl font-serif font-bold text-text-primary">渐入佳境</h3>
-                <p className="text-sm text-text-muted mt-2">所有的创作任务都已处理完成，准备开启新的篇章吗？</p>
+                <h3 className="text-xl font-serif font-bold text-text-primary italic">渐入佳境</h3>
+                <p className="text-sm text-text-muted mt-3">所有的创作任务都已处理完成，准备开启新的篇章吗？</p>
               </div>
             )}
           </div>
@@ -135,7 +144,7 @@ export default async function DashboardPage() {
             value={monthlyUsage._count}
             subValue={`消耗 ${monthlyTokens.toLocaleString()} tokens`}
             icon={
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             }
@@ -146,7 +155,7 @@ export default async function DashboardPage() {
             value={`¥${monthlyCost.toFixed(2)}`}
             subValue="按当前模型费率计算"
             icon={
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             }
@@ -167,32 +176,58 @@ export default async function DashboardPage() {
               }
             >
               {recentNovels.length === 0 ? (
-                <div className="py-12 text-center bg-secondary/20 rounded-2xl border border-dashed border-border-strong">
-                  <p className="text-sm text-text-dim">还没有作品。点击上方「新建」开始创作。</p>
+                <div className="py-20 text-center bg-secondary/10 rounded-2xl border border-dashed border-border-strong flex flex-col items-center gap-6">
+                  <div className="relative w-16 h-16">
+                    <div className="absolute inset-0 bg-primary/5 rounded-2xl rotate-6" />
+                    <div className="absolute inset-0 bg-white border border-border-subtle rounded-2xl flex items-center justify-center shadow-sm -rotate-3 transition-transform group-hover:rotate-0 duration-300">
+                      <svg aria-hidden="true" className="w-8 h-8 text-text-dim" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="max-w-xs">
+                    <p className="text-sm font-bold text-text-primary mb-1">还没有创作项目</p>
+                    <p className="text-xs text-text-muted leading-relaxed">灵感正在酝酿中。点击上方「新建」按钮，开启您的首部 AI 协同小说。</p>
+                  </div>
                 </div>
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-6 sm:grid-cols-2">
                   {recentNovels.map((n) => (
                     <Link
                       key={n.id}
                       href={`/novels/${n.id}`}
-                      className="group p-5 rounded-2xl border border-border-subtle hover:border-border-strong hover:bg-secondary/50 transition-all"
+                      className="group p-6 rounded-2xl border border-border-subtle bg-white hover:border-primary/20 hover:shadow-premium transition-[border-color,box-shadow] duration-500 flex flex-col justify-between focus-visible:ring-2 focus-visible:ring-primary"
                     >
-                      <p className="text-base font-bold text-text-primary truncate group-hover:text-primary transition-colors">{n.title}</p>
-                      <div className="flex items-center gap-3 mt-3">
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-[9px] font-bold text-text-dim uppercase tracking-[0.2em] font-mono">
+                            #{n.id.slice(0, 6).toUpperCase()}
+                          </span>
+                          <span className="text-[10px] text-text-dim tabular-nums">
+                            {formatDate(n.lastEdit)}
+                          </span>
+                        </div>
+                        <h4 className="text-lg font-serif font-bold text-text-primary group-hover:text-primary transition-colors truncate">
+                          {n.title}
+                        </h4>
+                      </div>
+                      
+                      <div className="mt-8">
+                        <div className="flex items-center justify-between mb-2.5">
+                           <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">
+                              全书进度
+                           </span>
+                           <span className="text-[10px] font-bold text-primary tabular-nums">
+                              {Math.round((n.chapters.filter(c => c.status === 'done').length / (n.chapters.length || 1)) * 100)}%
+                           </span>
+                        </div>
                         <progress
-                          className="progress-bar h-1 flex-1"
-                          max={n.chapters.length}
+                          className="progress-bar h-1 w-full"
+                          max={n.chapters.length || 1}
                           value={n.chapters.filter((c) => c.status === "done").length}
                           aria-label={`${n.title} 创作进度`}
                         />
-                        <span className="text-[11px] font-bold text-text-muted">
-                          {n.chapters.filter((c) => c.status === "done").length}/{n.chapters.length}
-                        </span>
                       </div>
-                      <p className="text-[11px] text-text-dim mt-4 uppercase tracking-wider">
-                        最后编辑：{n.lastEdit.toLocaleDateString("zh-CN")}
-                      </p>
                     </Link>
                   ))}
                 </div>
@@ -208,49 +243,54 @@ export default async function DashboardPage() {
                   <p className="text-sm text-text-muted italic">所有已创建章节均已完成，干得漂亮！</p>
                 </div>
               ) : (
-                <div className="overflow-hidden rounded-xl border border-border-subtle">
-                  <table className="w-full text-left text-sm border-collapse">
-                    <thead>
-                      <tr className="bg-secondary/50 text-[11px] font-bold text-text-dim uppercase tracking-wider">
-                        <th className="px-5 py-3 border-b border-border-subtle">章节名称</th>
-                        <th className="px-5 py-3 border-b border-border-subtle">所属作品</th>
-                        <th className="px-5 py-3 border-b border-border-subtle">最后更新</th>
-                        <th className="px-5 py-3 border-b border-border-subtle"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border-subtle">
-                      {pendingChapters.map((c) => (
-                        <tr key={c.id} className="hover:bg-secondary/30 transition-colors group">
-                          <td className="px-5 py-4">
-                             <div className="flex flex-col">
-                               <span className="font-bold text-text-primary group-hover:text-primary transition-colors">
-                                 第 {c.chapter_index} 章 · {c.title}
-                               </span>
-                               <span className="text-[10px] font-medium text-amber-600 uppercase tracking-tighter mt-0.5">
-                                 {c.status === 'draft' ? '草稿中' : '起草中'}
-                               </span>
-                             </div>
-                          </td>
-                          <td className="px-5 py-4 text-text-secondary font-medium">
-                            {c.novel_title}
-                          </td>
-                          <td className="px-5 py-4 text-text-dim text-xs font-medium">
-                            {c.updated_at.toLocaleDateString("zh-CN")}
-                          </td>
-                          <td className="px-5 py-4 text-right">
-                            <Link
-                              href={`/editor/${c.novel_id}?chapter=${c.chapter_index}`}
-                              className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-border-strong text-text-muted hover:border-primary hover:text-primary hover:bg-white transition-all"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                              </svg>
-                            </Link>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="overflow-x-auto custom-scrollbar -mx-2 px-2">
+                  <div className="inline-block min-w-full align-middle">
+                    <div className="overflow-hidden rounded-xl border border-border-subtle">
+                      <table className="w-full text-left text-sm border-collapse">
+                        <thead>
+                          <tr className="bg-secondary/50 text-[11px] font-bold text-text-dim uppercase tracking-wider">
+                            <th className="px-5 py-3 border-b border-border-subtle whitespace-nowrap">章节名称</th>
+                            <th className="px-5 py-3 border-b border-border-subtle whitespace-nowrap">所属作品</th>
+                            <th className="px-5 py-3 border-b border-border-subtle whitespace-nowrap">最后更新</th>
+                            <th className="px-5 py-3 border-b border-border-subtle"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border-subtle">
+                          {pendingChapters.map((c) => (
+                            <tr key={c.id} className="hover:bg-secondary/30 transition-colors group">
+                              <td className="px-5 py-4 min-w-[200px]">
+                                 <div className="flex flex-col">
+                                   <span className="font-bold text-text-primary group-hover:text-primary transition-colors">
+                                     第 {c.chapter_index} 章 · {c.title}
+                                   </span>
+                                   <span className="text-[10px] font-medium text-amber-600 uppercase tracking-tighter mt-0.5">
+                                     {c.status === 'draft' ? '草稿中' : '起草中'}
+                                   </span>
+                                 </div>
+                              </td>
+                              <td className="px-5 py-4 text-text-secondary font-medium whitespace-nowrap">
+                                {c.novel_title}
+                              </td>
+                              <td className="px-5 py-4 text-text-dim text-xs font-medium tabular-nums whitespace-nowrap">
+                                {formatDate(c.updated_at)}
+                              </td>
+                              <td className="px-5 py-4 text-right">
+                                <Link
+                                  href={`/editor/${c.novel_id}?chapter=${c.chapter_index}`}
+                                  aria-label={`继续编辑 ${c.novel_title} 第 ${c.chapter_index} 章`}
+                                  className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-border-strong text-text-muted hover:border-primary hover:text-primary hover:bg-white transition focus-visible:ring-2 focus-visible:ring-primary"
+                                >
+                                  <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                  </svg>
+                                </Link>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
               )}
             </SectionCard>
@@ -258,20 +298,22 @@ export default async function DashboardPage() {
 
           {/* Right Column: AI Activity & System Health */}
           <div className="flex flex-col gap-8">
-            <SectionCard title="AI 活动记录" subtitle="最近的智能写作调用">
+            <SectionCard title="AI 活动记录 / ACTIVITY" subtitle="最近的智能写作调用">
               {generations.length === 0 ? (
-                <p className="text-sm text-text-dim italic">还没有 AI 调用记录</p>
+                <div className="py-12 text-center bg-secondary/10 rounded-2xl border border-dashed border-border-subtle">
+                   <p className="text-sm text-text-dim italic">尚未生成日志</p>
+                </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {generations.map((g) => (
-                    <div key={g.id} className="flex items-center justify-between p-3 rounded-xl bg-secondary/30 border border-border-subtle/50">
+                    <div key={g.id} className="flex items-center justify-between p-4 rounded-2xl bg-white border border-border-subtle hover:border-primary/20 transition-colors shadow-sm group">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className={`h-2 w-2 rounded-full shrink-0 ${g.status === "ok" ? "bg-emerald-500" : "bg-red-500"}`} />
-                        <span className="text-[13px] font-bold text-text-secondary truncate">{g.agent ?? "AI Assistant"}</span>
+                        <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${g.status === "ok" ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]"}`} />
+                        <span className="text-[13px] font-bold text-text-secondary truncate group-hover:text-text-primary transition-colors">{g.agent ?? "AI Assistant"}</span>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-[11px] font-bold text-text-primary">¥{g.cost_cny.toFixed(4)}</p>
-                        <p className="text-[10px] text-text-dim mt-0.5">{g.took_ms != null ? `${(g.took_ms / 1000).toFixed(1)}s` : "—"}</p>
+                        <p className="text-[11px] font-bold text-text-primary tabular-nums">¥{g.cost_cny.toFixed(4)}</p>
+                        <p className="text-[9px] font-bold text-text-dim uppercase tracking-tighter mt-0.5 tabular-nums">{g.took_ms != null ? `${(g.took_ms / 1000).toFixed(1)}s` : "—"}</p>
                       </div>
                     </div>
                   ))}
@@ -279,15 +321,18 @@ export default async function DashboardPage() {
               )}
             </SectionCard>
 
-            <SectionCard title="异常与任务" subtitle="后台任务运行状态">
+            <SectionCard title="系统与异常 / HEALTH" subtitle="后台任务运行状态">
               <div className="space-y-6">
                  <div>
-                   <dt className="text-[10px] font-bold uppercase tracking-wider text-text-dim mb-3">失败的记忆任务</dt>
-                   <dd className={`flex items-center justify-between p-4 rounded-2xl border ${ownedFailedJobs.length > 0 ? 'bg-red-50 border-red-100 text-red-600' : 'bg-emerald-50/30 border-emerald-100 text-emerald-600'}`}>
-                      <span className="text-sm font-bold">{ownedFailedJobs.length} 个异常</span>
+                   <dt className="text-[9px] font-bold uppercase tracking-[0.2em] text-text-dim mb-4 px-1">核心异步队列</dt>
+                   <dd className={`flex items-center justify-between p-5 rounded-[2rem] border ${ownedFailedJobs.length > 0 ? 'bg-red-50 border-red-100 text-red-600' : 'bg-emerald-50/20 border-emerald-100/50 text-emerald-600 shadow-inner'}`}>
+                      <div className="flex items-center gap-3">
+                         <div className={`h-2 w-2 rounded-full ${ownedFailedJobs.length > 0 ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
+                         <span className="text-sm font-bold uppercase tracking-tight">{ownedFailedJobs.length} 个异常任务</span>
+                      </div>
                       {ownedFailedJobs.length > 0 && (
-                        <div className="h-6 w-6 rounded-full bg-red-100 flex items-center justify-center">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="h-7 w-7 rounded-full bg-red-100 flex items-center justify-center">
+                          <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                           </svg>
                         </div>
@@ -295,21 +340,17 @@ export default async function DashboardPage() {
                    </dd>
                  </div>
 
-                 {ownedFailedJobs.length > 0 && (
-                   <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100">
-                     <p className="text-[11px] text-amber-700 leading-relaxed font-medium">
-                        提示：进入作品后在编辑器顶部点击红色徽章可查看详情并重试失败的任务。
+                 {ownedFailedJobs.length > 0 ? (
+                   <div className="p-5 rounded-2xl bg-amber-50 border border-amber-100/50">
+                     <p className="text-[11px] text-amber-700 leading-relaxed font-bold italic">
+                        PROTOCOL ALERT: 建议进入作品编辑器，通过顶部红色徽章重试失败的任务，以确保叙事逻辑一致性。
                      </p>
                    </div>
+                 ) : (
+                    <div className="p-5 rounded-2xl bg-secondary/30 border border-border-subtle/50 border-dashed text-center">
+                       <p className="text-[10px] font-bold text-text-dim uppercase tracking-widest">所有系统协议运行正常</p>
+                    </div>
                  )}
-
-                 {/* P1-12: the old "100% Online" 24-bar uptime strip was
-                     hardcoded — no underlying probe history table, no
-                     scrape job, no truthful source. Better to show nothing
-                     than to imply an SLO we aren't measuring. When we add
-                     a real uptime backend (Sentry / external probe with
-                     persisted samples), this slot can come back with the
-                     same SectionCard layout. */}
               </div>
             </SectionCard>
           </div>

@@ -5,42 +5,47 @@ const labels = ["核心方向", "灵感合成", "决策矩阵", "圣经合成", 
 
 export function ProgressDots({ step }: { step: WizardStep }) {
   return (
-    <div className="flex items-center justify-between w-full px-2">
+    <div className="flex items-center justify-between w-full px-4 md:px-12">
       {labels.map((label, index) => {
         const current = index + 1 === step;
         const done = index + 1 < step;
+        
         return (
           <React.Fragment key={label}>
-            <div className="flex flex-col items-center gap-2 group relative">
-              <div className="relative flex items-center justify-center">
-                {current && (
-                  <span className="absolute -inset-1.5 rounded-full bg-primary/20 animate-ping opacity-30" />
-                )}
-                <span
-                  className={`relative flex h-9 w-9 items-center justify-center rounded-xl text-[11px] font-bold transition-all duration-500 z-10 ${
-                    done 
-                      ? "bg-emerald-500 text-white shadow-lg scale-90" 
-                      : current 
-                      ? "bg-text-primary text-white shadow-lg ring-4 ring-primary/10" 
-                      : "bg-white text-text-dim border border-border-strong group-hover:border-primary/40"
-                  }`}
-                >
-                  {done ? (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : (
-                    index + 1
-                  )}
+            <div className="flex items-center gap-4 group relative">
+              <div className="relative flex flex-col items-center">
+                <span className={`font-serif text-2xl transition duration-500 ease-out ${
+                  current ? "text-text-primary scale-110" : done ? "text-accent" : "text-text-dim/40"
+                }`}>
+                  {String(index + 1).padStart(2, "0")}
                 </span>
+                
+                {/* Bookmarking Indicator */}
+                <div className={`absolute -bottom-6 h-4 w-[1.5px] transition duration-500 ${
+                  current ? "bg-accent scale-y-100" : "bg-transparent scale-y-0"
+                }`} />
               </div>
-              <span className={`text-[10px] font-bold uppercase tracking-[0.1em] transition-colors duration-300 absolute top-12 whitespace-nowrap ${current ? "text-primary" : done ? "text-emerald-600" : "text-text-dim"}`}>
-                {label}
-              </span>
+
+              <div className="flex flex-col">
+                <span className={`text-[10px] font-bold uppercase tracking-[0.2em] transition duration-300 ${
+                  current ? "text-text-primary translate-x-1" : done ? "text-text-muted" : "text-text-dim/40"
+                }`}>
+                  {label}
+                </span>
+                {current && (
+                  <span className="text-[8px] font-medium uppercase tracking-[0.1em] mt-0.5 text-accent/60 translate-x-1 animate-fade-in">
+                    当前阶段
+                  </span>
+                )}
+              </div>
             </div>
+            
             {index < labels.length - 1 && (
-              <div className="flex-1 mx-1">
-                <div className={`h-[2px] w-full rounded-full transition-all duration-1000 ${done ? "bg-emerald-500/30" : "bg-border-subtle"}`} />
+              <div className="h-px flex-1 mx-4 md:mx-8 bg-border-subtle relative overflow-hidden">
+                <div 
+                  className="absolute inset-0 bg-accent transition duration-[1.5s] ease-in-out" 
+                  style={{ transform: `translateX(${done ? "0" : current ? "-50%" : "-100%"})` }}
+                />
               </div>
             )}
           </React.Fragment>
@@ -49,3 +54,6 @@ export function ProgressDots({ step }: { step: WizardStep }) {
     </div>
   );
 }
+
+
+

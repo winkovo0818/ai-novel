@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import { formatDate } from "@/lib/format/datetime";
 
 interface NovelCardProps {
   id: string;
@@ -16,7 +17,7 @@ export function NovelCard({ id, title, chapterCount, doneCount, updatedAt, hasBi
   return (
     <Link
       href={`/novels/${id}`}
-      className="group relative bg-white border border-border-subtle rounded-2xl overflow-hidden shadow-sm transition-all duration-300 hover:shadow-premium hover:border-primary/20 hover:-translate-y-1 flex flex-col h-full"
+      className="group relative bg-white border border-border-subtle rounded-2xl overflow-hidden shadow-sm transition duration-300 hover:shadow-premium hover:border-primary/20 flex flex-col h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
     >
       {/* Decorative Top Bar */}
       <div className={`h-1.5 transition-colors duration-500 ${hasBible ? 'bg-primary' : 'bg-amber-400'}`} />
@@ -47,7 +48,15 @@ export function NovelCard({ id, title, chapterCount, doneCount, updatedAt, hasBi
             </span>
           </div>
           
-          <progress className="progress-bar h-1.5 w-full" max={100} value={progress} aria-label="创作进度" />
+          <progress 
+            className="progress-bar h-1.5 w-full" 
+            max={100} 
+            value={progress} 
+            aria-label="创作进度"
+            aria-valuenow={progress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          />
           
           <div className="mt-3 flex items-center gap-2">
              <span className="text-xs font-bold text-text-secondary">
@@ -63,15 +72,18 @@ export function NovelCard({ id, title, chapterCount, doneCount, updatedAt, hasBi
       
       <div className="px-6 py-4 bg-secondary/20 border-t border-border-subtle flex items-center justify-between">
         <span className="text-[10px] text-text-dim font-bold uppercase tracking-wider flex items-center gap-1.5">
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg aria-hidden="true" className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          {new Date(updatedAt).toLocaleDateString()}
+          {formatDate(updatedAt)}
         </span>
-        <div className="h-7 w-7 rounded-full bg-white border border-border-strong flex items-center justify-center text-text-dim group-hover:border-primary group-hover:text-primary transition-all">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-          </svg>
+        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-text-dim group-hover:text-primary transition-colors">
+          打开项目
+          <span className="h-7 w-7 rounded-full bg-white border border-border-strong flex items-center justify-center group-hover:border-primary transition">
+            <svg aria-hidden="true" className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+            </svg>
+          </span>
         </div>
       </div>
     </Link>

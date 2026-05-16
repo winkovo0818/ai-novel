@@ -48,7 +48,7 @@ export function CharactersEditor({ novelId, bible: initialBible }: CharactersEdi
                   <li key={idx}>
                     <button
                       onClick={() => setActiveIdx(idx)}
-                      className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-200 group ${
+                      className={`w-full text-left px-4 py-3 rounded-xl transition duration-200 group ${
                         activeIdx === idx
                           ? "bg-text-primary text-white shadow-premium"
                           : "hover:bg-secondary text-text-secondary"
@@ -169,7 +169,7 @@ function Field({
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full text-sm font-medium text-text-primary bg-secondary/30 border-none rounded-2xl px-4 py-3 focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all shadow-inner resize-none leading-relaxed"
+          className="w-full text-sm font-medium text-text-primary bg-secondary/30 border-none rounded-2xl px-4 py-3 focus:ring-2 focus:ring-primary/20 focus:bg-white transition shadow-inner resize-none leading-relaxed"
           rows={4}
         />
       ) : (
@@ -177,7 +177,7 @@ function Field({
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full text-sm font-bold text-text-primary bg-secondary/30 border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all shadow-inner"
+          className="w-full text-sm font-bold text-text-primary bg-secondary/30 border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary/20 focus:bg-white transition shadow-inner"
         />
       )}
     </div>
@@ -215,7 +215,7 @@ function ListField({
                 next[i] = e.target.value;
                 onChange(next);
               }}
-              className="flex-1 text-sm font-medium bg-secondary/30 border-none rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all shadow-inner"
+              className="flex-1 text-sm font-medium bg-secondary/30 border-none rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-primary/20 focus:bg-white transition shadow-inner"
             />
             {values.length > min && (
               <button
@@ -224,7 +224,7 @@ function ListField({
                 className="p-2 text-text-dim hover:text-red-500 transition-colors"
                 title="删除"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -235,7 +235,7 @@ function ListField({
           <button
             type="button"
             onClick={() => onChange([...values, ""])}
-            className="w-full py-3 bg-white border border-dashed border-border-strong rounded-xl text-[11px] font-bold text-text-dim hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all shadow-sm active:scale-[0.98]"
+            className="w-full py-3 bg-white border border-dashed border-border-strong rounded-xl text-[11px] font-bold text-text-dim hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition shadow-sm active:scale-[0.98]"
           >
             + 新增描述项
           </button>

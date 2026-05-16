@@ -107,7 +107,7 @@ export default function AdminUsersPage() {
           <PageHeader title="用户与权限" description="该模块仅对管理员开放。" />
           <div className="card bg-white mt-8 border-red-100 p-8 shadow-premium text-center">
             <div className="h-16 w-16 bg-red-100 rounded-3xl flex items-center justify-center text-red-600 mx-auto mb-6">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
@@ -139,10 +139,10 @@ export default function AdminUsersPage() {
         <div className="mt-12">
           {loading ? (
             <div className="py-20">
-              <LoadingState message="正在加载用户列表..." />
+              <LoadingState message="正在加载用户列表…" />
             </div>
           ) : users.length === 0 ? (
-            <EmptyState title="暂无用户" description="Supabase 项目下还没有任何注册用户。" />
+      <EmptyState title="暂无用户" description="当前数据库里还没有任何注册用户。" />
           ) : (
             <div className="grid gap-4 animate-fade-in-up">
               {users.map((user) => {
@@ -151,7 +151,7 @@ export default function AdminUsersPage() {
                 return (
                   <div
                     key={user.id}
-                    className="card bg-white p-6 rounded-3xl border border-border-subtle hover:border-primary/30 shadow-sm hover:shadow-premium transition-all duration-300 flex flex-col md:flex-row md:items-center justify-between gap-6"
+                    className="card bg-white p-6 rounded-3xl border border-border-subtle hover:border-primary/30 shadow-sm hover:shadow-premium transition duration-300 flex flex-col md:flex-row md:items-center justify-between gap-6"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-2">
@@ -173,17 +173,17 @@ export default function AdminUsersPage() {
                         <button
                           onClick={() => handleRevokeAdmin(user)}
                           disabled={acting}
-                          className="px-5 py-2.5 text-[11px] font-bold rounded-xl border bg-white border-border-strong text-text-dim hover:bg-red-50 hover:border-red-200 hover:text-red-600 disabled:opacity-50 transition-all"
+                          className="px-5 py-2.5 text-[11px] font-bold rounded-xl border bg-white border-border-strong text-text-dim hover:bg-red-50 hover:border-red-200 hover:text-red-600 disabled:opacity-50 transition"
                         >
-                          {acting ? "处理中..." : "移除 Admin"}
+                          {acting ? "处理中…" : "移除 Admin"}
                         </button>
                       ) : (
                         <button
                           onClick={() => handleGrantAdmin(user)}
                           disabled={acting}
-                          className="px-5 py-2.5 text-[11px] font-bold rounded-xl bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-all"
+                          className="px-5 py-2.5 text-[11px] font-bold rounded-xl bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition"
                         >
-                          {acting ? "处理中..." : "授权 Admin"}
+                          {acting ? "处理中…" : "授权 Admin"}
                         </button>
                       )}
                     </div>

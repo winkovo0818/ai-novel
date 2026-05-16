@@ -94,7 +94,7 @@ export function BibleEditorPanel({ novelId, bible, onUpdate, onBack }: BibleEdit
             className="p-6 text-text-muted hover:text-text-primary hover:bg-secondary rounded-sm transition-colors"
             title="返回章节目录"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </button>
           <h2 className="text-sm font-bold text-text-primary">全书设定</h2>
         </div>
@@ -106,7 +106,7 @@ export function BibleEditorPanel({ novelId, bible, onUpdate, onBack }: BibleEdit
         {/* Characters */}
         <section>
           <h3 className="text-[10px] font-bold text-text-muted uppercase tracking-[0.2em] mb-12 flex items-center gap-8">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+            <svg aria-hidden="true" className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
             角色设定
           </h3>
           <div className="space-y-12">
@@ -133,7 +133,7 @@ export function BibleEditorPanel({ novelId, bible, onUpdate, onBack }: BibleEdit
         {/* World Rules */}
         <section>
           <h3 className="text-[10px] font-bold text-text-muted uppercase tracking-[0.2em] mb-12 flex items-center gap-8">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <svg aria-hidden="true" className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             世界规则
           </h3>
           <div className="space-y-8">
@@ -144,7 +144,7 @@ export function BibleEditorPanel({ novelId, bible, onUpdate, onBack }: BibleEdit
                   value={rule}
                   onChange={(e) => updateWorldRule(idx, e.target.value)}
                   className="flex-1 text-[12px] text-text-secondary bg-white border border-border-subtle rounded-sm px-10 py-8 focus:border-primary focus:outline-none"
-                  placeholder="世界规则..."
+                  placeholder="世界规则…"
                 />
                 {workingBible.world.rules.length > 2 && (
                   <button
@@ -152,7 +152,7 @@ export function BibleEditorPanel({ novelId, bible, onUpdate, onBack }: BibleEdit
                     className="p-6 text-text-muted hover:text-red-500 transition-colors"
                     title="删除"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                 )}
               </div>
@@ -160,9 +160,9 @@ export function BibleEditorPanel({ novelId, bible, onUpdate, onBack }: BibleEdit
             {workingBible.world.rules.length < 4 && (
               <button
                 onClick={addWorldRule}
-                className="w-full py-8 border border-dashed border-border-subtle rounded-sm text-[11px] font-bold text-text-muted hover:border-primary/30 hover:text-primary transition-all flex items-center justify-center gap-6"
+                className="w-full py-8 border border-dashed border-border-subtle rounded-sm text-[11px] font-bold text-text-muted hover:border-primary/30 hover:text-primary transition flex items-center justify-center gap-6"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                 新增规则
               </button>
             )}
@@ -172,7 +172,7 @@ export function BibleEditorPanel({ novelId, bible, onUpdate, onBack }: BibleEdit
         {/* Outline Chapters */}
         <section>
           <h3 className="text-[10px] font-bold text-text-muted uppercase tracking-[0.2em] mb-12 flex items-center gap-8">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+            <svg aria-hidden="true" className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
             章节大纲
           </h3>
           <div className="space-y-16">
@@ -201,7 +201,7 @@ export function BibleEditorPanel({ novelId, bible, onUpdate, onBack }: BibleEdit
                         onChange={(e) => updateChapter(volIdx, chIdx, { summary: e.target.value })}
                         className="w-full text-[11px] text-text-secondary bg-white border border-border-subtle rounded-sm px-10 py-8 focus:border-primary focus:outline-none resize-none leading-relaxed"
                         rows={2}
-                        placeholder="章节摘要..."
+                        placeholder="章节摘要…"
                       />
                     </div>
                   ))}
@@ -216,13 +216,13 @@ export function BibleEditorPanel({ novelId, bible, onUpdate, onBack }: BibleEdit
       <div className="p-16 border-t border-border-subtle bg-secondary/10 space-y-8">
         {error && (
           <div className="text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-sm px-10 py-8 flex items-center gap-6">
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <svg aria-hidden="true" className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             {error}
           </div>
         )}
         {success && (
           <div className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-sm px-10 py-8 flex items-center gap-6">
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            <svg aria-hidden="true" className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
             设定已保存，下次 AI 起草将生效
           </div>
         )}
@@ -233,12 +233,12 @@ export function BibleEditorPanel({ novelId, bible, onUpdate, onBack }: BibleEdit
         >
           {saving ? (
             <>
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+              <svg aria-hidden="true" className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
               保存中...
             </>
           ) : (
             <>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
               保存设定
             </>
           )}

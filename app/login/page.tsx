@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/utils/supabase/client";
+import Link from "next/link";
+import { signIn } from "next-auth/react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -14,14 +15,14 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
-    const supabase = createClient();
-    const { error: authError } = await supabase.auth.signInWithPassword({
+    const result = await signIn("credentials", {
       email,
       password,
+      redirect: false,
     });
 
-    if (authError) {
-      setError(authError.message === "Invalid login credentials" ? "邮箱或密码错误" : authError.message);
+    if (result?.error) {
+      setError("邮箱或密码错误");
       setLoading(false);
       return;
     }
@@ -33,8 +34,8 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-secondary/30 px-6 py-12 relative overflow-hidden">
       {/* Decorative Blur */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-[100px] pointer-events-none animate-pulse" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-primary/10 rounded-full blur-3xl pointer-events-none animate-pulse" />
+      <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
 
       <div className="w-full max-w-md animate-fade-in relative z-10">
         <div className="bg-white border border-border-subtle p-8 md:p-12 rounded-[32px] shadow-premium">
@@ -52,7 +53,9 @@ export default function LoginPage() {
             <Field label="访问令牌 (邮箱)" id="email">
               <input
                 id="email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -65,17 +68,19 @@ export default function LoginPage() {
               label="权限密钥 (密码)"
               id="password"
               right={
-                <a
+                <Link
                   href="/reset-password"
                   className="text-[11px] font-bold text-primary hover:underline transition-colors uppercase tracking-wider"
                 >
                   忘记密钥？
-                </a>
+                </Link>
               }
             >
               <input
                 id="password"
+                name="password"
                 type="password"
+                autoComplete="current-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -87,9 +92,9 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary h-14 mt-4 text-base font-bold shadow-xl shadow-primary/20 rounded-2xl active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              className="btn-primary h-14 mt-4 text-base font-bold shadow-xl shadow-primary/20 rounded-2xl active:scale-95 transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading ? <Spinner label="正在校验权限..." /> : "进入创作空间"}
+              {loading ? <Spinner label="正在校验权限…" /> : "进入创作空间"}
             </button>
           </form>
 
@@ -97,9 +102,9 @@ export default function LoginPage() {
             <p className="text-[13px] font-medium text-text-muted leading-relaxed">
               尚未加入创作协议？
               <br />
-              <a href="/signup" className="mt-2 inline-block text-primary font-bold hover:underline transition-colors uppercase tracking-widest text-[11px]">
+              <Link href="/signup" className="mt-2 inline-block text-primary font-bold hover:underline transition-colors uppercase tracking-widest text-[11px]">
                 立即建立新档案 →
-              </a>
+              </Link>
             </p>
           </div>
         </div>
@@ -140,7 +145,7 @@ function ErrorBanner({ children }: { children: React.ReactNode }) {
   return (
     <div className="mb-8 border border-red-100 bg-red-50/50 p-4 rounded-2xl text-[12px] text-red-700 flex items-start gap-3 animate-slide-in">
       <div className="h-5 w-5 bg-red-100 rounded-lg flex items-center justify-center shrink-0 text-red-600">
-        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg aria-hidden="true" className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -157,7 +162,7 @@ function ErrorBanner({ children }: { children: React.ReactNode }) {
 function Spinner({ label }: { label: string }) {
   return (
     <span className="flex items-center gap-3">
-      <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+      <svg aria-hidden="true" className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
         <path
           className="opacity-75"

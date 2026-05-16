@@ -39,7 +39,7 @@ export function StateDiffPanel({ loading, error, diff, onClose, onAccept }: Stat
             className="p-2 hover:bg-secondary rounded-lg text-text-muted transition-colors"
             aria-label="关闭"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -48,7 +48,7 @@ export function StateDiffPanel({ loading, error, diff, onClose, onAccept }: Stat
         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4">
           {loading && (
             <div className="text-center py-12 text-sm text-text-muted flex flex-col items-center gap-3">
-              <svg className="w-6 h-6 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-6 h-6 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
@@ -64,7 +64,7 @@ export function StateDiffPanel({ loading, error, diff, onClose, onAccept }: Stat
 
           {!loading && !error && diff && !hasChanges && (
             <div className="text-center py-12 text-sm text-text-muted">
-              <svg className="w-8 h-8 mx-auto mb-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-8 h-8 mx-auto mb-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               未发现明显状态变更
@@ -178,7 +178,7 @@ export function StateDiffPanel({ loading, error, diff, onClose, onAccept }: Stat
               onClick={() => onAccept(diff)}
               className="flex-1 btn-primary text-xs font-bold py-3 gap-2"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               采纳并更新设定

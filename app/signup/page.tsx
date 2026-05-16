@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/utils/supabase/client";
+import Link from "next/link";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -25,20 +25,22 @@ export default function SignupPage() {
     }
 
     setLoading(true);
-    const supabase = createClient();
-    let authError: { message: string } | null = null;
-
+    let response: Response;
     try {
-      const { error } = await supabase.auth.signUp({ email, password });
-      authError = error;
+      response = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
     } catch {
       setError("无法连接认证服务，请检查网络连接");
       setLoading(false);
       return;
     }
 
-    if (authError) {
-      setError(authError.message);
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      setError(payload?.error?.message ?? "注册失败");
       setLoading(false);
       return;
     }
@@ -87,7 +89,9 @@ export default function SignupPage() {
             <Field label="邮箱" id="email">
               <input
                 id="email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -99,7 +103,9 @@ export default function SignupPage() {
             <Field label="密码" id="password" hint="至少 6 位字符">
               <input
                 id="password"
+                name="password"
                 type="password"
+                autoComplete="new-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -111,7 +117,9 @@ export default function SignupPage() {
             <Field label="确认密码" id="confirmPassword">
               <input
                 id="confirmPassword"
+                name="confirmPassword"
                 type="password"
+                autoComplete="new-password"
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -125,16 +133,16 @@ export default function SignupPage() {
               disabled={loading}
               className="btn-primary h-11 mt-2 text-base shadow-md shadow-primary/20 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading ? <Spinner label="注册中..." /> : "创建账号"}
+              {loading ? <Spinner label="注册中…" /> : "创建账号"}
             </button>
           </form>
 
           <div className="mt-8 pt-6 border-t border-border-subtle text-center">
             <p className="text-sm text-text-muted">
               已经有账号？
-              <a href="/login" className="ml-2 text-primary font-bold hover:underline transition-colors">
+              <Link href="/login" className="ml-2 text-primary font-bold hover:underline transition-colors">
                 登录
-              </a>
+              </Link>
             </p>
           </div>
         </div>
@@ -170,7 +178,7 @@ function Field({
 function ErrorBanner({ children }: { children: React.ReactNode }) {
   return (
     <div className="mb-5 border border-red-200 bg-red-50 px-3 py-2.5 rounded-md text-sm text-red-700 flex items-start gap-2">
-      <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg aria-hidden="true" className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -186,7 +194,7 @@ function ErrorBanner({ children }: { children: React.ReactNode }) {
 function Spinner({ label }: { label: string }) {
   return (
     <span className="flex items-center gap-2">
-      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+      <svg aria-hidden="true" className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
         <path
           className="opacity-75"
@@ -221,16 +229,16 @@ function SuccessShell({
           <div
             className={`h-12 w-12 ${accentBg} rounded-full flex items-center justify-center text-white shadow-lg ${accentShadow}`}
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg aria-hidden="true" className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
             </svg>
           </div>
         </div>
         <h1 className="text-2xl font-bold text-text-primary tracking-tight">{title}</h1>
         <p className="mt-4 text-sm text-text-secondary leading-relaxed">{description}</p>
-        <a href={action.href} className="btn-primary mt-8 inline-block px-6 h-11">
+        <Link href={action.href} className="btn-primary mt-8 inline-block px-6 h-11">
           {action.label}
-        </a>
+        </Link>
       </div>
     </main>
   );

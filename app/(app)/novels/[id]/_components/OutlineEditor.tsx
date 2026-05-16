@@ -101,8 +101,8 @@ export function OutlineEditor({ novelId, bible: initialBible, draftedIndexes }: 
                             value={chapter.summary}
                             onChange={(e) => updateChapter(vi, ci, { summary: e.target.value })}
                             rows={3}
-                            placeholder="描述本章的核心事件与转折点（20-120 字）..."
-                            className="w-full text-[14px] text-text-secondary bg-secondary/30 border-none rounded-xl px-4 py-3 leading-relaxed focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all resize-none shadow-inner"
+                            placeholder="描述本章的核心事件与转折点（20-120 字）…"
+                            className="w-full text-[14px] text-text-secondary bg-secondary/30 border-none rounded-xl px-4 py-3 leading-relaxed focus:ring-2 focus:ring-primary/20 focus:bg-white transition resize-none shadow-inner"
                           />
                           <span className="absolute bottom-2 right-4 text-[9px] font-bold text-text-dim uppercase">
                             {chapter.summary.length} / 120
@@ -126,7 +126,7 @@ export function OutlineEditor({ novelId, bible: initialBible, draftedIndexes }: 
                           className="inline-flex items-center gap-1.5 text-[11px] font-bold text-primary hover:underline group/link"
                         >
                           {isDrafted ? "进入编辑" : "开始起草"}
-                          <svg className="w-3.5 h-3.5 group-hover/link:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg aria-hidden="true" className="w-3.5 h-3.5 group-hover/link:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                           </svg>
                         </Link>

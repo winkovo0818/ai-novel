@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 
 interface PageHeaderProps {
   title: string;
@@ -11,16 +12,16 @@ export function PageHeader({ title, description, actions, breadcrumb }: PageHead
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
       {breadcrumb && (
-        <nav className="flex items-center gap-2 text-[11px] font-bold text-text-dim uppercase tracking-wider">
+        <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-[11px] font-bold text-text-dim uppercase tracking-wider">
           {breadcrumb.map((item, index) => (
             <React.Fragment key={index}>
-              {index > 0 && <span className="opacity-40">/</span>}
+              {index > 0 && <span className="opacity-40" aria-hidden="true">/</span>}
               {item.href ? (
-                <a href={item.href} className="hover:text-primary transition-colors">
+                <Link href={item.href} className="hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded">
                   {item.label}
-                </a>
+                </Link>
               ) : (
-                <span>{item.label}</span>
+                <span aria-current="page">{item.label}</span>
               )}
             </React.Fragment>
           ))}

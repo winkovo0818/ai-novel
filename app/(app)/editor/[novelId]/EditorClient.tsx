@@ -93,7 +93,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
     >
       {/* Left: Chapter Tree & Bible Context */}
       <aside 
-        className={`bg-white border-r border-border-subtle transition-all duration-500 ease-in-out h-full overflow-hidden ${
+        className={`bg-white border-r border-border-subtle transition duration-500 ease-in-out h-full overflow-hidden ${
           showBible ? "w-80 opacity-100" : "w-0 opacity-0"
         }`}
       >
@@ -120,12 +120,14 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
           <div className="flex items-center gap-4">
             <button
               onClick={() => setShowBible(!showBible)}
-              className={`p-2 rounded-xl transition-all duration-200 ${
+              aria-label={showBible ? "收起目录" : "展开目录"}
+              aria-expanded={showBible}
+              className={`p-2 rounded-xl transition duration-200 ${
                 showBible ? "bg-primary/10 text-primary shadow-inner" : "text-text-dim hover:bg-secondary hover:text-text-primary"
               }`}
               title={showBible ? "收起目录" : "展开目录"}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
               </svg>
             </button>
@@ -140,10 +142,11 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
             {editor.pendingStateDiff && (
               <button
                 onClick={editor.openPendingStateDiff}
+                aria-label={`第 ${editor.pendingStateDiffChapterIndex} 章设定冲突，点击查看`}
                 className="relative p-2 rounded-xl text-amber-600 bg-amber-50 border border-amber-100 hover:bg-amber-100 transition-colors shadow-sm"
                 title={`第 ${editor.pendingStateDiffChapterIndex} 章设定冲突 · 点击查看`}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-500 border-2 border-white animate-bounce" />
@@ -156,10 +159,11 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
                   editor.dismissAutoStateDiffError();
                   editor.generateStateDiff();
                 }}
+                aria-label={`第 ${editor.autoStateDiffError.chapterIndex} 章状态分析自动生成失败，点击重试`}
                 className="relative p-2 rounded-xl text-red-600 bg-red-50 border border-red-100 hover:bg-red-100 transition-colors shadow-sm"
                 title={`第 ${editor.autoStateDiffError.chapterIndex} 章状态分析自动生成失败 · ${editor.autoStateDiffError.message} · 点击重试`}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.48 0L3.16 16.25A2 2 0 005 19z" />
                 </svg>
                 <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white" />
@@ -174,7 +178,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
                 title={`第 ${editor.criticFailure.chapterIndex} 章 AI 审校未完成 · ${editor.criticFailure.message}${editor.criticRetrying ? " · 重试中…" : " · 点击重试"}`}
                 aria-label="AI 审校未完成 · 点击重试"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-500 border-2 border-white" />
@@ -218,12 +222,14 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
             
             <button
               onClick={() => setShowAI(!showAI)}
-              className={`p-2 rounded-xl transition-all duration-300 ${
+              aria-label={showAI ? "收起 AI 创作助手" : "展开 AI 创作助手"}
+              aria-expanded={showAI}
+              className={`p-2 rounded-xl transition duration-300 ${
                 showAI ? "bg-text-primary text-white shadow-premium scale-105" : "text-text-dim hover:bg-secondary hover:text-text-primary"
               }`}
               title="AI 创作助手"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </button>
@@ -232,7 +238,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
 
         {/* Editor Area with Paper Look */}
         <div className="flex-1 overflow-y-auto custom-scrollbar px-4 md:px-8 py-12 md:py-20 flex flex-col items-center">
-          <div className="writing-canvas p-10 md:p-16 lg:p-20 animate-fade-in-up">
+          <div className="writing-canvas w-full max-w-4xl p-10 md:p-16 lg:p-20 animate-fade-in-up">
             <EditorToolbar
               summary={editor.selectedOutline?.summary}
               chapterTitle={editor.chapterTitle}
@@ -263,7 +269,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50/50 p-5 flex flex-wrap items-center justify-between gap-4 animate-slide-in">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                    <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-                      <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg aria-hidden="true" className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                       </svg>
                    </div>
@@ -293,7 +299,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               <div className="mt-8 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-5 flex flex-wrap items-center justify-between gap-4 animate-slide-in">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="h-10 w-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
-                    <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg aria-hidden="true" className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                   </div>
@@ -350,7 +356,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               )}
               <textarea
                 className={`w-full min-h-[1000px] resize-none border-none bg-transparent p-0 font-serif ${FONT_SCALES[fontScale].textareaClass} text-text-primary placeholder:text-text-dim/20 focus:outline-none selection:bg-primary/10`}
-                placeholder="开始书写故事..."
+                placeholder="开始书写故事…"
                 spellCheck={false}
                 value={editor.content}
                 onChange={(event) => {
@@ -376,7 +382,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
 
       {/* Right: AI Assistant */}
       <aside 
-        className={`bg-white border-l border-border-subtle transition-all duration-500 ease-in-out h-full overflow-hidden ${
+        className={`bg-white border-l border-border-subtle transition duration-500 ease-in-out h-full overflow-hidden ${
           showAI ? "w-96 opacity-100" : "w-0 opacity-0"
         }`}
       >
@@ -456,6 +462,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
           content={editor.candidateContent}
           streaming={editor.candidateStreaming}
           criticLoading={editor.candidateCriticLoading}
+          revisionLoading={editor.candidateRevisionLoading}
           criticResult={editor.candidateCriticResult}
           criticError={editor.candidateCriticError}
           hasExistingContent={editor.content.trim().length > 0}
@@ -465,6 +472,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
           retrievedMemories={editor.lastRetrievedMemories}
           retrievalError={editor.lastRetrievalError}
           onAccept={(mode) => editor.acceptCandidate(mode)}
+          onRevise={() => editor.reviseCandidate()}
           onClose={() => editor.acceptCandidate("discard")}
         />
       )}

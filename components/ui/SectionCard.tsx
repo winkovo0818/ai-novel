@@ -13,9 +13,9 @@ export function SectionCard({ title, subtitle, children, actions, className = ""
     <section className={`card bg-white flex flex-col gap-6 ${className}`}>
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-text-dim">
+          <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-text-dim">
             {title}
-          </h3>
+          </h2>
           {subtitle && (
             <p className="text-[13px] text-text-muted">
               {subtitle}

@@ -149,7 +149,7 @@ export default function AdminModerationPage() {
               <button
                 key={item}
                 onClick={() => setStatus(item)}
-                className={`px-4 py-2 rounded-xl text-[12px] font-bold transition-all ${
+                className={`px-4 py-2 rounded-xl text-[12px] font-bold transition ${
                   status === item
                     ? "bg-text-primary text-white"
                     : "text-text-secondary hover:bg-secondary/70"
@@ -171,7 +171,7 @@ export default function AdminModerationPage() {
         <div className="mt-8">
           {loading ? (
             <div className="py-20">
-              <LoadingState message="正在加载审核队列..." />
+              <LoadingState message="正在加载审核队列…" />
             </div>
           ) : rows.length === 0 ? (
             <EmptyState title="没有待显示记录" description="当前筛选下没有 ModerationAudit 记录。" />

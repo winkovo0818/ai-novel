@@ -137,7 +137,7 @@ export default function EmbeddingsPage() {
           <PageHeader title="Embedding 节点" description="该模块仅对管理员开放。" />
           <div className="card bg-white mt-8 border-red-100 p-8 shadow-premium text-center">
             <div className="h-16 w-16 bg-red-100 rounded-3xl flex items-center justify-center text-red-600 mx-auto mb-6">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
@@ -167,7 +167,7 @@ export default function EmbeddingsPage() {
                   <>取消操作</>
                 ) : (
                   <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
                     </svg>
                     部署 Embedding 节点
@@ -185,7 +185,7 @@ export default function EmbeddingsPage() {
             <form onSubmit={handleSubmit} className="card bg-white border-primary/20 shadow-premium p-8 rounded-3xl">
               <div className="flex items-center gap-4 mb-10 border-b border-border-subtle pb-6">
                 <div className="h-10 w-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-sm">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16M4 12h8m-8 5h16" />
                   </svg>
                 </div>
@@ -235,7 +235,7 @@ export default function EmbeddingsPage() {
               )}
 
               <div className="mt-10 pt-8 border-t border-border-subtle flex gap-4">
-                <button type="submit" className="btn-primary px-10 py-3 rounded-2xl shadow-xl shadow-primary/20 active:scale-95 transition-all">
+                <button type="submit" className="btn-primary px-10 py-3 rounded-2xl shadow-xl shadow-primary/20 active:scale-95 transition">
                   {editingId ? "应用配置更改" : "确认部署新节点"}
                 </button>
                 <button type="button" onClick={handleCancelForm} className="btn-secondary px-8 py-3 rounded-2xl">取消</button>
@@ -247,7 +247,7 @@ export default function EmbeddingsPage() {
         <div className="mt-12">
           {loading ? (
             <div className="py-20">
-              <LoadingState message="正在加载 embedding 节点..." />
+              <LoadingState message="正在加载 embedding 节点…" />
             </div>
           ) : models.length === 0 ? (
             <EmptyState
@@ -262,10 +262,10 @@ export default function EmbeddingsPage() {
           ) : (
             <div className="grid gap-6 animate-fade-in-up">
               {models.map((model) => (
-                <div key={model.id} className="card bg-white p-8 rounded-3xl border border-border-subtle hover:border-primary/30 shadow-sm hover:shadow-premium transition-all duration-300 group flex flex-col md:flex-row md:items-center justify-between gap-8">
+                <div key={model.id} className="card bg-white p-8 rounded-3xl border border-border-subtle hover:border-primary/30 shadow-sm hover:shadow-premium transition duration-300 group flex flex-col md:flex-row md:items-center justify-between gap-8">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-4 mb-4">
-                      <div className={`h-2.5 w-2.5 rounded-full ${model.is_enabled ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "bg-text-dim"} transition-all`} />
+                      <div className={`h-2.5 w-2.5 rounded-full ${model.is_enabled ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "bg-text-dim"} transition`} />
                       <h3 className="text-xl font-bold text-text-primary truncate group-hover:text-primary transition-colors">{model.name}</h3>
                       {model.is_default && (
                         <span className="px-2.5 py-1 bg-primary text-white text-[9px] font-bold rounded-lg shadow-sm uppercase tracking-widest ring-4 ring-primary/10">Default</span>
@@ -285,7 +285,7 @@ export default function EmbeddingsPage() {
                     </button>
                     <button
                       onClick={() => handleToggleEnabled(model)}
-                      className={`px-5 py-2.5 text-[11px] font-bold rounded-xl border transition-all duration-300 shadow-sm ${
+                      className={`px-5 py-2.5 text-[11px] font-bold rounded-xl border transition duration-300 shadow-sm ${
                         model.is_enabled
                           ? "bg-white border-border-strong text-text-dim hover:bg-secondary hover:text-text-primary"
                           : "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
@@ -293,8 +293,8 @@ export default function EmbeddingsPage() {
                     >
                       {model.is_enabled ? "设为离线" : "恢复在线"}
                     </button>
-                    <button onClick={() => handleDelete(model.id)} className="p-2.5 text-text-dim hover:text-red-500 hover:bg-red-50 rounded-xl transition-all group/del">
-                      <svg className="w-5 h-5 group-hover/del:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button onClick={() => handleDelete(model.id)} className="p-2.5 text-text-dim hover:text-red-500 hover:bg-red-50 rounded-xl transition group/del">
+                      <svg aria-hidden="true" className="w-5 h-5 group-hover/del:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                     </button>

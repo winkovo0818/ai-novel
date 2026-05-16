@@ -20,7 +20,7 @@ export function StatCard({ label, value, subValue, icon, trend }: StatCardProps)
             {label}
           </span>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-text-primary">
+            <span className="text-2xl font-bold tracking-tight text-text-primary tabular-nums">
               {value}
             </span>
             {trend && (

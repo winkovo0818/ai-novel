@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/utils/supabase/client";
+import Link from "next/link";
 
 export default function ResetPasswordPage() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
+  const [resetUrl, setResetUrl] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -14,17 +15,21 @@ export default function ResetPasswordPage() {
     setError("");
     setLoading(true);
 
-    const supabase = createClient();
-    const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/update-password`,
+    const response = await fetch("/api/auth/password-reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
     });
 
-    if (authError) {
-      setError(authError.message);
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      setError(payload?.error?.message ?? "发送失败");
       setLoading(false);
       return;
     }
 
+    const payload = await response.json().catch(() => null);
+    setResetUrl(payload?.data?.resetUrl ?? "");
     setSent(true);
     setLoading(false);
   }
@@ -35,7 +40,7 @@ export default function ResetPasswordPage() {
         <div className="w-full max-w-md bg-surface border border-border-subtle p-8 md:p-10 text-center rounded-2xl shadow-xl animate-fade">
           <div className="flex justify-center mb-6">
             <div className="h-12 w-12 bg-primary rounded-full flex items-center justify-center text-white shadow-lg shadow-primary/30">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -53,9 +58,14 @@ export default function ResetPasswordPage() {
             <br />
             按照邮件里的指引重置密码即可。
           </p>
-          <a href="/login" className="btn-primary mt-8 inline-block px-6 h-11">
+          {resetUrl && (
+            <p className="mt-4 rounded-md bg-secondary px-3 py-2 text-xs text-text-muted break-all">
+              本地开发重置链接：{resetUrl}
+            </p>
+          )}
+          <Link href="/login" className="btn-primary mt-8 inline-block px-6 h-11">
             返回登录
-          </a>
+          </Link>
         </div>
       </main>
     );
@@ -78,7 +88,7 @@ export default function ResetPasswordPage() {
 
           {error && (
             <div className="mb-5 border border-red-200 bg-red-50 px-3 py-2.5 rounded-md text-sm text-red-700 flex items-start gap-2">
-              <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -97,7 +107,9 @@ export default function ResetPasswordPage() {
               </label>
               <input
                 id="email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -112,7 +124,7 @@ export default function ResetPasswordPage() {
             >
               {loading ? (
                 <span className="flex items-center gap-2">
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <svg aria-hidden="true" className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path
                       className="opacity-75"
@@ -120,7 +132,7 @@ export default function ResetPasswordPage() {
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                     />
                   </svg>
-                  发送中...
+                  发送中…
                 </span>
               ) : (
                 "发送重置链接"
@@ -129,9 +141,9 @@ export default function ResetPasswordPage() {
           </form>
 
           <div className="mt-8 pt-6 border-t border-border-subtle text-center">
-            <a href="/login" className="text-sm text-primary font-bold hover:underline transition-colors">
+            <Link href="/login" className="text-sm text-primary font-bold hover:underline transition-colors">
               返回登录
-            </a>
+            </Link>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { NovelCard } from "@/components/ui/NovelCard";
 import { LoadingState, EmptyState, ErrorState } from "@/components/ui/StatusStates";
@@ -52,19 +53,19 @@ export default function NovelsPage() {
           title="我的创作书架" 
           description="在此管理您的所有文学项目，追踪进度并继续编织故事。"
           actions={
-            <a href="/new" className="btn-primary gap-2 px-6">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <Link href="/new" className="btn-primary gap-2 px-6">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               初始化新作品
-            </a>
+            </Link>
           }
         />
 
         <div className="mt-16">
           {loading ? (
             <div className="py-20">
-              <LoadingState message="正在整理您的书架..." />
+              <LoadingState message="正在整理您的书架…" />
             </div>
           ) : error ? (
             <ErrorState 
@@ -78,16 +79,16 @@ export default function NovelsPage() {
               description="优秀的文学作品往往源于一个不经意的灵感。现在就开始您的创作之旅。"
               icon={
                 <div className="h-20 w-20 bg-white rounded-3xl flex items-center justify-center shadow-premium border border-border-subtle relative overflow-hidden group">
-                  <div className="absolute inset-0 bg-primary/5 group-hover:scale-150 transition-transform duration-700" />
-                  <svg className="w-8 h-8 text-primary relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="absolute inset-0 bg-primary/5 group-hover:scale-150 transition-transform duration-300" />
+                  <svg aria-hidden="true" className="w-8 h-8 text-primary relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                   </svg>
                 </div>
               }
               action={
-                <a href="/new" className="btn-primary px-10 h-11 text-sm shadow-xl shadow-text-primary/10">
+                <Link href="/new" className="btn-primary px-10 h-11 text-sm shadow-xl shadow-text-primary/10">
                   开启首个文学项目
-                </a>
+                </Link>
               }
             />
           ) : (
@@ -105,17 +106,17 @@ export default function NovelsPage() {
               ))}
               
               {/* Add a decorative "New Project" placeholder card at the end */}
-              <a 
-                href="/new" 
-                className="group border-2 border-dashed border-border-strong rounded-2xl flex flex-col items-center justify-center p-8 min-h-[260px] hover:border-primary/40 hover:bg-white transition-all duration-300 bg-white/40"
+              <Link
+                href="/new"
+                className="group border-2 border-dashed border-border-strong rounded-2xl flex flex-col items-center justify-center p-8 min-h-[260px] hover:border-primary/40 hover:bg-white transition duration-300 bg-white/40"
               >
-                <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center group-hover:bg-primary/10 group-hover:scale-110 transition-all duration-300 mb-4">
-                  <svg className="w-5 h-5 text-text-dim group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center group-hover:bg-primary/10 group-hover:scale-110 transition duration-300 mb-4">
+                  <svg className="w-5 h-5 text-text-dim group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                 </div>
                 <span className="text-[13px] font-bold text-text-dim group-hover:text-primary transition-colors">初始化新项目</span>
-              </a>
+              </Link>
             </div>
           )}
         </div>

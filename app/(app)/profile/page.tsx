@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
+import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { LoadingState } from "@/components/ui/StatusStates";
 
@@ -11,28 +11,23 @@ export default function ProfilePage() {
 
   useEffect(() => {
     async function load() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        setEmail(user.email ?? "");
-      }
+      const response = await fetch("/api/auth/session");
+      const session = await response.json().catch(() => null);
+      setEmail(session?.user?.email ?? "");
       setLoading(false);
     }
     load();
   }, []);
 
   async function handleLogout() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
   }
 
   if (loading) {
     return (
       <div className="py-24">
-        <LoadingState message="加载中..." />
+        <LoadingState message="加载中…" />
       </div>
     );
   }
@@ -56,9 +51,9 @@ export default function ProfilePage() {
             <p className="text-base font-semibold text-text-primary">修改登录密码</p>
             <p className="text-xs text-text-muted mt-1">建议定期更新以保护账户安全。</p>
           </div>
-          <a href="/reset-password" className="btn-secondary whitespace-nowrap">
+          <Link href="/reset-password" className="btn-secondary whitespace-nowrap">
             重置密码
-          </a>
+          </Link>
         </section>
 
         <section className="card border-red-100 bg-red-50/30 flex flex-col md:flex-row md:items-center justify-between gap-4">

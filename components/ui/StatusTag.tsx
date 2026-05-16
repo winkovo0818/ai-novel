@@ -29,7 +29,7 @@ export function StatusTag({ type, label, className = "" }: StatusTagProps) {
   };
 
   return (
-    <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-transparent transition-all ${current.bg} ${current.text} ${className}`}>
+    <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-transparent transition ${current.bg} ${current.text} ${className}`}>
       {current.dot && (
         <span className={`h-1.5 w-1.5 rounded-full ${current.dot} ${current.animate || ""}`} />
       )}

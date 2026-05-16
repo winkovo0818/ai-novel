@@ -24,6 +24,8 @@ interface CandidatePanelProps {
   streaming: boolean;
   /** True after stream done, while critic is running. */
   criticLoading: boolean;
+  /** True while AI is rewriting the candidate from critic suggestions. */
+  revisionLoading?: boolean;
   criticResult?: CandidateCriticResult;
   criticError?: string;
   /** Whether the editor currently holds a non-empty body the candidate would overwrite. */
@@ -38,6 +40,7 @@ interface CandidatePanelProps {
   /** Server-side retrieval error message, when status === "error". */
   retrievalError?: string;
   onAccept(mode: CandidateMode): void;
+  onRevise?(): void;
   onClose(): void;
 }
 
@@ -45,6 +48,7 @@ export function CandidatePanel({
   content,
   streaming,
   criticLoading,
+  revisionLoading = false,
   criticResult,
   criticError,
   hasExistingContent,
@@ -54,6 +58,7 @@ export function CandidatePanel({
   retrievedMemories,
   retrievalError,
   onAccept,
+  onRevise,
   onClose,
 }: CandidatePanelProps) {
   const [confirmingOverwrite, setConfirmingOverwrite] = useState<CandidateMode | null>(null);
@@ -63,7 +68,8 @@ export function CandidatePanel({
     (i) => i.severity === "critical" || i.severity === "major",
   );
   const charCount = content.replace(/\s/g, "").length;
-  const canAccept = !streaming && !criticLoading;
+  const canAccept = !streaming && !criticLoading && !revisionLoading;
+  const canRevise = Boolean(onRevise && criticResult?.issues.length && !streaming && !criticLoading && !revisionLoading);
 
   const handleAccept = (mode: CandidateMode) => {
     if (mode === "discard") {
@@ -97,7 +103,7 @@ export function CandidatePanel({
             AI Candidate / 候选稿
           </p>
           <h3 className="text-base font-serif font-bold text-text-primary mt-1">
-            {streaming ? "AI 正在生成…" : criticLoading ? "AI 正在审校…" : "候选稿就绪"}
+            {streaming ? "AI 正在生成…" : revisionLoading ? "AI 正在修订…" : criticLoading ? "AI 正在审校…" : "候选稿就绪"}
           </h3>
         </div>
         <button
@@ -107,7 +113,7 @@ export function CandidatePanel({
           disabled={streaming}
           title={streaming ? "生成中无法关闭，请等待完成或放弃" : "关闭"}
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
@@ -136,7 +142,7 @@ export function CandidatePanel({
               <span className="font-bold text-text-primary">已引用 {retrievedMemories.length} 条历史记忆</span>
               <span className="text-text-muted ml-2">点击展开</span>
             </span>
-            <svg className="w-3.5 h-3.5 transition-transform group-open:rotate-180 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg aria-hidden="true" className="w-3.5 h-3.5 transition-transform group-open:rotate-180 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </summary>
@@ -262,7 +268,7 @@ export function CandidatePanel({
       <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
         {streaming && content.length === 0 ? (
           <div className="text-center py-12 text-sm text-text-muted flex flex-col items-center gap-3">
-            <svg className="w-6 h-6 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+            <svg aria-hidden="true" className="w-6 h-6 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
@@ -282,8 +288,18 @@ export function CandidatePanel({
       <footer className="border-t border-border-subtle bg-secondary/10 px-6 py-4">
         <div className="flex items-center justify-between mb-3 text-[10px] font-bold text-text-muted uppercase tracking-wider">
           <span>{charCount} 字</span>
-          <span>{streaming ? "生成中" : criticLoading ? "审校中" : "可处理"}</span>
+          <span>{streaming ? "生成中" : revisionLoading ? "修订中" : criticLoading ? "审校中" : "可处理"}</span>
         </div>
+        {canRevise && (
+          <button
+            onClick={onRevise}
+            disabled={!canRevise}
+            title="让 AI 根据上方审校建议修订当前候选稿，并重新审校"
+            className="mb-2 w-full px-3 py-2.5 text-[12px] font-bold rounded-lg transition bg-primary text-white hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            按建议修订候选稿
+          </button>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <ActionButton
             label="覆盖正文"
@@ -371,7 +387,7 @@ function ActionButton({
   outline?: boolean;
   onClick(): void;
 }) {
-  const base = "px-3 py-2.5 text-[12px] font-bold rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed";
+  const base = "px-3 py-2.5 text-[12px] font-bold rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed";
   const style = outline
     ? "border border-border-strong text-text-secondary hover:bg-secondary"
     : danger

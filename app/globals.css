@@ -1,38 +1,40 @@
 @import "tailwindcss";
 
 @theme {
-  /* Colors - Premium "Literary" Palette */
-  --color-background: #fcfcf9; /* Warmer, premium paper-like background */
-  --color-foreground: #111827;
+  /* Colors - "Ivory & Ink" Premium Palette */
+  --color-background: #fdfdfc; /* Ultra-warm ivory */
+  --color-foreground: #0c0c0c; /* Deep obsidian ink */
   
-  --color-primary: #6366f1; /* Indigo 500 */
-  --color-primary-hover: #4f46e5; /* Indigo 600 */
-  --color-primary-light: #eef2ff;
+  --color-primary: #1a1a1a; /* Pure Ink */
+  --color-primary-hover: #333333;
+  --color-primary-light: #f4f4f1;
   
-  --color-secondary: #f8f8f6; /* Off-white for UI elements */
+  --color-accent: #6366f1; /* Intelligent Indigo - preserved as the tech accent */
+  --color-accent-soft: rgba(99, 102, 241, 0.08);
+  
+  --color-secondary: #f9f9f6; /* Paper tint */
   
   --color-surface: #ffffff;
   --color-surface-raised: #ffffff;
   
-  --color-border-subtle: #f3f3ef;
-  --color-border-strong: #e5e5e0;
+  --color-border-subtle: #eeebe6;
+  --color-border-strong: #dcd7cf;
   
-  --color-text-primary: #111827;
-  --color-text-secondary: #4b5563;
-  --color-text-muted: #6b7280;
-  --color-text-dim: #9ca3af;
+  --color-text-primary: #0c0c0c;
+  --color-text-secondary: #4a4a44;
+  --color-text-muted: #82827c;
+  --color-text-dim: #b5b5af;
 
-  /* Typography */
-  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
-  --font-serif: "Songti SC", "SimSun", "STSong", "Noto Serif CJK SC", serif;
-  --font-mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", "Courier New", monospace;
+  /* Typography - Editorial Scale */
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-serif: "Instrument Serif", "Libre Baskerville", "Songti SC", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  /* Shadows - Layered for depth (Modern SaaS Style) */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.04), 0 4px 6px -4px rgba(0, 0, 0, 0.02);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
-  --shadow-premium: 0 12px 24px -6px rgba(0, 0, 0, 0.04), 0 4px 12px -4px rgba(0, 0, 0, 0.02);
+  /* Shadows - Diffused Architectural Shadows */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.02);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.03), 0 2px 4px rgba(0, 0, 0, 0.02);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.04), 0 4px 8px rgba(0, 0, 0, 0.02);
+  --shadow-premium: 0 24px 48px -12px rgba(0, 0, 0, 0.08), 0 8px 16px -8px rgba(0, 0, 0, 0.04);
   
   /* Layout Constants */
   --width-sidebar: 260px;
@@ -42,101 +44,95 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
-    letter-spacing: -0.011em;
+    letter-spacing: -0.015em;
+  }
+
+  /* Eliminate the 300ms double-tap zoom delay on mobile and stop iOS from
+     showing a grey tap highlight that conflicts with our hover styles. */
+  button,
+  a,
+  [role="button"],
+  input[type="submit"],
+  input[type="button"],
+  input[type="reset"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-sans font-bold tracking-tight text-text-primary;
+    @apply font-serif font-normal tracking-tight text-text-primary;
   }
 
   .font-serif {
     font-family: var(--font-serif);
-    letter-spacing: 0;
+    letter-spacing: -0.01em;
   }
 }
 
 @layer components {
-  /* Premium Buttons */
+  /* Editorial Buttons */
   .btn-base {
-    @apply inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center font-bold rounded-full transition-[background-color,border-color,color,box-shadow,transform] duration-300 text-sm disabled:opacity-30;
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-text-primary text-white px-4 py-2 hover:bg-primary shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0;
+    @apply inline-flex items-center justify-center font-bold rounded-full transition-[background-color,transform,box-shadow] duration-300 text-sm disabled:opacity-30 bg-text-primary text-white px-8 py-3 hover:bg-accent shadow-lg hover:shadow-accent/20 active:scale-95 relative overflow-hidden;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-white border border-border-strong text-text-primary px-4 py-2 hover:bg-secondary hover:border-text-dim/30 shadow-sm hover:shadow-md active:translate-y-0;
+    @apply inline-flex items-center justify-center font-bold rounded-full transition-[background-color,border-color,transform,box-shadow] duration-300 text-sm disabled:opacity-30 bg-white border border-border-strong text-text-primary px-8 py-3 hover:bg-secondary hover:border-text-primary shadow-sm hover:shadow-md active:scale-95;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-transparent text-text-secondary px-3 py-1.5 hover:bg-secondary hover:text-text-primary;
+    @apply inline-flex items-center justify-center font-bold rounded-full transition-[background-color,color] duration-300 text-sm disabled:opacity-30 bg-transparent text-text-secondary px-4 py-2 hover:bg-secondary hover:text-text-primary;
   }
 
-  .btn-danger {
-    @apply inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-white border border-red-100 text-red-600 px-4 py-2 hover:bg-red-50 hover:border-red-200 shadow-sm;
+  /* Universal Loading State */
+  .btn-loading {
+    @apply pointer-events-none !text-transparent;
   }
 
-  /* Premium Card */
+  .btn-loading::after {
+    content: "";
+    @apply absolute w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin;
+    left: calc(50% - 8px);
+    top: calc(50% - 8px);
+  }
+
+  /* Refined Card */
   .card {
-    @apply bg-surface border border-border-subtle rounded-xl p-6 shadow-sm transition-all duration-300;
+    @apply bg-surface border border-border-subtle rounded-[2rem] p-8 shadow-sm transition-[border-color,box-shadow,transform] duration-500 ease-[cubic-bezier(0.23,1,0.32,1)];
   }
 
   .card-hover {
     @apply hover:shadow-premium hover:border-border-strong;
   }
 
+  /* Accessibility - Standard Focus Ring */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary/40 ring-offset-2;
+  }
+
   /* Form Elements */
   .input-base {
-    @apply w-full bg-white border border-border-strong rounded-lg px-4 py-2 text-text-primary placeholder:text-text-dim/60 focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary/50 transition-all text-sm shadow-sm;
+    @apply w-full bg-secondary/50 border border-transparent rounded-2xl px-6 py-4 text-text-primary placeholder:text-text-dim/40 focus:outline-none focus:ring-0 focus:bg-white focus:border-accent/30 transition-[background-color,border-color,box-shadow] duration-200 text-base shadow-inner;
   }
 
-  .progress-bar {
-    @apply block appearance-none overflow-hidden rounded-full bg-secondary;
-  }
-
-  .progress-bar::-webkit-progress-bar {
-    @apply bg-secondary;
-  }
-
-  .progress-bar::-webkit-progress-value {
-    @apply bg-primary transition-all duration-700 ease-out;
-  }
-
-  .progress-bar::-moz-progress-bar {
-    @apply bg-primary transition-all duration-700 ease-out;
-  }
-
-  .progress-bar-complete::-webkit-progress-value {
-    @apply bg-emerald-500;
-  }
-
-  .progress-bar-complete::-moz-progress-bar {
-    @apply bg-emerald-500;
-  }
-
-  /* Paper Canvas - Used in Editor */
-  .writing-canvas {
-    @apply bg-white shadow-premium rounded-sm mx-auto min-h-[900px] border border-border-subtle/50;
-    width: 100%;
-    max-width: 840px;
-  }
-
-  /* Custom Scrollbar */
+  /* Custom Scrollbar - Minimal Ink Style */
   .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
+    width: 4px;
   }
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-border-strong/60 rounded-full hover:bg-text-dim/50 transition-colors;
+    @apply bg-border-strong rounded-full hover:bg-text-dim transition-colors;
   }
 }
 
-/* Subtle Micro-animations */
+/* Luxury Micro-animations */
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(24px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -146,22 +142,79 @@
 }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes reveal {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
 }
 
 .animate-fade-in-up {
-  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: fadeInUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.4s ease-out both;
+  animation: fadeIn 0.8s ease-out both;
 }
 
 .animate-slide-in {
-  animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: slideIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-shimmer {
+  animation: shimmer 3s infinite linear;
+}
+
+.animate-reveal {
+  animation: reveal 1.5s cubic-bezier(0.77, 0, 0.175, 1) both;
 }
 
 .delay-100 { animation-delay: 100ms; }
 .delay-200 { animation-delay: 200ms; }
 .delay-300 { animation-delay: 300ms; }
+.delay-500 { animation-delay: 500ms; }
+
+/* Reduced motion: honor user preference for vestibular safety. Strip
+   non-essential animations and shorten transitions so the UI still feels
+   responsive without inducing motion sickness. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-fade-in-up,
+  .animate-fade-in,
+  .animate-slide-in,
+  .animate-shimmer,
+  .animate-reveal {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+  }
+}
+
+

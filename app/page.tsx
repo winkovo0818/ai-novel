@@ -1,11 +1,11 @@
-import { createClient } from "@/utils/supabase/server";
+import Link from "next/link";
+import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 
 export default async function HomePage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await auth();
 
-  if (user) {
+  if (session?.user) {
     redirect("/dashboard");
   }
 
@@ -21,22 +21,22 @@ export default async function HomePage() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <a
+          <Link
             href="/login"
-            className="px-5 py-2 text-[13px] font-bold text-text-secondary hover:text-text-primary transition-all"
+            className="px-5 py-2 text-[13px] font-bold text-text-secondary hover:text-text-primary transition"
           >
             登录 / SIGN IN
-          </a>
-          <a href="/signup" className="btn-primary rounded-xl px-6 py-2.5 h-auto text-[13px] font-bold shadow-xl shadow-primary/10">
+          </Link>
+          <Link href="/signup" className="btn-primary rounded-xl px-6 py-2.5 h-auto text-[13px] font-bold shadow-xl shadow-primary/10">
             免费注册 / JOIN NOW
-          </a>
+          </Link>
         </div>
       </nav>
 
       {/* Hero */}
       <section className="flex flex-col items-center justify-center pt-32 pb-40 px-6 text-center relative overflow-hidden">
         {/* Background Decor */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-3xl pointer-events-none" />
         
         <div className="relative z-10 max-w-4xl mx-auto">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/5 border border-primary/10 rounded-full mb-8 animate-fade-in">
@@ -54,15 +54,15 @@ export default async function HomePage() {
             AI 真正深度理解您的人物魂魄、世界规则与叙事节拍。
           </p>
           <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-5 animate-fade-in-up delay-200">
-            <a
+            <Link
               href="/signup"
-              className="btn-primary w-full sm:w-auto h-14 px-10 text-base font-bold shadow-2xl shadow-primary/20 rounded-2xl active:scale-95 transition-all"
+              className="btn-primary w-full sm:w-auto h-14 px-10 text-base font-bold shadow-2xl shadow-primary/20 rounded-2xl active:scale-95 transition"
             >
               开启创作之旅
-            </a>
+            </Link>
             <a
               href="#features"
-              className="btn-secondary w-full sm:w-auto h-14 px-10 text-base font-bold rounded-2xl active:scale-95 transition-all"
+              className="btn-secondary w-full sm:w-auto h-14 px-10 text-base font-bold rounded-2xl active:scale-95 transition"
             >
               探索核心协议
             </a>
@@ -89,7 +89,7 @@ export default async function HomePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
             <FeatureCard
-              tag="01 · SYTHETIC BIBLE"
+              tag="01 · SYNTHETIC BIBLE"
               title="叙事圣经合成"
               description="通过向导自动构建深度角色图谱、物理规则与多线大纲，确保百万字长篇的设定逻辑无懈可击。"
               accent="primary"
@@ -113,18 +113,18 @@ export default async function HomePage() {
       {/* CTA section */}
       <section className="py-32 px-8 md:px-16 text-center">
          <div className="card bg-text-primary text-white border-none p-16 md:p-24 rounded-[48px] max-w-6xl mx-auto shadow-2xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-96 h-96 bg-primary/20 rounded-full blur-[100px] -mr-48 -mt-48 transition-transform group-hover:scale-125 duration-700" />
+            <div className="absolute top-0 right-0 w-80 h-80 bg-primary/20 rounded-full blur-3xl -mr-40 -mt-40 transition-transform group-hover:scale-125 duration-300" />
             <div className="relative z-10">
                <h2 className="text-4xl md:text-6xl font-serif font-bold mb-8">准备好开启下一个篇章了吗？</h2>
                <p className="text-lg md:text-xl opacity-60 max-w-xl mx-auto mb-12 leading-relaxed">
                  加入数千名创作者的行列，利用最前沿的 AI 基础设施构建您的文学帝国。
                </p>
-               <a href="/signup" className="inline-flex items-center gap-3 px-12 py-5 bg-white text-text-primary rounded-2xl font-bold text-lg hover:bg-secondary transition-all active:scale-95 shadow-xl shadow-black/20">
+               <Link href="/signup" className="inline-flex items-center gap-3 px-12 py-5 bg-white text-text-primary rounded-2xl font-bold text-lg hover:bg-secondary transition active:scale-95 shadow-xl shadow-black/20">
                  立即免费开始
-                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                  </svg>
-               </a>
+               </Link>
             </div>
          </div>
       </section>
@@ -145,21 +145,21 @@ export default async function HomePage() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-20">
              <div className="flex flex-col gap-4">
                 <span className="text-[10px] font-bold text-text-primary uppercase tracking-[0.2em]">产品</span>
-                <a href="#" className="text-sm text-text-dim hover:text-primary transition-colors font-medium">功能特性</a>
-                <a href="#" className="text-sm text-text-dim hover:text-primary transition-colors font-medium">模型定价</a>
-                <a href="#" className="text-sm text-text-dim hover:text-primary transition-colors font-medium">开发路线</a>
+                <FooterLink>功能特性</FooterLink>
+                <FooterLink>模型定价</FooterLink>
+                <FooterLink>开发路线</FooterLink>
              </div>
              <div className="flex flex-col gap-4">
                 <span className="text-[10px] font-bold text-text-primary uppercase tracking-[0.2em]">法律</span>
-                <a href="#" className="text-sm text-text-dim hover:text-primary transition-colors font-medium">隐私政策</a>
-                <a href="#" className="text-sm text-text-dim hover:text-primary transition-colors font-medium">服务条款</a>
-                <a href="#" className="text-sm text-text-dim hover:text-primary transition-colors font-medium">版权协议</a>
+                <FooterLink>隐私政策</FooterLink>
+                <FooterLink>服务条款</FooterLink>
+                <FooterLink>版权协议</FooterLink>
              </div>
              <div className="flex flex-col gap-4">
                 <span className="text-[10px] font-bold text-text-primary uppercase tracking-[0.2em]">连接</span>
-                <a href="https://github.com" className="text-sm text-text-dim hover:text-primary transition-colors font-medium">GitHub</a>
-                <a href="#" className="text-sm text-text-dim hover:text-primary transition-colors font-medium">Twitter / X</a>
-                <a href="#" className="text-sm text-text-dim hover:text-primary transition-colors font-medium">Discord</a>
+                <FooterLink href="https://github.com" external>GitHub</FooterLink>
+                <FooterLink>Twitter / X</FooterLink>
+                <FooterLink>Discord</FooterLink>
              </div>
           </div>
         </div>
@@ -179,6 +179,43 @@ interface FeatureCardProps {
   accent: "primary" | "emerald" | "violet";
 }
 
+/**
+ * Footer entry that renders as a real link only when given a real href;
+ * otherwise becomes a non-focusable, screen-reader-announced "coming soon"
+ * span. Prevents the antipattern of `<a href="#">` which silently scrolls to
+ * top and shows up as a real route to assistive tech.
+ */
+function FooterLink({
+  children,
+  href,
+  external = false,
+}: {
+  children: React.ReactNode;
+  href?: string;
+  external?: boolean;
+}) {
+  if (!href) {
+    return (
+      <span
+        aria-disabled="true"
+        className="text-sm text-text-dim/60 font-medium cursor-not-allowed"
+        title="即将上线"
+      >
+        {children}
+      </span>
+    );
+  }
+  return (
+    <a
+      href={href}
+      {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+      className="text-sm text-text-dim hover:text-primary transition-colors font-medium"
+    >
+      {children}
+    </a>
+  );
+}
+
 function FeatureCard({ tag, title, description, accent }: FeatureCardProps) {
   const accentBg = {
     primary: "bg-primary/10",
@@ -192,9 +229,9 @@ function FeatureCard({ tag, title, description, accent }: FeatureCardProps) {
   }[accent];
 
   return (
-    <div className="card group hover:border-primary/20 transition-all p-8 rounded-[32px] hover:shadow-premium bg-white duration-500 hover:-translate-y-2">
+    <div className="card group hover:border-primary/20 transition p-8 rounded-[32px] hover:shadow-premium bg-white duration-500 hover:-translate-y-2">
       <div
-        className={`h-12 w-12 rounded-2xl ${accentBg} flex items-center justify-center mb-8 group-hover:scale-110 transition-all duration-500 group-hover:shadow-inner`}
+        className={`h-12 w-12 rounded-2xl ${accentBg} flex items-center justify-center mb-8 group-hover:scale-110 transition duration-500 group-hover:shadow-inner`}
       >
         <span className={`h-2.5 w-2.5 rounded-full ${accentDot}`} />
       </div>

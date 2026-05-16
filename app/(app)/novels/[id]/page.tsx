@@ -3,10 +3,11 @@ import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
-import { getRequiredUserId } from "@/utils/supabase/auth";
+import { getRequiredUserId } from "@/lib/auth/session";
 import { BibleDraftSchema, getAllChapters } from "@/lib/validation/schemas";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
+import { formatDate } from "@/lib/format/datetime";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -63,14 +64,14 @@ export default async function NovelDetailPage({ params }: PageProps) {
       <div className="p-8 md:p-12 lg:p-16 max-w-7xl mx-auto min-h-full pb-32">
         <PageHeader
           title={novel.title}
-          description={`${genreMain}${genreSub ? ` · ${genreSub}` : ""} · 最后活跃 ${new Date().toLocaleDateString()}`}
+          description={`${genreMain}${genreSub ? ` · ${genreSub}` : ""} · 最后活跃 ${formatDate(new Date())}`}
           breadcrumb={[
             { label: "我的书架", href: "/novels" },
             { label: novel.title }
           ]}
           actions={
             <Link href={editorHref} className="btn-primary gap-2 px-6">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
               {lastEdited ? `继续写作 (第 ${lastEdited.chapter_index} 章)` : "开启首章创作"}
@@ -84,19 +85,19 @@ export default async function NovelDetailPage({ params }: PageProps) {
             label="全书创作进度"
             value={`${savedCount} / ${totalChapters || "—"}`}
             subValue={`目前已完结 ${doneCount} 个正式章节`}
-            icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+            icon={<svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
           />
           <StatCard
             label="叙事圣经状态"
             value={bibleOk ? "已合成" : "未合成"}
             subValue={bibleOk ? `已规划 ${outlineChapters.length} 章完整大纲` : "尚未执行灵感合成协议"}
-            icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>}
+            icon={<svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>}
           />
           <StatCard
             label="最近编辑记录"
             value={lastEdited ? `第 ${lastEdited.chapter_index} 章` : "无记录"}
-            subValue={lastEdited ? lastEdited.updated_at.toLocaleDateString("zh-CN") : "建议尽快开始首章创作"}
-            icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+            subValue={lastEdited ? formatDate(lastEdited.updated_at) : "建议尽快开始首章创作"}
+            icon={<svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
           />
         </section>
 
@@ -146,26 +147,27 @@ export default async function NovelDetailPage({ params }: PageProps) {
         </section>
 
         {/* Prominent Action */}
-        <section className="mt-8">
+        <section className="mt-12">
            <Link
             href={editorHref}
-            className="card bg-text-primary text-white border-text-primary flex items-center justify-between gap-8 group hover:shadow-premium transition-all duration-300"
+            aria-label={lastEdited ? `进入编辑器继续写作 ${lastEdited.title}` : "开启首章写作"}
+            className="card bg-text-primary text-white border-text-primary flex items-center justify-between gap-8 group hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.2)] transition-[box-shadow,transform] duration-500 p-10 md:p-12"
           >
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60 mb-2">
-                继续您的故事
+            <div className="max-w-2xl">
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/50 mb-3">
+                继续您的故事 / THE NEXT CHAPTER
               </p>
-              <h3 className="text-xl font-serif font-bold group-hover:translate-x-1 transition-transform">
-                {lastEdited ? `进入编辑器：${lastEdited.title}` : "立即开启第一章"}
+              <h3 className="text-3xl md:text-4xl font-serif font-bold group-hover:translate-x-1 transition-transform duration-300 leading-tight">
+                {lastEdited ? `继续创作：${lastEdited.title}` : "立即开启第一章"}
               </h3>
-              <p className="text-sm opacity-70 mt-2 leading-relaxed">
+              <p className="text-base text-white/60 mt-4 leading-relaxed max-w-xl">
                 {lastEdited 
-                   ? `上次您停在了第 ${lastEdited.chapter_index} 章。AI 助手已就绪，随时准备为您提供灵感。` 
-                   : "万事开头难，让我们从第一行文字开始构建这个世界。"}
+                   ? `上次您停在了第 ${lastEdited.chapter_index} 章。叙事引擎已深度同步设定集，随时准备为您提供逻辑严密的灵感。` 
+                   : "万事开头难，让我们从第一行文字开始构建这个宏大的叙事世界。"}
               </p>
             </div>
-            <div className="h-14 w-14 rounded-full bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition-colors">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="h-16 w-16 md:h-20 md:w-20 rounded-full bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition duration-300 group-hover:rotate-12">
+              <svg aria-hidden="true" className="w-8 h-8 md:w-10 md:h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
               </svg>
             </div>
@@ -203,7 +205,7 @@ export default async function NovelDetailPage({ params }: PageProps) {
                       >
                         {chapter.status === "done" ? "Done" : "Draft"}
                       </span>
-                      <svg className="w-4 h-4 text-text-dim opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg aria-hidden="true" className="w-4 h-4 text-text-dim opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </Link>
@@ -216,11 +218,11 @@ export default async function NovelDetailPage({ params }: PageProps) {
               <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-text-dim mb-6">AI 调用历史</h2>
               <Link
                 href={`/novels/${novel.id}/history`}
-                className="card bg-white hover:border-primary/30 transition-all flex items-center justify-between shadow-sm group"
+                className="card bg-white hover:border-primary/30 transition flex items-center justify-between shadow-sm group"
               >
                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center text-text-secondary group-hover:bg-primary group-hover:text-white transition-all">
-                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center text-text-secondary group-hover:bg-primary group-hover:text-white transition">
+                       <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                        </svg>
                     </div>
@@ -229,7 +231,7 @@ export default async function NovelDetailPage({ params }: PageProps) {
                        <p className="text-[11px] text-text-dim uppercase tracking-wider mt-0.5">Audit AI Activity</p>
                     </div>
                  </div>
-                 <svg className="w-5 h-5 text-text-dim" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <svg aria-hidden="true" className="w-5 h-5 text-text-dim" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                  </svg>
               </Link>
@@ -269,10 +271,10 @@ function NavCard({
   return (
     <Link
       href={href}
-      className="group card bg-white transition-all hover:shadow-premium hover:border-primary/20 hover:-translate-y-1 p-6"
+      className="group card bg-white transition hover:shadow-premium hover:border-primary/20 hover:-translate-y-1 p-6"
     >
-      <div className="h-10 w-10 rounded-xl flex items-center justify-center mb-4 bg-secondary text-text-dim group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="h-10 w-10 rounded-xl flex items-center justify-center mb-4 bg-secondary text-text-dim group-hover:bg-primary group-hover:text-white transition shadow-sm">
+        <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={iconPaths[icon]} />
         </svg>
       </div>
