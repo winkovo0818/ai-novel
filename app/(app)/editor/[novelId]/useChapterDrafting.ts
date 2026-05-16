@@ -7,6 +7,7 @@ import {
   applyAcceptMode,
   applyDraftSseEvent,
   buildCandidateCriticRequest,
+  buildCandidateRevisionRequest,
   buildDraftChapterRequest,
   buildResumableDraftRequest,
   candidateAcceptedMessage,
@@ -64,6 +65,7 @@ export function useChapterDrafting({
   const [candidateCriticLoading, setCandidateCriticLoading] = useState(false);
   const [candidateCriticResult, setCandidateCriticResult] = useState<CandidateCriticResult>();
   const [candidateCriticError, setCandidateCriticError] = useState<string>();
+  const [candidateRevisionLoading, setCandidateRevisionLoading] = useState(false);
   // P1-6: critic failure that persists after the candidate panel closes.
   // When critic fails, candidateCriticError is shown in-panel BUT the panel can
   // close (X / discard / accept) and the error would be gone. We mirror it into
@@ -99,6 +101,7 @@ export function useChapterDrafting({
     setCandidateCriticLoading(false);
     setCandidateCriticResult(undefined);
     setCandidateCriticError(undefined);
+    setCandidateRevisionLoading(false);
   }, []);
 
   const dismissResumableDraftServer = useCallback(
@@ -146,6 +149,50 @@ export function useChapterDrafting({
     },
     [novelId, selectedIndex],
   );
+
+  const reviseCandidate = useCallback(async () => {
+    if (!candidateContent.trim() || !candidateCriticResult?.issues.length || candidateRevisionLoading) return;
+
+    setCandidateRevisionLoading(true);
+    setCandidateCriticError(undefined);
+    setMessage("AI 正在按审校建议修订候选稿…");
+    try {
+      const request = buildCandidateRevisionRequest({
+        novelId,
+        selectedIndex,
+        content: candidateContent,
+        issues: candidateCriticResult.issues,
+      });
+      const response = await fetch(request.url, {
+        method: request.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request.payload),
+      });
+      const json = await response.json();
+      if (!json.ok) throw new Error(json.error?.message ?? "修订失败");
+      const revised = String(json.data?.content ?? "");
+      if (!revised.trim()) throw new Error("AI 未返回修订正文");
+
+      setCandidateContent(revised);
+      setCandidateCriticResult(undefined);
+      setMessage("候选稿已按建议修订，正在重新审校…");
+      void runCandidateCritic(revised);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "修订失败";
+      setMessage(message);
+      setCandidateCriticError(message);
+    } finally {
+      setCandidateRevisionLoading(false);
+    }
+  }, [
+    candidateContent,
+    candidateCriticResult,
+    candidateRevisionLoading,
+    novelId,
+    runCandidateCritic,
+    selectedIndex,
+    setMessage,
+  ]);
 
   // P1-6: retry the last failed critic against the currently selected
   // chapter's content. On success, clear the persistent failure badge and
@@ -254,6 +301,7 @@ export function useChapterDrafting({
       setCandidateCriticLoading(false);
       setCandidateCriticResult(undefined);
       setCandidateCriticError(undefined);
+      setCandidateRevisionLoading(false);
       setLastRetrievedMemories([]);
       setLastRetrievalError(undefined);
       setStatus("drafting");
@@ -383,8 +431,10 @@ export function useChapterDrafting({
     candidateCriticLoading,
     candidateCriticResult,
     candidateCriticError,
+    candidateRevisionLoading,
     clearCandidate,
     draftChapter,
+    reviseCandidate,
     setCursorPos,
     acceptCandidate,
     lastRetrievalStatus,

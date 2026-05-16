@@ -104,6 +104,15 @@ export interface CandidateCriticRequestInput {
   content: string;
 }
 
+export interface CandidateRevisionRequestInput extends CandidateCriticRequestInput {
+  issues: Array<{
+    type: string;
+    severity: string;
+    description: string;
+    suggestion?: string;
+  }>;
+}
+
 export interface DraftSseState {
   generated: string;
   streamError?: string;
@@ -319,6 +328,20 @@ export function buildCandidateCriticRequest(
     payload: {
       chapter_index: input.selectedIndex,
       content: input.content,
+    },
+  };
+}
+
+export function buildCandidateRevisionRequest(
+  input: CandidateRevisionRequestInput,
+): JsonRequest<"POST", { chapter_index: number; content: string; issues: CandidateRevisionRequestInput["issues"] }> {
+  return {
+    url: `/api/novels/${input.novelId}/chapters/draft/revise`,
+    method: "POST",
+    payload: {
+      chapter_index: input.selectedIndex,
+      content: input.content,
+      issues: input.issues,
     },
   };
 }

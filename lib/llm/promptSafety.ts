@@ -37,7 +37,9 @@ export type UserContentKind =
   | "existing_content"
   | "plot_thread"
   | "logline"
-  | "user_answer";
+  | "user_answer"
+  | "critic_issue"
+  | "critic_suggestion";
 
 // ASCII control chars except \n (0x0A), \r (0x0D), \t (0x09). Build the class
 // programmatically so the source file stays plain UTF-8 (no embedded NULs).
