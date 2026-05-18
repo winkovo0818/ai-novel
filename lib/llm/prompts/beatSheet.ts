@@ -1,6 +1,6 @@
-import type { ChatMessage } from "../client";
-import type { BibleDraft, StoryStateV1 } from "../../validation/schemas";
-import { PROMPT_SAFETY_PREAMBLE, wrap, wrapOr } from "../promptSafety";
+import type { ChatMessage } from "@/lib/llm/client";
+import type { BibleDraft, StoryStateV1 } from "@/lib/validation/schemas";
+import { PROMPT_SAFETY_PREAMBLE, wrap, wrapOr } from "@/lib/llm/promptSafety";
 
 export interface BeatSheetPromptInput {
   bible: BibleDraft;
