@@ -133,7 +133,7 @@ export default async function DashboardPage() {
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-dim mb-2">
                   当前状态 / STATUS
                 </p>
-                <h3 className="text-xl font-serif font-bold text-text-primary italic">渐入佳境</h3>
+                <h3 className="text-xl font-serif font-bold text-text-primary">渐入佳境</h3>
                 <p className="text-sm text-text-muted mt-3">所有的创作任务都已处理完成，准备开启新的篇章吗？</p>
               </div>
             )}
@@ -240,7 +240,7 @@ export default async function DashboardPage() {
             >
               {pendingChapters.length === 0 ? (
                 <div className="py-8 text-center bg-secondary/10 rounded-xl border border-border-subtle">
-                  <p className="text-sm text-text-muted italic">所有已创建章节均已完成，干得漂亮！</p>
+                  <p className="text-sm text-text-muted">所有已创建章节均已完成，干得漂亮！</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto custom-scrollbar -mx-2 px-2">
@@ -301,7 +301,7 @@ export default async function DashboardPage() {
             <SectionCard title="AI 活动记录 / ACTIVITY" subtitle="最近的智能写作调用">
               {generations.length === 0 ? (
                 <div className="py-12 text-center bg-secondary/10 rounded-2xl border border-dashed border-border-subtle">
-                   <p className="text-sm text-text-dim italic">尚未生成日志</p>
+                   <p className="text-sm text-text-dim">尚未生成日志</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -342,7 +342,7 @@ export default async function DashboardPage() {
 
                  {ownedFailedJobs.length > 0 ? (
                    <div className="p-5 rounded-2xl bg-amber-50 border border-amber-100/50">
-                     <p className="text-[11px] text-amber-700 leading-relaxed font-bold italic">
+                     <p className="text-[11px] text-amber-700 leading-relaxed font-bold">
                         PROTOCOL ALERT: 建议进入作品编辑器，通过顶部红色徽章重试失败的任务，以确保叙事逻辑一致性。
                      </p>
                    </div>

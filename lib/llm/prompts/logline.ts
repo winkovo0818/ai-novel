@@ -1,5 +1,5 @@
-import type { ChatMessage } from "../client";
-import type { NovelProfile } from "../../validation/schemas";
+import type { ChatMessage } from "@/lib/llm/client";
+import type { NovelProfile } from "@/lib/validation/schemas";
 
 interface LoglinePromptInput {
   profile: NovelProfile;

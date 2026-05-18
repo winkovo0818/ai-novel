@@ -14,6 +14,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     novel: { findUnique: findUniqueNovel },
     chapterDraft: { findMany: findManyChapters },
+    memoryChunk: { groupBy: vi.fn().mockResolvedValue([]) },
     backgroundJob: {
       findMany: findManyJobs,
       create: createJob,
@@ -98,16 +99,16 @@ describe("POST /api/novels/[id]/jobs/refresh-dirty", () => {
       summarize_queued: 0,
       index_queued: 0,
       summaries_queued: 0,
-      chapters_dirty: 0,
+      chapters_scanned: 0,
     });
     expect(createJob).not.toHaveBeenCalled();
   });
 
-  it("scans only dirty rows instead of forcing work for every chapter", async () => {
+  it("scans all chapters and enqueues work for chapters with dirty flags or missing summary/index", async () => {
     findUniqueNovel.mockResolvedValue({ id: "n-1", user_id: "u-1" });
     getRequiredUserId.mockResolvedValue("u-1");
     findManyChapters.mockResolvedValue([
-      { id: "c-1", summary_dirty: true, index_dirty: false, content: "正文 1" },
+      { id: "c-1", summary_dirty: true, index_dirty: false, content: "正文 1", summary: null },
     ]);
     createJob.mockResolvedValue({ id: "j-x" });
 
@@ -120,16 +121,14 @@ describe("POST /api/novels/[id]/jobs/refresh-dirty", () => {
 
     expect(res.status).toBe(200);
     expect(findManyChapters).toHaveBeenCalledWith({
-      where: {
-        novel_id: "n-1",
-        OR: [{ summary_dirty: true }, { index_dirty: true }],
-      },
-      select: { id: true, summary_dirty: true, index_dirty: true, content: true },
+      where: { novel_id: "n-1" },
+      include: { summary: true },
+      orderBy: { chapter_index: "asc" },
     });
     expect(json.data).toMatchObject({
       summarize_queued: 1,
-      index_queued: 0,
-      chapters_dirty: 1,
+      index_queued: 1,
+      chapters_scanned: 1,
     });
   });
 
@@ -155,16 +154,16 @@ describe("POST /api/novels/[id]/jobs/refresh-dirty", () => {
 
     expect(res.status).toBe(200);
     expect(json.data).toEqual({
-      summarize_queued: 2,
-      index_queued: 2,
+      summarize_queued: 3,
+      index_queued: 3,
       summaries_queued: 1,
-      chapters_dirty: 3,
+      chapters_scanned: 3,
     });
-    // 2 summarize + 2 index + 1 refresh_summaries = 5 enqueueJob calls
-    expect(createJob).toHaveBeenCalledTimes(5);
-    const types = createJob.mock.calls.map((args) => args[0].data.type);
-    expect(types.filter((t: string) => t === "summarize_chapter")).toHaveLength(2);
-    expect(types.filter((t: string) => t === "index_chapter")).toHaveLength(2);
+    // c-1: sum+idx, c-2: sum+idx (mock returns null for include), c-3: sum+idx = 3+3 + 1 refresh = 7 enqueueJob calls
+    expect(createJob).toHaveBeenCalledTimes(7);
+    const types = createJob.mock.calls.map((args: any) => args[0].data.type);
+    expect(types.filter((t: string) => t === "summarize_chapter")).toHaveLength(3);
+    expect(types.filter((t: string) => t === "index_chapter")).toHaveLength(3);
     expect(types.filter((t: string) => t === "refresh_summaries")).toHaveLength(1);
   });
 
@@ -188,9 +187,7 @@ describe("POST /api/novels/[id]/jobs/refresh-dirty", () => {
       summarize_queued: 0,
       index_queued: 0,
       summaries_queued: 0,
-      // dirty rows still surface in the count even when we skip them, so the
-      // UI badge reflects "tried but had nothing to do" rather than "all clean".
-      chapters_dirty: 2,
+      chapters_scanned: 2,
     });
     expect(createJob).not.toHaveBeenCalled();
   });
@@ -199,7 +196,7 @@ describe("POST /api/novels/[id]/jobs/refresh-dirty", () => {
     findUniqueNovel.mockResolvedValue({ id: "n-1", user_id: "u-1" });
     getRequiredUserId.mockResolvedValue("u-1");
     findManyChapters.mockResolvedValue([
-      { id: "c-1", summary_dirty: false, index_dirty: true, content: "正文" },
+      { id: "c-1", summary_dirty: false, index_dirty: true, content: "正文", summary: { summary: "x" } },
     ]);
     createJob.mockResolvedValue({ id: "j-x" });
 

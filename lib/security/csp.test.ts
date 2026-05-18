@@ -8,20 +8,19 @@ import {
 } from "./csp";
 
 describe("content security policy helpers", () => {
-  it("builds a nonce-based production CSP without unsafe-inline", () => {
+  it("builds a nonce-based production CSP with unsafe-inline for style (required by React)", () => {
     const policy = buildContentSecurityPolicy("nonce-1", {
       isDev: false,
       connectOrigins: "https://auth.example.com",
     });
 
     expect(policy).toContain("script-src 'self' 'nonce-nonce-1' 'strict-dynamic'");
-    expect(policy).toContain("style-src 'self' 'nonce-nonce-1'");
-    expect(policy).toContain("style-src-attr 'none'");
+    expect(policy).toContain("style-src 'self' 'nonce-nonce-1' 'unsafe-inline'");
     expect(policy).toContain("connect-src 'self' https://auth.example.com");
     expect(policy).toContain("frame-ancestors 'none'");
     expect(policy).toContain("upgrade-insecure-requests");
-    expect(policy).not.toContain("'unsafe-inline'");
     expect(policy).not.toContain("'unsafe-eval'");
+    expect(policy).not.toContain("style-src-attr 'none'");
   });
 
   it("allows local dev sockets and eval only outside production", () => {

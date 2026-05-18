@@ -58,7 +58,7 @@ export async function POST(_request: Request, context: RouteContext) {
       novelId: chapter.novel_id,
       messages: buildSummarizePrompt(chapter.chapter_index, chapter.title, chapter.content),
       temperature: 0,
-      timeoutMs: 15_000,
+      timeoutMs: 60_000,
     });
 
     const summary = result.content.trim();

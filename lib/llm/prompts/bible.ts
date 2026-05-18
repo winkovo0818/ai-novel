@@ -7,8 +7,8 @@
  * - 字段命名以 contracts §3 为准（全英文 snake_case，catchphrase 而非口头禅）
  */
 
-import type { ChatMessage } from "../client";
-import type { NovelProfile } from "../../validation/schemas";
+import type { ChatMessage } from "@/lib/llm/client";
+import type { NovelProfile } from "@/lib/validation/schemas";
 
 export interface BiblePromptInput {
   logline: string;
@@ -52,7 +52,7 @@ const SCHEMA_BLOCK = `必须严格输出以下 JSON 结构（snake_case，无注
       "theme": "卷主题一句话",
       "chapter_count_estimate": "本卷预估总章数（数字）",
       "chapters": [
-        { "index": 1, "title": "章名", "summary": "40-80 字章节梗概" }
+        { "index": 1, "title": "章名", "summary": "20-80 字章节梗概" }
       ]
     }
   },
@@ -64,7 +64,7 @@ const SCHEMA_BLOCK = `必须严格输出以下 JSON 结构（snake_case，无注
 结构约束（违反任何一条都视为失败）：
 - characters 长度 3-5，且必须恰好包含 1 个 role=protagonist
 - world.factions 长度 2-4，rules 2-4 条，geography 2-4 项
-- outline.volume_1.chapters 长度严格 8-12
+- outline.volume_1.chapters 长度严格 {MIN_CHAPTERS}-{MAX_CHAPTERS}
 - first_chapter_beats 长度 5-8`;
 
 const HARD_RULES_BLOCK = `硬规则（contracts §8，缺一不可）：
@@ -72,7 +72,7 @@ const HARD_RULES_BLOCK = `硬规则（contracts §8，缺一不可）：
 2. 反派的动机必须合理，避免「为坏而坏」
 3. 首卷大纲至少含 1 个小高潮
 4. 首卷大纲至少含 1 个伏笔（写在某章 summary 内）
-5. outline.volume_1.chapters 长度严格 8-12
+5. outline.volume_1.chapters 长度严格 {MIN_CHAPTERS}-{MAX_CHAPTERS}
 6. 避免裸露 / 色情 / 违反中国法律的内容`;
 
 function profileLines(p: NovelProfile): string {
@@ -100,16 +100,19 @@ function answerLines(answers?: Record<string, string | string[]>): string {
 export function buildBiblePrompt(input: BiblePromptInput): ChatMessage[] {
   const { logline, profile, answers } = input;
 
+  const chapterRange = getChapterRange(profile.length);
+
   const system = `你是资深网文世界观架构师，深谙 ${profile.genre_main}/${profile.genre_sub} 流派的爽点、套路与雷区。
 任务：基于用户的 logline + 偏好 + 反向追问答案，输出一份可直接交付主编辑器的小说 Bible 草稿。
 不要写正文。只输出纯 JSON，且必须严格符合下方 schema。
 
-${SCHEMA_BLOCK}
+${SCHEMA_BLOCK.replace("{MIN_CHAPTERS}", String(chapterRange.min)).replace("{MAX_CHAPTERS}", String(chapterRange.max))}
 
-${HARD_RULES_BLOCK}
+${HARD_RULES_BLOCK.replace("{MIN_CHAPTERS}", String(chapterRange.min)).replace("{MAX_CHAPTERS}", String(chapterRange.max))}
 
 输出要求：
-- 单卷大纲必须有起承转合，前 3 章建立人物与世界，后续章节制造冲突与伏笔
+- 大纲要完整覆盖整个首卷的叙事弧，前 3 章建立人物与世界，后续章节制造冲突与伏笔
+- 每章 summary 要写出该章的核心事件与转折点，20-80 字
 - first_chapter_beats 5-8 个节拍，整体能装进 ${profile.chapter_word_count} 字左右的章节
 - 角色 catchphrase 要短、要怪、要能成为记忆锚点
 - 输出必须是合法 JSON，禁止使用 // 注释、尾随逗号、Markdown 代码块包裹`;
@@ -128,4 +131,19 @@ ${answerLines(answers)}
     { role: "system", content: system },
     { role: "user", content: user },
   ];
+}
+
+function getChapterRange(length: string): { min: number; max: number } {
+  switch (length) {
+    case "short":
+      return { min: 8, max: 15 };
+    case "mid":
+      return { min: 12, max: 24 };
+    case "long":
+      return { min: 20, max: 36 };
+    case "super_long":
+      return { min: 30, max: 50 };
+    default:
+      return { min: 12, max: 24 };
+  }
 }

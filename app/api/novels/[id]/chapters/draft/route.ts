@@ -245,7 +245,7 @@ export async function POST(request: Request, context: RouteContext) {
               generationPolicy: policy,
             }),
             temperature: policy.temperature,
-            timeoutMs: 60_000,
+            timeoutMs: 120_000,
             signal: abortController.signal,
           },
           {

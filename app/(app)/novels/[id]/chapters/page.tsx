@@ -28,7 +28,10 @@ export default async function ChaptersPage({ params, searchParams }: PageProps) 
 
   const novel = await prisma.novel.findUnique({
     where: { id },
-    include: { bible: true, chapters: { orderBy: { chapter_index: "asc" } } },
+    include: {
+      bible: true,
+      chapters: { orderBy: { chapter_index: "asc" }, include: { summary: true } },
+    },
   });
   if (!novel) notFound();
   if (!canAccessOwnerResource(novel.user_id, userId)) notFound();
@@ -60,6 +63,7 @@ export default async function ChaptersPage({ params, searchParams }: PageProps) 
         word_count: wordCount,
         updated_at: draft?.updated_at?.toISOString(),
         summary_state: status?.summary,
+        summary_text: draft?.summary?.summary,
         index_state: status?.index,
         last_job_status: status?.lastJobStatus,
         last_job_type: status?.lastJobType,

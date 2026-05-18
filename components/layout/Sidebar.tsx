@@ -3,8 +3,9 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAdmin } from "@/lib/auth/useAdmin";
 
-const navItems = [
+const mainNavItems = [
   { name: "工作台", href: "/dashboard", icon: (
     <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
@@ -20,6 +21,9 @@ const navItems = [
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
     </svg>
   )},
+];
+
+const adminNavItems = [
   { name: "模型配置", href: "/models", icon: (
     <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -36,10 +40,24 @@ const navItems = [
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5-4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-3 8 3z" />
     </svg>
   )},
+  { name: "AI 调用记录", href: "/admin/ai-calls", icon: (
+    <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  )},
+];
+
+const personalItems = [
+  { name: "个人设置", href: "/profile", icon: (
+    <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    </svg>
+  )},
 ];
 
 export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boolean }) {
   const pathname = usePathname();
+  const { isAdmin } = useAdmin();
   // Seed from the SSR-derived cookie value so the very first paint already has
   // the correct width. No localStorage read in the initial render means no flash.
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
@@ -55,7 +73,9 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
     } catch {
       // ignore quota/privacy errors
     }
-    document.documentElement.style.setProperty("--width-sidebar", next ? "80px" : "260px");
+    const root = document.documentElement;
+    root.classList.toggle("sidebar-collapsed", next);
+    root.classList.toggle("sidebar-expanded", !next);
   };
 
   const handleLogout = async () => {
@@ -81,7 +101,63 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
       {/* Navigation Area */}
       <nav className="flex-1 px-4 py-2 flex flex-col gap-1 overflow-y-auto custom-scrollbar">
         {!isCollapsed && <div className="px-4 py-3 text-[10px] font-bold text-text-dim uppercase tracking-[0.2em] animate-fade-in">主要导航</div>}
-        {navItems.map((item) => {
+        {mainNavItems.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`relative flex items-center rounded-xl transition-[background-color,color,box-shadow] duration-200 group ${isCollapsed ? "justify-center h-12" : "px-4 py-2.5 gap-3.5"} ${
+                isActive 
+                  ? "bg-white text-primary shadow-sm ring-1 ring-border-strong" 
+                  : "text-text-secondary hover:bg-white/60 hover:text-text-primary"
+              }`}
+            >
+              <span className={`${isActive ? "text-primary" : "text-text-dim group-hover:text-text-secondary"} transition-colors shrink-0`}>
+                {item.icon}
+              </span>
+              {!isCollapsed && <span className="text-[13.5px] font-semibold tracking-tight animate-fade-in whitespace-nowrap overflow-hidden">{item.name}</span>}
+              {isActive && !isCollapsed && (
+                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
+              )}
+              {isCollapsed && isActive && (
+                <div className="absolute right-1 top-1/2 -translate-y-1/2 w-1 h-4 rounded-full bg-primary" />
+              )}
+            </Link>
+          );
+        })}
+        {isAdmin && (
+          <>
+            {!isCollapsed && <div className="px-4 py-3 mt-2 text-[10px] font-bold text-text-dim uppercase tracking-[0.2em] animate-fade-in">管理</div>}
+            {adminNavItems.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`relative flex items-center rounded-xl transition-[background-color,color,box-shadow] duration-200 group ${isCollapsed ? "justify-center h-12" : "px-4 py-2.5 gap-3.5"} ${
+                    isActive 
+                      ? "bg-white text-primary shadow-sm ring-1 ring-border-strong" 
+                      : "text-text-secondary hover:bg-white/60 hover:text-text-primary"
+                  }`}
+                >
+                  <span className={`${isActive ? "text-primary" : "text-text-dim group-hover:text-text-secondary"} transition-colors shrink-0`}>
+                    {item.icon}
+                  </span>
+                  {!isCollapsed && <span className="text-[13.5px] font-semibold tracking-tight animate-fade-in whitespace-nowrap overflow-hidden">{item.name}</span>}
+                  {isActive && !isCollapsed && (
+                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
+                  )}
+                  {isCollapsed && isActive && (
+                    <div className="absolute right-1 top-1/2 -translate-y-1/2 w-1 h-4 rounded-full bg-primary" />
+                  )}
+                </Link>
+              );
+            })}
+          </>
+        )}
+        {!isCollapsed && <div className="px-4 py-3 mt-2 text-[10px] font-bold text-text-dim uppercase tracking-[0.2em] animate-fade-in">账户</div>}
+        {personalItems.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link

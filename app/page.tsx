@@ -46,7 +46,7 @@ export default async function HomePage() {
           <h1 className="font-serif text-7xl md:text-8xl lg:text-9xl font-bold leading-[1.05] tracking-tight text-text-primary animate-fade-in-up">
             写一本
             <br />
-            <span className="text-primary italic">长篇巨作</span>
+            <span className="text-primary">长篇巨作</span>
           </h1>
           <p className="mt-12 text-lg md:text-2xl text-text-secondary leading-relaxed max-w-2xl mx-auto animate-fade-in-up delay-100 font-medium">
             从灵感火花到百万字史诗。
@@ -82,7 +82,7 @@ export default async function HomePage() {
                  严肃创作而生
                </h2>
             </div>
-            <p className="text-lg text-text-muted max-w-sm leading-relaxed italic">
+            <p className="text-lg text-text-muted max-w-sm leading-relaxed">
               不再是简单的文字补全，而是真正基于逻辑与记忆的协同创作。
             </p>
           </div>

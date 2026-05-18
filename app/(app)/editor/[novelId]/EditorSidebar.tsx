@@ -106,7 +106,7 @@ export function EditorSidebar({
                   {chapter.title}
                 </p>
                 {chapter.summary && (
-                  <p className="mt-2 text-[11px] text-text-dim line-clamp-2 leading-relaxed italic opacity-80">
+                  <p className="mt-2 text-[11px] text-text-dim line-clamp-2 leading-relaxed opacity-80">
                     {chapter.summary}
                   </p>
                 )}

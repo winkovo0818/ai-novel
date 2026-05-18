@@ -13,6 +13,7 @@ import {
   candidateAcceptedMessage,
   normalizeResumableDraftPayload,
   resumableDraftLoadedMessage,
+  type DraftCandidate,
   type DraftSseState,
 } from "@/lib/editor/chapterUtils";
 import { readSse } from "@/lib/stream/readSse";
@@ -80,6 +81,7 @@ export function useChapterDrafting({
   const [lastRetrievedMemories, setLastRetrievedMemories] = useState<
     Array<{ source: string; reason: string; score: number; text: string }>
   >([]);
+  const [candidates, setCandidates] = useState<DraftCandidate[]>();
   const [lastRetrievalError, setLastRetrievalError] = useState<string>();
   const [draftSessionId, setDraftSessionId] = useState<string | null>(null);
   const [resumableDraft, setResumableDraft] = useState<{
@@ -117,7 +119,7 @@ export function useChapterDrafting({
   );
 
   const runCandidateCritic = useCallback(
-    async (draftContent: string) => {
+    async (draftContent: string, isRevision?: boolean) => {
       setCandidateCriticLoading(true);
       setCandidateCriticError(undefined);
       setCandidateCriticResult(undefined);
@@ -126,6 +128,7 @@ export function useChapterDrafting({
           novelId,
           selectedIndex,
           content: draftContent,
+          isRevision,
         });
         const response = await fetch(request.url, {
           method: request.method,
@@ -176,7 +179,7 @@ export function useChapterDrafting({
       setCandidateContent(revised);
       setCandidateCriticResult(undefined);
       setMessage("候选稿已按建议修订，正在重新审校…");
-      void runCandidateCritic(revised);
+      void runCandidateCritic(revised, true);
     } catch (err) {
       const message = err instanceof Error ? err.message : "修订失败";
       setMessage(message);
@@ -187,6 +190,49 @@ export function useChapterDrafting({
   }, [
     candidateContent,
     candidateCriticResult,
+    candidateRevisionLoading,
+    novelId,
+    runCandidateCritic,
+    selectedIndex,
+    setMessage,
+  ]);
+
+  const feedbackRevise = useCallback(async (instruction: string) => {
+    if (!candidateContent.trim() || candidateRevisionLoading) return;
+
+    setCandidateRevisionLoading(true);
+    setCandidateCriticError(undefined);
+    setMessage("AI 正在按反馈修订候选稿…");
+    try {
+      const request = buildCandidateRevisionRequest({
+        novelId,
+        selectedIndex,
+        content: candidateContent,
+        issues: [{ type: "tone" as const, severity: "minor" as const, description: instruction }],
+      });
+      const response = await fetch(request.url, {
+        method: request.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request.payload),
+      });
+      const json = await response.json();
+      if (!json.ok) throw new Error(json.error?.message ?? "修订失败");
+      const revised = String(json.data?.content ?? "");
+      if (!revised.trim()) throw new Error("AI 未返回修订正文");
+
+      setCandidateContent(revised);
+      setCandidateCriticResult(undefined);
+      setMessage("候选稿已按反馈修订，正在重新审校…");
+      void runCandidateCritic(revised, true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "修订失败";
+      setMessage(message);
+      setCandidateCriticError(message);
+    } finally {
+      setCandidateRevisionLoading(false);
+    }
+  }, [
+    candidateContent,
     candidateRevisionLoading,
     novelId,
     runCandidateCritic,
@@ -284,7 +330,9 @@ export function useChapterDrafting({
   }, [resumableDraft, runCandidateCritic, setMessage, setStatus]);
 
   const draftChapter = useCallback(
-    async (beats?: BeatItem[]) => {
+    async (beatsOrOpts?: BeatItem[] | { retrieved_memories?: Array<{ source: string; text: string; reason: string; score: number }> }) => {
+      const beats = Array.isArray(beatsOrOpts) ? beatsOrOpts : undefined;
+      const retrievedMemories = (!Array.isArray(beatsOrOpts) && beatsOrOpts?.retrieved_memories) ? beatsOrOpts.retrieved_memories : undefined;
       if (candidateContent && !candidateStreaming) {
         const ok = await confirm({
           title: "丢弃当前候选稿并重新生成？",
@@ -316,6 +364,7 @@ export function useChapterDrafting({
           title: chapterTitle,
           existingContent: content,
           beats,
+          ...(retrievedMemories ? { retrieved_memories: retrievedMemories } : {}),
         });
         const response = await fetch(request.url, {
           method: request.method,
@@ -333,6 +382,7 @@ export function useChapterDrafting({
           setCandidateContent(draftState.generated);
           if (draftState.retrievalStatus) setLastRetrievalStatus(draftState.retrievalStatus);
           if (draftState.retrievalError) setLastRetrievalError(draftState.retrievalError);
+          if (draftState.candidates) setCandidates(draftState.candidates);
           if (draftState.retrievedMemories) setLastRetrievedMemories(draftState.retrievedMemories);
           if (draftState.done) {
             setMessage("候选稿生成完成，正在审校…");
@@ -424,6 +474,10 @@ export function useChapterDrafting({
     ],
   );
 
+  const draftChapterWithMemories = (memories: Array<{ source: string; text: string; reason: string; score: number }>) => {
+    void draftChapter({ retrieved_memories: memories } as any);
+  };
+
   return {
     candidateOpen,
     candidateContent,
@@ -434,9 +488,12 @@ export function useChapterDrafting({
     candidateRevisionLoading,
     clearCandidate,
     draftChapter,
+    draftChapterWithMemories,
     reviseCandidate,
+    feedbackRevise,
     setCursorPos,
     acceptCandidate,
+    candidates,
     lastRetrievalStatus,
     lastRetrievedMemories,
     lastRetrievalError,

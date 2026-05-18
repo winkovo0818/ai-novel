@@ -37,10 +37,12 @@ interface BuildArgs {
  * 1. Running / failed: a BackgroundJob touching this chapter is in those
  *    states. Job state outranks dirty bits because a successful job will
  *    flip the bit anyway, and a failed job is a more actionable hint.
- * 2. Missing: row absent (no summary, no chunks).
- * 3. Stale: M3.1 dirty bit is true (PATCH set it on content change). We
- *    fall back to a timestamp comparison so chapters edited *before* the
- *    M3.1 migration backfill ran don't silently appear fresh.
+ * 2. Stale: M3.1 dirty bit is true (PATCH set it on content change).
+ *    Dirty wins over missing so chapters that were edited but never
+ *    summarized/indexed surface as "stale" and trigger the batch refresh
+ *    button on the chapter management page. We also fall back to a
+ *    timestamp comparison for chapters edited before the M3.1 migration.
+ * 3. Missing: row absent (no summary, no chunks) and not dirty.
  * 4. Fresh: row exists, dirty bit clear, timestamps look in order.
  */
 export function buildChapterStatus(args: BuildArgs): ChapterStatusView {
@@ -52,8 +54,12 @@ export function buildChapterStatus(args: BuildArgs): ChapterStatusView {
   const summaryFreshness: ChapterFreshness = (() => {
     if (latestJob?.type === "summarize_chapter" && isJobRunning) return "running";
     if (latestJob?.type === "summarize_chapter" && isJobFailed) return "failed";
-    if (!summary) return "missing";
+    // Dirty flag wins over missing: a chapter that was edited but never
+    // summarized should show "stale", not "missing", so the batch
+    // refresh button appears on the chapter management page.
     if (chapter.summary_dirty) return "stale";
+    // Drafted but never summarised: treat as stale so the batch button picks it up.
+    if (!summary) return chapter.content?.trim() ? "stale" : "missing";
     if (summary.updated_at < chapter.updated_at) return "stale";
     return "fresh";
   })();
@@ -61,8 +67,9 @@ export function buildChapterStatus(args: BuildArgs): ChapterStatusView {
   const indexFreshness: ChapterFreshness = (() => {
     if (latestJob?.type === "index_chapter" && isJobRunning) return "running";
     if (latestJob?.type === "index_chapter" && isJobFailed) return "failed";
-    if (!hasMemoryChunks) return "missing";
     if (chapter.index_dirty) return "stale";
+    // Drafted but never indexed: treat as stale so the batch button picks it up.
+    if (!hasMemoryChunks) return chapter.content?.trim() ? "stale" : "missing";
     return "fresh";
   })();
 

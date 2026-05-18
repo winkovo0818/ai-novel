@@ -156,7 +156,7 @@ export async function POST(request: Request, context: RouteContext) {
             userId,
             messages: buildBiblePrompt(input),
             temperature: 0.7,
-            timeoutMs: 60_000,
+            timeoutMs: 120_000,
           },
           {
             onDelta(delta) {

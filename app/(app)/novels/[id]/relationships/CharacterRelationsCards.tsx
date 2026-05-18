@@ -76,7 +76,7 @@ export function CharacterRelationsCards({
                   <h4 className="text-[10px] font-bold uppercase tracking-wider text-text-dim mb-2 border-b border-border-subtle pb-1">
                     人物小传 / BIO
                   </h4>
-                  <p className="text-[13px] text-text-secondary leading-relaxed italic">
+                  <p className="text-[13px] text-text-secondary leading-relaxed">
                     {c.personality}
                   </p>
                 </section>
@@ -127,7 +127,7 @@ export function CharacterRelationsCards({
                             <span>
                               <span className="font-bold text-text-primary">{e.fromName}</span>
                               <span className="text-text-dim mx-1">·</span>
-                              <span className="text-text-muted italic">{e.label}</span>
+                              <span className="text-text-muted">{e.label}</span>
                             </span>
                           </li>
                         ))}
@@ -156,7 +156,7 @@ function RelationsEditor({
   if (relations.length === 0) {
     return (
       <div className="space-y-3">
-        <p className="text-[12px] text-text-dim italic">尚未配置 relations</p>
+        <p className="text-[12px] text-text-dim">尚未配置 relations</p>
         <button
           type="button"
           onClick={() => onChange([""])}

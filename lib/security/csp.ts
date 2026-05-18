@@ -50,8 +50,7 @@ export function buildContentSecurityPolicy(
   const directives = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
-    `style-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-inline'" : ""}`,
-    isDev ? undefined : "style-src-attr 'none'",
+    `style-src 'self' 'nonce-${nonce}' 'unsafe-inline'`,
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
     `connect-src ${connectSrc.join(" ")}`,

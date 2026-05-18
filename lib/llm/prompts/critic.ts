@@ -1,7 +1,7 @@
-import type { ChatMessage } from "../client";
-import type { ChapterContext } from "../../agent/chapterContext";
-import type { CriticIssue } from "../../agent/contracts";
-import { PROMPT_SAFETY_PREAMBLE, wrap, wrapOr } from "../promptSafety";
+import type { ChatMessage } from "@/lib/llm/client";
+import type { ChapterContext } from "@/lib/agent/chapterContext";
+import type { CriticIssue } from "@/lib/agent/contracts";
+import { PROMPT_SAFETY_PREAMBLE, wrap, wrapOr } from "@/lib/llm/promptSafety";
 
 export type { CriticIssue };
 
@@ -14,10 +14,11 @@ export interface BuildCriticPromptInput {
   context: ChapterContext;
   chapterContent: string;
   chapterIndex: number;
+  isRevision?: boolean;
 }
 
 export function buildCriticPrompt(input: BuildCriticPromptInput): ChatMessage[] {
-  const { context, chapterContent, chapterIndex } = input;
+  const { context, chapterContent, chapterIndex, isRevision } = input;
   const bible = context.bible;
   const protagonist = bible.characters.find((c) => c.role === "protagonist");
 
@@ -60,7 +61,9 @@ ${PROMPT_SAFETY_PREAMBLE}
 严重度定义：
 - critical：必须修改，否则会破坏读者信任（如主角性格突变、核心规则被违反）。
 - major：建议修改，但不影响主线理解（如次要线索被忽略）。
-- minor：可接受的小偏差（如语气略有不一致）。
+- minor：可接受的小偏差（如语气略有不一致）。${isRevision ? `
+
+特别说明：本章节已经按审校意见修订过一次。请降低对 minor 级别问题的敏感度——只有 truly critical 或 genuinely major 的新问题才应标记。不要重复报告上次已指出且本次修订已明显改善的同一问题。如果修订稿合理解决了之前的问题，且没有引入新的 critical/major 矛盾，应判定为 consistent。` : ""}
 
 输出严格 JSON：
 {"consistent": true}  — 无明显问题

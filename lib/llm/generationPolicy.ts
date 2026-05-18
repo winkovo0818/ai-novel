@@ -1,4 +1,4 @@
-import type { NovelProfile } from "../validation/schemas";
+import type { NovelProfile } from "@/lib/validation/schemas";
 
 export interface GenerationPolicy {
   temperature: number;

@@ -1,8 +1,8 @@
-import type { ChatMessage } from "../client";
-import type { NovelProfile } from "../../validation/schemas";
-import type { ChapterContext } from "../../agent/chapterContext";
-import type { GenerationPolicy } from "../generationPolicy";
-import { PROMPT_SAFETY_PREAMBLE, wrap, wrapOr } from "../promptSafety";
+import type { ChatMessage } from "@/lib/llm/client";
+import type { NovelProfile } from "@/lib/validation/schemas";
+import type { ChapterContext } from "@/lib/agent/chapterContext";
+import type { GenerationPolicy } from "@/lib/llm/generationPolicy";
+import { PROMPT_SAFETY_PREAMBLE, wrap, wrapOr } from "@/lib/llm/promptSafety";
 
 export interface ChapterPromptInput {
   context: ChapterContext;

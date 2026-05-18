@@ -1,5 +1,5 @@
-import type { ChatMessage } from "../client";
-import { PROMPT_SAFETY_PREAMBLE, wrap } from "../promptSafety";
+import type { ChatMessage } from "@/lib/llm/client";
+import { PROMPT_SAFETY_PREAMBLE, wrap } from "@/lib/llm/promptSafety";
 
 export interface VolumeSummaryInput {
   volumeIndex: number;

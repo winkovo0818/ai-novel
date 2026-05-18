@@ -96,7 +96,7 @@ export async function POST(request: Request, context: RouteContext) {
         issues: input.issues,
       }),
       temperature: 0.35,
-      timeoutMs: 60_000,
+      timeoutMs: 120_000,
     });
 
     const content = stripCodeFence(result.content);

@@ -27,7 +27,7 @@
 
   /* Typography - Editorial Scale */
   --font-sans: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-serif: "Instrument Serif", "Libre Baskerville", "Songti SC", serif;
+  --font-serif: "Instrument Serif", "Libre Baskerville", "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   /* Shadows - Diffused Architectural Shadows */
@@ -151,6 +151,11 @@
   to { transform: translateX(100%); }
 }
 
+@keyframes progress-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
@@ -190,7 +195,28 @@
 .delay-100 { animation-delay: 100ms; }
 .delay-200 { animation-delay: 200ms; }
 .delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
 .delay-500 { animation-delay: 500ms; }
+
+.animate-shimmer-fast {
+  animation: shimmer 2.4s infinite linear;
+}
+
+.animate-progress-slide {
+  animation: progress-slide 1.8s infinite ease-in-out;
+}
+
+.animate-spin-slow {
+  animation: spin 1.4s linear infinite;
+}
+
+.sidebar-expanded .sidebar-content {
+  margin-left: 260px;
+}
+
+.sidebar-collapsed .sidebar-content {
+  margin-left: 80px;
+}
 
 /* Reduced motion: honor user preference for vestibular safety. Strip
    non-essential animations and shorten transitions so the UI still feels

@@ -46,6 +46,16 @@ export default function NovelsPage() {
     }
   }
 
+  async function deleteNovel(id: string) {
+    const res = await fetch(`/api/novels/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      setError(json?.error?.message ?? "删除失败，请稍后重试");
+      return;
+    }
+    setNovels((prev) => prev.filter((n) => n.id !== id));
+  }
+
   return (
     <div className="flex-1 overflow-y-auto bg-secondary/30 custom-scrollbar">
       <div className="p-8 md:p-12 lg:p-16 max-w-7xl mx-auto min-h-full pb-24">
@@ -102,6 +112,7 @@ export default function NovelsPage() {
                   doneCount={novel.done_count}
                   updatedAt={novel.created_at}
                   hasBible={novel.has_bible}
+                  onDelete={deleteNovel}
                 />
               ))}
               
