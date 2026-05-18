@@ -135,14 +135,14 @@ describe("buildChapterStatus — M3.1 dirty bits", () => {
     expect(view.summary).toBe("running");
   });
 
-  it("missing summary trumps dirty bits", async () => {
+  it("dirty bits win over missing: a chapter with no summary/index rows but dirty flags set returns stale", async () => {
     const view = buildChapterStatus({
-      chapter: chapter({ summary_dirty: true }),
+      chapter: chapter({ summary_dirty: true, index_dirty: true }),
       summary: null,
       hasMemoryChunks: false,
     });
-    expect(view.summary).toBe("missing");
-    expect(view.index).toBe("missing");
+    expect(view.summary).toBe("stale");
+    expect(view.index).toBe("stale");
   });
 
   it("snapshots dirty-bit, missing-data, and job-priority combinations", () => {
@@ -187,7 +187,7 @@ describe("buildChapterStatus — M3.1 dirty bits", () => {
         },
       },
       {
-        name: "missing rows stay missing",
+        name: "dirty trumps missing when no rows exist yet",
         args: { chapter: chapter({ summary_dirty: true, index_dirty: true }), summary: null, hasMemoryChunks: false },
       },
       {
@@ -286,12 +286,12 @@ describe("buildChapterStatus — M3.1 dirty bits", () => {
           "summary": "stale",
         },
         {
-          "index": "missing",
+          "index": "stale",
           "lastJobError": null,
           "lastJobStatus": null,
           "lastJobType": null,
-          "name": "missing rows stay missing",
-          "summary": "missing",
+          "name": "dirty trumps missing when no rows exist yet",
+          "summary": "stale",
         },
         {
           "index": "stale",
@@ -372,7 +372,7 @@ describe("getChapterStatusesForNovel — bulk aggregation", () => {
     expect(result).toHaveLength(3);
     expect(result[0]).toMatchObject({ chapterId: "c-1", summary: "fresh", index: "fresh" });
     expect(result[1]).toMatchObject({ chapterId: "c-2", summary: "stale", index: "fresh" });
-    expect(result[2]).toMatchObject({ chapterId: "c-3", summary: "missing", index: "missing" });
+    expect(result[2]).toMatchObject({ chapterId: "c-3", summary: "stale", index: "stale" });
   });
 
   it("only counts chunks when _count._all > 0 (groupBy can return zero rows)", async () => {
@@ -384,7 +384,7 @@ describe("getChapterStatusesForNovel — bulk aggregation", () => {
     findManyJob.mockResolvedValue([]);
 
     const result = await getChapterStatusesForNovel("n-1");
-    expect(result[0].index).toBe("missing");
+    expect(result[0].index).toBe("stale");
   });
 
   it("attaches the LATEST job per chapter (jobs ordered desc by created_at)", async () => {

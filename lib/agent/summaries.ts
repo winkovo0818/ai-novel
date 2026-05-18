@@ -85,7 +85,7 @@ export async function refreshSummaries(novelId: string): Promise<RefreshSummarie
           chapterSummaries,
         }),
         temperature: 0,
-        timeoutMs: 15_000,
+        timeoutMs: 60_000,
       },
       1,
     );
@@ -130,7 +130,7 @@ export async function refreshSummaries(novelId: string): Promise<RefreshSummarie
             })),
           }),
           temperature: 0,
-          timeoutMs: 15_000,
+          timeoutMs: 60_000,
         },
         1,
       );

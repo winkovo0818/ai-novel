@@ -1,9 +1,8 @@
 import { jsonError, jsonOk } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
-import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { enqueueJob, runPendingJobsForNovel } from "@/lib/jobs/queue";
 import { errorMessage, logError } from "@/lib/observability/logger";
-import { getRequiredUserId } from "@/lib/auth/session";
+import { routeGuard } from "@/lib/auth/routeGuard";
 
 // Side-effect import: registers job handlers on first load.
 import "@/lib/jobs/handlers";
@@ -39,32 +38,42 @@ export async function POST(_request: Request, context: RouteContext) {
     return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
   }
 
-  let userId: string;
-  try {
-    userId = await getRequiredUserId();
-  } catch {
-    return jsonError("UNAUTHORIZED", "Login required", false, 401);
-  }
-  if (!canAccessOwnerResource(novel.user_id, userId)) {
-    return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
-  }
-
-  const dirty = await prisma.chapterDraft.findMany({
-    where: {
-      novel_id: id,
-      OR: [{ summary_dirty: true }, { index_dirty: true }],
-    },
-    select: { id: true, summary_dirty: true, index_dirty: true, content: true },
+  const guard = await routeGuard({
+    route: "/api/novels/:id/jobs/refresh-dirty",
+    resource: { type: "novel", id, ownerId: novel.user_id },
   });
+  if ("response" in guard) return guard.response;
+
+  // Fetch every chapter with summary + chunk count so we discover
+  // chapters drafted before the M3.1 dirty-flag migration that have
+  // never been summarized or indexed.
+  const chapters = await prisma.chapterDraft.findMany({
+    where: { novel_id: id },
+    include: { summary: true },
+    orderBy: { chapter_index: "asc" },
+  });
+
+  // MemoryChunk has no reverse relation from ChapterDraft, so query
+  // separately to know which chapters have never been indexed.
+  const chunkCounts = await prisma.memoryChunk.groupBy({
+    by: ["chapter_id"],
+    where: { novel_id: id, chapter_id: { not: null } },
+    _count: { _all: true },
+  });
+  const chaptersWithChunks = new Set(
+    chunkCounts.filter((c) => c._count._all > 0).map((c) => c.chapter_id),
+  );
 
   let summarizeQueued = 0;
   let indexQueued = 0;
-  for (const chapter of dirty) {
+  for (const chapter of chapters) {
     // Empty content can't be summarized or indexed — skip silently. The
     // dirty flag stays set; once the user adds content and saves, the
     // next refresh-dirty will pick it up.
     if (!chapter.content.trim()) continue;
-    if (chapter.summary_dirty) {
+    const needsSummarize = chapter.summary_dirty || !chapter.summary;
+    const needsIndex = chapter.index_dirty || !chaptersWithChunks.has(chapter.id);
+    if (needsSummarize) {
       await enqueueJob({
         type: "summarize_chapter",
         payload: { chapter_id: chapter.id },
@@ -72,7 +81,7 @@ export async function POST(_request: Request, context: RouteContext) {
       });
       summarizeQueued += 1;
     }
-    if (chapter.index_dirty) {
+    if (needsIndex) {
       await enqueueJob({
         type: "index_chapter",
         payload: { novel_id: id, chapter_id: chapter.id },
@@ -106,6 +115,6 @@ export async function POST(_request: Request, context: RouteContext) {
     summarize_queued: summarizeQueued,
     index_queued: indexQueued,
     summaries_queued: summariesQueued,
-    chapters_dirty: dirty.length,
+    chapters_scanned: chapters.length,
   });
 }

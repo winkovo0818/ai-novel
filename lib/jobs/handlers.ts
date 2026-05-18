@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { chatCompletion } from "@/lib/llm/client";
+import { chatCompletionWithRetry } from "@/lib/llm/client";
 import { buildSummarizePrompt } from "@/lib/llm/prompts/summarize";
 import { indexChapter } from "@/lib/agent/chunking";
 import { refreshSummaries } from "@/lib/agent/summaries";
@@ -43,13 +43,13 @@ export function registerJobHandlers(): void {
     const chapter = await prisma.chapterDraft.findUnique({ where: { id: payload.chapter_id } });
     if (!chapter || !chapter.content.trim()) return;
 
-    const result = await chatCompletion({
+    const result = await chatCompletionWithRetry({
       route: "/jobs/summarize_chapter",
       agent: "summarizer",
       messages: buildSummarizePrompt(chapter.chapter_index, chapter.title, chapter.content),
       temperature: 0,
-      timeoutMs: 15_000,
-    });
+      timeoutMs: 60_000,
+    }, 1);
 
     // M3.1: upsert + clear summary_dirty in one transaction so the chapter
     // management page's "needs refresh" badge flips off the moment the
