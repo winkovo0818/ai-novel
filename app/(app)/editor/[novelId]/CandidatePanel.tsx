@@ -28,6 +28,8 @@ interface CandidatePanelProps {
   revisionLoading?: boolean;
   criticResult?: CandidateCriticResult;
   criticError?: string;
+  /** Multi-candidate list (server sends via SSE 'candidates' + 'candidate_delta' events). */
+  candidates?: Array<{ id: string; label: string; content: string }>;
   /** Whether the editor currently holds a non-empty body the candidate would overwrite. */
   hasExistingContent: boolean;
   /** The current chapter body, used as the "before" side of the diff toggle. */
@@ -58,6 +60,7 @@ export function CandidatePanel({
   retrievalStatus,
   retrievedMemories,
   retrievalError,
+  candidates,
   onAccept,
   onRevise,
   onFeedbackRevise,
@@ -66,6 +69,22 @@ export function CandidatePanel({
   const [confirmingOverwrite, setConfirmingOverwrite] = useState<CandidateMode | null>(null);
   const [viewMode, setViewMode] = useState<"preview" | "diff">("preview");
   const [feedbackText, setFeedbackText] = useState("");
+  // Active candidate tab when multi-candidate generation produces >1 result.
+  const [activeCandidate, setActiveCandidate] = useState<string>("c0");
+  const multiCandidate = (candidates?.length ?? 0) > 1;
+  const [reviewedCandidates, setReviewedCandidates] = useState<Set<string>>(new Set());
+  const activeContent = multiCandidate
+    ? candidates?.find((c) => c.id === activeCandidate)?.content ?? content
+    : content;
+  // When switching to the non-primary candidate, auto-trigger critic if
+  // not already reviewed and critic is available.
+  const handleCandidateSwitch = (id: string) => {
+    setActiveCandidate(id);
+    if (id !== "c0" && !reviewedCandidates.has(id) && !criticLoading && !streaming && onRevise) {
+      onRevise();
+      setReviewedCandidates((prev) => new Set(prev).add(id));
+    }
+  };
 
   const hasBlockingIssue = criticResult?.issues.some(
     (i) => i.severity === "critical" || i.severity === "major",
@@ -224,6 +243,8 @@ export function CandidatePanel({
           )}
           {!criticError && criticResult && (
             <>
+              {/* c0 is always reviewed when critic completes */}
+              {setReviewedCandidates((prev) => { const s = new Set(prev); s.add("c0"); return s; }) as unknown as null}
               <div className="flex items-center gap-2 mb-1">
                 <span
                   className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
@@ -272,6 +293,27 @@ export function CandidatePanel({
         </div>
       )}
 
+      {/* Multi-candidate tab bar */}
+      {multiCandidate && !streaming && (
+        <div className="flex items-center gap-1 px-6 py-2 border-b border-border-subtle bg-secondary/10 overflow-x-auto">
+          {candidates!.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => handleCandidateSwitch(c.id)}
+              className={"px-3 py-1 text-[11px] font-bold uppercase tracking-wider rounded-md transition-colors " +
+                (activeCandidate === c.id
+                  ? "bg-white text-text-primary shadow-sm"
+                  : "text-text-muted hover:text-text-secondary")}
+            >
+              {c.label}
+              {c.id !== "c0" && !reviewedCandidates.has(c.id) && !criticLoading && (
+                <span className="ml-1.5 text-[8px] px-1 py-0.5 bg-amber-100 text-amber-700 rounded-full">未审校</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* View mode toggle — only meaningful once streaming is done and there
           is an existing body to diff against. */}
       {!streaming && hasExistingContent && content.length > 0 && (
@@ -313,7 +355,7 @@ export function CandidatePanel({
         ) : (criticLoading || revisionLoading) && content.length > 0 ? (
           <div className="space-y-4 py-4">
             <article className="font-serif text-[15px] leading-[1.9] text-text-primary whitespace-pre-wrap break-words">
-              {content}
+              {activeContent}
             </article>
             <div className="relative h-1.5 w-full bg-secondary rounded-full overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-r from-primary/40 via-primary to-primary/40 rounded-full animate-progress-slide" />
@@ -330,7 +372,7 @@ export function CandidatePanel({
           <DiffView before={currentContent} after={content} />
         ) : (
           <article className="font-serif text-[15px] leading-[1.9] text-text-primary whitespace-pre-wrap break-words">
-            {content}
+            {activeContent}
             {streaming && <span className="inline-block w-1 h-4 bg-primary/60 animate-pulse ml-0.5 align-middle" />}
           </article>
         )}

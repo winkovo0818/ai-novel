@@ -13,6 +13,7 @@ import {
   candidateAcceptedMessage,
   normalizeResumableDraftPayload,
   resumableDraftLoadedMessage,
+  type DraftCandidate,
   type DraftSseState,
 } from "@/lib/editor/chapterUtils";
 import { readSse } from "@/lib/stream/readSse";
@@ -80,6 +81,7 @@ export function useChapterDrafting({
   const [lastRetrievedMemories, setLastRetrievedMemories] = useState<
     Array<{ source: string; reason: string; score: number; text: string }>
   >([]);
+  const [candidates, setCandidates] = useState<DraftCandidate[]>();
   const [lastRetrievalError, setLastRetrievalError] = useState<string>();
   const [draftSessionId, setDraftSessionId] = useState<string | null>(null);
   const [resumableDraft, setResumableDraft] = useState<{
@@ -328,7 +330,9 @@ export function useChapterDrafting({
   }, [resumableDraft, runCandidateCritic, setMessage, setStatus]);
 
   const draftChapter = useCallback(
-    async (beats?: BeatItem[]) => {
+    async (beatsOrOpts?: BeatItem[] | { retrieved_memories?: Array<{ source: string; text: string; reason: string; score: number }> }) => {
+      const beats = Array.isArray(beatsOrOpts) ? beatsOrOpts : undefined;
+      const retrievedMemories = (!Array.isArray(beatsOrOpts) && beatsOrOpts?.retrieved_memories) ? beatsOrOpts.retrieved_memories : undefined;
       if (candidateContent && !candidateStreaming) {
         const ok = await confirm({
           title: "丢弃当前候选稿并重新生成？",
@@ -360,6 +364,7 @@ export function useChapterDrafting({
           title: chapterTitle,
           existingContent: content,
           beats,
+          ...(retrievedMemories ? { retrieved_memories: retrievedMemories } : {}),
         });
         const response = await fetch(request.url, {
           method: request.method,
@@ -377,6 +382,7 @@ export function useChapterDrafting({
           setCandidateContent(draftState.generated);
           if (draftState.retrievalStatus) setLastRetrievalStatus(draftState.retrievalStatus);
           if (draftState.retrievalError) setLastRetrievalError(draftState.retrievalError);
+          if (draftState.candidates) setCandidates(draftState.candidates);
           if (draftState.retrievedMemories) setLastRetrievedMemories(draftState.retrievedMemories);
           if (draftState.done) {
             setMessage("候选稿生成完成，正在审校…");
@@ -468,6 +474,10 @@ export function useChapterDrafting({
     ],
   );
 
+  const draftChapterWithMemories = (memories: Array<{ source: string; text: string; reason: string; score: number }>) => {
+    void draftChapter({ retrieved_memories: memories } as any);
+  };
+
   return {
     candidateOpen,
     candidateContent,
@@ -478,10 +488,12 @@ export function useChapterDrafting({
     candidateRevisionLoading,
     clearCandidate,
     draftChapter,
+    draftChapterWithMemories,
     reviseCandidate,
     feedbackRevise,
     setCursorPos,
     acceptCandidate,
+    candidates,
     lastRetrievalStatus,
     lastRetrievedMemories,
     lastRetrievalError,

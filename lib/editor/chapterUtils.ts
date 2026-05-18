@@ -114,8 +114,17 @@ export interface CandidateRevisionRequestInput extends CandidateCriticRequestInp
   }>;
 }
 
+export interface DraftCandidate {
+  id: string;
+  label: string;
+  content: string;
+}
+
 export interface DraftSseState {
+  /** Primary (c0) accumulated text for backward compat. */
   generated: string;
+  /** All candidates when multi-candidate generation is active. */
+  candidates?: DraftCandidate[];
   streamError?: string;
   sessionId?: string;
   retrievalStatus?: string;
@@ -475,11 +484,54 @@ export function applyDraftSseEvent(
     };
   }
 
+  if (event.event === "candidates") {
+    const data = event.data as { ids?: unknown; labels?: unknown };
+    const ids = Array.isArray(data.ids) ? data.ids.filter((v): v is string => typeof v === "string") : [];
+    const labels = Array.isArray(data.labels) ? data.labels.filter((v): v is string => typeof v === "string") : [];
+    return {
+      ...state,
+      candidates: ids.map((id, i) => ({ id, label: labels[i] ?? id, content: "" })),
+    };
+  }
+
+  if (event.event === "candidate_delta") {
+    const data = event.data as { candidate?: unknown; delta?: unknown };
+    const cid = typeof data.candidate === "string" ? data.candidate : "";
+    const delta = typeof data.delta === "string" ? data.delta : "";
+    if (!delta || !state.candidates) return state;
+    const updated = state.candidates.map((c) =>
+      c.id === cid ? { ...c, content: c.content + delta } : c,
+    );
+    const primary = updated[0]?.content ?? state.generated;
+    return { ...state, candidates: updated, generated: primary };
+  }
+
   if (event.event === "done") {
-    const data = event.data as { retrieval_status?: unknown };
+    const data = event.data as {
+      retrieval_status?: unknown;
+      candidates?: unknown;
+    };
+    // If server sent final candidates, replace the streaming-built ones.
+    const finalCandidates: DraftCandidate[] | undefined =
+      Array.isArray(data.candidates)
+        ? (data.candidates as Array<Record<string, unknown>>)
+            .filter(
+              (c) =>
+                typeof c.id === "string" &&
+                typeof c.content === "string",
+            )
+            .map((c) => ({
+              id: c.id as string,
+              label: (typeof c.label === "string" ? c.label : c.id) as string,
+              content: c.content as string,
+            }))
+        : undefined;
+    const primaryContent = finalCandidates?.[0]?.content ?? state.generated;
     return {
       ...state,
       done: true,
+      generated: primaryContent,
+      candidates: finalCandidates ?? state.candidates,
       retrievalStatus: typeof data.retrieval_status === "string"
         ? data.retrieval_status
         : state.retrievalStatus,

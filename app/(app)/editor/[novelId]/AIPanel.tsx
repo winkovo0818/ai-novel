@@ -1,18 +1,28 @@
-import React from "react";
+import React, { useState } from "react";
 import type { BibleDraft } from "@/lib/validation/schemas";
 import type { ConsistencyResult } from "./useChapterActions";
 import { BeatSheetPanel, type BeatItem } from "./BeatSheetPanel";
+
+interface MemoryPreviewItem {
+  source: string;
+  text: string;
+  reason: string;
+  score: number;
+}
 
 interface AIPanelProps {
   show: boolean;
   onClose(): void;
   bible: BibleDraft;
+  novelId: string;
   status: "idle" | "saving" | "saved" | "drafting" | "error";
   message?: string;
   selectedOutline?: { summary?: string } | null;
   selectedChapterIndex: number;
   chapterTitle: string;
   onDraftChapter(): void;
+  /** Draft with pre-approved memories from the preview flow. */
+  onDraftWithMemories(memories: MemoryPreviewItem[]): void;
   onRunConsistency(): void;
   consistencyRunning: boolean;
   consistencyResult?: ConsistencyResult;
@@ -48,12 +58,14 @@ export function AIPanel({
   show,
   onClose,
   bible,
+  novelId,
   status,
   message,
   selectedOutline,
   selectedChapterIndex,
   chapterTitle,
   onDraftChapter,
+  onDraftWithMemories,
   onRunConsistency,
   consistencyRunning,
   consistencyResult,
@@ -68,6 +80,35 @@ export function AIPanel({
   onClearBeats,
   onDraftWithBeats,
 }: AIPanelProps) {
+  // Memory preview state
+  const [memoryPreview, setMemoryPreview] = useState<{
+    loading: boolean;
+    memories: MemoryPreviewItem[];
+    error?: string;
+  } | null>(null);
+
+  const handlePreviewMemories = async () => {
+    setMemoryPreview({ loading: true, memories: [] });
+    try {
+      const res = await fetch('/api/novels/' + novelId + '/memories/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chapter_index: selectedChapterIndex }),
+      });
+      const json = await res.json();
+      if (json.ok !== true) throw new Error(json.error?.message ?? 'Unknown error');
+      setMemoryPreview({
+        loading: false,
+        memories: (json.data?.memories ?? []) as MemoryPreviewItem[],
+      });
+    } catch (err) {
+      setMemoryPreview({
+        loading: false,
+        memories: [],
+        error: err instanceof Error ? err.message : 'Memory preview failed',
+      });
+    }
+  };
   return (
     <aside
       className={`bg-white border-l border-border-subtle h-full flex flex-col transition duration-500 ease-in-out shadow-premium relative z-20 ${
@@ -242,7 +283,7 @@ export function AIPanel({
         </div>
 
         <div className="p-6 border-t border-border-subtle bg-white shadow-premium">
-          {selectedChapterIndex >= 2 && beats.length === 0 && status !== "drafting" && (
+          {selectedChapterIndex >= 2 && beats.length === 0 && status !== "drafting" && !memoryPreview && (
             <div className="mb-3 p-3 bg-primary/5 border border-primary/10 rounded-xl flex items-start gap-2.5">
               <svg aria-hidden="true" className="w-4 h-4 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -250,30 +291,86 @@ export function AIPanel({
               <p className="text-[11px] text-text-secondary leading-relaxed">建议先在上方「章节节奏」区块生成节拍，再逐段引导写作，效果更可控。</p>
             </div>
           )}
-          <p className="text-[10px] text-text-dim text-center mb-2">基于 Bible 与大纲，一步生成完整章节</p>
-          <button
-            className="w-full btn-primary py-4 rounded-2xl shadow-xl shadow-primary/20 flex items-center justify-center gap-3 group active:scale-[0.98] transition relative overflow-hidden"
-            onClick={onDraftChapter}
-            disabled={status === "drafting"}
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite] pointer-events-none" />
-            {status === "drafting" ? (
-              <>
-                <svg aria-hidden="true" className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                <span className="uppercase tracking-[0.15em] text-xs font-bold">思考引擎运行中…</span>
-              </>
-            ) : (
-              <>
-                <svg aria-hidden="true" className="w-5 h-5 group-hover:scale-110 group-hover:rotate-12 transition-transform" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                </svg>
-                <span className="uppercase tracking-[0.15em] text-xs font-bold">直接起草全文</span>
-              </>
-            )}
-          </button>
+
+          {/* Memory preview section */}
+          {memoryPreview && !memoryPreview.loading && !memoryPreview.error && memoryPreview.memories.length > 0 && (
+            <div className="mb-3 space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
+              <p className="text-[10px] font-bold text-text-dim uppercase tracking-wider">
+                检索记忆 ({memoryPreview.memories.length} 条)
+              </p>
+              {memoryPreview.memories.slice(0, 5).map((m, i) => (
+                <div key={i} className="p-2.5 bg-secondary/30 rounded-lg text-[11px] text-text-secondary leading-relaxed border border-border-subtle">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[9px] font-bold text-text-dim uppercase">{m.source}</span>
+                    <span className="text-[9px] text-text-muted">{(m.score * 100).toFixed(0)}%</span>
+                  </div>
+                  <p className="line-clamp-2">{m.text}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {memoryPreview?.loading && (
+            <div className="mb-3 p-3 bg-secondary/30 rounded-xl flex items-center gap-2 text-[11px] text-text-muted animate-pulse">
+              <svg aria-hidden="true" className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              正在检索相关记忆…
+            </div>
+          )}
+          {memoryPreview?.error && (
+            <div className="mb-3 p-3 bg-amber-50 border border-amber-100 rounded-xl text-[11px] text-amber-700">
+              {memoryPreview.error}
+            </div>
+          )}
+
+          {/* Buttons: preview or draft */}
+          {memoryPreview && !memoryPreview.loading && !memoryPreview.error ? (
+            <div className="flex gap-2">
+              <button
+                className="flex-1 btn-secondary py-3 rounded-xl text-[11px]"
+                onClick={() => setMemoryPreview(null)}
+              >
+                重新检索
+              </button>
+              <button
+                className="flex-1 btn-primary py-3 rounded-xl text-[11px] shadow-lg shadow-primary/20"
+                onClick={() => { onDraftWithMemories(memoryPreview.memories); setMemoryPreview(null); }}
+                disabled={status === "drafting"}
+              >
+                确认并生成
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="text-[10px] text-text-dim text-center mb-2">
+                {memoryPreview?.loading ? '检索中…' : '预览上下文，确认后生成'}
+              </p>
+              <button
+                className="w-full btn-primary py-4 rounded-2xl shadow-xl shadow-primary/20 flex items-center justify-center gap-3 group active:scale-[0.98] transition relative overflow-hidden"
+                onClick={memoryPreview?.loading ? undefined : handlePreviewMemories}
+                disabled={status === "drafting" || memoryPreview?.loading}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite] pointer-events-none" />
+                {status === "drafting" ? (
+                  <>
+                    <svg aria-hidden="true" className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    <span className="uppercase tracking-[0.15em] text-xs font-bold">思考引擎运行中…</span>
+                  </>
+                ) : (
+                  <>
+                    <svg aria-hidden="true" className="w-5 h-5 group-hover:scale-110 group-hover:rotate-12 transition-transform" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                    </svg>
+                    <span className="uppercase tracking-[0.15em] text-xs font-bold">预览检索记忆</span>
+                  </>
+                )}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </aside>

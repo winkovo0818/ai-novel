@@ -172,23 +172,44 @@ function WordTarget({
 
   if (target && !editing) {
     const pct = Math.min(100, Math.round((characterCount / target) * 100));
+    const overTarget = characterCount > target;
+    const radius = 16;
+    const circumference = 2 * Math.PI * radius;
+    const fill = circumference * (1 - Math.min(characterCount / target, 1));
+    // Color: red < 30% -> amber 30-70% -> green 70-100% -> orange >120%
+    const strokeColor = overTarget && pct > 120
+      ? "#f59e0b"  // amber-orange for overflow
+      : pct >= 100
+        ? "#10b981"  // emerald green for done
+        : pct >= 70
+          ? "#10b981"
+          : pct >= 30
+            ? "#f59e0b"
+            : "#ef4444";
     return (
       <button
         type="button"
         onClick={() => !disabled && setEditing(true)}
         disabled={disabled}
-        className="flex items-center gap-3 hover:text-text-secondary transition-colors disabled:cursor-not-allowed group"
-        title={disabled ? "保存章节后才能设置目标字数" : "点击修改目标字数"}
+        className="flex items-center gap-2.5 hover:text-text-secondary transition-colors disabled:cursor-not-allowed group"
+        title={disabled ? "保存章节后才能设置目标字数" : `${characterCount.toLocaleString()} / ${target.toLocaleString()} 字 (${pct}%)`}
       >
-        <span className="font-bold">
-          {characterCount.toLocaleString()} / {target.toLocaleString()} 字 · {pct}%
+        <svg className="w-8 h-8 -rotate-90 shrink-0" viewBox="0 0 40 40" aria-label="章节目标进度">
+          <circle cx="20" cy="20" r={radius} fill="none" stroke="#e5e7eb" strokeWidth="3" />
+          <circle
+            cx="20" cy="20" r={radius}
+            fill="none"
+            stroke={strokeColor}
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={fill}
+            className="transition-[stroke-dashoffset] duration-700 ease-out"
+          />
+        </svg>
+        <span className="font-bold text-[12px]">
+          {characterCount.toLocaleString()} / {target.toLocaleString()} 字
         </span>
-        <progress
-          className={`progress-bar h-1 w-16 ${pct >= 100 ? "progress-bar-complete" : ""}`}
-          max={100}
-          value={pct}
-          aria-label="章节目标进度"
-        />
       </button>
     );
   }

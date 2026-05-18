@@ -9,6 +9,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { formatDate } from "@/lib/format/datetime";
 import { DeleteNovelButton } from "./_components/DeleteNovelButton";
 import { EditableTitle } from "./_components/EditableTitle";
+import { NovelStats } from "./_components/NovelStats";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -108,6 +109,9 @@ export default async function NovelDetailPage({ params }: PageProps) {
             icon={<svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
           />
         </section>
+
+        {/* Writing Stats */}
+        <NovelStats novelId={novel.id} />
 
         {/* Management Grid */}
         <section className="mt-12">

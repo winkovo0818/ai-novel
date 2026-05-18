@@ -1,5 +1,6 @@
 import { jsonError } from "@/lib/http/json";
 import { createHash } from "node:crypto";
+import { runPendingJobsForNovel } from "@/lib/jobs/queue";
 
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
@@ -97,14 +98,18 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
 
+    // M3.1: flag the chapter dirty when its content actually changes so the
+    // chapter management page can surface "needs refresh" without us paying
+    // for summarize/index on every autosave keystroke. Hoisted outside the
+    // transaction so the fire-and-forget job drain after the response can
+    // read it.
+    const contentChanged =
+      updateData.content !== undefined && updateData.content !== existing.content;
+
     const chapter = await prisma.$transaction(async (tx) => {
-      // M3.1: flag the chapter dirty when its content actually changes so the
-      // chapter management page can surface "needs refresh" without us paying
-      // for summarize/index on every autosave keystroke. We compute this once
-      // per PATCH; deletion of the chapter cascades to MemoryChunk/Summary.
-      const contentChanged =
-        updateData.content !== undefined && updateData.content !== existing.content;
-      const dirtyPatch = contentChanged
+      // Mark dirty when content changed OR when publishing (mark done) so
+      // the fire-and-forget job drain picks up the chapter for summarization.
+      const dirtyPatch = (contentChanged || isPublishing)
         ? { summary_dirty: true, index_dirty: true }
         : {};
 
@@ -159,6 +164,13 @@ export async function PATCH(request: Request, context: RouteContext) {
 
       return updated;
     });
+
+    // Fire-and-forget: when a manual save or mark-done changes content,
+    // drain the background job queue so the chapter gets summarized and
+    // indexed without the user having to visit the management page.
+    if (contentChanged && (source === "manual" || isPublishing)) {
+      void runPendingJobsForNovel(existing.novel_id).catch(() => {});
+    }
 
     return Response.json({ ok: true, data: chapter });
   } catch (err) {

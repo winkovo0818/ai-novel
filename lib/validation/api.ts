@@ -84,6 +84,14 @@ export const GenerateChapterDraftRequestSchema = z.object({
       description: z.string().min(10).max(300),
     })).min(3).max(8),
   }).optional(),
+  /** Pre-retrieved memories from the preview endpoint. When provided,
+   *  the draft route skips its own retrieval and uses these directly. */
+  retrieved_memories: z.array(z.object({
+    source: z.string(),
+    text: z.string(),
+    reason: z.string(),
+    score: z.number(),
+  })).optional(),
 });
 
 export const BibleUpdateRequestSchema = z.object({

@@ -15,6 +15,7 @@ interface ChapterRow {
   chapter_index: number;
   title: string;
   outline_summary: string;
+  summary_text?: string;
   status: string;
   target_words: number | null;
   word_count: number;
@@ -243,7 +244,10 @@ function ChapterRowItem({
         >
           {row.title}
         </Link>
-        <p className="mt-0.5 text-[11px] text-text-muted line-clamp-1">{row.outline_summary}</p>
+        <p className="mt-0.5 text-[11px] text-text-muted line-clamp-1">{row.summary_text || row.outline_summary}</p>
+        {row.summary_text && (
+          <p className="mt-0.5 text-[10px] text-text-dim italic line-clamp-1">AI 摘要：{row.summary_text}</p>
+        )}
         {indexFailure && (
           <p
             className="mt-1 text-[11px] text-red-600 line-clamp-2"
