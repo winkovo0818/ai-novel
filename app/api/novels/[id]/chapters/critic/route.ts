@@ -79,6 +79,7 @@ export async function POST(request: Request, context: RouteContext) {
           context: chapterContext,
           chapterContent: body.content,
           chapterIndex: body.chapter_index,
+          isRevision: body.is_revision === true,
         }),
         temperature: 0,
         responseFormat: "json_object",

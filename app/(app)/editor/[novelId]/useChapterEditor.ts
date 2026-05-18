@@ -27,6 +27,25 @@ interface UseChapterEditorOptions {
   initialChapterIndex?: number;
 }
 
+/**
+ * Central orchestrator for the chapter editor.  Composes eight sub-hooks
+ * in a deliberate order and wires their interdependencies via explicit
+ * hand-off:
+ *
+ *   CoreState -> Persistence -> Drafting -> Actions
+ *                       |            |
+ *                       v            v
+ *                   Selection    BeatSheet
+ *                   StateDiff
+ *                   Versions
+ *
+ * Inter-hook bridging rule:
+ *   Each sub-hook exports callbacks the orchestrator passes to the next.
+ *   Hooks never import each other directly — that avoids circular deps
+ *   and keeps each hook independently testable.  When adding a new hook
+ *   that consumes another hook'''s output, wire it here, not inside the
+ *   sub-hook.
+ */
 export function useChapterEditor({ novelId, bible, initialChapters, initialChapterIndex }: UseChapterEditorOptions) {
   const confirm = useConfirm();
   const allOutlineChapters = getAllChapters(bible);
@@ -113,6 +132,7 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     clearCandidate,
     draftChapter,
     reviseCandidate,
+    feedbackRevise,
     setCursorPos,
     acceptCandidate,
     lastRetrievalStatus,
@@ -273,6 +293,7 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     candidateCriticError,
     candidateRevisionLoading,
     reviseCandidate,
+    feedbackRevise,
     setCursorPos,
     acceptCandidate,
     // M1.5 writing tools

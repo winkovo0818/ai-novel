@@ -131,7 +131,7 @@ export function AIPanel({
               <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">叙事蓝图 / BLUEPRINT</h3>
               <div className="h-px flex-1 bg-border-subtle ml-4 opacity-50" />
             </div>
-            <div className="p-5 bg-secondary/30 rounded-2xl text-[13px] text-text-secondary leading-relaxed border border-border-subtle/50 relative overflow-hidden italic shadow-inner group">
+            <div className="p-5 bg-secondary/30 rounded-2xl text-[13px] text-text-secondary leading-relaxed border border-border-subtle/50 relative overflow-hidden shadow-inner group">
               <div className="absolute top-0 left-0 w-1 h-full bg-primary/30 group-hover:bg-primary transition-colors" />
               {selectedOutline?.summary || "当前章节暂无梗概引导，您可以直接创作。"}
             </div>
@@ -139,7 +139,7 @@ export function AIPanel({
 
           <section className="animate-fade-in delay-100">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">章节节拍 / BEATS</h3>
+              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">章节节奏 / BEATS</h3>
               <div className="h-px flex-1 bg-border-subtle ml-4 opacity-50" />
             </div>
             <BeatSheetPanel
@@ -221,7 +221,7 @@ export function AIPanel({
                         </span>
                         <span className="font-bold text-[11px] text-amber-900 tracking-tight">第 {issue.chapter} 章冲突</span>
                       </div>
-                      <p className="leading-relaxed text-[12px] text-amber-900/80 italic">{issue.description}</p>
+                      <p className="leading-relaxed text-[12px] text-amber-900/80">{issue.description}</p>
                     </li>
                   ))}
                 </ul>
@@ -242,6 +242,15 @@ export function AIPanel({
         </div>
 
         <div className="p-6 border-t border-border-subtle bg-white shadow-premium">
+          {selectedChapterIndex >= 2 && beats.length === 0 && status !== "drafting" && (
+            <div className="mb-3 p-3 bg-primary/5 border border-primary/10 rounded-xl flex items-start gap-2.5">
+              <svg aria-hidden="true" className="w-4 h-4 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-[11px] text-text-secondary leading-relaxed">建议先在上方「章节节奏」区块生成节拍，再逐段引导写作，效果更可控。</p>
+            </div>
+          )}
+          <p className="text-[10px] text-text-dim text-center mb-2">基于 Bible 与大纲，一步生成完整章节</p>
           <button
             className="w-full btn-primary py-4 rounded-2xl shadow-xl shadow-primary/20 flex items-center justify-center gap-3 group active:scale-[0.98] transition relative overflow-hidden"
             onClick={onDraftChapter}
@@ -261,7 +270,7 @@ export function AIPanel({
                 <svg aria-hidden="true" className="w-5 h-5 group-hover:scale-110 group-hover:rotate-12 transition-transform" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
                 </svg>
-                <span className="uppercase tracking-[0.15em] text-xs font-bold">开启智能起草协议</span>
+                <span className="uppercase tracking-[0.15em] text-xs font-bold">直接起草全文</span>
               </>
             )}
           </button>

@@ -14,11 +14,10 @@ export default async function AppLayout({
   return (
     <ConfirmProvider>
       <div
-        className="flex h-screen bg-background overflow-hidden relative"
-        style={{ "--width-sidebar": sidebarWidth } as React.CSSProperties}
+        className={`flex h-screen bg-background overflow-hidden relative ${sidebarCollapsed ? "sidebar-collapsed" : "sidebar-expanded"}`}
       >
         <Sidebar defaultCollapsed={sidebarCollapsed} />
-        <main className="flex-1 ml-[var(--width-sidebar)] flex flex-col h-full overflow-hidden relative bg-background">
+        <main className="flex-1 sidebar-content flex flex-col h-full overflow-hidden relative bg-background">
           {/* Subtle background gradient to add depth to the main area */}
           <div className="absolute inset-0 bg-gradient-to-tr from-secondary/20 via-transparent to-primary/5 pointer-events-none" />
 

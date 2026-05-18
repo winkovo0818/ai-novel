@@ -52,7 +52,7 @@ export function RelationshipGraph({ characters, hoveredName, onHover }: Relation
     <div className="card bg-white p-0 overflow-hidden shadow-premium border-border-subtle relative">
       <div className="absolute top-8 left-8 z-10 pointer-events-none">
          <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary/60 mb-1">叙事动力学图谱 / CORE DYNAMICS</h2>
-         <p className="text-[14px] text-text-primary font-bold font-serif italic">角色关系脉络实时映射</p>
+         <p className="text-[14px] text-text-primary font-bold font-serif">角色关系脉络实时映射</p>
       </div>
       
       <svg aria-hidden="true"
@@ -159,11 +159,10 @@ export function RelationshipGraph({ characters, hoveredName, onHover }: Relation
             <g
               key={c.name}
               transform={`translate(${pos.x}, ${pos.y})`}
-              className="cursor-pointer group"
+              className="cursor-pointer group transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
               onMouseEnter={() => onHover(c.name)}
               onMouseLeave={() => onHover(null)}
               opacity={isOtherActive ? 0.3 : 1}
-              style={{ transition: "opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)" }}
             >
               <circle
                 r={NODE_RADIUS}

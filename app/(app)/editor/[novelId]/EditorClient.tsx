@@ -240,6 +240,8 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
         <div className="flex-1 overflow-y-auto custom-scrollbar px-4 md:px-8 py-12 md:py-20 flex flex-col items-center">
           <div className="writing-canvas w-full max-w-4xl p-10 md:p-16 lg:p-20 animate-fade-in-up">
             <EditorToolbar
+              novelId={novelId}
+              chapterIndex={editor.selectedIndex}
               summary={editor.selectedOutline?.summary}
               chapterTitle={editor.chapterTitle}
               chapterStatus={editor.chapterStatus}
@@ -473,6 +475,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
           retrievalError={editor.lastRetrievalError}
           onAccept={(mode) => editor.acceptCandidate(mode)}
           onRevise={() => editor.reviseCandidate()}
+            onFeedbackRevise={(instruction) => editor.feedbackRevise(instruction)}
           onClose={() => editor.acceptCandidate("discard")}
         />
       )}

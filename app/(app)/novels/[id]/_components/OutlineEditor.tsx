@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useRef, useCallback } from "react";
 
 import type { BibleDraft, Volume } from "@/lib/validation/schemas";
 import { getVolumes } from "@/lib/validation/schemas";
@@ -12,7 +13,6 @@ import { SaveBar } from "./SaveBar";
 interface OutlineEditorProps {
   novelId: string;
   bible: BibleDraft;
-  /** Set of chapter_index values that already have a saved ChapterDraft. */
   draftedIndexes: number[];
 }
 
@@ -20,6 +20,11 @@ export function OutlineEditor({ novelId, bible: initialBible, draftedIndexes }: 
   const { bible, setBible, dirty, status, error, save } = useBibleEdit(novelId, initialBible);
   const volumes = getVolumes(bible);
   const draftedSet = new Set(draftedIndexes);
+
+  const [reordering, setReordering] = useState(false);
+  const [dragVolumeIdx, setDragVolumeIdx] = useState<number | null>(null);
+  const [dragFromIdx, setDragFromIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const updateChapter = (
     volumeIdx: number,
@@ -44,16 +49,64 @@ export function OutlineEditor({ novelId, bible: initialBible, draftedIndexes }: 
     }
   };
 
+  const applyReorder = useCallback(
+    (volumeIdx: number, fromIdx: number, toIdx: number) => {
+      const volume = volumes[volumeIdx];
+      const chapters = [...volume.chapters];
+      const [moved] = chapters.splice(fromIdx, 1);
+      chapters.splice(toIdx, 0, moved);
+      const reindexed = chapters.map((ch, i) => ({ ...ch, index: i + 1 }));
+
+      const updatedVolume: Volume = { ...volume, chapters: reindexed };
+      if (volumeIdx === 0) {
+        setBible({
+          ...bible,
+          outline: { ...bible.outline, volume_1: { ...bible.outline.volume_1, ...updatedVolume } },
+        });
+      } else {
+        const extra = [...(bible.outline.volumes ?? [])];
+        extra[volumeIdx - 1] = updatedVolume;
+        setBible({ ...bible, outline: { ...bible.outline, volumes: extra } });
+      }
+    },
+    [volumes, bible, setBible],
+  );
+
+  const handleDragStart = (volumeIdx: number, chapterIdx: number) => {
+    setDragVolumeIdx(volumeIdx);
+    setDragFromIdx(chapterIdx);
+  };
+
+  const handleDragOver = (e: React.DragEvent, chapterIdx: number) => {
+    e.preventDefault();
+    setDragOverIdx(chapterIdx);
+  };
+
+  const handleDrop = (volumeIdx: number, toIdx: number) => {
+    if (dragVolumeIdx !== null && dragFromIdx !== null && dragVolumeIdx === volumeIdx && dragFromIdx !== toIdx) {
+      applyReorder(volumeIdx, dragFromIdx, toIdx);
+    }
+    setDragVolumeIdx(null);
+    setDragFromIdx(null);
+    setDragOverIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragVolumeIdx(null);
+    setDragFromIdx(null);
+    setDragOverIdx(null);
+  };
+
   return (
     <div className="flex-1 overflow-y-auto bg-secondary/30 custom-scrollbar">
       <div className="p-8 md:p-12 lg:p-16 max-w-6xl mx-auto min-h-full pb-32">
         <PageHeader
           title="叙事大纲"
-          description="按卷分组的章节规划。已起草的章节会标注状态，点击可直接进入编辑器。"
+          description="拖拽可调整章节顺序，编辑标题和摘要后保存。已起草的章节会标注状态。"
           breadcrumb={[
             { label: "我的书架", href: "/novels" },
             { label: bible.meta.suggested_title, href: `/novels/${novelId}` },
-            { label: "叙事大纲" }
+            { label: "叙事大纲" },
           ]}
         />
 
@@ -75,15 +128,30 @@ export function OutlineEditor({ novelId, bible: initialBible, draftedIndexes }: 
                   </span>
                 )}
               </header>
-              
+
               <div className="grid gap-4">
                 {volume.chapters.map((chapter, ci) => {
                   const isDrafted = draftedSet.has(chapter.index);
+                  const isDragging = dragVolumeIdx === vi && dragFromIdx === ci;
+                  const isOver = dragVolumeIdx === vi && dragOverIdx === ci && dragFromIdx !== ci;
+
                   return (
                     <div
                       key={chapter.index}
-                      className="card bg-white grid gap-6 md:grid-cols-[100px_1fr_140px] md:items-start p-6 rounded-2xl border-border-subtle/50 shadow-sm hover:shadow-md transition-shadow group"
+                      draggable
+                      onDragStart={() => handleDragStart(vi, ci)}
+                      onDragOver={(e) => handleDragOver(e, ci)}
+                      onDrop={() => handleDrop(vi, ci)}
+                      onDragEnd={handleDragEnd}
+                      className={`card bg-white grid gap-6 md:grid-cols-[28px_100px_1fr_140px] md:items-start p-6 rounded-2xl border-border-subtle/50 shadow-sm hover:shadow-md transition-all group cursor-grab active:cursor-grabbing ${
+                        isDragging ? "opacity-40 scale-[0.98]" : ""
+                      } ${isOver ? "ring-2 ring-primary/40 shadow-lg" : ""}`}
                     >
+                      <div className="flex items-center pt-1 opacity-30 group-hover:opacity-70 transition-opacity">
+                        <svg aria-hidden="true" className="w-5 h-5 text-text-dim" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 8zm0 6a2 2 0 10.001 4.001A2 2 0 007 14zm6-8a2 2 0 10.001-4.001A2 2 0 0013 6zm0 2a2 2 0 10.001 4.001A2 2 0 0013 8zm0 6a2 2 0 10.001 4.001A2 2 0 0013 14z" />
+                        </svg>
+                      </div>
                       <div className="pt-1">
                         <span className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em] group-hover:text-primary transition-colors">
                           UNIT {String(chapter.index).padStart(2, "0")}

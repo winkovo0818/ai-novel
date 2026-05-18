@@ -5,9 +5,10 @@ import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { getRequiredUserId } from "@/lib/auth/session";
 import { BibleDraftSchema, getAllChapters } from "@/lib/validation/schemas";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
 import { formatDate } from "@/lib/format/datetime";
+import { DeleteNovelButton } from "./_components/DeleteNovelButton";
+import { EditableTitle } from "./_components/EditableTitle";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -62,22 +63,29 @@ export default async function NovelDetailPage({ params }: PageProps) {
   return (
     <div className="flex-1 overflow-y-auto bg-secondary/30 custom-scrollbar">
       <div className="p-8 md:p-12 lg:p-16 max-w-7xl mx-auto min-h-full pb-32">
-        <PageHeader
-          title={novel.title}
-          description={`${genreMain}${genreSub ? ` · ${genreSub}` : ""} · 最后活跃 ${formatDate(new Date())}`}
-          breadcrumb={[
-            { label: "我的书架", href: "/novels" },
-            { label: novel.title }
-          ]}
-          actions={
+        <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-[11px] font-bold text-text-dim uppercase tracking-wider mb-6 animate-fade-in">
+          <Link href="/novels" className="hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded">我的书架</Link>
+          <span className="opacity-40" aria-hidden="true">/</span>
+          <span aria-current="page">{novel.title}</span>
+        </nav>
+
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12 animate-fade-in">
+          <div className="max-w-2xl">
+            <EditableTitle novelId={novel.id} initialTitle={novel.title} />
+            <p className="text-base text-text-secondary leading-relaxed opacity-80 mt-3">
+              {genreMain}{genreSub ? ` · ${genreSub}` : ""} · 最后活跃 {formatDate(new Date())}
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <DeleteNovelButton novelId={novel.id} novelTitle={novel.title} />
             <Link href={editorHref} className="btn-primary gap-2 px-6">
               <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
               {lastEdited ? `继续写作 (第 ${lastEdited.chapter_index} 章)` : "开启首章创作"}
             </Link>
-          }
-        />
+          </div>
+        </div>
 
         {/* Progress row */}
         <section className="mt-12 grid gap-6 md:grid-cols-3">
@@ -143,6 +151,12 @@ export default async function NovelDetailPage({ params }: PageProps) {
               description="markdown · txt · docx · epub"
               icon="export"
             />
+            <NavCard
+              href={`/novels/${novel.id}/settings`}
+              title="写作偏好"
+              description="类型 · 节奏 · 视角 · AI 自由度"
+              icon="characters"
+            />
           </div>
         </section>
 
@@ -180,7 +194,7 @@ export default async function NovelDetailPage({ params }: PageProps) {
               <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-text-dim mb-6">最近编辑的章节</h2>
               {novel.chapters.length === 0 ? (
                 <div className="card bg-white/50 border-dashed py-10 text-center">
-                   <p className="text-sm text-text-dim italic">暂无创作记录</p>
+                   <p className="text-sm text-text-dim">暂无创作记录</p>
                 </div>
               ) : (
                 <div className="card bg-white p-0 overflow-hidden divide-y divide-border-subtle shadow-sm">

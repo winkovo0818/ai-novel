@@ -76,14 +76,16 @@ export const useWizardStore = create<WizardState>()(
       setRegenerationCount: (regeneration_count) => set({ regeneration_count }),
       reset: () => set(initialState),
     }),
-    {
+{
       name: "ai-novel-onboarding-wizard",
       partialize: (state) => ({
         step: state.step,
         session_id: state.session_id,
         default_profile: state.default_profile,
         inputs: state.inputs,
+        bible_draft: state.bible_draft,
         regeneration_count: state.regeneration_count,
+        status: state.status,
       }),
     },
   ),

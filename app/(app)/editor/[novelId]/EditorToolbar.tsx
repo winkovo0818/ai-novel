@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 
 interface EditorToolbarProps {
+  novelId: string;
+  chapterIndex: number;
   summary?: string;
   chapterTitle: string;
   chapterStatus: "draft" | "done";
@@ -21,6 +23,8 @@ interface EditorToolbarProps {
 }
 
 export function EditorToolbar({
+  novelId,
+  chapterIndex,
   chapterTitle,
   chapterStatus,
   status,
@@ -37,6 +41,7 @@ export function EditorToolbar({
 }: EditorToolbarProps) {
   const isBusy = status === "drafting" || status === "saving";
   const lastSavedRelative = useRelativeTime(lastSavedAt);
+  const chapterCost = useChapterCost(novelId, chapterIndex);
 
   return (
     <div className="flex flex-col gap-8 mb-10 animate-fade-in">
@@ -107,9 +112,20 @@ export function EditorToolbar({
         </div>
       </div>
 
-      {/* Writing meta row: word target + last saved */}
+      {/* Writing meta row: word target + cost + last saved */}
       <div className="flex flex-wrap items-center gap-4 text-[11px] text-text-dim font-bold uppercase tracking-wider">
         <WordTarget characterCount={characterCount} target={targetWords} onSetTarget={onSetTargetWords} disabled={!isSaved} />
+        {chapterCost !== null && (
+          <>
+            <span className="h-3 w-px bg-border-strong" />
+            <span className="flex items-center gap-1" title="本项目累计 AI 调用成本">
+              <svg aria-hidden="true" className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              ¥{chapterCost.cost.toFixed(4)} · {chapterCost.calls} 次调用
+            </span>
+          </>
+        )}
         <span className="h-3 w-px bg-border-strong" />
         <span className="font-bold flex items-center gap-1.5">
           <svg aria-hidden="true" className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -236,4 +252,29 @@ function useRelativeTime(timestamp?: string): string | undefined {
   if (diff < 60 * 60_000) return `${Math.floor(diff / 60_000)} 分钟前`;
   if (diff < 24 * 60 * 60_000) return `${Math.floor(diff / (60 * 60_000))} 小时前`;
   return new Date(timestamp).toLocaleString("zh-CN", { month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+}
+
+function useChapterCost(novelId: string, _chapterIndex: number): { cost: number; calls: number } | null {
+  const [cost, setCost] = useState<{ cost: number; calls: number } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/novels/${novelId}/generations?limit=200`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (cancelled) return;
+        if (json.ok && Array.isArray(json.data?.generations)) {
+          const rows: Array<{ cost_cny: number }> = json.data.generations;
+          const totalCost = rows.reduce((sum: number, r: { cost_cny: number }) => sum + (r.cost_cny ?? 0), 0);
+          if (rows.length > 0) {
+            setCost({ cost: totalCost, calls: rows.length });
+          }
+        }
+      })
+      .catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [novelId]);
+
+  return cost;
 }

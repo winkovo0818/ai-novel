@@ -117,7 +117,7 @@ export function useChapterDrafting({
   );
 
   const runCandidateCritic = useCallback(
-    async (draftContent: string) => {
+    async (draftContent: string, isRevision?: boolean) => {
       setCandidateCriticLoading(true);
       setCandidateCriticError(undefined);
       setCandidateCriticResult(undefined);
@@ -126,6 +126,7 @@ export function useChapterDrafting({
           novelId,
           selectedIndex,
           content: draftContent,
+          isRevision,
         });
         const response = await fetch(request.url, {
           method: request.method,
@@ -176,7 +177,7 @@ export function useChapterDrafting({
       setCandidateContent(revised);
       setCandidateCriticResult(undefined);
       setMessage("候选稿已按建议修订，正在重新审校…");
-      void runCandidateCritic(revised);
+      void runCandidateCritic(revised, true);
     } catch (err) {
       const message = err instanceof Error ? err.message : "修订失败";
       setMessage(message);
@@ -187,6 +188,49 @@ export function useChapterDrafting({
   }, [
     candidateContent,
     candidateCriticResult,
+    candidateRevisionLoading,
+    novelId,
+    runCandidateCritic,
+    selectedIndex,
+    setMessage,
+  ]);
+
+  const feedbackRevise = useCallback(async (instruction: string) => {
+    if (!candidateContent.trim() || candidateRevisionLoading) return;
+
+    setCandidateRevisionLoading(true);
+    setCandidateCriticError(undefined);
+    setMessage("AI 正在按反馈修订候选稿…");
+    try {
+      const request = buildCandidateRevisionRequest({
+        novelId,
+        selectedIndex,
+        content: candidateContent,
+        issues: [{ type: "tone" as const, severity: "minor" as const, description: instruction }],
+      });
+      const response = await fetch(request.url, {
+        method: request.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request.payload),
+      });
+      const json = await response.json();
+      if (!json.ok) throw new Error(json.error?.message ?? "修订失败");
+      const revised = String(json.data?.content ?? "");
+      if (!revised.trim()) throw new Error("AI 未返回修订正文");
+
+      setCandidateContent(revised);
+      setCandidateCriticResult(undefined);
+      setMessage("候选稿已按反馈修订，正在重新审校…");
+      void runCandidateCritic(revised, true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "修订失败";
+      setMessage(message);
+      setCandidateCriticError(message);
+    } finally {
+      setCandidateRevisionLoading(false);
+    }
+  }, [
+    candidateContent,
     candidateRevisionLoading,
     novelId,
     runCandidateCritic,
@@ -435,6 +479,7 @@ export function useChapterDrafting({
     clearCandidate,
     draftChapter,
     reviseCandidate,
+    feedbackRevise,
     setCursorPos,
     acceptCandidate,
     lastRetrievalStatus,

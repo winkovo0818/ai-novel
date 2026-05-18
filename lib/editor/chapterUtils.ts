@@ -102,6 +102,7 @@ export interface CandidateCriticRequestInput {
   novelId: string;
   selectedIndex: number;
   content: string;
+  isRevision?: boolean;
 }
 
 export interface CandidateRevisionRequestInput extends CandidateCriticRequestInput {
@@ -321,13 +322,14 @@ export function buildResumableDraftRequest(
 
 export function buildCandidateCriticRequest(
   input: CandidateCriticRequestInput,
-): JsonRequest<"POST", { chapter_index: number; content: string }> {
+): JsonRequest<"POST", { chapter_index: number; content: string; is_revision?: boolean }> {
   return {
     url: `/api/novels/${input.novelId}/chapters/critic`,
     method: "POST",
     payload: {
       chapter_index: input.selectedIndex,
       content: input.content,
+      ...(input.isRevision ? { is_revision: true } : {}),
     },
   };
 }

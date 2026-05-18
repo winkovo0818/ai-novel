@@ -41,6 +41,7 @@ interface CandidatePanelProps {
   retrievalError?: string;
   onAccept(mode: CandidateMode): void;
   onRevise?(): void;
+  onFeedbackRevise?(instruction: string): void;
   onClose(): void;
 }
 
@@ -59,10 +60,12 @@ export function CandidatePanel({
   retrievalError,
   onAccept,
   onRevise,
+  onFeedbackRevise,
   onClose,
 }: CandidatePanelProps) {
   const [confirmingOverwrite, setConfirmingOverwrite] = useState<CandidateMode | null>(null);
   const [viewMode, setViewMode] = useState<"preview" | "diff">("preview");
+  const [feedbackText, setFeedbackText] = useState("");
 
   const hasBlockingIssue = criticResult?.issues.some(
     (i) => i.severity === "critical" || i.severity === "major",
@@ -70,6 +73,7 @@ export function CandidatePanel({
   const charCount = content.replace(/\s/g, "").length;
   const canAccept = !streaming && !criticLoading && !revisionLoading;
   const canRevise = Boolean(onRevise && criticResult?.issues.length && !streaming && !criticLoading && !revisionLoading);
+  const canFeedbackRevise = Boolean(onFeedbackRevise && !streaming && !criticLoading && !revisionLoading);
 
   const handleAccept = (mode: CandidateMode) => {
     if (mode === "discard") {
@@ -102,8 +106,40 @@ export function CandidatePanel({
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-muted opacity-70">
             AI Candidate / 候选稿
           </p>
-          <h3 className="text-base font-serif font-bold text-text-primary mt-1">
-            {streaming ? "AI 正在生成…" : revisionLoading ? "AI 正在修订…" : criticLoading ? "AI 正在审校…" : "候选稿就绪"}
+          {(criticLoading || revisionLoading) && (
+          <div className="mt-2 h-1 w-full bg-secondary rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-primary/60 via-primary to-primary/60 rounded-full animate-progress-slide" style={{ width: "40%" }} />
+          </div>
+        )}
+          <h3 className="text-base font-serif font-bold text-text-primary mt-1 flex items-center gap-2">
+            {streaming ? (
+              <>
+                <svg aria-hidden="true" className="w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span>AI 正在生成…</span>
+                <span className="text-text-muted font-sans text-[11px] font-normal animate-pulse">请等待流式输出</span>
+              </>
+            ) : revisionLoading ? (
+              <>
+                <svg aria-hidden="true" className="w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span>AI 正在修订…</span>
+                <span className="text-text-muted font-sans text-[11px] font-normal animate-pulse">模型思考中，可能需要 1–2 分钟</span>
+              </>
+            ) : criticLoading ? (
+              <>
+                <svg aria-hidden="true" className="w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span>AI 正在审校…</span>
+                <span className="text-text-muted font-sans text-[11px] font-normal animate-pulse">分析中，请稍候</span>
+              </>
+            ) : "候选稿就绪"}
           </h3>
         </div>
         <button
@@ -130,7 +166,7 @@ export function CandidatePanel({
         >
           {retrievalStatus === "error"
             ? `记忆检索失败 · 本次起草未引用历史章节${retrievalError ? `（${retrievalError}）` : ""}`
-            : "未检索到相关记忆 · 模型仅基于 Bible 与最近章节生成"}
+            : "未检索到长程记忆 · 基于 Bible 与章节摘要生成"}
         </div>
       )}
 
@@ -161,7 +197,7 @@ export function CandidatePanel({
                   </span>
                 </div>
                 {m.reason && (
-                  <p className="text-text-muted italic mb-1">{m.reason}</p>
+                  <p className="text-text-muted mb-1">{m.reason}</p>
                 )}
                 <p className="text-text-secondary whitespace-pre-wrap break-words">{m.text}</p>
               </li>
@@ -274,6 +310,22 @@ export function CandidatePanel({
             </svg>
             等待首段内容…
           </div>
+        ) : (criticLoading || revisionLoading) && content.length > 0 ? (
+          <div className="space-y-4 py-4">
+            <article className="font-serif text-[15px] leading-[1.9] text-text-primary whitespace-pre-wrap break-words">
+              {content}
+            </article>
+            <div className="relative h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/40 via-primary to-primary/40 rounded-full animate-progress-slide" />
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-text-muted animate-pulse">
+              <svg aria-hidden="true" className="w-3.5 h-3.5 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              {revisionLoading ? "模型正在思考修订方案，可能需要 1–2 分钟，请耐心等待…" : "正在分析候选稿质量，即将完成…"}
+            </div>
+          </div>
         ) : viewMode === "diff" && !streaming && hasExistingContent ? (
           <DiffView before={currentContent} after={content} />
         ) : (
@@ -288,8 +340,30 @@ export function CandidatePanel({
       <footer className="border-t border-border-subtle bg-secondary/10 px-6 py-4">
         <div className="flex items-center justify-between mb-3 text-[10px] font-bold text-text-muted uppercase tracking-wider">
           <span>{charCount} 字</span>
-          <span>{streaming ? "生成中" : revisionLoading ? "修订中" : criticLoading ? "审校中" : "可处理"}</span>
+          <span className="flex items-center gap-1.5">
+            {streaming ? (
+              <>
+                <svg aria-hidden="true" className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                生成中
+              </>
+            ) : revisionLoading ? (
+              <>
+                <svg aria-hidden="true" className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                修订中
+              </>
+            ) : criticLoading ? (
+              <>
+                <svg aria-hidden="true" className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                审校中
+              </>
+            ) : "可处理"}
+          </span>
         </div>
+        {(criticLoading || revisionLoading) && (
+          <div className="relative h-1 w-full bg-secondary rounded-full overflow-hidden mb-3">
+            <div className="absolute inset-0 bg-gradient-to-r from-primary/40 via-primary to-primary/40 rounded-full animate-progress-slide" />
+          </div>
+        )}
         {canRevise && (
           <button
             onClick={onRevise}
@@ -299,6 +373,27 @@ export function CandidatePanel({
           >
             按建议修订候选稿
           </button>
+        )}
+        {canFeedbackRevise && !canRevise && (
+          <div className="mb-2">
+            <label className="text-[10px] font-bold text-text-dim uppercase tracking-wider mb-1 block">
+              反馈修订
+            </label>
+            <textarea
+              value={feedbackText}
+              onChange={(e) => setFeedbackText(e.target.value)}
+              placeholder="描述您希望 AI 如何调整候选稿…"
+              rows={2}
+              className="w-full text-sm bg-white border border-border-subtle rounded-lg px-3 py-2 focus:outline-none focus:border-accent/40 resize-none leading-relaxed placeholder:text-text-dim/40"
+            />
+            <button
+              onClick={() => { if (feedbackText.trim() && onFeedbackRevise) { onFeedbackRevise(feedbackText.trim()); setFeedbackText(""); } }}
+              disabled={!feedbackText.trim() || revisionLoading}
+              className="mt-1.5 w-full px-3 py-2 text-[12px] font-bold rounded-lg transition bg-accent text-white hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              按反馈修订
+            </button>
+          </div>
         )}
         <div className="grid grid-cols-2 gap-2">
           <ActionButton

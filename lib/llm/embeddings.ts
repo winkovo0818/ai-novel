@@ -12,6 +12,8 @@
 
 import { prisma } from "@/lib/db";
 import { decryptApiKey } from "@/lib/llm/encryption";
+import { logInfo, logError } from "@/lib/observability/logger";
+import { logUsage } from "@/lib/llm/usage";
 
 const EXPECTED_DIM = 1024;
 
@@ -80,27 +82,56 @@ function extractEmbeddings(json: unknown): number[][] {
 
 export async function createEmbeddings(texts: string[]): Promise<number[][]> {
   const cfg = await resolveConfig();
+  const startMs = Date.now();
 
-  const response = await fetch(`${cfg.baseUrl}/embeddings`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${cfg.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  let response: Response;
+  try {
+    response = await fetch(`${cfg.baseUrl}/embeddings`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${cfg.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: cfg.model,
+        input: texts,
+      }),
+    });
+  } catch (err) {
+    const tookMs = Date.now() - startMs;
+    logError("embedding.call_failed", {
+      source: cfg.source,
       model: cfg.model,
-      input: texts,
-    }),
-  });
+      input_count: texts.length,
+      took_ms: tookMs,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 
   if (!response.ok) {
     const body = await response.text().catch(() => "unknown");
+    const tookMs = Date.now() - startMs;
+    logError("embedding.http_error", {
+      source: cfg.source,
+      model: cfg.model,
+      input_count: texts.length,
+      status: response.status,
+      took_ms: tookMs,
+      error: body.slice(0, 200),
+    });
     throw new Error(`Embedding request failed: ${response.status} ${body}`);
   }
 
   const json = await response.json();
   const embeddings = extractEmbeddings(json);
   if (embeddings.length !== texts.length) {
+    logError("embedding.count_mismatch", {
+      source: cfg.source,
+      model: cfg.model,
+      expected: texts.length,
+      got: embeddings.length,
+    });
     throw new Error(
       `Embedding response count mismatch (model=${cfg.model}, source=${cfg.source}): expected ${texts.length}, got ${embeddings.length}`,
     );
@@ -109,11 +140,41 @@ export async function createEmbeddings(texts: string[]): Promise<number[][]> {
   for (let i = 0; i < embeddings.length; i++) {
     const dim = embeddings[i].length;
     if (dim !== EXPECTED_DIM) {
+      logError("embedding.dimension_mismatch", {
+        source: cfg.source,
+        model: cfg.model,
+        index: i,
+        expected: EXPECTED_DIM,
+        got: dim,
+      });
       throw new Error(
         `Embedding dimension mismatch (model=${cfg.model}, source=${cfg.source}): expected ${EXPECTED_DIM}, got ${dim} at index ${i}`,
       );
     }
   }
+
+  const tookMs = Date.now() - startMs;
+  logInfo("embedding.call", {
+    source: cfg.source,
+    model: cfg.model,
+    input_count: texts.length,
+    dimension: EXPECTED_DIM,
+    took_ms: tookMs,
+    status: "ok",
+  });
+
+  logUsage({
+    userId: "system",
+    route: "/embedding",
+    agent: "retrieval",
+    model: cfg.model,
+    tokenIn: texts.reduce((sum, t) => sum + t.length, 0),
+    tokenOut: texts.length * EXPECTED_DIM,
+    costCny: 0,
+    status: "ok",
+    tookMs,
+  }).catch(() => {});
+
   return embeddings;
 }
 

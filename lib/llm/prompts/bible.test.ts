@@ -23,12 +23,24 @@ describe("buildBiblePrompt", () => {
     expect(prompt[1].role).toBe("user");
   });
 
-  it("encodes the schema, hard rules, and chapter-count constraint", () => {
+  it("encodes the schema, hard rules, and chapter-count constraint based on length", () => {
     const [system] = buildBiblePrompt({ logline: "x", profile });
     expect(system.content).toContain("characters");
     expect(system.content).toContain("first_chapter_beats");
-    expect(system.content).toMatch(/严格\s*8-12/);
+    expect(system.content).toMatch(/严格\s*20-36/);
     expect(system.content).toMatch(/硬规则/);
+  });
+
+  it("adjusts chapter range for short length", () => {
+    const shortProfile = { ...profile, length: "short" as const };
+    const [system] = buildBiblePrompt({ logline: "x", profile: shortProfile });
+    expect(system.content).toMatch(/严格\s*8-15/);
+  });
+
+  it("adjusts chapter range for super_long length", () => {
+    const superLongProfile = { ...profile, length: "super_long" as const };
+    const [system] = buildBiblePrompt({ logline: "x", profile: superLongProfile });
+    expect(system.content).toMatch(/严格\s*30-50/);
   });
 
   it("interpolates the chapter_word_count target into the system message", () => {

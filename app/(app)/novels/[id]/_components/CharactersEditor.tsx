@@ -163,7 +163,7 @@ function Field({
         <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-dim group-focus-within:text-primary transition-colors">
           {label}
         </label>
-        {hint && <span className="text-[10px] text-text-dim italic">{hint}</span>}
+        {hint && <span className="text-[10px] text-text-dim">{hint}</span>}
       </div>
       {multiline ? (
         <textarea
