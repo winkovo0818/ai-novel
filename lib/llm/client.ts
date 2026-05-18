@@ -17,6 +17,16 @@ import {
 import { decryptApiKey } from "./encryption";
 import { logUsage } from "./usage";
 import { logInfo } from "@/lib/observability/logger";
+import {
+  anthropicHeaders,
+  anthropicMessagesUrl,
+  buildAnthropicBody,
+  isAnthropicConfig,
+  splitAnthropicMessages,
+  type AnthropicResponse,
+  type AnthropicStreamChunk,
+  type ResolvedModelConfig,
+} from "./anthropic";
 
 export type ChatRole = "system" | "user" | "assistant";
 
@@ -163,18 +173,6 @@ interface DeepSeekStreamChunk {
   usage?: { prompt_tokens?: number; completion_tokens?: number };
 }
 
-interface AnthropicResponse {
-  content?: Array<{ type?: string; text?: string }>;
-  usage?: { input_tokens?: number; output_tokens?: number };
-}
-
-interface AnthropicStreamChunk {
-  type?: string;
-  delta?: { type?: string; text?: string };
-  message?: { usage?: { input_tokens?: number; output_tokens?: number } };
-  usage?: { input_tokens?: number; output_tokens?: number };
-}
-
 /**
  * Wire an external `AbortSignal` to an internal `AbortController`. If the
  * caller's signal already fired, abort immediately; otherwise listen once
@@ -204,13 +202,6 @@ function getBaseUrl(): string {
     process.env.DEEPSEEK_BASE_URL?.replace(/\/+$/, "") ??
     "https://api.deepseek.com/v1"
   );
-}
-
-interface ResolvedModelConfig {
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-  provider: string;
 }
 
 /**
@@ -247,67 +238,6 @@ async function resolveModelConfig(opts: { model?: string }): Promise<ResolvedMod
     apiKey: requireEnv("DEEPSEEK_API_KEY"),
     model: opts.model ?? DEFAULT_MODEL,
     provider: "deepseek",
-  };
-}
-
-function isAnthropicConfig(config: ResolvedModelConfig): boolean {
-  if (config.provider === "anthropic") return true;
-  try {
-    return new URL(config.baseUrl).pathname.toLowerCase().split("/").includes("anthropic");
-  } catch {
-    return false;
-  }
-}
-
-function anthropicMessagesUrl(baseUrl: string): string {
-  const normalized = baseUrl.replace(/\/+$/, "");
-  const pathname = new URL(normalized).pathname.replace(/\/+$/, "");
-  return pathname.endsWith("/v1") ? `${normalized}/messages` : `${normalized}/v1/messages`;
-}
-
-function splitAnthropicMessages(messages: ChatMessage[]): {
-  system?: string;
-  messages: Array<{ role: "user" | "assistant"; content: string }>;
-} {
-  const system = messages
-    .filter((message) => message.role === "system")
-    .map((message) => message.content)
-    .join("\n\n")
-    .trim();
-
-  const anthropicMessages = messages
-    .filter((message) => message.role !== "system")
-    .map((message) => ({
-      role: message.role === "assistant" ? "assistant" as const : "user" as const,
-      content: message.content,
-    }));
-
-  return {
-    system: system || undefined,
-    messages: anthropicMessages.length
-      ? anthropicMessages
-      : [{ role: "user", content: "" }],
-  };
-}
-
-function buildAnthropicBody(opts: ChatCompletionOptions | ChatStreamOptions, model: string, stream: boolean) {
-  const { system, messages } = splitAnthropicMessages(opts.messages);
-  return {
-    model,
-    messages,
-    system,
-    temperature: opts.temperature ?? 0.7,
-    max_tokens: Number(process.env.ANTHROPIC_MAX_TOKENS ?? 4096),
-    stream,
-  };
-}
-
-function anthropicHeaders(apiKey: string): HeadersInit {
-  return {
-    "Content-Type": "application/json",
-    "x-api-key": apiKey,
-    Authorization: `Bearer ${apiKey}`,
-    "anthropic-version": "2023-06-01",
   };
 }
 
