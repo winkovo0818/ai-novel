@@ -1,15 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 export interface BeatItem {
   index: number;
   description: string;
 }
 
+function AutoTextArea({ 
+  value, 
+  onChange, 
+  placeholder 
+}: { 
+  value: string; 
+  onChange: (val: string) => void; 
+  placeholder?: string;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  }, [value]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="flex-1 text-[12px] text-text-secondary bg-secondary/20 border border-transparent rounded-xl px-3 py-2 leading-relaxed focus:bg-white focus:border-primary/20 focus:outline-none focus:ring-4 focus:ring-primary/5 transition shadow-inner hover:bg-secondary/40 resize-none overflow-hidden min-h-[40px]"
+    />
+  );
+}
+
 interface BeatSheetPanelProps {
   chapterIndex: number;
   chapterTitle: string;
+  /** Whether outline beats are available for this chapter (false on chapter 1 — bible has its own first_chapter_beats). */
   available: boolean;
   beats: BeatItem[];
   loading: boolean;
@@ -20,6 +51,12 @@ interface BeatSheetPanelProps {
   onDraft(): void;
 }
 
+/**
+ * Beat Sheet panel — renders inside AIPanel above the action grid. Two
+ * states: empty (offer "生成节拍" with optional goal hint) and populated
+ * (editable list of beats + "基于节拍起草" CTA that hands the beats to
+ * the existing draftChapter flow).
+ */
 export function BeatSheetPanel({
   chapterIndex,
   chapterTitle,
@@ -36,8 +73,8 @@ export function BeatSheetPanel({
 
   if (!available) {
     return (
-      <section className="border border-border-subtle rounded-2xl bg-secondary/20 p-5 text-[12px] text-text-muted leading-relaxed">
-        第 1 章使用 Bible 内置节拍，从第 2 章起可生成章节专属节奏。
+      <section className="border border-border-subtle rounded-2xl bg-secondary/20 p-5 text-[12px] text-text-muted leading-relaxed italic">
+        节拍生成仅在第 2 章及以后可用。第 1 章使用 Bible 中的内置起始节拍。
       </section>
     );
   }
@@ -46,9 +83,9 @@ export function BeatSheetPanel({
     return (
       <section className="border border-border-subtle rounded-2xl bg-white p-5 space-y-4 shadow-sm">
         <div>
-          <h4 className="text-[13px] font-bold text-text-primary mb-1">规划章节节奏</h4>
+          <h4 className="text-[13px] font-bold text-text-primary mb-1">章节节拍生成</h4>
           <p className="text-[11px] text-text-dim leading-relaxed">
-            先生成 5-8 个场景锚点，再按节奏逐段写作。适合需要规划叙事走向的章节。
+            为第 {chapterIndex} 章「{chapterTitle}」编织叙事动力。AI 将根据章节目标提供 5-8 个关键场景锚点。
           </p>
         </div>
         <div className="relative group">
@@ -69,9 +106,9 @@ export function BeatSheetPanel({
           className="w-full btn-primary text-xs font-bold py-3 rounded-xl shadow-lg shadow-primary/10 flex items-center justify-center gap-2 group active:scale-95 transition"
         >
           <svg aria-hidden="true" className="w-4 h-4 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.628.283a2 2 0 01-1.186.128l-2.094-.31a2 2 0 00-1.226.226l-1.314.876a2 2 0 01-.813.294l-1.606.16a2 2 0 00-1.225.565l-1.141.913a2 2 0 01-1.127.38H2" />
           </svg>
-          规划章节节奏
+          生成智能节拍
         </button>
       </section>
     );
@@ -95,8 +132,8 @@ export function BeatSheetPanel({
     <section className="border border-border-subtle rounded-2xl bg-white p-5 space-y-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-1 h-3 bg-primary rounded-full" />
-          <h4 className="text-[13px] font-bold text-text-primary tracking-tight">章节节奏 / BEATS</h4>
+           <div className="w-1 h-3 bg-primary rounded-full" />
+           <h4 className="text-[13px] font-bold text-text-primary tracking-tight">章节节拍 / BEATS</h4>
         </div>
         <button
           onClick={onClear}
@@ -106,29 +143,25 @@ export function BeatSheetPanel({
           RESET
         </button>
       </div>
-      <div className="space-y-2">
+      <div className="space-y-3">
         {beats.map((beat, i) => (
-          <div key={beat.index} className="flex gap-2.5 group/beat">
-            <span className="text-[11px] font-bold text-primary bg-primary/5 w-6 h-6 rounded-lg flex items-center justify-center shrink-0 shadow-sm border border-primary/10">
+          <div key={beat.index} className="flex items-start gap-3 group/beat">
+            <span className="text-[11px] font-bold text-primary bg-primary/5 w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-1 shadow-sm border border-primary/10">
               {beat.index}
             </span>
-            <div className="flex-1 min-w-0">
-              <textarea
-                value={beat.description}
-                onChange={(e) => {
-                  const next = [...beats];
-                  next[i] = { ...beat, description: e.target.value };
-                  onUpdateBeats(next);
-                }}
-                rows={3}
-                className="w-full text-[13px] text-text-primary bg-secondary/10 border border-border-subtle/50 rounded-xl px-3.5 py-2.5 leading-relaxed focus:bg-white focus:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/10 transition resize-none"
-              />
-            </div>
+            <AutoTextArea
+              value={beat.description}
+              onChange={(val) => {
+                const next = [...beats];
+                next[i] = { ...beat, description: val };
+                onUpdateBeats(next);
+              }}
+              placeholder="场景描述..."
+            />
           </div>
         ))}
       </div>
       {error && <p className="text-[11px] text-red-600 font-bold bg-red-50 p-3 rounded-xl border border-red-100">{error}</p>}
-      <p className="text-[10px] text-text-dim text-center mb-2">按已生成节拍的结构逐段写作</p>
       <button
         onClick={onDraft}
         className="w-full btn-primary text-xs font-bold py-3.5 rounded-xl shadow-xl shadow-primary/20 flex items-center justify-center gap-2 group active:scale-[0.98] transition"
@@ -141,3 +174,4 @@ export function BeatSheetPanel({
     </section>
   );
 }
+

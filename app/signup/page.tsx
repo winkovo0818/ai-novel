@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 
+import { Field, ErrorBanner, Spinner } from "@/components/auth/AuthForm";
+
 export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -52,18 +54,18 @@ export default function SignupPage() {
   if (success) {
     return (
       <SuccessShell
-        accent="emerald"
-        title="确认邮件已发送"
+        title="注册成功"
         description={
           <>
-            我们已经把激活链接发到 <br />
+            账号已创建完成，现在可以使用
+            <br />
             <span className="font-bold text-text-primary text-base">{email}</span>
             <br />
             <br />
-            点击邮件里的链接完成账号激活。
+            登录并开始您的创作之旅。
           </>
         }
-        action={{ label: "返回登录", href: "/login" }}
+        action={{ label: "前往登录", href: "/login" }}
       />
     );
   }
@@ -151,83 +153,21 @@ export default function SignupPage() {
   );
 }
 
-function Field({
-  label,
-  id,
-  hint,
-  children,
-}: {
-  label: string;
-  id: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="grid gap-1.5">
-      <div className="flex items-center justify-between">
-        <label htmlFor={id} className="text-xs font-medium text-text-secondary">
-          {label}
-        </label>
-        {hint && <span className="text-xs text-text-muted">{hint}</span>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function ErrorBanner({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mb-5 border border-red-200 bg-red-50 px-3 py-2.5 rounded-md text-sm text-red-700 flex items-start gap-2">
-      <svg aria-hidden="true" className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={2}
-          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-        />
-      </svg>
-      <span className="leading-relaxed">{children}</span>
-    </div>
-  );
-}
-
-function Spinner({ label }: { label: string }) {
-  return (
-    <span className="flex items-center gap-2">
-      <svg aria-hidden="true" className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-        <path
-          className="opacity-75"
-          fill="currentColor"
-          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-        />
-      </svg>
-      {label}
-    </span>
-  );
-}
-
 function SuccessShell({
-  accent,
   title,
   description,
   action,
 }: {
-  accent: "emerald" | "primary";
   title: string;
   description: React.ReactNode;
   action: { label: string; href: string };
 }) {
-  const accentBg = accent === "emerald" ? "bg-emerald-500" : "bg-primary";
-  const accentShadow =
-    accent === "emerald" ? "shadow-emerald-500/30" : "shadow-primary/30";
-
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
       <div className="w-full max-w-md bg-surface border border-border-subtle p-8 md:p-10 text-center rounded-2xl shadow-xl animate-fade">
         <div className="flex justify-center mb-6">
           <div
-            className={`h-12 w-12 ${accentBg} rounded-full flex items-center justify-center text-white shadow-lg ${accentShadow}`}
+            className="h-12 w-12 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-500/30"
           >
             <svg aria-hidden="true" className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />

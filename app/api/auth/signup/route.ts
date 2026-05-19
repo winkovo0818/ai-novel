@@ -26,7 +26,6 @@ export async function POST(request: Request) {
     data: {
       email,
       password_hash: await hashPassword(password),
-      emailVerified: new Date(),
     },
     select: { id: true, email: true },
   });

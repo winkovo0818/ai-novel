@@ -95,7 +95,11 @@ export async function POST(_request: Request, context: RouteContext) {
 
     const diff = StateDiffSchema.safeParse(parsed);
     if (!diff.success) {
-      return jsonError("INVALID_DIFF", "LLM returned an invalid state diff", true, 500);
+      const issues = diff.error.issues
+        .map((i) => `${i.path.join(".")}: ${i.message}`)
+        .join("; ");
+      console.error("[state-diff] validation failed:", issues, "\nRaw:", result.content.slice(0, 500));
+      return jsonError("INVALID_DIFF", `LLM returned an invalid state diff: ${issues}`, true, 500);
     }
 
     return Response.json({ ok: true, data: diff.data });

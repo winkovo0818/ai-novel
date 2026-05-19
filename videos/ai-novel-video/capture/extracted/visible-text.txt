@@ -1,0 +1,32 @@
+[span] AI Novel
+[span] PRO STUDIO
+[a] 登录 / SIGN IN
+[a] 免费注册 / JOIN NOW
+[span] 下一代 AI 叙事引擎现已就绪
+[h1] 写一本
+[span] 长篇巨作
+[p] 从灵感火花到百万字史诗。
+[p] AI 真正深度理解您的人物魂魄、世界规则与叙事节拍。
+[a] 开启创作之旅
+[a] 探索核心协议
+[p] Core Infrastructure
+[h2] 专为百万字级别的
+[h2] 严肃创作而生
+[p] 不再是简单的文字补全，而是真正基于逻辑与记忆的协同创作。
+[p] 01 · SYNTHETIC BIBLE
+[h3] 叙事圣经合成
+[p] 通过向导自动构建深度角色图谱、物理规则与多线大纲，确保百万字长篇的设定逻辑无懈可击。
+[p] 02 · DRAFTING AGENT
+[h3] 智能起草协议
+[p] 不仅仅是续写。Agent 会深度阅读设定集与前文伏笔，为您生成具有高度文学性的候选稿件。
+[p] 03 · MEMORY RAG
+[h3] 长程逻辑检索
+[p] 内置向量记忆数据库。无论是万字前的细节还是不经意的对白，AI 都能精准检索，杜绝人设崩坏。
+[h2] 准备好开启下一个篇章了吗？
+[p] 加入数千名创作者的行列，利用最前沿的 AI 基础设施构建您的文学帝国。
+[a] 立即免费开始
+[span] AI Novel
+[p] 全球领先的 AI 协同文学创作基础设施。让每一位创作者都能拥有构建宏大世界的能力。
+[span] Twitter / X
+[span] © 2026 AI Novel Studio Core
+[span] Designed for Immersion

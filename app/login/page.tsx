@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 
+import { Field, ErrorBanner, Spinner } from "@/components/auth/AuthForm";
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -108,69 +110,11 @@ export default function LoginPage() {
             </p>
           </div>
         </div>
-        
+
         <div className="mt-8 text-center">
            <p className="text-[10px] font-bold text-text-dim uppercase tracking-[0.3em] opacity-40">AI Novel Studio Core · Ver 1.0.4</p>
         </div>
       </div>
     </main>
-  );
-}
-
-function Field({
-  label,
-  id,
-  right,
-  children,
-}: {
-  label: string;
-  id: string;
-  right?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="grid gap-2">
-      <div className="flex items-center justify-between">
-        <label htmlFor={id} className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-dim">
-          {label}
-        </label>
-        {right}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function ErrorBanner({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mb-8 border border-red-100 bg-red-50/50 p-4 rounded-2xl text-[12px] text-red-700 flex items-start gap-3 animate-slide-in">
-      <div className="h-5 w-5 bg-red-100 rounded-lg flex items-center justify-center shrink-0 text-red-600">
-        <svg aria-hidden="true" className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2.5}
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-          />
-        </svg>
-      </div>
-      <span className="font-bold leading-relaxed">{children}</span>
-    </div>
-  );
-}
-
-function Spinner({ label }: { label: string }) {
-  return (
-    <span className="flex items-center gap-3">
-      <svg aria-hidden="true" className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
-        <path
-          className="opacity-75"
-          fill="currentColor"
-          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-        />
-      </svg>
-      {label}
-    </span>
   );
 }

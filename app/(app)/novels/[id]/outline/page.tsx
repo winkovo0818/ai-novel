@@ -1,12 +1,8 @@
-import Link from "next/link";
-import { notFound } from "next/navigation";
-
 import { prisma } from "@/lib/db";
-import { canAccessOwnerResource } from "@/lib/auth/ownership";
-import { getRequiredUserId } from "@/lib/auth/session";
-import { BibleDraftSchema } from "@/lib/validation/schemas";
+import { loadNovelBible } from "@/lib/loaders/novelBible";
 
 import { OutlineEditor } from "../_components/OutlineEditor";
+import { NoBible } from "@/components/ui/NoBible";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -16,44 +12,19 @@ export const dynamic = "force-dynamic";
 
 export default async function OutlinePage({ params }: PageProps) {
   const { id } = await params;
+  const { novel, bible } = await loadNovelBible(id);
 
-  let userId: string;
-  try {
-    userId = await getRequiredUserId();
-  } catch {
-    notFound();
+  if (!bible) {
+    return <NoBible novelId={novel.id} title={novel.title} hint="编辑大纲" />;
   }
 
-  const novel = await prisma.novel.findUnique({
-    where: { id },
-    include: {
-      bible: true,
-      chapters: { select: { chapter_index: true } },
-    },
+  const chapters = await prisma.chapterDraft.findMany({
+    where: { novel_id: id },
+    select: { chapter_index: true },
   });
-
-  if (!novel) notFound();
-  if (!canAccessOwnerResource(novel.user_id, userId)) notFound();
-  if (!novel.bible) return <NoBible novelId={novel.id} title={novel.title} />;
-
-  const bible = BibleDraftSchema.safeParse(novel.bible.content);
-  if (!bible.success) return <NoBible novelId={novel.id} title={novel.title} />;
-
-  const draftedIndexes = novel.chapters.map((c) => c.chapter_index);
+  const draftedIndexes = chapters.map((c) => c.chapter_index);
 
   return (
-    <OutlineEditor novelId={novel.id} bible={bible.data} draftedIndexes={draftedIndexes} />
-  );
-}
-
-function NoBible({ novelId, title }: { novelId: string; title: string }) {
-  return (
-    <div className="flex-1 overflow-y-auto bg-secondary/20 p-12">
-      <div className="max-w-2xl mx-auto card bg-white text-center py-16">
-        <h2 className="text-xl font-serif font-bold text-text-primary mb-2">{title}</h2>
-        <p className="text-sm text-text-secondary mb-6">这本书还没有 Bible，需要先完成创建流程才能编辑大纲。</p>
-        <Link href={`/novels/${novelId}`} className="btn-primary inline-flex">返回项目页</Link>
-      </div>
-    </div>
+    <OutlineEditor novelId={novel.id} bible={bible} draftedIndexes={draftedIndexes} />
   );
 }

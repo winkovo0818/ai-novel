@@ -39,7 +39,6 @@ describe("POST /api/auth/signup", () => {
       data: {
         email: "writer@example.com",
         password_hash: "scrypt:salt:hash",
-        emailVerified: expect.any(Date),
       },
       select: { id: true, email: true },
     });

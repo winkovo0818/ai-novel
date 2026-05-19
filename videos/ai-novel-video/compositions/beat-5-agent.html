@@ -1,0 +1,51 @@
+<template data-start="0" data-duration="8.0" data-composition-id="beat-5-agent" data-width="1920" data-height="1080">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  .scene { width: 1920px; height: 1080px; background: #FDFDFC; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .orbg { position: absolute; width: 500px; height: 500px; border-radius: 50%; background: radial-gradient(circle, rgba(26,26,26,0.03) 0%, transparent 70%); top: 20%; right: 15%; opacity: 0.6; }
+  .main-c { width: 800px; background: #FFFFFF; border: 1px solid #EEEBE6; border-radius: 32px; padding: 60px 80px; position: relative; z-index: 3; opacity: 0; }
+  .main-c .pulse { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: #00BC7D; opacity: 0.1; border-radius: 32px 0 0 32px; }
+  .main-c .text { font-family: "Instrument Serif",Georgia,serif; font-weight: 700; font-size: 32px; color: #0C0C0C; line-height: 1.5; min-height: 48px; }
+  .minic { position: absolute; width: 120px; height: 80px; background: #FFFFFF; border: 1px solid #EEEBE6; border-radius: 16px; display: flex; align-items: center; justify-content: center; opacity: 0; z-index: 2; }
+  .minic span { font-family: "Instrument Sans",system-ui,sans-serif; font-weight: 500; font-size: 12px; color: #4A4A44; text-align: center; }
+</style>
+<div class="scene" data-composition-id="beat-5-agent" data-width="1920" data-height="1080">
+  <div class="orbg"></div>
+  <div class="main-c">
+    <div class="pulse"></div>
+    <div class="text" id="typing"></div>
+  </div>
+  <div class="minic" id="mc0" style="left:250px;top:200px"><span>Bible</span></div>
+  <div class="minic" id="mc1" style="left:180px;top:450px"><span>Ch.1-3</span></div>
+  <div class="minic" id="mc2" style="right:200px;top:180px"><span>Ch.4-6</span></div>
+  <div class="minic" id="mc3" style="right:240px;top:600px"><span>World</span></div>
+  <div class="minic" id="mc4" style="left:400px;bottom:100px"><span>Chars</span></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  var tl = gsap.timeline();
+  window.__timelines = window.__timelines || {};
+  window.__timelines["beat-5-agent"] = tl;
+  var s = "[data-composition-id=beat-5-agent] ";
+  tl.fromTo(s+".main-c", { scale: 0.92, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.6, ease: "power2.out" }, 0);
+  tl.fromTo(s+".minic", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, stagger: 0.1, ease: "back.out(1.7)" }, 0.5);
+  tl.to(s+"#mc0", { x: 80, y: -40, duration: 8, ease: "none" }, 1);
+  tl.to(s+"#mc1", { x: 60, y: 30, duration: 10, ease: "none" }, 1);
+  tl.to(s+"#mc2", { x: -50, y: 20, duration: 9, ease: "none" }, 1);
+  tl.to(s+"#mc3", { x: -70, y: -50, duration: 11, ease: "none" }, 1);
+  tl.to(s+"#mc4", { x: -40, y: 60, duration: 10, ease: "none" }, 1);
+  tl.to(s+".pulse", { opacity: 0.25, duration: 0.8, yoyo: true, repeat: 5, ease: "sine.inOut" }, 0.5);
+  tl.to(s+".orbg", { scale: 1.08, duration: 2, yoyo: true, repeat: 2, ease: "sine.inOut" }, 0);
+  var text = "The night was still, the air thick with unspoken words...";
+  var i = 0;
+  var el = document.getElementById("typing");
+  var interval = setInterval(function() {
+    if (i < text.length) { el.textContent += text[i]; i++; }
+    else { clearInterval(interval); }
+  }, 80);
+  tl.to(s+".main-c", { scale: 0.5, opacity: 0, duration: 0.3, ease: "power3.in" }, 7.5);
+  tl.to(s+".minic", { scale: 0, opacity: 0, duration: 0.3 }, 7.5);
+  tl.set(s+".main-c", { opacity: 0, visibility: "hidden" }, 8.0);
+  tl.set(s+".minic", { opacity: 0, visibility: "hidden" }, 8.0);
+</script>
+</template>

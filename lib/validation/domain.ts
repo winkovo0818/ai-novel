@@ -181,8 +181,8 @@ export type StoryStateV1 = z.infer<typeof StoryStateV1Schema>;
 export const StateDiffSchema = z.object({
   character_updates: z.array(z.object({
     name: z.string().min(1),
-    changes: z.record(z.string()),
-    confidence: z.enum(["low", "medium", "high"]),
+    changes: z.record(z.union([z.string(), z.number(), z.boolean()]).transform(String)),
+    confidence: z.enum(["low", "medium", "high"]).catch("medium"),
   })).default([]),
   timeline_events: z.array(z.object({
     event: z.string().min(1),
@@ -190,11 +190,11 @@ export const StateDiffSchema = z.object({
   })).default([]),
   plot_thread_updates: z.array(z.object({
     title: z.string().min(1),
-    status: z.enum(["open", "progressing", "resolved"]),
+    status: z.enum(["open", "progressing", "resolved"]).catch("progressing"),
     notes: z.string().optional(),
   })).default([]),
   new_entities: z.array(z.object({
-    type: z.enum(["character", "location", "item", "rule"]),
+    type: z.enum(["character", "location", "item", "rule"]).catch("character"),
     name: z.string().min(1),
     description: z.string().min(1),
   })).default([]),

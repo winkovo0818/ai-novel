@@ -1,0 +1,18 @@
+[
+  {
+    "url": "http://localhost:3001/_next/static/chunks/webpack-791a59cc2eb2837e.js",
+    "type": "Other",
+    "contexts": [
+      "link[rel=\"preload\"]"
+    ],
+    "notes": null
+  },
+  {
+    "url": "http://localhost:3001/favicon.ico",
+    "type": "Icon",
+    "contexts": [
+      "link[rel=\"icon\"]"
+    ],
+    "notes": null
+  }
+]

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { NovelCard } from "@/components/ui/NovelCard";
 import { LoadingState, EmptyState, ErrorState } from "@/components/ui/StatusStates";
+import { handleApiError } from "@/lib/http/handleApiError";
 
 interface NovelItem {
   id: string;
@@ -30,7 +31,7 @@ export default function NovelsPage() {
       setError("");
       const res = await fetch("/api/novels");
       if (res.status === 401) {
-        window.location.href = "/login";
+        handleApiError(res);
         return;
       }
       const json = await res.json();

@@ -30,6 +30,12 @@
   --font-serif: "Instrument Serif", "Libre Baskerville", "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
+  /* Mesh Gradient Colors */
+  --mesh-color-1: rgba(99, 102, 241, 0.05);
+  --mesh-color-2: rgba(244, 114, 182, 0.05);
+  --mesh-color-3: rgba(52, 211, 153, 0.05);
+  --mesh-color-4: rgba(251, 191, 36, 0.05);
+
   /* Shadows - Diffused Architectural Shadows */
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.02);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.03), 0 2px 4px rgba(0, 0, 0, 0.02);
@@ -190,6 +196,40 @@
 
 .animate-reveal {
   animation: reveal 1.5s cubic-bezier(0.77, 0, 0.175, 1) both;
+}
+
+/* Glassmorphism & Mesh Backgrounds */
+.glass-panel {
+  @apply bg-white/70 backdrop-blur-xl border border-white/20 shadow-premium;
+}
+
+.mesh-gradient-bg {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--color-background);
+}
+
+.mesh-gradient-bg::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: 
+    radial-gradient(circle at 20% 30%, var(--mesh-color-1) 0%, transparent 40%),
+    radial-gradient(circle at 80% 20%, var(--mesh-color-2) 0%, transparent 40%),
+    radial-gradient(circle at 40% 80%, var(--mesh-color-3) 0%, transparent 40%),
+    radial-gradient(circle at 70% 70%, var(--mesh-color-4) 0%, transparent 40%);
+  filter: blur(80px);
+  animation: mesh-rotate 20s linear infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+
+@keyframes mesh-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .delay-100 { animation-delay: 100ms; }

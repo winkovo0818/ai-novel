@@ -1,0 +1,63 @@
+<template data-start="0" data-duration="12.0" data-composition-id="beat-6-memory" data-width="1920" data-height="1080">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  .scene { width: 1920px; height: 1080px; position: relative; overflow: hidden; }
+  .bg-light { position: absolute; inset: 0; background: #FDFDFC; }
+  .dark-c { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 900px; height: 500px; background: #1A1A1A; border-radius: 48px; opacity: 0; overflow: hidden; }
+  .dark-c .dorb { position: absolute; width: 320px; height: 320px; border-radius: 50%; background: radial-gradient(circle, rgba(142,81,255,0.15) 0%, transparent 70%); top: -160px; right: -160px; }
+  .nd { position: absolute; border-radius: 50%; opacity: 0; }
+  .brand-s { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; opacity: 0; z-index: 5; }
+  .brand-s .logo { width: 80px; height: 80px; border-radius: 16px; background: #1A1A1A; display: flex; align-items: center; justify-content: center; margin: 0 auto; }
+  .brand-s .logo span { font-family: "Instrument Serif",Georgia,serif; font-weight: 700; font-size: 48px; color: #FFFFFF; }
+  .brand-s .name { font-family: "Instrument Serif",Georgia,serif; font-weight: 700; font-size: 72px; color: #0C0C0C; margin-top: 24px; }
+  .brand-s .tagline { font-family: "Instrument Sans",system-ui,sans-serif; font-weight: 400; font-size: 18px; color: #4A4A44; margin-top: 8px; }
+  .brand-s .cta { display: inline-block; margin-top: 32px; padding: 18px 48px; background: #1A1A1A; color: #FFFFFF; font-family: "Instrument Sans",system-ui,sans-serif; font-weight: 700; font-size: 16px; border-radius: 16px; }
+  .orb-bg { position: absolute; width: 600px; height: 600px; border-radius: 50%; background: radial-gradient(circle, rgba(26,26,26,0.04) 0%, transparent 70%); top: 50%; left: 50%; transform: translate(-50%,-50%); opacity: 0; }
+</style>
+<div class="scene" data-composition-id="beat-6-memory" data-width="1920" data-height="1080">
+  <div class="bg-light"></div>
+  <div class="orb-bg"></div>
+  <div class="dark-c" id="mem-c">
+    <div class="dorb"></div>
+    <div class="nd" style="left:120px;top:100px;width:8px;height:8px;background:#FFFFFF"></div>
+    <div class="nd" style="left:300px;top:60px;width:12px;height:12px;background:#00BC7D"></div>
+    <div class="nd" style="left:500px;top:120px;width:6px;height:6px;background:#FFFFFF"></div>
+    <div class="nd" style="left:650px;top:250px;width:10px;height:10px;background:#8E51FF"></div>
+    <div class="nd" style="left:700px;top:80px;width:5px;height:5px;background:#FFFFFF"></div>
+    <div class="nd" style="left:200px;top:280px;width:8px;height:8px;background:#FFFFFF"></div>
+    <div class="nd" style="left:400px;top:300px;width:14px;height:14px;background:#00BC7D"></div>
+    <div class="nd" style="left:580px;top:380px;width:7px;height:7px;background:#FFFFFF"></div>
+    <div class="nd" style="left:150px;top:180px;width:4px;height:4px;background:#8E51FF"></div>
+    <div class="nd" style="left:750px;top:350px;width:9px;height:9px;background:#FFFFFF"></div>
+    <div class="nd" style="left:350px;top:160px;width:6px;height:6px;background:#FFFFFF"></div>
+    <div class="nd" style="left:480px;top:220px;width:11px;height:11px;background:#00BC7D"></div>
+    <div class="nd" id="cnd" style="left:400px;top:220px;width:16px;height:16px;background:#FFFFFF; box-shadow: 0 0 20px rgba(255,255,255,0.4)"></div>
+  </div>
+  <div class="brand-s" id="bnd">
+    <div class="logo"><span>A</span></div>
+    <div class="name">AI Novel</div>
+    <div class="tagline">From Spark to Saga</div>
+    <div class="cta">Start Your Story</div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  var tl = gsap.timeline();
+  window.__timelines = window.__timelines || {};
+  window.__timelines["beat-6-memory"] = tl;
+  var s = "[data-composition-id=beat-6-memory] ";
+  tl.fromTo(s+"#mem-c", { scale: 0.92, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.6, ease: "power2.out" }, 0);
+  tl.fromTo(s+".nd", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.3, stagger: 0.08, ease: "back.out(2)" }, 0.5);
+  tl.to(s+"#cnd", { scale: 1.5, duration: 0.5, ease: "power2.out" }, 2.5);
+  tl.to(s+"#cnd", { scale: 1.2, duration: 1.0, yoyo: true, repeat: 2, ease: "sine.inOut" }, 3.0);
+  tl.to(s+"#mem-c", { scale: 1.02, duration: 3.0, yoyo: true, repeat: 1, ease: "sine.inOut", overwrite: "auto" }, 1.0);
+  tl.to(s+".nd", { opacity: 0.6, duration: 1.0, yoyo: true, repeat: 2, stagger: 0.15, ease: "sine.inOut" }, 1.5);
+  tl.to(s+"#mem-c", { scale: 0.8, opacity: 0, duration: 0.4, ease: "power2.in", overwrite: "auto" }, 7.0);
+  tl.fromTo(s+".orb-bg", { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.8, ease: "sine.inOut", overwrite: "auto" }, 7.2);
+  tl.fromTo(s+"#bnd", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power2.out" }, 7.5);
+  tl.to(s+".orb-bg", { scale: 1.06, duration: 2.0, yoyo: true, repeat: 1, ease: "sine.inOut", overwrite: "auto" }, 8.0);
+  tl.to(s+"#bnd .cta", { scale: 1.03, duration: 1.2, yoyo: true, repeat: 2, ease: "sine.inOut" }, 8.5);
+  tl.set(s+"#mem-c", { opacity: 0, visibility: "hidden" }, 7.4);
+  tl.set(s+".nd", { opacity: 0, visibility: "hidden" }, 7.4);
+</script>
+</template>

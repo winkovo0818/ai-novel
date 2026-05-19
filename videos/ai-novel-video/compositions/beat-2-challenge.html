@@ -1,0 +1,39 @@
+<template data-start="0" data-duration="5.0" data-composition-id="beat-2-challenge" data-width="1920" data-height="1080">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  .scene { width: 1920px; height: 1080px; background: #FFFFFF; position: relative; overflow: hidden; }
+  .ln { position: absolute; left: 0; width: 100%; height: 1px; background: #EEEBE6; opacity: 0.3; }
+  .card { position: absolute; left: 120px; top: 50%; transform: translateY(-50%); width: 680px; background: #FFFFFF; border: 1px solid #EEEBE6; border-radius: 32px; padding: 80px; opacity: 0; }
+  .card p { font-family: "Instrument Sans",system-ui,sans-serif; font-weight: 400; font-size: 18px; line-height: 1.8; color: #4A4A44; }
+  .nod { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: #B5B5AF; opacity: 0; }
+</style>
+<div class="scene" data-composition-id="beat-2-challenge" data-width="1920" data-height="1080">
+  <div class="ln" style="top:200px"></div>
+  <div class="ln" style="top:400px"></div>
+  <div class="ln" style="top:600px"></div>
+  <div class="ln" style="top:800px"></div>
+  <div class="card"><p>But turning that spark into a million-word epic takes more than inspiration.<br><br>It takes infrastructure.</p></div>
+  <div class="nod" id="n0" style="left:1050px;top:200px"></div>
+  <div class="nod" id="n1" style="left:1250px;top:150px"></div>
+  <div class="nod" id="n2" style="left:1450px;top:250px"></div>
+  <div class="nod" id="n3" style="left:1600px;top:450px"></div>
+  <div class="nod" id="n4" style="left:1350px;top:400px"></div>
+  <div class="nod" id="n5" style="left:1150px;top:500px"></div>
+  <div class="nod" id="n6" style="left:1550px;top:600px"></div>
+  <div class="nod" id="n7" style="left:1300px;top:650px"></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+  var tl = gsap.timeline();
+  window.__timelines = window.__timelines || {};
+  window.__timelines["beat-2-challenge"] = tl;
+  var s = "[data-composition-id=beat-2-challenge] ";
+  tl.fromTo(s+".card", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: "power2.out" }, 0.3);
+  tl.fromTo(s+".nod", { scale: 0, opacity: 0 }, { scale: 1, opacity: 0.6, duration: 0.3, stagger: 0.12, ease: "back.out(2)" }, 1.0);
+  tl.to(s+".nod", { scale: 1.4, opacity: 0.85, duration: 1.2, yoyo: true, repeat: 2, stagger: 0.08, ease: "sine.inOut" }, 2.0);
+  tl.to(s+".card", { opacity: 0, duration: 0.3 }, 4.5);
+  tl.to(s+".nod", { scale: 0, opacity: 0, duration: 0.3, overwrite: "auto" }, 4.5);
+  tl.set(s+".card", { opacity: 0, visibility: "hidden" }, 5.0);
+  tl.set(s+".nod", { opacity: 0, visibility: "hidden" }, 5.0);
+</script>
+</template>

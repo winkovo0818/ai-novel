@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAdmin } from "@/lib/auth/useAdmin";
 
 const mainNavItems = [
   { name: "工作台", href: "/dashboard", icon: (
@@ -24,7 +23,7 @@ const mainNavItems = [
 ];
 
 const adminNavItems = [
-  { name: "模型配置", href: "/models", icon: (
+  { name: "模型基础设施", href: "/models/embeddings", icon: (
     <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -35,47 +34,32 @@ const adminNavItems = [
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 11c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z" />
     </svg>
   )},
+  { name: "AI 调用日志", href: "/activity", icon: (
+    <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )},
   { name: "内容审核", href: "/admin/moderation", icon: (
     <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5-4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-3 8 3z" />
-    </svg>
-  )},
-  { name: "AI 调用记录", href: "/admin/ai-calls", icon: (
-    <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-    </svg>
-  )},
-];
-
-const personalItems = [
-  { name: "个人设置", href: "/profile", icon: (
-    <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
     </svg>
   )},
 ];
 
 export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boolean }) {
   const pathname = usePathname();
-  const { isAdmin } = useAdmin();
-  // Seed from the SSR-derived cookie value so the very first paint already has
-  // the correct width. No localStorage read in the initial render means no flash.
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
 
   const toggleCollapse = () => {
     const next = !isCollapsed;
     setIsCollapsed(next);
-    // Persist for next SSR via cookie (server can read on next request) and
-    // mirror to localStorage for any client-only legacy reads.
     document.cookie = `sidebar-collapsed=${next}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
     try {
       localStorage.setItem("sidebar-collapsed", String(next));
     } catch {
-      // ignore quota/privacy errors
+      // ignore
     }
-    const root = document.documentElement;
-    root.classList.toggle("sidebar-collapsed", next);
-    root.classList.toggle("sidebar-expanded", !next);
+    document.documentElement.style.setProperty("--width-sidebar", next ? "80px" : "260px");
   };
 
   const handleLogout = async () => {
@@ -83,9 +67,42 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
     window.location.href = "/login";
   };
 
+  const renderNavItem = (item: { name: string; href: string; icon: React.ReactNode }) => {
+    const isActive = pathname === item.href;
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={`relative flex items-center rounded-xl transition-all duration-500 group overflow-hidden ${isCollapsed ? "justify-center h-12" : "px-4 py-2.5 gap-3.5"} ${
+          isActive 
+            ? "bg-white text-accent shadow-premium ring-1 ring-accent/10" 
+            : "text-text-secondary hover:bg-white/80 hover:text-text-primary"
+        }`}
+      >
+        {isActive && (
+          <div className="absolute inset-0 bg-gradient-to-r from-accent/5 to-transparent opacity-50" />
+        )}
+        
+        <span className={`relative z-10 ${isActive ? "text-accent" : "text-text-dim group-hover:text-accent"} transition-all duration-500 group-hover:scale-110 shrink-0`}>
+          {item.icon}
+        </span>
+        {!isCollapsed && (
+          <span className={`relative z-10 text-[13.5px] font-bold tracking-tight animate-fade-in whitespace-nowrap overflow-hidden transition-colors duration-500 ${isActive ? "text-text-primary" : "group-hover:text-text-primary"}`}>
+            {item.name}
+          </span>
+        )}
+        {isActive && !isCollapsed && (
+          <div className="ml-auto w-1.5 h-1.5 rounded-full bg-accent shadow-[0_0_8px_rgba(99,102,241,0.6)] relative z-10" />
+        )}
+        {isCollapsed && isActive && (
+          <div className="absolute right-1 top-1/2 -translate-y-1/2 w-1 h-5 rounded-full bg-accent shadow-[0_0_8px_rgba(99,102,241,0.4)]" />
+        )}
+      </Link>
+    );
+  };
+
   return (
     <aside className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-secondary border-r border-border-subtle transition-[width] duration-300 ease-in-out ${isCollapsed ? "w-20" : "w-[260px]"}`}>
-      {/* Header Area */}
       <div className="h-24 flex-shrink-0 flex items-center px-6">
         <div className={`flex items-center transition-[justify-content,gap] duration-300 ${isCollapsed ? "w-full justify-center" : "gap-3.5"}`}>
           <div className="h-9 w-9 rounded-xl bg-text-primary flex items-center justify-center text-white font-bold text-lg shadow-premium shrink-0">A</div>
@@ -98,93 +115,16 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
         </div>
       </div>
 
-      {/* Navigation Area */}
       <nav className="flex-1 px-4 py-2 flex flex-col gap-1 overflow-y-auto custom-scrollbar">
-        {!isCollapsed && <div className="px-4 py-3 text-[10px] font-bold text-text-dim uppercase tracking-[0.2em] animate-fade-in">主要导航</div>}
-        {mainNavItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`relative flex items-center rounded-xl transition-[background-color,color,box-shadow] duration-200 group ${isCollapsed ? "justify-center h-12" : "px-4 py-2.5 gap-3.5"} ${
-                isActive 
-                  ? "bg-white text-primary shadow-sm ring-1 ring-border-strong" 
-                  : "text-text-secondary hover:bg-white/60 hover:text-text-primary"
-              }`}
-            >
-              <span className={`${isActive ? "text-primary" : "text-text-dim group-hover:text-text-secondary"} transition-colors shrink-0`}>
-                {item.icon}
-              </span>
-              {!isCollapsed && <span className="text-[13.5px] font-semibold tracking-tight animate-fade-in whitespace-nowrap overflow-hidden">{item.name}</span>}
-              {isActive && !isCollapsed && (
-                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
-              )}
-              {isCollapsed && isActive && (
-                <div className="absolute right-1 top-1/2 -translate-y-1/2 w-1 h-4 rounded-full bg-primary" />
-              )}
-            </Link>
-          );
-        })}
-        {isAdmin && (
-          <>
-            {!isCollapsed && <div className="px-4 py-3 mt-2 text-[10px] font-bold text-text-dim uppercase tracking-[0.2em] animate-fade-in">管理</div>}
-            {adminNavItems.map((item) => {
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`relative flex items-center rounded-xl transition-[background-color,color,box-shadow] duration-200 group ${isCollapsed ? "justify-center h-12" : "px-4 py-2.5 gap-3.5"} ${
-                    isActive 
-                      ? "bg-white text-primary shadow-sm ring-1 ring-border-strong" 
-                      : "text-text-secondary hover:bg-white/60 hover:text-text-primary"
-                  }`}
-                >
-                  <span className={`${isActive ? "text-primary" : "text-text-dim group-hover:text-text-secondary"} transition-colors shrink-0`}>
-                    {item.icon}
-                  </span>
-                  {!isCollapsed && <span className="text-[13.5px] font-semibold tracking-tight animate-fade-in whitespace-nowrap overflow-hidden">{item.name}</span>}
-                  {isActive && !isCollapsed && (
-                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
-                  )}
-                  {isCollapsed && isActive && (
-                    <div className="absolute right-1 top-1/2 -translate-y-1/2 w-1 h-4 rounded-full bg-primary" />
-                  )}
-                </Link>
-              );
-            })}
-          </>
-        )}
-        {!isCollapsed && <div className="px-4 py-3 mt-2 text-[10px] font-bold text-text-dim uppercase tracking-[0.2em] animate-fade-in">账户</div>}
-        {personalItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`relative flex items-center rounded-xl transition-[background-color,color,box-shadow] duration-200 group ${isCollapsed ? "justify-center h-12" : "px-4 py-2.5 gap-3.5"} ${
-                isActive 
-                  ? "bg-white text-primary shadow-sm ring-1 ring-border-strong" 
-                  : "text-text-secondary hover:bg-white/60 hover:text-text-primary"
-              }`}
-            >
-              <span className={`${isActive ? "text-primary" : "text-text-dim group-hover:text-text-secondary"} transition-colors shrink-0`}>
-                {item.icon}
-              </span>
-              {!isCollapsed && <span className="text-[13.5px] font-semibold tracking-tight animate-fade-in whitespace-nowrap overflow-hidden">{item.name}</span>}
-              {isActive && !isCollapsed && (
-                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
-              )}
-              {isCollapsed && isActive && (
-                <div className="absolute right-1 top-1/2 -translate-y-1/2 w-1 h-4 rounded-full bg-primary" />
-              )}
-            </Link>
-          );
-        })}
+        {!isCollapsed && <div className="px-4 py-3 text-[10px] font-bold text-text-dim uppercase tracking-[0.2em] animate-fade-in">创作空间</div>}
+        {mainNavItems.map(renderNavItem)}
+
+        <div className="my-4 border-t border-border-subtle/30" />
+
+        {!isCollapsed && <div className="px-4 py-3 text-[10px] font-bold text-text-dim uppercase tracking-[0.2em] animate-fade-in">管理与配置</div>}
+        {adminNavItems.map(renderNavItem)}
       </nav>
 
-      {/* Footer Area */}
       <div className="mt-auto flex-shrink-0 p-4 border-t border-border-subtle/30 bg-white">
         {!isCollapsed && (
           <div className="bg-secondary/30 rounded-2xl p-4 border border-border-subtle shadow-sm mb-4 animate-fade-in">

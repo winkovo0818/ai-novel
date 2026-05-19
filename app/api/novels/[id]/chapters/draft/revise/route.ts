@@ -97,7 +97,7 @@ export async function POST(request: Request, context: RouteContext) {
       }),
       temperature: 0.35,
       timeoutMs: 120_000,
-    });
+    }, 0);
 
     const content = stripCodeFence(result.content);
     if (!content) {

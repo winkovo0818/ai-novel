@@ -1,273 +1,324 @@
-# AI Novel
+# AI Novel Studio
 
-AI 协同写小说平台：5 步生成 Bible 草稿 → 项目层信息架构 → 多章节 AI 写作（候选稿模式） → 版本恢复 + diff、四格式导出、retrieval 可视化、章节乐观锁。
+AI-powered novel co-creation platform — from a single spark of inspiration to a fully structured manuscript, with an AI writing partner at every step.
 
-当前状态：阶段 1 + 2 + 3 已完成，可演示并稳定内测的 MVP。`lint`、`typecheck`、Vitest、生产构建、Playwright E2E 当前全绿；CI 包含 `verify` + `e2e`（pgvector + LLM_MOCK）两个 job，coverage 阈值 68/68/93/83 已入门禁。
-
-实测数字（测试数 / 路由数 / 完成度等）以 `docs/STATUS.md` 与 `docs/HEALTH.md` 为准——这里不再 inline 任何会过期的数字，避免文档漂移。详细状态见 `docs/STATUS.md`，体检报告见 `docs/HEALTH.md`，路线图见 `docs/ROADMAP_2_4_8_WEEKS.md`，任务单见 `docs/IMPLEMENTATION_TASKS.md`，真实产品审阅见 `docs/PROJECT_REVIEW_REPORT.md`。
-
----
-
-## 功能概览
-
-### Onboarding（5 步向导）
-- Step 1：输入书名、类型（网文/文学/剧本等）、子类型
-- Step 2：输入一句话灵感，或让 AI 推荐 5 条 logline
-- Step 3：AI 生成 3-5 条反向追问（单选/多选），AI 推荐默认答案
-- Step 4：SSE 流式生成 Bible（角色卡、世界观、章节大纲、节拍）
-- Step 5：字段级编辑、重摆（≤3 次）、保存或进入写作页
-
-### 项目工作台
-- `/novels` 书架 → `/novels/:id` 项目详情（章节进度 / Bible 状态 / 最近编辑 / 4 个入口卡）
-- `/novels/:id/characters` 角色管理：左侧名单，右侧含 schema 全字段的角色编辑器
-- `/novels/:id/world` 世界观：背景设定 / 规则 / 地理 / 势力四个 section
-- `/novels/:id/outline` 大纲：按卷分组，已起草章节带徽章，深链跳进编辑器
-- `/editor/:id?chapter=N` 编辑器支持直达指定章节
-
-### 多章节编辑器
-- 章节切换 / 自动保存（3s 停顿）/ Ctrl·Cmd+S 快捷保存
-- **AI 起草改候选稿模式**：流式不再覆盖正文，候选面板提供「覆盖 / 追加 / 插入光标 / 放弃」4 种处理方式；critic 内嵌为警告；接受候选稿前自动把当前正文存为版本
-- **Retrieval 可视化（M3.4）**：候选稿面板折叠展示本次起草引用的历史记忆（source / 相似度 / 选中理由 / 截断片段），让 RAG 命中对作者透明
-- 章节目标字数 + 进度环 + 最近保存时间显示
-- **章节版本恢复 + diff（M3.2）**：历史版本 modal 支持"与当前对比"行内 diff 视图、"恢复此版本"二次确认；恢复时事务内先把当前正文存为 manual 版本，可再次回滚
-- **章节乐观锁（M3.6）**：另一端先存的章节，本端保存会收到 409 + 最新数据，编辑器顶部出现"加载最新 / 暂不处理"横幅，本地正文保留以便复制
-- 全文一致性校验 API（LLM Critic Agent）
-
-### 导出
-- **导出中心（M3.3）**：编辑器 ExportMenu 跳转独立导出中心；支持 markdown / 纯文本 / Word / EPUB、章节范围 `range`、`include_bible` 附录；导出前内容审核仍生效
-
-### 账号与安全
-- 登录 / 注册 / 密码重置
-- API 鉴权（未登录 401）
-- 应用层 ownership 隔离（每个 API/SSR 路由调用 `canAccessOwnerResource`，不依赖 DB RLS）
-- LLM 模型配置 admin-only（见下方 §1.1）
-- LLM 内容审核 + 本地关键词过滤
+[![CI](https://github.com/YunDanFengQing/ai-novel/actions/workflows/ci.yml/badge.svg)](https://github.com/YunDanFengQing/ai-novel/actions/workflows/ci.yml)
+[![TypeScript Strict](https://img.shields.io/badge/TypeScript-strict-blue)](https://www.typescriptlang.org/tsconfig#strict)
+[![Tests](https://img.shields.io/badge/tests-700%20passing-brightgreen)](https://github.com/YunDanFengQing/ai-novel)
 
 ---
 
-## 1. 环境准备
+## Features
 
-### 依赖
-- Node.js 22+
-- PostgreSQL 16（本地或托管 Postgres）
-- DeepSeek API Key
+### 5-Step Onboarding Wizard
 
-### 安装
+Turn a one-line idea into a complete story bible in minutes:
+
+1. **Genre & Title** — Pick a genre (web novel, literary fiction, screenplay, fanfic, short stories) and name your work
+2. **Logline** — Write your own one-liner or let AI suggest 5 options
+3. **Reverse Questions** — AI generates probing questions about your world and characters, with suggested answers
+4. **Bible Generation** — SSE streaming builds your characters, world rules, geography, factions, and chapter outlines in real time
+5. **Review & Edit** — Fine-tune any field, regenerate up to 3 times, then save or jump straight into writing
+
+### Multi-Chapter Editor
+
+- **Chapter switching** with unsaved-changes confirmation
+- **Auto-save** (3s debounce) + manual Ctrl/Cmd+S
+- **AI Draft → Candidate Mode** — AI no longer overwrites your text; drafts appear in a side panel with 4 actions: Replace / Append / Insert at Cursor / Discard
+- **Critic Integration** — AI consistency warnings embedded as inline alerts in the candidate panel
+- **Beat Sheet** — Generate and edit per-chapter beat outlines, then draft from beats
+- **Retrieval Visualization** — See which memory chunks the AI referenced (source, similarity score, reason, snippet)
+- **Version History + Diff** — Restore any past version with a side-by-side diff view; current text is auto-snapshotted before restore
+- **Optimistic Locking** — 409 conflict detection prevents silent overwrites from another session
+- **Target Word Count** with live progress ring and last-saved timestamp
+
+### Project Workspace
+
+- **Dashboard** — Recent edits, pending chapters, AI call stats, monthly usage, failed job alerts, smart "next step" suggestions
+- **Novel Detail** — Progress stats, Bible status, recent chapters, 6 navigation cards
+- **Character Editor** — Full-schema character cards with all fields
+- **World Editor** — Background, rules, geography, factions in structured sections
+- **Outline Editor** — Volume-grouped chapter outlines with draft status badges
+- **Relationship Graph** — Interactive SVG character relationship diagram with editable relation cards
+- **Chapter Management** — Filterable table with summary/index dirty status and batch refresh
+- **AI History** — Last 100 AI calls with agent/status/price filters and detail drawer
+- **Export Center** — Markdown, plain text, Word (.docx), EPUB with chapter range selection and Bible appendix option
+
+### Admin & Security
+
+- **DB-driven Role System** — `user_roles` table with env fallback for disaster recovery
+- **User Management** — Grant/revoke admin roles from `/admin/users`
+- **LLM Model Configuration** — Add, edit, enable/disable DeepSeek/OpenAI-compatible endpoints with encrypted API keys
+- **Embedding Model Configuration** — Manage embedding providers (strict 1024-dim for pgvector compatibility)
+- **Content Moderation** — Local keyword filter + LLM-based check with configurable failure mode (allow/block/review) and audit trail
+- **Moderation Review Queue** — Human review for flagged content with status tracking and 90-day TTL cleanup
+- **Rate Limiting** — In-memory or Upstash Redis backends
+- **CSP with Nonce** — Per-request Content Security Policy
+- **SSRF Protection** — URL/scheme/private-IP validation on model endpoints
+
+### Observability
+
+- **Prometheus Metrics** — `/api/metrics` with bearer token auth (10 metric families: LLM requests/tokens/cost/p95 latency, job status, novel/chapter counts, moderation decisions)
+- **Sentry Integration** — Zero-SDK envelope sender for server-side error reporting
+- **Structured Logging** — JSON logger with info/warn/error levels
+- **LLM Usage Auditing** — Per-call token counts, cost, latency, model, route, and error tracking
+- **Grafana Alert Rules** — Pre-configured rules for LLM failure rate, draft latency, daily cost, and background job failures
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | [Next.js 15](https://nextjs.org/) (App Router) + TypeScript (strict) |
+| UI | [Tailwind CSS v4](https://tailwindcss.com/) with Ivory & Ink design tokens |
+| State | [Zustand](https://zustand.docs.pmnd.rs/) (client) + React Server Components (server) |
+| Database | [PostgreSQL 16](https://www.postgresql.org/) + [Prisma](https://www.prisma.io/) ORM + [pgvector](https://github.com/pgvector/pgvector) (HNSW) |
+| LLM | DeepSeek-V3 (OpenAI-compatible protocol) with DB-configurable model routing |
+| Auth | [Auth.js v5](https://authjs.dev/) (NextAuth) with Credentials provider |
+| Validation | [Zod](https://zod.dev/) — single source of truth for all data shapes |
+| Testing | [Vitest](https://vitest.dev/) (unit/API) + [Playwright](https://playwright.dev/) (E2E) |
+| Observability | Prometheus metrics, Sentry (no-SDK), Grafana alerts |
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- **Node.js** 22+
+- **PostgreSQL** 16+ (with pgvector extension)
+- **DeepSeek API Key** (or set `LLM_MOCK=1` for local development)
+
+### Installation
+
 ```bash
+git clone https://github.com/YunDanFengQing/ai-novel.git
+cd ai-novel
 npm install
 ```
 
-### 环境变量
+### Environment Setup
+
 ```bash
 cp .env.example .env
 ```
 
-填入以下变量（真实密钥只放 `.env.local`，不要提交）：
+Edit `.env` with your values. The required variables:
 
-| 变量 | 说明 |
-|------|------|
-| `DATABASE_URL` | PostgreSQL 连接串 |
-| `DIRECT_URL` | Prisma migrate 连接串 |
-| `DEEPSEEK_API_KEY` | DeepSeek API Key |
-| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com/v1` |
-| `DEEPSEEK_MODEL` | `deepseek-chat` |
-| `AUTH_SECRET` | Auth.js session secret，生产环境必填 |
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `DEEPSEEK_API_KEY` | DeepSeek API key |
+| `AUTH_SECRET` | Session secret (generate with `openssl rand -base64 32`) |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` |
-| `ADMIN_USER_IDS` | 管理员用户 ID 列表（逗号分隔），可访问 `/models` 与 `/api/llm-models/**` |
-| `ADMIN_EMAILS` | 管理员邮箱列表（逗号分隔，大小写不敏感），作用同上 |
 
-**可选**：`LLM_MOCK=1` 开启本地 mock，不调用 DeepSeek。
+Optional but recommended:
 
-### 1.1 管理员与 LLM 模型配置
+| Variable | Description |
+|----------|-------------|
+| `LLM_MOCK=1` | Use mock LLM (no real API calls) |
+| `ADMIN_USER_IDS` | Comma-separated user IDs for admin access |
+| `ADMIN_EMAILS` | Comma-separated emails for admin access |
+| `METRICS_TOKEN` | Bearer token for Prometheus `/api/metrics` endpoint |
+| `SENTRY_DSN` | Sentry project DSN for error reporting |
+| `RATE_LIMIT_STORE=redis` | Use Upstash Redis for rate limiting |
 
-`/models` 页面与 `/api/llm-models/**` 路由仅对管理员开放，避免任意登录用户写入共享 API key。判定方式：
+### Database
 
-- `ADMIN_USER_IDS=uuid1,uuid2`：把 Auth.js 本地用户 ID 列在这里。
-- `ADMIN_EMAILS=alice@example.com,bob@example.com`：邮箱大小写不敏感。
-
-任一命中即视为管理员。两个变量都不设时，没有任何账号能访问模型配置（默认安全）。
-
-获取你的 user ID：登录后访问 `/profile`，或在数据库 `User` 表中查找。
-
-普通用户访问 `/models` 会看到无权限提示；API 返回 `403 FORBIDDEN`。
-
-
-### 数据库
 ```bash
-npm run db:up        # 本地 Docker 起 PostgreSQL（仅本地开发，端口绑 127.0.0.1）
-npm run db:migrate   # 应用 Prisma migrations
+# Start local PostgreSQL (Docker, binds to 127.0.0.1 only)
+npm run db:up
+
+# Apply migrations
+npm run db:migrate
 ```
 
-> `docker-compose.yml` 仅用于本地开发，密码从 `.env` 的 `POSTGRES_PASSWORD` 读取（缺省为 `postgres`），并把 5432 端口绑到 `127.0.0.1`，不会暴露到 LAN。生产请用托管 Postgres，不要部署这份 compose。
+For existing managed PostgreSQL, just set `DATABASE_URL` and run:
 
-已有托管 Postgres？直接填 `.env.local` 后：
 ```bash
-npm run db:deploy    # 生产环境应用迁移
+npm run db:deploy
 ```
 
----
-
-## 2. 启动
+### Start Development Server
 
 ```bash
 npm run dev
 ```
 
-访问 `http://localhost:3000`
-
-### 健康检查
-```bash
-curl http://localhost:3000/api/healthz
-```
-
-应返回基础探针结果。  
-`/api/healthz/llm` 当前为 admin-only 深度探针，需要登录管理员账号后访问。
+Open [http://localhost:3000](http://localhost:3000) — you'll see the landing page. Sign up, create your first novel, and start writing.
 
 ---
 
-## 3. 完整使用流程
+## Project Structure
 
-### 3.1 注册账号
-1. 访问 `http://localhost:3000/signup`
-2. 输入邮箱 + 密码（≥6 位）
-3. 点击"注册"，收到确认邮件后点击链接验证
-4. 访问 `http://localhost:3000/login` 登录
-
-### 3.2 创建小说
-1. 登录后自动跳转 `/novels`（作品列表页）
-2. 点击右上角"新建小说"，进入 `/new`
-3. **Step 1**：选择类型大类（网文/文学/剧本等）+ 子类型（玄幻/都市/悬疑等）
-4. **Step 2**：输入灵感，或点击"AI 推荐 5 条"后选择一条
-5. **Step 3**：点击"生成反向追问"，确认/调整推荐答案
-6. **Step 4**：点击"开始生成"，观察 Bible 卡片流式出现
-7. **Step 5**：编辑标题、角色、世界观、大纲，可重摆（≤3次），确认后点击"保存草稿"或"开始写作"
-
-### 3.3 多章节写作
-1. 进入 `/editor/[novelId]` 编辑器
-2. 左侧 Bible 侧栏查看角色、世界规则、章节大纲
-3. 点击章节按钮切换章节（未保存会提示）
-4. 在文本框中编辑正文
-5. 点击"AI 起草"让 AI 生成章节正文（SSE 流式输出）
-6. 编辑器会自动保存（3秒无操作），或按 Ctrl/Cmd+S 手动保存
-7. 点击"标记完成"切换章节状态
-
-### 3.4 一致性检查
-```bash
-curl -X POST http://localhost:3000/api/novels/{novelId}/consistency \
-  -H "Content-Type: application/json"
 ```
-返回 `{ consistent: true }` 或 `{ consistent: false, issues: [...] }`
-
-### 3.5 查看章节历史
-```bash
-curl http://localhost:3000/api/chapters/{chapterId}/versions
+ai-novel/
+├── app/                          # Next.js App Router
+│   ├── (app)/                    # Authenticated routes (sidebar layout)
+│   │   ├── dashboard/            # Workspace dashboard
+│   │   ├── novels/               # Novel management & Bible editors
+│   │   ├── editor/[novelId]/     # Multi-chapter editor (8 sub-hooks)
+│   │   ├── new/                  # 5-step onboarding wizard
+│   │   ├── models/               # LLM & embedding config (admin)
+│   │   ├── admin/                # User management & moderation (admin)
+│   │   └── profile/              # Account settings
+│   ├── api/                      # 46 API routes
+│   │   ├── auth/                 # Signup, login, password reset
+│   │   ├── novels/               # CRUD, draft, critic, export, jobs
+│   │   ├── chapters/             # Update, versions, summarize, state-diff
+│   │   ├── onboarding/           # Session management, Bible generation
+│   │   ├── admin/                # Users, roles, moderation audits
+│   │   ├── llm-models/           # Model configuration CRUD
+│   │   ├── embedding-models/     # Embedding configuration CRUD
+│   │   ├── healthz/              # Health checks (public + admin)
+│   │   ├── metrics/              # Prometheus metrics
+│   │   └── cron/                 # Scheduled cleanup jobs
+│   ├── login/                    # Auth pages
+│   ├── signup/
+│   └── reset-password/
+├── components/
+│   ├── auth/                     # Shared auth form components
+│   ├── layout/                   # Sidebar
+│   └── ui/                       # Design system primitives
+├── lib/
+│   ├── agent/                    # AI writing pipeline agents
+│   ├── auth/                     # Session, ownership, rate limiting
+│   ├── bible/                    # Bible data helpers
+│   ├── editor/                   # Chapter utility functions
+│   ├── export/                   # 4-format export (md/txt/docx/epub)
+│   ├── hooks/                    # Shared React hooks
+│   ├── http/                     # API response helpers
+│   ├── jobs/                     # Background job queue
+│   ├── loaders/                  # Shared server-side data loaders
+│   ├── llm/                      # LLM client, embeddings, prompts, usage
+│   ├── metrics/                  # Prometheus collector & formatter
+│   ├── moderation/               # Content moderation & stream guard
+│   ├── observability/            # Logger & Sentry
+│   ├── security/                 # CSP builder
+│   ├── store/                    # Zustand stores
+│   ├── stream/                   # SSE parser, encoder, JSON stream parser
+│   └── validation/               # Zod schemas & merge logic
+├── prisma/
+│   ├── schema.prisma             # 20 models, 24 migrations
+│   └── migrations/
+├── tests/e2e/                    # Playwright E2E specs
+├── observability/grafana/        # Alert rules
+└── docs/                         # Status, roadmap, contracts, phases
 ```
-返回该章节的历史快照列表。
 
 ---
 
-## 4. 验证命令
+## Database Schema
+
+20 Prisma models across 24 migrations:
+
+| Model | Purpose |
+|-------|---------|
+| `User` / `Account` / `Session` / `VerificationToken` | Auth.js local authentication |
+| `OnboardingSession` | 5-step wizard state |
+| `Novel` | Novel project (user-owned) |
+| `BibleDraft` | Story bible content (1:1 with Novel) |
+| `ChapterDraft` | Chapter content with optimistic locking |
+| `ChapterVersion` | Version history snapshots |
+| `ChapterSummary` / `VolumeSummary` / `NovelSummary` | Tiered summaries for RAG |
+| `MemoryChunk` | Embedding storage (pgvector 1024-dim) |
+| `LlmModel` / `EmbeddingModel` | DB-configured AI model endpoints |
+| `LlmUsage` | Per-call audit log (tokens, cost, latency) |
+| `UserRole` | DB-driven permission grants |
+| `ModerationAudit` | Content moderation decisions + review status |
+| `BackgroundJob` | Fire-and-forget job queue |
+| `DraftSession` | Resumable SSE draft sessions |
+
+---
+
+## API Overview
+
+All API routes follow a consistent envelope: `{ ok: true, data }` or `{ ok: false, error: { code, message, retryable } }`.
+
+| Category | Endpoints |
+|----------|-----------|
+| Auth | `POST /signup`, `POST /password-reset`, `POST /password`, `POST /logout` |
+| Novels | `GET /novels`, `GET /novels/:id`, `PATCH /novels/:id/bible` |
+| Chapters | `POST /novels/:id/chapters`, `PATCH/DELETE /chapters/:id` |
+| AI Writing | `POST /novels/:id/chapters/draft` (SSE), `POST /chapters/critic`, `POST /chapters/outline` |
+| Versions | `GET /chapters/:id/versions`, `POST /chapters/:id/versions/:vid/restore` |
+| Export | `GET /novels/:id/export?format=md\|txt\|docx\|epub` |
+| Onboarding | `POST /onboarding/sessions`, `/loglines`, `/questions`, `/bible` (SSE), `/finalize` |
+| Admin | `GET /admin/users`, `POST/DELETE /admin/users/:id/roles/:role` |
+| Moderation | `GET /admin/moderation-audits`, `PATCH /admin/moderation-audits/:id` |
+| Models | CRUD `/llm-models`, `/embedding-models` (admin-only) |
+| Observability | `GET /healthz`, `GET /healthz/llm`, `GET /metrics` |
+| Cron | `GET /cron/draft-sessions/cleanup`, `GET /cron/moderation-audits/cleanup` |
+
+---
+
+## Testing
 
 ```bash
-# 一键验证（typecheck + test + build）
+# Full verification (lint + typecheck + test + build + docs check)
 npm run verify
 
-# 单独验证
-npm run typecheck
-npm run test
-npm run build
+# Individual commands
+npm run typecheck          # TypeScript strict mode check
+npm run lint               # ESLint
+npm run test               # Vitest unit/API tests (700 tests, 88 files)
+npm run test:coverage      # With coverage thresholds (lines 68, functions 93, branches 83)
+npm run build              # Production build
 
-# 实测数字以 docs/STATUS.md §一 为准；不在 README 内 inline 测试数，避免漂移。
-
-# E2E 测试（需 LLM_MOCK=1）
+# E2E tests (requires LLM_MOCK=1)
 $env:LLM_MOCK='1'; npm run test:e2e
 
-# API smoke（需先启动服务）
-$env:LLM_MOCK='1'; npm run start   # 终端 1
-$env:LLM_MOCK='1'; npm run smoke:onboarding  # 终端 2
+# API smoke test
+$env:LLM_MOCK='1'; npm run start          # Terminal 1
+$env:LLM_MOCK='1'; npm run smoke:onboarding  # Terminal 2
 ```
 
 ---
 
-## 5. 技术栈
-
-| 模块 | 选型 |
-|------|------|
-| Framework | Next.js 15 + App Router + TypeScript strict |
-| UI | Tailwind CSS v4 |
-| State | Zustand |
-| DB | PostgreSQL + Prisma |
-| LLM | DeepSeek-V3（OpenAI 兼容） |
-| Auth | Auth.js / NextAuth Credentials |
-| Validation | Zod |
-| Tests | Vitest + Playwright |
-
----
-
-## 6. 目录结构
-
-```
-app/
-├── page.tsx                     # 首页（已登录跳转 /novels）
-├── login/page.tsx              # 登录
-├── signup/page.tsx             # 注册
-├── reset-password/page.tsx    # 忘记密码
-├── update-password/page.tsx   # 设置新密码
-├── novels/page.tsx             # 作品列表
-├── profile/page.tsx            # 账号设置
-├── new/                        # Onboarding 向导
-│   └── page.tsx
-├── editor/[novelId]/           # 多章节编辑器
-│   ├── page.tsx
-│   ├── EditorClient.tsx
-│   ├── EditorSidebar.tsx
-│   ├── EditorToolbar.tsx
-│   └── useChapterEditor.ts
-└── api/
-    ├── auth/[...nextauth]/     # Auth.js endpoints
-    ├── auth/signup/            # 本地账号注册
-    ├── auth/password-reset/    # 密码重置 token
-    ├── auth/password/          # 密码更新
-    ├── auth/logout/             # 登出
-    ├── chapters/[id]/
-    │   ├── route.ts             # PATCH/DELETE
-    │   ├── versions/           # 版本历史
-    │   └── summarize/          # 章节摘要
-    ├── novels/
-    │   ├── route.ts             # GET list
-    │   └── [id]/
-    │       ├── route.ts         # GET one
-    │       ├── chapters/       # 创建/更新章节
-    │       ├── chapters/draft/  # AI 起草
-    │       └── consistency/     # 一致性检查
-    └── onboarding/              # Onboarding APIs
-```
-
----
-
-## 7. 数据库模型
-
-| 表 | 说明 |
-|-----|------|
-| `OnboardingSession` | Onboarding 向导中间状态 |
-| `Novel` | 小说项目（含 user_id） |
-| `BibleDraft` | Bible 草稿（JSON） |
-| `ChapterDraft` | 章节草稿 |
-| `ChapterVersion` | 章节历史快照 |
-| `ChapterSummary` | 章节摘要（用于 RAG） |
-
----
-
-## 8. 部署
+## Deployment
 
 ### Docker
+
 ```bash
 DOCKER_BUILD=1 npm run build
 docker build -t ai-novel .
 docker run -p 3000:3000 --env-file .env.production ai-novel
 ```
 
-### 生产数据库
-```bash
-npm run db:deploy
-```
+### Vercel
+
+The project includes `vercel.json` with cron job configurations for draft session and moderation audit cleanup.
+
+### Production Checklist
+
+- [ ] Set `AUTH_SECRET` (generate with `openssl rand -base64 32`)
+- [ ] Set `MODEL_KEY_ENCRYPTION_SECRET` (at least 32 characters)
+- [ ] Configure `ADMIN_USER_IDS` or `ADMIN_EMAILS` for admin access
+- [ ] Set `MODERATION_FAILURE_MODE=block` (production default)
+- [ ] Set `QUOTA_FAILURE_MODE=block` (production default)
+- [ ] Set `METRICS_TOKEN` for Prometheus endpoint auth
+- [ ] Set `CRON_SECRET` for Vercel cron endpoint auth
+- [ ] Run `npm run db:deploy` against production database
+- [ ] Configure at least one LLM model via `/models` admin page
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [`docs/STATUS.md`](docs/STATUS.md) | Current project status (single source of truth) |
+| [`docs/HEALTH.md`](docs/HEALTH.md) | Project health report |
+| [`docs/ROADMAP_2_4_8_WEEKS.md`](docs/ROADMAP_2_4_8_WEEKS.md) | 2/4/8-week strategic roadmap |
+| [`docs/IMPLEMENTATION_TASKS.md`](docs/IMPLEMENTATION_TASKS.md) | Page/interface-level task breakdown |
+| [`docs/contracts.md`](docs/contracts.md) | Frozen API/Schema contracts |
+| [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) | Sentry/Grafana integration guide |
+| [`docs/PROJECT_REVIEW_REPORT.md`](docs/PROJECT_REVIEW_REPORT.md) | Production-standard review |
+| [`docs/phases/`](docs/phases/) | Phase decision records (A, B, P0-8) |
+
+---
+
+## License
+
+Private — All rights reserved.

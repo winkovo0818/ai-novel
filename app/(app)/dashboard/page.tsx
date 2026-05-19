@@ -84,7 +84,7 @@ export default async function DashboardPage() {
   const monthlyTokens = (monthlyUsage._sum.token_in ?? 0) + (monthlyUsage._sum.token_out ?? 0);
 
   return (
-    <div className="flex-1 overflow-y-auto bg-secondary/30 custom-scrollbar">
+    <div className="flex-1 overflow-y-auto custom-scrollbar">
       <div className="p-8 md:p-12 lg:p-16 max-w-7xl mx-auto min-h-full pb-24">
         <PageHeader
           title="创作工作台"
@@ -106,25 +106,28 @@ export default async function DashboardPage() {
               <Link
                 href={suggestion.href}
                 aria-label={`智能建议: ${suggestion.title}. ${suggestion.detail}`}
-                className="card bg-text-primary text-white border-text-primary flex items-center justify-between gap-8 h-full group hover:shadow-[0_24px_48px_-12px_rgba(0,0,0,0.2)] transition-[box-shadow] duration-500"
+                className="card glass-panel bg-text-primary text-white border-transparent flex items-center justify-between gap-8 h-full group hover:shadow-[0_32px_64px_-16px_rgba(99,102,241,0.3)] transition-all duration-500 hover:-translate-y-1 relative overflow-hidden"
               >
-                <div className="flex-1">
-                  <div className="inline-flex items-center gap-2 px-2 py-0.5 bg-white/10 rounded-md mb-4">
+                {/* Animated glow effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-accent/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                
+                <div className="flex-1 relative z-10">
+                  <div className="inline-flex items-center gap-2 px-2 py-0.5 bg-white/10 rounded-md mb-4 border border-white/5">
                      <span className="h-1 w-1 rounded-full bg-accent animate-pulse" />
                      <p className="text-[9px] font-bold uppercase tracking-[0.2em] opacity-80">
                        智能创作协议 / DIRECTIVE
                      </p>
                   </div>
-                  <h3 className="text-2xl font-serif font-bold group-hover:translate-x-1 transition-transform duration-300 leading-tight">
+                  <h3 className="text-3xl font-serif font-bold group-hover:translate-x-1 transition-transform duration-500 leading-tight">
                     {suggestion.title}
                   </h3>
-                  <p className="text-sm opacity-60 mt-3 leading-relaxed">
+                  <p className="text-sm opacity-60 mt-4 leading-relaxed max-w-md">
                     {suggestion.detail}
                   </p>
                 </div>
-                <div className="h-16 w-16 rounded-full bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition duration-300 group-hover:scale-110">
-                  <svg aria-hidden="true" className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                <div className="h-20 w-20 rounded-full bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-accent transition-all duration-500 group-hover:scale-110 shadow-inner relative z-10 border border-white/5">
+                  <svg aria-hidden="true" className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                   </svg>
                 </div>
               </Link>
@@ -312,8 +315,8 @@ export default async function DashboardPage() {
                         <span className="text-[13px] font-bold text-text-secondary truncate group-hover:text-text-primary transition-colors">{g.agent ?? "AI Assistant"}</span>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-[11px] font-bold text-text-primary tabular-nums">¥{g.cost_cny.toFixed(4)}</p>
-                        <p className="text-[9px] font-bold text-text-dim uppercase tracking-tighter mt-0.5 tabular-nums">{g.took_ms != null ? `${(g.took_ms / 1000).toFixed(1)}s` : "—"}</p>
+                        <p className="text-[11px] font-bold text-text-primary tabular-nums">{g.took_ms != null ? `${(g.took_ms / 1000).toFixed(1)}s` : "—"}</p>
+                        <p className="text-[9px] font-bold text-text-dim uppercase tracking-tighter mt-0.5">{g.status === "ok" ? "成功" : "异常"}</p>
                       </div>
                     </div>
                   ))}
