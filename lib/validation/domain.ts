@@ -23,6 +23,7 @@ export type GenreMain = z.infer<typeof GenreMainEnum>;
 export const NovelProfileSchema = z.object({
   genre_main: GenreMainEnum,
   genre_sub: z.string().min(1).max(40),
+  description: z.string().max(500).default(""),
   audience: z.enum(["male", "female", "general"]).default("general"),
   length: z
     .enum(["short", "mid", "long", "super_long"])
@@ -47,8 +48,9 @@ export type NovelProfile = z.infer<typeof NovelProfileSchema>;
 export function buildDefaultProfile(
   genre_main: GenreMain,
   genre_sub: string,
+  description = "",
 ): NovelProfile {
-  return NovelProfileSchema.parse({ genre_main, genre_sub });
+  return NovelProfileSchema.parse({ genre_main, genre_sub, description });
 }
 
 // ──────────────────────────────────────────────────

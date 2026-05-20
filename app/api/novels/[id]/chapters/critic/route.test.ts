@@ -33,6 +33,7 @@ const validBible = {
 const profile = {
   genre_main: "web",
   genre_sub: "玄幻",
+  description: "",
   audience: "general",
   length: "long",
   tone: "cool",

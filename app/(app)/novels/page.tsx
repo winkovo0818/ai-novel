@@ -10,6 +10,7 @@ import { handleApiError } from "@/lib/http/handleApiError";
 interface NovelItem {
   id: string;
   title: string;
+  description: string;
   created_at: string;
   chapter_count: number;
   done_count: number;
@@ -109,6 +110,7 @@ export default function NovelsPage() {
                   key={novel.id}
                   id={novel.id}
                   title={novel.title}
+                  description={novel.description}
                   chapterCount={novel.chapter_count}
                   doneCount={novel.done_count}
                   updatedAt={novel.created_at}

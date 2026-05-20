@@ -12,6 +12,7 @@ interface WizardInputs {
   title?: string;
   genre_main?: NovelProfile["genre_main"];
   genre_sub?: string;
+  description?: string;
   logline?: string;
   logline_suggestions?: string[];
   questions?: Question[];

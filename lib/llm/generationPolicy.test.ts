@@ -6,6 +6,7 @@ function makeProfile(overrides: Partial<NovelProfile> = {}): NovelProfile {
   return {
     genre_main: "web",
     genre_sub: "玄幻",
+    description: "",
     audience: "general",
     length: "long",
     tone: "cool",

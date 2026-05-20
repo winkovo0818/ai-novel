@@ -24,14 +24,19 @@ export async function GET() {
     orderBy: { created_at: "desc" },
   });
 
-  const data = novels.map((novel) => ({
-    id: novel.id,
-    title: novel.title,
-    created_at: novel.created_at.toISOString(),
-    chapter_count: novel.chapters.length,
-    done_count: novel.chapters.filter((c) => c.status === "done").length,
-    has_bible: !!novel.bible,
-  }));
+  const data = novels.map((novel) => {
+    const profile = novel.profile as Record<string, unknown> | null;
+
+    return {
+      id: novel.id,
+      title: novel.title,
+      description: typeof profile?.description === "string" ? profile.description : "",
+      created_at: novel.created_at.toISOString(),
+      chapter_count: novel.chapters.length,
+      done_count: novel.chapters.filter((c) => c.status === "done").length,
+      has_bible: !!novel.bible,
+    };
+  });
 
   return Response.json({ ok: true, data });
 }

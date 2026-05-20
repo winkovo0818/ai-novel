@@ -5,6 +5,7 @@ import { formatDate } from "@/lib/format/datetime";
 interface NovelCardProps {
   id: string;
   title: string;
+  description?: string;
   chapterCount: number;
   doneCount: number;
   updatedAt: string;
@@ -12,7 +13,7 @@ interface NovelCardProps {
   onDelete?: (id: string) => Promise<void>;
 }
 
-export function NovelCard({ id, title, chapterCount, doneCount, updatedAt, hasBible, onDelete }: NovelCardProps) {
+export function NovelCard({ id, title, description, chapterCount, doneCount, updatedAt, hasBible, onDelete }: NovelCardProps) {
   const progress = chapterCount > 0 ? Math.round((doneCount / chapterCount) * 100) : 0;
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -84,9 +85,15 @@ export function NovelCard({ id, title, chapterCount, doneCount, updatedAt, hasBi
             )}
           </div>
 
-          <h3 className="text-lg font-serif font-bold text-text-primary group-hover:text-primary transition-colors leading-snug line-clamp-2 mb-6">
+          <h3 className="text-lg font-serif font-bold text-text-primary group-hover:text-primary transition-colors leading-snug line-clamp-2 mb-3">
             {title}
           </h3>
+
+          {description ? (
+            <p className="text-[13px] leading-relaxed text-text-muted line-clamp-3 mb-6">
+              {description}
+            </p>
+          ) : null}
 
           <div className="mt-auto">
             <div className="flex items-center justify-between mb-2">

@@ -85,6 +85,7 @@ function Step1() {
     store.inputs.genre_main ?? "web",
   );
   const [genreSub, setGenreSub] = useState(store.inputs.genre_sub ?? "玄幻");
+  const [description, setDescription] = useState(store.inputs.description ?? "");
 
   async function submit() {
     if (!genreSub.trim()) return store.setError({ step: 1, message: "请填写细分题材", retryable: false });
@@ -93,11 +94,11 @@ function Step1() {
     const res = await fetch("/api/onboarding/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, genre_main: genreMain, genre_sub: genreSub }),
+      body: JSON.stringify({ title, genre_main: genreMain, genre_sub: genreSub, description }),
     });
     const json = await res.json();
     if (!json.ok) return store.setError({ step: 1, message: json.error.message, retryable: json.error.retryable });
-    store.patchInputs({ title, genre_main: genreMain, genre_sub: genreSub });
+    store.patchInputs({ title, genre_main: genreMain, genre_sub: genreSub, description });
     store.setSession(json.data.session_id, json.data.default_profile);
     store.setStep(2);
   }
@@ -167,6 +168,20 @@ function Step1() {
               onChange={(e) => setGenreSub(e.target.value)}
             />
           </div>
+        </section>
+
+        <section className="grid gap-4">
+          <FolioLabel index="04" label="作品简介 / STORY DESCRIPTION" htmlFor="wizard-description" />
+          <textarea
+            id="wizard-description"
+            name="description"
+            maxLength={500}
+            className="w-full min-h-32 text-base font-serif font-normal py-4 px-6 bg-secondary/50 border border-transparent rounded-xl focus:bg-white focus:border-accent/30 transition shadow-inner resize-y"
+            placeholder="简要介绍作品的主角、核心冲突与阅读期待，可留空后续补充…"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <p className="text-[11px] text-text-dim text-right">{description.length}/500</p>
         </section>
 
         <footer className="pt-6 flex justify-end">

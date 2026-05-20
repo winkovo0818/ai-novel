@@ -54,6 +54,7 @@ export default async function NovelDetailPage({ params }: PageProps) {
   };
   const genreMain = genreMainMap[profile?.genre_main as string] ?? "通用文学";
   const genreSub = (profile?.genre_sub as string | undefined) ?? "";
+  const description = typeof profile?.description === "string" ? profile.description : "";
 
   const editorHref = lastEdited
     ? `/editor/${novel.id}?chapter=${lastEdited.chapter_index}`
@@ -78,6 +79,13 @@ export default async function NovelDetailPage({ params }: PageProps) {
             </Link>
           }
         />
+
+        {description ? (
+          <section className="mt-10 card bg-white/80 border-border-subtle shadow-sm p-8">
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-text-dim mb-4">作品简介 / STORY DESCRIPTION</h2>
+            <p className="text-base leading-8 text-text-secondary whitespace-pre-wrap">{description}</p>
+          </section>
+        ) : null}
 
         {/* Progress row */}
         <section className="mt-12 grid gap-6 md:grid-cols-3">

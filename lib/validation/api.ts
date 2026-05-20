@@ -10,6 +10,7 @@ export const CreateSessionRequestSchema = z.object({
   title: z.string().max(64).optional(),
   genre_main: GenreMainEnum,
   genre_sub: z.string().min(1).max(40),
+  description: z.string().max(500).optional(),
 });
 
 export const CreateSessionResponseSchema = z.object({

@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   }
 
   const input = parsed.data;
-  const defaultProfile = buildDefaultProfile(input.genre_main, input.genre_sub);
+  const defaultProfile = buildDefaultProfile(input.genre_main, input.genre_sub, input.description?.trim());
 
   try {
     const userId = await getOptionalUserId();

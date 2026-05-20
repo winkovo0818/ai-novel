@@ -59,6 +59,7 @@ const AI_FREEDOM_OPTIONS = [
 interface ProfileData {
   genre_main: string;
   genre_sub: string;
+  description?: string;
   audience: string;
   length: string;
   tone: string;
@@ -152,6 +153,7 @@ export default function NovelSettingsClient({ novelId }: { novelId: string }) {
             <div className="grid gap-5">
               <SelectField label="作品类型" value={profile.genre_main} onChange={(v) => setProfile({ ...profile, genre_main: v })} options={GENRE_MAIN_OPTIONS} />
               <InputField label="细分题材" value={profile.genre_sub} onChange={(v) => setProfile({ ...profile, genre_sub: v })} maxLength={40} />
+              <TextareaField label="作品简介" value={profile.description ?? ""} onChange={(v) => setProfile({ ...profile, description: v })} maxLength={500} />
               <SelectField label="目标受众" value={profile.audience} onChange={(v) => setProfile({ ...profile, audience: v })} options={AUDIENCE_OPTIONS} />
               <SelectField label="作品篇幅" value={profile.length} onChange={(v) => setProfile({ ...profile, length: v })} options={LENGTH_OPTIONS} />
             </div>
@@ -221,6 +223,22 @@ function InputField({ label, value, onChange, maxLength }: { label: string; valu
         maxLength={maxLength}
         className="bg-secondary/50 border border-transparent rounded-xl px-4 py-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/20 focus:bg-white transition"
       />
+    </div>
+  );
+}
+
+function TextareaField({ label, value, onChange, maxLength }: { label: string; value: string; onChange: (v: string) => void; maxLength: number }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-[12px] font-bold text-text-secondary">{label}</label>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        maxLength={maxLength}
+        rows={4}
+        className="bg-secondary/50 border border-transparent rounded-xl px-4 py-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/20 focus:bg-white transition resize-y"
+      />
+      <span className="text-[11px] text-text-dim text-right">{value.length}/{maxLength}</span>
     </div>
   );
 }
