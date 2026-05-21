@@ -66,7 +66,7 @@ async function singleSearch(
   limit: number,
 ): Promise<ScoredChunk[]> {
   const embeddingStr = "[" + embedding.join(",") + "]";
-  const rows = await prisma.$queryRawUnsafe<
+  const rows = await prisma.$queryRaw<
     Array<{
       id: string;
       text: string;
@@ -75,19 +75,16 @@ async function singleSearch(
       similarity: number;
       chapter_index: number | null;
     }>
-  >(
-    "SELECT mc.id, mc.text, mc.chunk_type, mc.chapter_id, " +
-    "1 - (mc.embedding <=> ::vector) AS similarity, " +
-    "cd.chapter_index " +
-    "FROM \"MemoryChunk\" mc " +
-    "LEFT JOIN \"ChapterDraft\" cd ON mc.chapter_id = cd.id " +
-    "WHERE mc.novel_id =  AND mc.embedding IS NOT NULL " +
-    "ORDER BY mc.embedding <=> ::vector " +
-    "LIMIT ",
-    embeddingStr,
-    novelId,
-    limit,
-  );
+  >`
+    SELECT mc.id, mc.text, mc.chunk_type, mc.chapter_id,
+      1 - (mc.embedding <=> \${embeddingStr}::vector) AS similarity,
+      cd.chapter_index
+    FROM "MemoryChunk" mc
+    LEFT JOIN "ChapterDraft" cd ON mc.chapter_id = cd.id
+    WHERE mc.novel_id = \${novelId} AND mc.embedding IS NOT NULL
+    ORDER BY mc.embedding <=> \${embeddingStr}::vector
+    LIMIT \${limit}
+  `;
 
   return rows.map((row) => ({
     source: row.chapter_id ? "chapter:" + row.chapter_id : "novel",
