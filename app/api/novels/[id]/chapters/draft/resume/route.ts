@@ -30,8 +30,10 @@ interface RouteContext {
  * call finished without an attached reader; the buffer is the full result.
  * If status=failed the row carries error_code / error_message.
  *
- * 404 when no session exists for that slot (no draft was ever attempted, or
- * it was already dismissed).
+ * Returns 200 with `{ ok: true, data: null }` when no session exists for that
+ * slot (no draft was ever attempted, or it was already dismissed). This is the
+ * normal idle state — using 404 here painted a red error in every editor mount,
+ * which obscured real failures.
  */
 export async function GET(request: Request, context: RouteContext) {
   const { id } = await context.params;
@@ -70,7 +72,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   const draft = await getResumableDraftSession(userId, id, chapterIndex);
   if (!draft) {
-    return jsonError("NO_DRAFT_SESSION", "No resumable draft session for this chapter", false, 404);
+    return jsonOk(null);
   }
 
   return jsonOk({

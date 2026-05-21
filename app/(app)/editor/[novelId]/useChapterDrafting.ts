@@ -292,16 +292,11 @@ export function useChapterDrafting({
       try {
         const request = buildResumableDraftRequest(novelId, chapterIndex);
         const res = await fetch(request.url);
-        if (res.status === 404) {
+        if (!res.ok) {
           setResumableDraft(null);
           return;
         }
-        const json = await res.json();
-        if (!json.ok) {
-          setResumableDraft(null);
-          return;
-        }
-        setResumableDraft(normalizeResumableDraftPayload(json));
+        setResumableDraft(normalizeResumableDraftPayload(await res.json()));
       } catch {
         setResumableDraft(null);
       }

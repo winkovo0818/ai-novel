@@ -77,13 +77,13 @@ async function singleSearch(
     }>
   >`
     SELECT mc.id, mc.text, mc.chunk_type, mc.chapter_id,
-      1 - (mc.embedding <=> \${embeddingStr}::vector) AS similarity,
+      1 - (mc.embedding <=> ${embeddingStr}::vector) AS similarity,
       cd.chapter_index
     FROM "MemoryChunk" mc
     LEFT JOIN "ChapterDraft" cd ON mc.chapter_id = cd.id
-    WHERE mc.novel_id = \${novelId} AND mc.embedding IS NOT NULL
-    ORDER BY mc.embedding <=> \${embeddingStr}::vector
-    LIMIT \${limit}
+    WHERE mc.novel_id = ${novelId} AND mc.embedding IS NOT NULL
+    ORDER BY mc.embedding <=> ${embeddingStr}::vector
+    LIMIT ${limit}
   `;
 
   return rows.map((row) => ({

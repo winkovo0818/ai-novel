@@ -90,16 +90,17 @@ describe("GET /api/novels/[id]/chapters/draft/resume", () => {
     expect(getResumableDraftSession).not.toHaveBeenCalled();
   });
 
-  it("returns 404 NO_DRAFT_SESSION when no buffered session exists", async () => {
+  it("returns 200 with null data when no buffered session exists", async () => {
     getRequiredUserId.mockResolvedValue("user-1");
     findUnique.mockResolvedValue({ user_id: "user-1" });
     getResumableDraftSession.mockResolvedValue(null);
     const { GET } = await import("./route");
 
     const res = await GET(buildRequest("chapter_index=1"), ctx);
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.error.code).toBe("NO_DRAFT_SESSION");
+    expect(json.ok).toBe(true);
+    expect(json.data).toBeNull();
   });
 
   it("returns the buffered session payload on the happy path", async () => {

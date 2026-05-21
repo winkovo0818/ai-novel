@@ -48,7 +48,7 @@ export function registerJobHandlers(): void {
       agent: "summarizer",
       messages: buildSummarizePrompt(chapter.chapter_index, chapter.title, chapter.content),
       temperature: 0,
-      timeoutMs: 60_000,
+      timeoutMs: 120_000,
     }, 1);
 
     // M3.1: upsert + clear summary_dirty in one transaction so the chapter

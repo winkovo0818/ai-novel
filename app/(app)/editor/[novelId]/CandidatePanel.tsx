@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DiffView } from "@/components/ui/DiffView";
 
 export type CandidateMode = "replace" | "append" | "insert" | "discard";
@@ -81,6 +81,19 @@ export function CandidatePanel({
   const [activeCandidate, setActiveCandidate] = useState<string>("c0");
   const multiCandidate = (candidates?.length ?? 0) > 1;
   const [reviewedCandidates, setReviewedCandidates] = useState<Set<string>>(new Set());
+
+  // c0 is the primary candidate — once critic completes successfully it counts as reviewed.
+  const criticDone = Boolean(criticResult) && !criticError;
+  useEffect(() => {
+    if (!criticDone) return;
+    setReviewedCandidates((prev) => {
+      if (prev.has("c0")) return prev;
+      const next = new Set(prev);
+      next.add("c0");
+      return next;
+    });
+  }, [criticDone]);
+
   const activeContent = multiCandidate
     ? candidates?.find((c) => c.id === activeCandidate)?.content ?? content
     : content;
@@ -270,8 +283,6 @@ export function CandidatePanel({
           )}
           {!criticError && criticResult && (
             <>
-              {/* c0 is always reviewed when critic completes */}
-              {setReviewedCandidates((prev) => { const s = new Set(prev); s.add("c0"); return s; }) as unknown as null}
               <div className="flex items-center gap-2 mb-1">
                 <span
                   className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
