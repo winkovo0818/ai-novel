@@ -52,17 +52,108 @@ export function BibleEditorPanel({ novelId, bible, onUpdate, onBack }: BibleEdit
   const updateChapter = useCallback((volumeIndex: number, chapterIndex: number, patch: Partial<{ title: string; summary: string }>) => {
     setWorkingBible((prev) => {
       const currentVolumes = getVolumes(prev);
-      const targetVolume = { 
-        ...currentVolumes[volumeIndex], 
-        chapters: currentVolumes[volumeIndex].chapters.map((ch, ci) => (ci === chapterIndex ? { ...ch, ...patch } : ch)) 
+      const targetVolume = {
+        ...currentVolumes[volumeIndex],
+        chapters: currentVolumes[volumeIndex].chapters.map((ch, ci) => (ci === chapterIndex ? { ...ch, ...patch } : ch))
       };
-      
+
       if (volumeIndex === 0) {
         return { ...prev, outline: { ...prev.outline, volume_1: targetVolume } };
       }
       const extraVolumes = [...(prev.outline.volumes ?? [])];
       extraVolumes[volumeIndex - 1] = targetVolume;
       return { ...prev, outline: { ...prev.outline, volumes: extraVolumes } };
+    });
+  }, []);
+
+  /**
+   * Recompute global `index` on every chapter so it stays a 1-based monotonic
+   * sequence across all volumes. The editor sidebar keys on this; if we
+   * appended a chapter without renumbering, two chapters could collide.
+   */
+  function reindexVolumes<T extends { chapters: Array<{ index: number; title: string; summary: string }> }>(volumes: T[]): T[] {
+    let next = 1;
+    return volumes.map((vol) => ({
+      ...vol,
+      chapters: vol.chapters.map((ch) => ({ ...ch, index: next++ })),
+    }));
+  }
+
+  function applyVolumeListEdit(prev: BibleDraft, mutate: (volumes: ReturnType<typeof getVolumes>) => ReturnType<typeof getVolumes>): BibleDraft {
+    const next = reindexVolumes(mutate(getVolumes(prev)));
+    const [first, ...rest] = next;
+    return {
+      ...prev,
+      outline: {
+        ...prev.outline,
+        volume_1: first,
+        volumes: rest.length > 0 ? rest : undefined,
+      },
+    };
+  }
+
+  // Schema caps: volume_1 8-50 chapters; up to 20 extra volumes (each 1+).
+  // Total cap across all volumes ≈ 50 + 20·N — practically unbounded.
+  const TOTAL_CHAPTER_MAX = 1000;
+
+  const totalChapters = useMemo(
+    () => getVolumes(workingBible).reduce((sum, v) => sum + v.chapters.length, 0),
+    [workingBible],
+  );
+
+  const addChapter = useCallback((volumeIndex: number) => {
+    setWorkingBible((prev) => {
+      const volumes = getVolumes(prev);
+      if (volumes.reduce((s, v) => s + v.chapters.length, 0) >= TOTAL_CHAPTER_MAX) return prev;
+      return applyVolumeListEdit(prev, (vols) => vols.map((vol, vi) => {
+        if (vi !== volumeIndex) return vol;
+        const nextLocalIndex = vol.chapters.length + 1;
+        return {
+          ...vol,
+          chapter_count_estimate: Math.max(vol.chapter_count_estimate, nextLocalIndex),
+          chapters: [
+            ...vol.chapters,
+            { index: 0, title: `第 ${nextLocalIndex} 章`, summary: "等待补写本章梗概…" },
+          ],
+        };
+      }));
+    });
+  }, []);
+
+  const removeChapter = useCallback((volumeIndex: number, chapterIndex: number) => {
+    setWorkingBible((prev) => {
+      const volumes = getVolumes(prev);
+      // volume_1 must keep ≥ 8 (schema). Extra volumes can drop to 1.
+      const minLen = volumeIndex === 0 ? 8 : 1;
+      if (volumes[volumeIndex].chapters.length <= minLen) return prev;
+      return applyVolumeListEdit(prev, (vols) => vols.map((vol, vi) => {
+        if (vi !== volumeIndex) return vol;
+        return {
+          ...vol,
+          chapters: vol.chapters.filter((_, ci) => ci !== chapterIndex),
+        };
+      }));
+    });
+  }, []);
+
+  const addVolume = useCallback(() => {
+    setWorkingBible((prev) => {
+      const extras = prev.outline.volumes ?? [];
+      if (extras.length >= 20) return prev;
+      const volumeNumber = extras.length + 2; // volume_1 + extras
+      return applyVolumeListEdit(prev, (vols) => [
+        ...vols,
+        {
+          name: `第${volumeNumber}卷`,
+          theme: "待定",
+          chapter_count_estimate: 8,
+          chapters: Array.from({ length: 8 }, (_, i) => ({
+            index: 0,
+            title: `第 ${i + 1} 章`,
+            summary: "等待补写本章梗概…",
+          })),
+        },
+      ]);
     });
   }, []);
 
@@ -246,18 +337,27 @@ export function BibleEditorPanel({ novelId, bible, onUpdate, onBack }: BibleEdit
 
         {activeTab === "outline" && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 pb-4">
-            {volumes.map((vol, volIdx) => (
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider">
+                共 {totalChapters} 章 / {volumes.length} 卷
+              </span>
+            </div>
+            {volumes.map((vol, volIdx) => {
+              const minLen = volIdx === 0 ? 8 : 1;
+              const canRemove = vol.chapters.length > minLen;
+              return (
               <div key={volIdx} className="space-y-3">
                 <div className="flex items-center gap-3 px-1">
                   <div className="h-6 w-1 bg-primary rounded-full" />
                   <h4 className="text-[11px] font-bold text-text-primary uppercase tracking-[0.15em]">
                     VOL {volIdx + 1} <span className="text-text-dim mx-1">/</span> {vol.name}
                   </h4>
+                  <span className="text-[10px] text-text-dim ml-auto">{vol.chapters.length} 章</span>
                 </div>
-                
+
                 <div className="space-y-4">
                   {vol.chapters.map((ch, chIdx) => (
-                    <div key={ch.index} className="bg-white border border-border-subtle rounded-2xl p-4 shadow-sm hover:border-primary/20 transition-all group">
+                    <div key={`${volIdx}-${chIdx}`} className="bg-white border border-border-subtle rounded-2xl p-4 shadow-sm hover:border-primary/20 transition-all group relative">
                       <div className="flex items-center gap-3 mb-3">
                         <span className="flex-shrink-0 w-8 h-8 rounded-xl bg-secondary flex items-center justify-center text-[10px] font-black text-text-dim group-hover:bg-primary/10 group-hover:text-primary transition-colors">
                           {String(ch.index).padStart(2, "0")}
@@ -269,6 +369,17 @@ export function BibleEditorPanel({ novelId, bible, onUpdate, onBack }: BibleEdit
                           className="flex-1 text-[13px] font-bold text-text-primary bg-transparent focus:outline-none placeholder:text-text-dim/50"
                           placeholder="章节名称"
                         />
+                        {canRemove && (
+                          <button
+                            type="button"
+                            onClick={() => removeChapter(volIdx, chIdx)}
+                            title={`从本卷删除该章节（保留 ChapterDraft 数据，仅从大纲移除）`}
+                            className="opacity-0 group-hover:opacity-100 p-1.5 text-text-dim hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            aria-label="删除章节"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
+                        )}
                       </div>
                       <textarea
                         value={ch.summary}
@@ -279,9 +390,28 @@ export function BibleEditorPanel({ novelId, bible, onUpdate, onBack }: BibleEdit
                       />
                     </div>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => addChapter(volIdx)}
+                    className="w-full py-2.5 border-2 border-dashed border-border-subtle rounded-2xl text-[12px] font-bold text-text-dim hover:border-primary/30 hover:text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    在本卷末尾新增章节
+                  </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
+            {volumes.length < 21 && (
+              <button
+                type="button"
+                onClick={addVolume}
+                className="w-full py-3 border-2 border-dashed border-primary/30 rounded-2xl text-[12px] font-bold text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                新增分卷（含 8 章占位）
+              </button>
+            )}
           </div>
         )}
       </div>

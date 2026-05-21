@@ -212,7 +212,7 @@ function BibleReviewCards({
 
   function addChapter() {
     const volume = draft.outline?.volume_1;
-    if (!volume || volume.chapters.length >= 24) return;
+    if (!volume || volume.chapters.length >= 50) return;
     const nextIndex = volume.chapters.length + 1;
     onChange({
       ...draft,
@@ -394,7 +394,7 @@ function BibleReviewCards({
            <FolioIndex index="04" label="叙事大纲矩阵 / THE MANUSCRIPT INDEX" />
            <button 
             className="btn-secondary !h-9 !px-5 text-[10px] font-bold rounded-full uppercase tracking-[0.2em] shadow-sm hover:border-accent" 
-            disabled={(draft.outline?.volume_1?.chapters.length ?? 0) >= 24} 
+            disabled={(draft.outline?.volume_1?.chapters.length ?? 0) >= 50} 
             onClick={addChapter}
           >
             + 补充单元
