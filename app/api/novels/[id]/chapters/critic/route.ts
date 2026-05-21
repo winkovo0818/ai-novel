@@ -69,6 +69,9 @@ export async function POST(request: Request, context: RouteContext) {
   const chapterContext = buildChapterContext(bible.data, novel.chapters, body.chapter_index);
 
   try {
+    // mimo-v2.5-pro on an 8K-char chapter critic call routinely takes 30-60s.
+    // Keep parity with draft/revise: 120s budget, no retry — retries just
+    // doubled latency without raising the success rate for heavy generation.
     const result = await chatCompletionWithRetry(
       {
         route: "/api/novels/:id/chapters/critic",
@@ -83,9 +86,9 @@ export async function POST(request: Request, context: RouteContext) {
         }),
         temperature: 0,
         responseFormat: "json_object",
-        timeoutMs: 20_000,
+        timeoutMs: 120_000,
       },
-      1,
+      0,
     );
 
     let parsed: unknown;

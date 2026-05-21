@@ -95,9 +95,9 @@ export async function POST(request: Request, context: RouteContext) {
         }),
         temperature: 0.7,
         responseFormat: "json_object",
-        timeoutMs: 20_000,
+        timeoutMs: 90_000,
       },
-      1,
+      0,
     );
 
     let parsed: unknown;

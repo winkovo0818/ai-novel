@@ -78,7 +78,7 @@ export async function POST(_request: Request, context: RouteContext) {
       }),
       temperature: 0,
       responseFormat: "json_object",
-      timeoutMs: 30_000,
+      timeoutMs: 150_000,
     });
 
     const parsed = JSON.parse(result.content);
