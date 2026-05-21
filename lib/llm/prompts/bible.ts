@@ -142,7 +142,7 @@ function getChapterRange(length: string): { min: number; max: number } {
     case "long":
       return { min: 20, max: 36 };
     case "super_long":
-      return { min: 30, max: 50 };
+      return { min: 30, max: 80 };
     default:
       return { min: 12, max: 24 };
   }

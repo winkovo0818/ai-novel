@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 
 import { useWizardStore } from "@/lib/store/wizardStore";
 import { BibleDraftSchema, type BibleDraft } from "@/lib/validation/schemas";
+import { getVolumes } from "@/lib/validation/domain";
 import { StepShell } from "./StepShell";
 import React from "react";
 
@@ -200,45 +201,96 @@ function BibleReviewCards({
     onChange({ ...draft, world: { ...draft.world, ...patch } });
   }
 
-  function updateChapter(index: number, patch: Partial<BibleDraft["outline"]["volume_1"]["chapters"][number]>) {
-    const volume = draft.outline?.volume_1;
-    if (!volume) return;
-    const chapters = [...volume.chapters];
-    const current = chapters[index];
-    if (!current) return;
-    chapters[index] = { ...current, ...patch };
-    onChange({ ...draft, outline: { volume_1: { ...volume, chapters } } });
+  function reindexAndApply(volumes: BibleDraft["outline"]["volumes"], updatedV1: BibleDraft["outline"]["volume_1"]) {
+    let globalIdx = 0;
+    const reindexedV1 = { ...updatedV1, chapters: updatedV1.chapters.map((c) => ({ ...c, index: ++globalIdx })) };
+    const reindexedExtras = (volumes ?? []).map((v) => ({
+      ...v,
+      chapters: v.chapters.map((c) => ({ ...c, index: ++globalIdx })),
+    }));
+    return { reindexedV1, reindexedExtras };
   }
 
-  function addChapter() {
-    const volume = draft.outline?.volume_1;
-    if (!volume || volume.chapters.length >= 50) return;
-    const nextIndex = volume.chapters.length + 1;
-    onChange({
-      ...draft,
-      outline: {
-        volume_1: {
-          ...volume,
-          chapters: [
-            ...volume.chapters,
-            {
-              index: nextIndex,
-              title: `新叙事单元 ${String(nextIndex).padStart(2, "0")}`,
-              summary: "等待编织梗概…",
-            },
-          ],
-        },
-      },
-    });
+  function updateChapter(volumeIndex: number, chapterIndex: number, patch: Partial<BibleDraft["outline"]["volume_1"]["chapters"][number]>) {
+    if (volumeIndex === 0) {
+      const volume = draft.outline?.volume_1;
+      if (!volume) return;
+      const chapters = [...volume.chapters];
+      const current = chapters[chapterIndex];
+      if (!current) return;
+      chapters[chapterIndex] = { ...current, ...patch };
+      onChange({ ...draft, outline: { volume_1: { ...volume, chapters }, volumes: draft.outline?.volumes } });
+    } else {
+      const extras = draft.outline?.volumes ?? [];
+      const vol = extras[volumeIndex - 1];
+      if (!vol) return;
+      const chapters = [...vol.chapters];
+      const current = chapters[chapterIndex];
+      if (!current) return;
+      chapters[chapterIndex] = { ...current, ...patch };
+      const next = [...extras];
+      next[volumeIndex - 1] = { ...vol, chapters };
+      onChange({ ...draft, outline: { volume_1: draft.outline!.volume_1, volumes: next } });
+    }
   }
 
-  function removeChapter(index: number) {
-    const volume = draft.outline?.volume_1;
-    if (!volume || volume.chapters.length <= 8) return;
-    const chapters = volume.chapters
-      .filter((_, i) => i !== index)
-      .map((chapter, i) => ({ ...chapter, index: i + 1 }));
-    onChange({ ...draft, outline: { volume_1: { ...volume, chapters } } });
+  function totalChapters(): number {
+    const v1 = draft.outline?.volume_1?.chapters.length ?? 0;
+    const extras = (draft.outline?.volumes ?? []).reduce((s, v) => s + v.chapters.length, 0);
+    return v1 + extras;
+  }
+
+  function addChapter(volumeIndex: number) {
+    if (!draft.outline) return;
+    const volumes = getVolumes(draft as BibleDraft);
+    const vol = volumes[volumeIndex];
+    if (!vol || totalChapters() >= 1000) return;
+    const maxLen = volumeIndex === 0 ? 80 : 200;
+    if (vol.chapters.length >= maxLen) return;
+    const nextChapters = [...vol.chapters, { index: 0, title: `新叙事单元`, summary: "等待编织梗概…".repeat(4) }];
+    const updatedVol = { ...vol, chapters: nextChapters, chapter_count_estimate: Math.max(vol.chapter_count_estimate, nextChapters.length) };
+    const { reindexedV1, reindexedExtras } = reindexAndApply(draft.outline.volumes, volumeIndex === 0 ? updatedVol : draft.outline.volume_1);
+    if (volumeIndex === 0) {
+      onChange({ ...draft, outline: { volume_1: reindexedV1, volumes: reindexedExtras } });
+    } else {
+      const next = [...reindexedExtras];
+      next[volumeIndex - 1] = { ...updatedVol, chapters: reindexedExtras[volumeIndex - 1].chapters };
+      onChange({ ...draft, outline: { volume_1: reindexedV1, volumes: next } });
+    }
+  }
+
+  function removeChapter(volumeIndex: number, chapterIndex: number) {
+    if (!draft.outline) return;
+    const volumes = getVolumes(draft as BibleDraft);
+    const vol = volumes[volumeIndex];
+    const minLen = volumeIndex === 0 ? 8 : 1;
+    if (!vol || vol.chapters.length <= minLen) return;
+    const nextChapters = vol.chapters.filter((_, i) => i !== chapterIndex);
+    const updatedVol = { ...vol, chapters: nextChapters };
+    const { reindexedV1, reindexedExtras } = reindexAndApply(draft.outline.volumes, volumeIndex === 0 ? updatedVol : draft.outline.volume_1);
+    if (volumeIndex === 0) {
+      onChange({ ...draft, outline: { volume_1: reindexedV1, volumes: reindexedExtras } });
+    } else {
+      const next = [...reindexedExtras];
+      next[volumeIndex - 1] = { ...updatedVol, chapters: reindexedExtras[volumeIndex - 1].chapters };
+      onChange({ ...draft, outline: { volume_1: reindexedV1, volumes: next } });
+    }
+  }
+
+  function addVolume() {
+    if (!draft.outline) return;
+    const extras = draft.outline.volumes ?? [];
+    if (extras.length >= 20 || totalChapters() >= 1000) return;
+    const volNum = extras.length + 2;
+    const placeholderChapters = Array.from({ length: 8 }, (_, i) => ({
+      index: 0,
+      title: `第${i + 1}章`,
+      summary: `第${volNum}卷章节梗概，待详细补充叙事线索与冲突走向。`,
+    }));
+    const newVol = { name: `第${volNum}卷`, theme: "待定", chapter_count_estimate: 8, chapters: placeholderChapters };
+    const nextOutline = { ...draft.outline, volumes: [...extras, newVol] };
+    const { reindexedV1, reindexedExtras } = reindexAndApply(nextOutline.volumes, nextOutline.volume_1);
+    onChange({ ...draft, outline: { volume_1: reindexedV1, volumes: reindexedExtras } });
   }
 
   function updateBeat(index: number, patch: Partial<BibleDraft["first_chapter_beats"][number]>) {
@@ -391,44 +443,63 @@ function BibleReviewCards({
       {/* Outline Section */}
       <section className="group relative">
         <header className="flex items-center justify-between mb-8">
-           <FolioIndex index="04" label="叙事大纲矩阵 / THE MANUSCRIPT INDEX" />
-           <button 
-            className="btn-secondary !h-9 !px-5 text-[10px] font-bold rounded-full uppercase tracking-[0.2em] shadow-sm hover:border-accent" 
-            disabled={(draft.outline?.volume_1?.chapters.length ?? 0) >= 50} 
-            onClick={addChapter}
-          >
-            + 补充单元
-          </button>
+           <FolioIndex index="04" label={`叙事大纲矩阵 / 共 ${totalChapters()} 章`} />
+           <div className="flex items-center gap-3">
+            {(draft.outline?.volumes?.length ?? 0) < 20 && totalChapters() < 1000 && (
+              <button
+                className="btn-secondary !h-9 !px-5 text-[10px] font-bold rounded-full uppercase tracking-[0.2em] shadow-sm hover:border-accent"
+                onClick={addVolume}
+              >
+                + 添加分卷
+              </button>
+            )}
+           </div>
         </header>
-        <div className="grid gap-4">
-          {(draft.outline?.volume_1?.chapters ?? []).map((chapter, index) => (
-            <div key={chapter.index} className="group/chapter p-6 bg-white border border-border-subtle rounded-[2.5rem] shadow-premium hover:border-accent/30 transition duration-300 relative overflow-hidden">
-              <div className="flex items-center gap-8 mb-4">
-                <span className="font-serif text-3xl text-accent/20 group-hover/chapter:text-accent transition-colors duration-500 shrink-0">
-                  {String(chapter.index).padStart(2, '0')}
+        <div className="grid gap-8">
+          {(draft.outline ? getVolumes(draft as BibleDraft) : []).map((volume, volumeIndex) => (
+            <div key={volumeIndex} className="grid gap-4">
+              <div className="flex items-center justify-between px-2">
+                <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-accent/60">
+                  {volume.name} · {volume.theme} · {volume.chapters.length} 章
                 </span>
-                <input 
-                  className="flex-1 bg-transparent border-none p-0 text-2xl font-serif font-normal text-text-primary focus:ring-0 placeholder:text-text-dim/10" 
-                  value={chapter.title} 
-                  placeholder="单元标题"
-                  onChange={(e) => updateChapter(index, { title: e.target.value })} 
-                />
-                <button 
-                  className="p-1.5 opacity-0 group-hover/chapter:opacity-100 text-text-dim hover:text-red-500 hover:bg-red-50 rounded-full transition duration-500" 
-                  disabled={(draft.outline?.volume_1?.chapters.length ?? 0) <= 8} 
-                  onClick={() => removeChapter(index)}
+                <button
+                  className="btn-secondary !h-7 !px-4 text-[9px] font-bold rounded-full uppercase tracking-[0.2em] shadow-sm hover:border-accent"
+                  disabled={volume.chapters.length >= (volumeIndex === 0 ? 80 : 200) || totalChapters() >= 1000}
+                  onClick={() => addChapter(volumeIndex)}
                 >
-                   <svg aria-hidden="true" className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
+                  + 补充单元
                 </button>
               </div>
-              <TextArea 
-                className="text-base text-text-secondary leading-relaxed !bg-secondary/30 !border-none rounded-xl p-4 shadow-inner ml-12 font-serif" 
-                value={chapter.summary} 
-                onChange={(value) => updateChapter(index, { summary: value })} 
-                placeholder="该单元的叙事脉络…"
-              />
+              {volume.chapters.map((chapter, chapterIndex) => (
+                <div key={chapter.index} className="group/chapter p-6 bg-white border border-border-subtle rounded-[2.5rem] shadow-premium hover:border-accent/30 transition duration-300 relative overflow-hidden">
+                  <div className="flex items-center gap-8 mb-4">
+                    <span className="font-serif text-3xl text-accent/20 group-hover/chapter:text-accent transition-colors duration-500 shrink-0">
+                      {String(chapter.index).padStart(2, '0')}
+                    </span>
+                    <input
+                      className="flex-1 bg-transparent border-none p-0 text-2xl font-serif font-normal text-text-primary focus:ring-0 placeholder:text-text-dim/10"
+                      value={chapter.title}
+                      placeholder="单元标题"
+                      onChange={(e) => updateChapter(volumeIndex, chapterIndex, { title: e.target.value })}
+                    />
+                    <button
+                      className="p-1.5 opacity-0 group-hover/chapter:opacity-100 text-text-dim hover:text-red-500 hover:bg-red-50 rounded-full transition duration-500"
+                      disabled={volume.chapters.length <= (volumeIndex === 0 ? 8 : 1)}
+                      onClick={() => removeChapter(volumeIndex, chapterIndex)}
+                    >
+                       <svg aria-hidden="true" className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                  <TextArea
+                    className="text-base text-text-secondary leading-relaxed !bg-secondary/30 !border-none rounded-xl p-4 shadow-inner ml-12 font-serif"
+                    value={chapter.summary}
+                    onChange={(value) => updateChapter(volumeIndex, chapterIndex, { summary: value })}
+                    placeholder="该单元的叙事脉络…"
+                  />
+                </div>
+              ))}
             </div>
           ))}
         </div>

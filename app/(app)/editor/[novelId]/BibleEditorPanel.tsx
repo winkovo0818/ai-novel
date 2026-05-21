@@ -92,8 +92,8 @@ export function BibleEditorPanel({ novelId, bible, onUpdate, onBack }: BibleEdit
     };
   }
 
-  // Schema caps: volume_1 8-50 chapters; up to 20 extra volumes (each 1+).
-  // Total cap across all volumes ≈ 50 + 20·N — practically unbounded.
+  // Schema caps: volume_1 8-80 chapters; up to 20 extra volumes (each 1+).
+  // Total cap across all volumes ≈ 80 + 20·N — practically unbounded.
   const TOTAL_CHAPTER_MAX = 1000;
 
   const totalChapters = useMemo(
@@ -402,6 +402,12 @@ export function BibleEditorPanel({ novelId, bible, onUpdate, onBack }: BibleEdit
               </div>
               );
             })}
+            {volumes.length === 1 && (
+              <div className="flex items-center gap-3 px-3 py-3 bg-primary/5 border border-primary/10 rounded-2xl">
+                <svg className="w-4 h-4 text-primary/60 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span className="text-[11px] text-text-secondary leading-relaxed">当前仅有一卷大纲。若故事需要更多篇章，可添加分卷扩展叙事架构。</span>
+              </div>
+            )}
             {volumes.length < 21 && (
               <button
                 type="button"

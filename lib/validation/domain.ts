@@ -224,7 +224,7 @@ export const BibleDraftSchema = z.object({
     volume_1: VolumeSchema.extend({
       name: z.string().min(2).max(8),
       chapter_count_estimate: z.number().int().min(8),
-      chapters: z.array(ChapterSchema).min(8).max(50),
+      chapters: z.array(ChapterSchema).min(8).max(80),
     }),
     volumes: z.array(VolumeSchema).max(20).optional(),
   }),

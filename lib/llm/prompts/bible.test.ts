@@ -41,7 +41,7 @@ describe("buildBiblePrompt", () => {
   it("adjusts chapter range for super_long length", () => {
     const superLongProfile = { ...profile, length: "super_long" as const };
     const [system] = buildBiblePrompt({ logline: "x", profile: superLongProfile });
-    expect(system.content).toMatch(/严格\s*30-50/);
+    expect(system.content).toMatch(/严格\s*30-80/);
   });
 
   it("interpolates the chapter_word_count target into the system message", () => {
