@@ -14,6 +14,7 @@ import { AIPanel } from "./AIPanel";
 import { VersionsModal } from "./VersionsModal";
 import { ExportMenu } from "./ExportMenu";
 import { JobsBadge } from "./JobsBadge";
+import { useOnlineStatus } from "@/lib/hooks/useOnlineStatus";
 
 export interface ChapterDraftView {
   id: string;
@@ -57,6 +58,7 @@ function readStoredFontScale(): FontScale {
 export function EditorClient({ novelId, title, bible: initialBible, initialChapters, initialChapterIndex }: EditorClientProps) {
   const [bible, setBible] = useState(initialBible);
   const editor = useChapterEditor({ novelId, bible, initialChapters, initialChapterIndex });
+  const online = useOnlineStatus();
   const [showBible, setShowBible] = useState(true);
   const [showAI, setShowAI] = useState(true);
   const [cursorPos, setCursorPosState] = useState<number | null>(null);
@@ -91,6 +93,11 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
         }
       }}
     >
+      {!online && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-red-600 text-white text-center text-[12px] font-bold py-1.5 tracking-wide">
+          网络已断开 · 编辑内容仅在本地暂存，恢复连接后将自动同步
+        </div>
+      )}
       {/* Left: Chapter Tree & Bible Context */}
       <aside 
         className={`bg-white border-r border-border-subtle transition duration-500 ease-in-out h-full overflow-hidden ${
@@ -475,10 +482,13 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
           retrievalStatus={editor.lastRetrievalStatus}
           retrievedMemories={editor.lastRetrievedMemories}
           retrievalError={editor.lastRetrievalError}
+          streamError={editor.candidateStreamError}
+          streamErrorRetryable={editor.candidateStreamErrorRetryable}
           candidates={editor.candidates}
           onAccept={(mode) => editor.acceptCandidate(mode)}
           onRevise={() => editor.reviseCandidate()}
             onFeedbackRevise={(instruction) => editor.feedbackRevise(instruction)}
+          onRetryDraft={() => editor.draftChapter()}
           onClose={() => editor.acceptCandidate("discard")}
         />
       )}

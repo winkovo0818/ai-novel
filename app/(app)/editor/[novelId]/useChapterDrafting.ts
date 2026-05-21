@@ -83,6 +83,8 @@ export function useChapterDrafting({
   >([]);
   const [candidates, setCandidates] = useState<DraftCandidate[]>();
   const [lastRetrievalError, setLastRetrievalError] = useState<string>();
+  const [candidateStreamError, setCandidateStreamError] = useState<string>();
+  const [candidateStreamErrorRetryable, setCandidateStreamErrorRetryable] = useState(false);
   const [draftSessionId, setDraftSessionId] = useState<string | null>(null);
   const [resumableDraft, setResumableDraft] = useState<{
     sessionId: string;
@@ -353,6 +355,8 @@ export function useChapterDrafting({
       setLastRetrievedMemories([]);
       setLastRetrievalError(undefined);
       setStatus("drafting");
+      setCandidateStreamError(undefined);
+      setCandidateStreamErrorRetryable(false);
       setMessage("AI 正在起草候选稿…");
 
       let draftState: DraftSseState = { generated: "", done: false };
@@ -397,9 +401,12 @@ export function useChapterDrafting({
         setMessage("候选稿就绪，请选择处理方式");
         void runCandidateCritic(draftState.generated);
       } catch (err) {
+        const msg = err instanceof Error ? err.message : "AI 起草失败";
         setCandidateStreaming(false);
         setStatus("error");
-        setMessage(err instanceof Error ? err.message : "AI 起草失败");
+        setMessage(msg);
+        setCandidateStreamError(msg);
+        setCandidateStreamErrorRetryable(!msg.includes("违规") && !msg.includes("MODERATION"));
       }
     },
     [
@@ -497,6 +504,8 @@ export function useChapterDrafting({
     lastRetrievalStatus,
     lastRetrievedMemories,
     lastRetrievalError,
+    candidateStreamError,
+    candidateStreamErrorRetryable,
     draftSessionId,
     resumableDraft,
     applyResumableDraft,

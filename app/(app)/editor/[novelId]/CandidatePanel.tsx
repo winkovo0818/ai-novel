@@ -41,9 +41,14 @@ interface CandidatePanelProps {
   retrievedMemories?: Array<{ source: string; reason: string; score: number; text: string }>;
   /** Server-side retrieval error message, when status === "error". */
   retrievalError?: string;
+  /** Error message from the draft SSE stream (timeout, moderation block, etc.). */
+  streamError?: string;
+  /** Whether the error is retryable (e.g. timeout) vs not (e.g. moderation). */
+  streamErrorRetryable?: boolean;
   onAccept(mode: CandidateMode): void;
   onRevise?(): void;
   onFeedbackRevise?(instruction: string): void;
+  onRetryDraft?(): void;
   onClose(): void;
 }
 
@@ -60,10 +65,13 @@ export function CandidatePanel({
   retrievalStatus,
   retrievedMemories,
   retrievalError,
+  streamError,
+  streamErrorRetryable,
   candidates,
   onAccept,
   onRevise,
   onFeedbackRevise,
+  onRetryDraft,
   onClose,
 }: CandidatePanelProps) {
   const [confirmingOverwrite, setConfirmingOverwrite] = useState<CandidateMode | null>(null);
@@ -223,6 +231,25 @@ export function CandidatePanel({
             ))}
           </ul>
         </details>
+      )}
+
+      {/* Stream error / retry banner */}
+      {streamError && !streaming && (
+        <div className={`px-6 py-3 border-b ${streamErrorRetryable ? "bg-amber-50 border-amber-100" : "bg-red-50 border-red-100"}`}>
+          <p className={`text-[12px] ${streamErrorRetryable ? "text-amber-800" : "text-red-800"}`}>
+            <strong>{streamErrorRetryable ? "生成中断" : "生成被拦截"}</strong>：{streamError}
+            {content.trim().length > 0 && " · 已保留部分内容，可选择应用或丢弃"}
+          </p>
+          {streamErrorRetryable && onRetryDraft && (
+            <button
+              type="button"
+              onClick={onRetryDraft}
+              className="mt-2 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full bg-amber-600 text-white hover:bg-amber-700 transition"
+            >
+              重新生成
+            </button>
+          )}
+        </div>
       )}
 
       {/* Critic banner */}

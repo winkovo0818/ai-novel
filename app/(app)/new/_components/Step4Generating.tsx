@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 
 import { useWizardStore } from "@/lib/store/wizardStore";
@@ -11,7 +11,20 @@ import { StepShell } from "./StepShell";
 export function Step4Generating() {
   const store = useWizardStore();
   const [events, setEvents] = useState<StreamEvent[]>([]);
+  const [recovered, setRecovered] = useState(false);
   const phase = getStreamPhase(store.bible_draft, store.status);
+
+  // Detect stale streaming state on mount (e.g. after page refresh).
+  // If status is "streaming" but no active SSE connection exists,
+  // reset to "idle" so the user can retry.
+  useEffect(() => {
+    if (store.status === "streaming") {
+      store.setStatus("idle");
+      setRecovered(true);
+    }
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function start() {
     if (store.regeneration_count >= 3) {
@@ -77,6 +90,25 @@ export function Step4Generating() {
   return (
     <StepShell eyebrow="分册 04" title="圣经合成中" description="AI 正在根据您的灵感、题材与决策维度，实时合成一套完整的叙事基础设施。">
       <div className="grid gap-8">
+        {/* Stale-streaming recovery banner */}
+        {recovered && (
+          <div className="flex items-center gap-4 rounded-2xl bg-amber-50 border border-amber-100 px-6 py-4 text-[13px] text-amber-800">
+            <svg aria-hidden="true" className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            <span>上次合成中途中断。您可以重新启动合成，或直接查看已生成的部分内容。</span>
+            {store.bible_draft && (
+              <button
+                type="button"
+                className="ml-auto shrink-0 rounded-full bg-amber-600 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-white hover:bg-amber-700 transition"
+                onClick={() => { store.setStatus("done"); store.setStep(5); }}
+              >
+                查看已有内容
+              </button>
+            )}
+          </div>
+        )}
+
         <header className="flex flex-wrap items-center justify-between gap-6 border-b border-border-subtle pb-6">
           <div className="flex items-center gap-6">
             <button 
