@@ -69,6 +69,9 @@ export function buildAnthropicBody(
   stream: boolean,
 ) {
   const { system, messages } = splitAnthropicMessages(opts.messages);
+  // Anthropic supports top_p but has no frequency_penalty / presence_penalty.
+  // Silently drop those — they're OpenAI-compat only — rather than refuse,
+  // so callers can use one knob set across both providers.
   return {
     model,
     messages,
@@ -76,6 +79,7 @@ export function buildAnthropicBody(
     temperature: opts.temperature ?? 0.7,
     max_tokens: Number(process.env.ANTHROPIC_MAX_TOKENS ?? 4096),
     stream,
+    ...(opts.topP !== undefined ? { top_p: opts.topP } : {}),
   };
 }
 

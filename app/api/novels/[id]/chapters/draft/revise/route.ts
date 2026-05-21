@@ -95,7 +95,13 @@ export async function POST(request: Request, context: RouteContext) {
         chapterContent: input.content,
         issues: input.issues,
       }),
-      temperature: 0.35,
+      temperature: 0.55,
+      // Same anti-AI-signature sampling as the writer route, slightly tamer
+      // because revision is constrained by critic feedback and we don't want
+      // the model to wander off-task.
+      topP: 0.95,
+      frequencyPenalty: 0.4,
+      presencePenalty: 0.25,
       timeoutMs: 120_000,
     }, 0);
 

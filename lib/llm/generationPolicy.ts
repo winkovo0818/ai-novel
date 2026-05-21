@@ -10,12 +10,16 @@ export interface GenerationPolicy {
   povDirective: string;
 }
 
+// Baseline temperatures raised by +0.1 across the board (was 0.7-0.85) so the
+// model gets enough sampling entropy to satisfy the anti-AI-signature directive
+// in HUMAN_STYLE_DIRECTIVE. Floor still clamps to 0.3 at the bottom of the
+// final delta math, so conservative combos won't crater into deterministic mode.
 const TONE_MAP: Record<NovelProfile["tone"], { temperature: number; directive: string }> = {
-  cool: { temperature: 0.75, directive: "保持冷静克制的叙事风格，对白精练，不过度渲染情绪。" },
-  serious: { temperature: 0.7, directive: "保持严肃深沉的叙事基调，注重逻辑与内心刻画。" },
-  healing: { temperature: 0.8, directive: "保持温暖治愈的叙事风格，注重日常细节与情感流动。" },
-  dark: { temperature: 0.75, directive: "保持暗黑压抑的叙事风格，善用伏笔和反转，营造不安感。" },
-  comedy: { temperature: 0.85, directive: "保持轻松幽默的叙事风格，善用对话节奏和意外转折。" },
+  cool: { temperature: 0.85, directive: "保持冷静克制的叙事风格，对白精练，不过度渲染情绪。" },
+  serious: { temperature: 0.8, directive: "保持严肃深沉的叙事基调，注重逻辑与内心刻画。" },
+  healing: { temperature: 0.9, directive: "保持温暖治愈的叙事风格，注重日常细节与情感流动。" },
+  dark: { temperature: 0.85, directive: "保持暗黑压抑的叙事风格，善用伏笔和反转，营造不安感。" },
+  comedy: { temperature: 0.95, directive: "保持轻松幽默的叙事风格，善用对话节奏和意外转折。" },
 };
 
 const PACE_MAP: Record<NovelProfile["pace"], { temperatureDelta: number; directive: string }> = {

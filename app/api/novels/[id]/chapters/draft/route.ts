@@ -245,6 +245,14 @@ export async function POST(request: Request, context: RouteContext) {
               generationPolicy: policy,
             }),
             temperature: policy.temperature,
+            // Anti-AI-signature sampling: push the model off its high-probability
+            // "favorite token" rails so 朱雀-class detectors see flatter unigram
+            // distributions. presence > frequency keeps grammar intact while
+            // forcing vocabulary variety; top_p 0.95 trims the long tail so we
+            // don't drift into incoherence at these penalties.
+            topP: 0.95,
+            frequencyPenalty: 0.5,
+            presencePenalty: 0.3,
             timeoutMs: 120_000,
             signal: abortController.signal,
           },

@@ -41,6 +41,20 @@ export interface ChatCompletionOptions {
   messages: ChatMessage[];
   model?: string;
   temperature?: number;
+  /** Nucleus sampling. Pass <1 to focus, leave undefined for provider default. */
+  topP?: number;
+  /**
+   * Penalize tokens proportional to existing frequency in the output so far.
+   * 0.3-0.7 noticeably breaks AI "favorite word" patterns; >1 starts hurting
+   * grammar. OpenAI-compatible only; ignored on Anthropic.
+   */
+  frequencyPenalty?: number;
+  /**
+   * Penalize any token already present (binary). Pushes the model to introduce
+   * new vocabulary; useful for reducing AI-detector signature. OpenAI-compatible
+   * only; ignored on Anthropic.
+   */
+  presencePenalty?: number;
   /** 非流式场景可开启 JSON object（见决策 D-02 与 README §5.1） */
   responseFormat?: "json_object";
   /** 单次请求超时，默认 15s（与 README §5 错误处理一致） */
@@ -74,6 +88,12 @@ export interface ChatStreamOptions {
   messages: ChatMessage[];
   model?: string;
   temperature?: number;
+  /** See {@link ChatCompletionOptions.topP}. */
+  topP?: number;
+  /** See {@link ChatCompletionOptions.frequencyPenalty}. */
+  frequencyPenalty?: number;
+  /** See {@link ChatCompletionOptions.presencePenalty}. */
+  presencePenalty?: number;
   timeoutMs?: number;
   /** Agent identifier for logging (e.g. "writer", "outline") */
   agent?: string;
@@ -296,6 +316,9 @@ export async function streamChatCompletion(
                 temperature: opts.temperature ?? 0.7,
                 stream: true,
                 stream_options: { include_usage: true },
+                ...(opts.topP !== undefined ? { top_p: opts.topP } : {}),
+                ...(opts.frequencyPenalty !== undefined ? { frequency_penalty: opts.frequencyPenalty } : {}),
+                ...(opts.presencePenalty !== undefined ? { presence_penalty: opts.presencePenalty } : {}),
               },
         ),
         signal: controller.signal,
@@ -471,6 +494,9 @@ export async function chatCompletion(
                 ...(opts.responseFormat
                   ? { response_format: { type: opts.responseFormat } }
                   : {}),
+                ...(opts.topP !== undefined ? { top_p: opts.topP } : {}),
+                ...(opts.frequencyPenalty !== undefined ? { frequency_penalty: opts.frequencyPenalty } : {}),
+                ...(opts.presencePenalty !== undefined ? { presence_penalty: opts.presencePenalty } : {}),
               },
         ),
         signal: controller.signal,

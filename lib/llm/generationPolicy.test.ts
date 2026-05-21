@@ -21,7 +21,7 @@ function makeProfile(overrides: Partial<NovelProfile> = {}): NovelProfile {
 describe("getGenerationPolicy", () => {
   it("returns default policy with standard profile", () => {
     const policy = getGenerationPolicy(makeProfile());
-    expect(policy.temperature).toBe(0.8);
+    expect(policy.temperature).toBe(0.9);
     expect(policy.targetWordCount).toBe(3000);
     expect(policy.toneDirective).toContain("冷静克制");
     expect(policy.povDirective).toContain("第三人称有限视角");
@@ -30,13 +30,13 @@ describe("getGenerationPolicy", () => {
 
   it("maps tone=healing to higher temperature and healing directive", () => {
     const policy = getGenerationPolicy(makeProfile({ tone: "healing" }));
-    expect(policy.temperature).toBe(0.85);
+    expect(policy.temperature).toBe(0.95);
     expect(policy.toneDirective).toContain("温暖治愈");
   });
 
   it("maps tone=comedy to highest base temperature", () => {
     const policy = getGenerationPolicy(makeProfile({ tone: "comedy" }));
-    expect(policy.temperature).toBe(0.9);
+    expect(policy.temperature).toBe(1);
     expect(policy.toneDirective).toContain("轻松幽默");
   });
 
@@ -47,13 +47,13 @@ describe("getGenerationPolicy", () => {
 
   it("maps ai_freedom=conservative to lower temperature and strict directive", () => {
     const policy = getGenerationPolicy(makeProfile({ ai_freedom: "conservative" }));
-    expect(policy.temperature).toBe(0.7);
+    expect(policy.temperature).toBe(0.8);
     expect(policy.freedomDirective).toContain("严格遵守");
   });
 
   it("maps ai_freedom=wild to higher temperature and creative directive", () => {
     const policy = getGenerationPolicy(makeProfile({ ai_freedom: "wild" }));
-    expect(policy.temperature).toBe(0.95);
+    expect(policy.temperature).toBe(1.05);
     expect(policy.freedomDirective).toContain("自由发挥");
   });
 
