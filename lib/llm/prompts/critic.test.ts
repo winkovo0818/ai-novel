@@ -78,10 +78,10 @@ describe("buildCriticPrompt", () => {
     expect(user.content).toContain("（无）");
   });
 
-  it("truncates chapter content to 4000 characters", () => {
-    const long = "字".repeat(5000);
+  it("truncates chapter content to 12000 characters", () => {
+    const long = "字".repeat(13000);
     const [, user] = buildCriticPrompt({ context: baseContext, chapterContent: long, chapterIndex: 1 });
-    expect(user.content.match(/字/g)?.length).toBe(4000);
+    expect(user.content.match(/字/g)?.length).toBe(12000);
   });
 
   it("renders the runtime state section when storyState is present", () => {
@@ -103,7 +103,7 @@ describe("buildCriticPrompt", () => {
     expect(user.content).toContain("<character_name>沈言</character_name>：位置：<story_state>雨宗</story_state>");
     expect(user.content).toContain("目标：<story_state>逃出柴饦门</story_state>");
     expect(user.content).toContain("情绪：<story_state>戒备</story_state>");
-    expect(user.content).toContain("线索「<plot_thread>灭门旧案</plot_thread>」状态：open");
+    expect(user.content).toContain("- <plot_thread>灭门旧案</plot_thread>（open）");
   });
 
   it("omits the runtime state section when storyState is absent", () => {

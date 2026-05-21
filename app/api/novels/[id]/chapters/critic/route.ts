@@ -6,6 +6,7 @@ import { checkQuota } from "@/lib/llm/usage";
 import { chatCompletionWithRetry } from "@/lib/llm/client";
 import { buildCriticPrompt } from "@/lib/llm/prompts/critic";
 import { buildChapterContext } from "@/lib/agent/chapterContext";
+import { retrieveMemories } from "@/lib/agent/retrieval";
 import { BibleDraftSchema, NovelProfileSchema } from "@/lib/validation/schemas";
 import { getRequiredUserId } from "@/lib/auth/session";
 
@@ -66,7 +67,37 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("EMPTY_CONTENT", "No content to criticize", false, 400);
   }
 
-  const chapterContext = buildChapterContext(bible.data, novel.chapters, body.chapter_index);
+  // Load the same context the writer/reviser had: novel & volume summaries,
+  // retrieved memories. Without these, the critic kept flagging "lacks setup"
+  // on beats the writer actually justified via context the critic couldn't see.
+  const [novelSummaryRow, volumeSummaryRow, retrieval] = await Promise.all([
+    prisma.novelSummary.findUnique({ where: { novel_id: id } }),
+    // Volume index is 0-based; chapter 1-N maps via getVolumes ordering. We
+    // pick whichever volume's chapter range covers body.chapter_index.
+    (async () => {
+      const summaries = await prisma.volumeSummary.findMany({
+        where: { novel_id: id },
+        orderBy: { volume_index: "asc" },
+      });
+      // Without bible.data volume ranges this fallback just picks the latest.
+      // The writer uses the same heuristic in draft route, so parity is preserved.
+      return summaries[summaries.length - 1] ?? null;
+    })(),
+    // Retrieval is the expensive bit (~1 embedding + 3 vector searches), but
+    // it's what closes the asymmetry causing critic churn. Treat its failure
+    // as soft: critic still runs, just without the memory section.
+    retrieveMemories(id, bible.data, body.chapter_index).catch(() => ({
+      status: "error" as const,
+      memories: [] as Array<{ source: string; text: string; reason: string; score: number }>,
+    })),
+  ]);
+
+  const chapterContext = buildChapterContext(bible.data, novel.chapters, body.chapter_index, {
+    novelSummary: novelSummaryRow?.summary,
+    volumeSummary: volumeSummaryRow?.summary,
+    retrievedMemories: retrieval.memories.map((m) => ({ source: m.source, text: m.text, reason: m.reason })),
+    retrievalStatus: retrieval.status,
+  });
 
   try {
     // mimo-v2.5-pro on an 8K-char chapter critic call routinely takes 30-60s.

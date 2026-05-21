@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const findUnique = vi.fn();
+const novelSummaryFindUnique = vi.fn();
+const volumeSummaryFindMany = vi.fn();
 const chatCompletionWithRetry = vi.fn();
 const getRequiredUserId = vi.fn();
+const retrieveMemories = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     novel: { findUnique },
+    novelSummary: { findUnique: novelSummaryFindUnique },
+    volumeSummary: { findMany: volumeSummaryFindMany },
   },
 }));
 
@@ -16,6 +21,10 @@ vi.mock("@/lib/llm/client", () => ({
 
 vi.mock("@/lib/auth/session", () => ({
   getRequiredUserId,
+}));
+
+vi.mock("@/lib/agent/retrieval", () => ({
+  retrieveMemories,
 }));
 
 const validBible = {
@@ -47,6 +56,9 @@ describe("POST /api/novels/[id]/chapters/critic", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getRequiredUserId.mockResolvedValue("user-1");
+    novelSummaryFindUnique.mockResolvedValue(null);
+    volumeSummaryFindMany.mockResolvedValue([]);
+    retrieveMemories.mockResolvedValue({ status: "empty", memories: [] });
   });
 
   it("returns critic result for owner with issues", async () => {
