@@ -43,7 +43,7 @@ interface BuildArgs {
  *    button on the chapter management page. We also fall back to a
  *    timestamp comparison for chapters edited before the M3.1 migration.
  * 3. Missing: row absent (no summary, no chunks) and not dirty.
- * 4. Fresh: row exists, dirty bit clear, timestamps look in order.
+ * 4. Fresh: row exists, dirty bit clear.
  */
 export function buildChapterStatus(args: BuildArgs): ChapterStatusView {
   const { chapter, summary, hasMemoryChunks, latestJob } = args;
@@ -60,7 +60,11 @@ export function buildChapterStatus(args: BuildArgs): ChapterStatusView {
     if (chapter.summary_dirty) return "stale";
     // Drafted but never summarised: treat as stale so the batch button picks it up.
     if (!summary) return chapter.content?.trim() ? "stale" : "missing";
-    if (summary.updated_at < chapter.updated_at) return "stale";
+    // NOTE: previously also compared summary.updated_at < chapter.updated_at
+    // as a legacy fallback, but ChapterDraft.update() bumps updated_at on every
+    // PATCH (title change, autosave, status flip) without setting summary_dirty,
+    // which falsely re-staled every chapter after any non-content edit.
+    // summary_dirty is now the authoritative signal — trust it.
     return "fresh";
   })();
 

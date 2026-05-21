@@ -91,7 +91,10 @@ describe("buildChapterStatus — M3.1 dirty bits", () => {
     expect(view.index).toBe("stale");
   });
 
-  it("falls back to timestamp comparison when both dirty bits are false", async () => {
+  it("ignores stale timestamps when summary_dirty is false (dirty bit is authoritative)", async () => {
+    // After M3.1 the dirty bit is the source of truth. ChapterDraft.update bumps
+    // updated_at on every PATCH (title, autosave, status flip), so comparing
+    // timestamps would falsely re-stale every chapter after any non-content edit.
     const view = buildChapterStatus({
       chapter: chapter({
         summary_dirty: false,
@@ -100,7 +103,7 @@ describe("buildChapterStatus — M3.1 dirty bits", () => {
       summary: summary(new Date("2026-01-01")),
       hasMemoryChunks: true,
     });
-    expect(view.summary).toBe("stale");
+    expect(view.summary).toBe("fresh");
   });
 
   it("returns fresh when bits are clear and summary is newer than the chapter", async () => {
@@ -159,7 +162,7 @@ describe("buildChapterStatus — M3.1 dirty bits", () => {
         args: { chapter: staleChapter, summary: freshSummary, hasMemoryChunks: true },
       },
       {
-        name: "summary timestamp older than chapter is stale",
+        name: "older summary timestamp does NOT stale when dirty bit is clear",
         args: { chapter: staleChapter, summary: oldSummary, hasMemoryChunks: true },
       },
       {
@@ -258,8 +261,8 @@ describe("buildChapterStatus — M3.1 dirty bits", () => {
           "lastJobError": null,
           "lastJobStatus": null,
           "lastJobType": null,
-          "name": "summary timestamp older than chapter is stale",
-          "summary": "stale",
+          "name": "older summary timestamp does NOT stale when dirty bit is clear",
+          "summary": "fresh",
         },
         {
           "index": "fresh",
