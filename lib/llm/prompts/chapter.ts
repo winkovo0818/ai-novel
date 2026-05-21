@@ -3,6 +3,7 @@ import type { NovelProfile } from "@/lib/validation/schemas";
 import type { ChapterContext } from "@/lib/agent/chapterContext";
 import type { GenerationPolicy } from "@/lib/llm/generationPolicy";
 import { PROMPT_SAFETY_PREAMBLE, wrap, wrapOr } from "@/lib/llm/promptSafety";
+import { HUMAN_STYLE_DIRECTIVE } from "@/lib/llm/prompts/humanStyle";
 
 export interface ChapterPromptInput {
   context: ChapterContext;
@@ -94,6 +95,8 @@ export function buildChapterPrompt(input: ChapterPromptInput): ChatMessage[] {
       content: `你是中文长篇小说写作助手。任务是基于 Story Bible、卷纲和前文，起草章节正文。
 
 ${PROMPT_SAFETY_PREAMBLE}
+
+${HUMAN_STYLE_DIRECTIVE}
 
 硬规则：
 - 只输出正文，不要 Markdown 标题，不要解释。
