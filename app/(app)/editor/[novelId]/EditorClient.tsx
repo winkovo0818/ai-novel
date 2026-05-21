@@ -61,6 +61,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
   const online = useOnlineStatus();
   const [showBible, setShowBible] = useState(true);
   const [showAI, setShowAI] = useState(true);
+  const [isAICompact, setIsAICompact] = useState(true);
   const [cursorPos, setCursorPosState] = useState<number | null>(null);
   // Default to "md" on the server render to avoid hydration mismatch; the
   // effect below pulls the persisted preference on the client.
@@ -100,11 +101,11 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
       )}
       {/* Left: Chapter Tree & Bible Context */}
       <aside 
-        className={`bg-white border-r border-border-subtle transition duration-500 ease-in-out h-full overflow-hidden ${
-          showBible ? "w-80 opacity-100" : "w-0 opacity-0"
+        className={`bg-white border-r border-border-subtle transition-all duration-500 ease-in-out h-full overflow-hidden ${
+          showBible ? "w-[280px] lg:w-72 opacity-100" : "w-0 opacity-0"
         }`}
       >
-        <div className="w-80 h-full">
+        <div className="w-[280px] lg:w-72 h-full">
           <EditorSidebar
             novelId={novelId}
             title={title}
@@ -139,9 +140,9 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               </svg>
             </button>
             <div className="h-4 w-px bg-border-strong/50 mx-1" />
-            <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider">当前正在创作</span>
-              <h2 className="text-[13px] font-bold text-text-primary truncate max-w-[240px] leading-tight">{title}</h2>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider hidden sm:block">当前正在创作</span>
+              <h2 className="text-[13px] font-bold text-text-primary truncate leading-tight max-w-[120px] md:max-w-[240px]">{title}</h2>
             </div>
           </div>
 
@@ -240,12 +241,24 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </button>
+
+            {showAI && (
+              <button
+                onClick={() => setIsAICompact(!isAICompact)}
+                className={`p-2 rounded-xl text-text-dim hover:bg-secondary transition-all ${isAICompact ? "rotate-180 text-primary bg-primary/5" : ""}`}
+                title={isAICompact ? "展开面板" : "收起面板"}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                </svg>
+              </button>
+            )}
           </div>
         </header>
 
         {/* Editor Area with Paper Look */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-4 md:px-8 py-12 md:py-20 flex flex-col items-center">
-          <div className="writing-canvas w-full max-w-4xl p-10 md:p-16 lg:p-20 animate-fade-in-up">
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-2 md:px-6 py-8 md:py-16 flex flex-col items-center">
+          <div className="writing-canvas w-full max-w-4xl p-6 md:p-12 lg:p-16 animate-fade-in-up">
             <EditorToolbar
               novelId={novelId}
               chapterIndex={editor.selectedIndex}
@@ -391,13 +404,14 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
 
       {/* Right: AI Assistant */}
       <aside 
-        className={`bg-white border-l border-border-subtle transition duration-500 ease-in-out h-full overflow-hidden ${
-          showAI ? "w-96 opacity-100" : "w-0 opacity-0"
+        className={`bg-white border-l border-border-subtle transition-all duration-500 ease-in-out h-full overflow-hidden ${
+          showAI ? (isAICompact ? "w-[300px]" : "w-80 lg:w-96") : "w-0 opacity-0"
         }`}
       >
-        <div className="w-96 h-full">
+        <div className={`${isAICompact ? "w-[300px]" : "w-80 lg:w-96"} h-full`}>
           <AIPanel
             show={showAI}
+            isCompact={isAICompact}
             onClose={() => setShowAI(false)}
             bible={bible}
             novelId={novelId}

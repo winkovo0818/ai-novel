@@ -12,6 +12,7 @@ interface MemoryPreviewItem {
 
 interface AIPanelProps {
   show: boolean;
+  isCompact?: boolean;
   onClose(): void;
   bible: BibleDraft;
   novelId: string;
@@ -56,6 +57,7 @@ function AIActionBtn({ label, icon, onClick, disabled }: { label: string; icon: 
 
 export function AIPanel({
   show,
+  isCompact,
   onClose,
   bible,
   novelId,
@@ -111,21 +113,21 @@ export function AIPanel({
   };
   return (
     <aside
-      className={`bg-white border-l border-border-subtle h-full flex flex-col transition duration-500 ease-in-out shadow-premium relative z-20 ${
-        show ? "w-96 opacity-100" : "w-0 opacity-0 invisible"
+      className={`bg-white border-l border-border-subtle h-full flex flex-col transition-all duration-500 ease-in-out shadow-premium relative z-20 ${
+        show ? (isCompact ? "w-[300px]" : "w-80 lg:w-96") : "w-0 opacity-0 invisible"
       }`}
     >
-      <div className="w-96 h-full flex flex-col flex-shrink-0">
-        <header className="px-6 py-5 border-b border-border-subtle flex items-center justify-between bg-secondary/20 backdrop-blur-sm">
+      <div className={`${isCompact ? "w-[300px]" : "w-80 lg:w-96"} h-full flex flex-col flex-shrink-0`}>
+        <header className={`${isCompact ? "px-4 py-3" : "px-6 py-5"} border-b border-border-subtle flex items-center justify-between bg-secondary/20 backdrop-blur-sm transition-all`}>
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-text-primary to-primary flex items-center justify-center text-white shadow-premium">
-              <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className={`${isCompact ? "h-7 w-7" : "h-9 w-9"} rounded-xl bg-gradient-to-br from-text-primary to-primary flex items-center justify-center text-white shadow-premium transition-all`}>
+              <svg aria-hidden="true" className={`${isCompact ? "w-3.5 h-3.5" : "w-5 h-5"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
             <div className="flex flex-col">
-              <span className="text-[11px] font-bold text-text-primary uppercase tracking-[0.2em]">灵感助手</span>
-              <span className="text-[9px] font-medium text-text-dim uppercase tracking-wider mt-0.5">Neural Creative Engine</span>
+              <span className={`${isCompact ? "text-[10px]" : "text-[11px]"} font-bold text-text-primary uppercase tracking-[0.2em] transition-all`}>灵感助手</span>
+              {!isCompact && <span className="text-[9px] font-medium text-text-dim uppercase tracking-wider mt-0.5">Neural Creative Engine</span>}
             </div>
           </div>
           <button onClick={onClose} aria-label="关闭 AI 创作助手" className="p-2 hover:bg-secondary rounded-xl text-text-dim hover:text-text-primary transition">
@@ -135,13 +137,13 @@ export function AIPanel({
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-10 custom-scrollbar">
+        <div className={`flex-1 overflow-y-auto ${isCompact ? "p-4 space-y-6" : "p-6 space-y-10"} custom-scrollbar transition-all`}>
           <section className="animate-fade-in">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">创作指令 / COMMANDS</h3>
+              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">{isCompact ? "创作指令" : "创作指令 / COMMANDS"}</h3>
               <div className="h-px flex-1 bg-border-subtle ml-4 opacity-50" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className={`grid ${isCompact ? "grid-cols-1" : "grid-cols-2"} gap-3 transition-all`}>
               <AIActionBtn 
                 label="全文起草" 
                 icon={<svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>} 
@@ -169,7 +171,7 @@ export function AIPanel({
 
           <section className="animate-fade-in delay-100">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">叙事蓝图 / BLUEPRINT</h3>
+              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">{isCompact ? "叙事蓝图" : "叙事蓝图 / BLUEPRINT"}</h3>
               <div className="h-px flex-1 bg-border-subtle ml-4 opacity-50" />
             </div>
             <div className="p-5 bg-secondary/30 rounded-2xl text-[13px] text-text-secondary leading-relaxed border border-border-subtle/50 relative overflow-hidden shadow-inner group">
@@ -180,7 +182,7 @@ export function AIPanel({
 
           <section className="animate-fade-in delay-100">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">章节节奏 / BEATS</h3>
+              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">{isCompact ? "章节节奏" : "章节节奏 / BEATS"}</h3>
               <div className="h-px flex-1 bg-border-subtle ml-4 opacity-50" />
             </div>
             <BeatSheetPanel
@@ -199,11 +201,11 @@ export function AIPanel({
 
           <section className="animate-fade-in delay-200">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">活跃角色 / CAST</h3>
+              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">{isCompact ? "活跃角色" : "活跃角色 / CAST"}</h3>
               <div className="h-px flex-1 bg-border-subtle ml-4 opacity-50" />
             </div>
             <div className="space-y-4">
-              {bible.characters.slice(0, 3).map(char => (
+              {bible.characters.slice(0, isCompact ? 2 : 3).map(char => (
                 <div key={char.name} className="p-5 bg-white border border-border-subtle hover:border-primary/20 rounded-2xl transition duration-300 shadow-sm hover:shadow-md group relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-16 h-16 bg-primary/5 rounded-bl-full -mr-8 -mt-8 transition group-hover:scale-110" />
                   <div className="flex items-center justify-between mb-3 relative z-10">
@@ -282,13 +284,14 @@ export function AIPanel({
           )}
         </div>
 
-        <div className="p-6 border-t border-border-subtle bg-white shadow-premium">
+        <div className={`${isCompact ? "p-4" : "p-6"} border-t border-border-subtle bg-white shadow-premium transition-all`}>
           {selectedChapterIndex >= 2 && beats.length === 0 && status !== "drafting" && !memoryPreview && (
             <div className="mb-3 p-3 bg-primary/5 border border-primary/10 rounded-xl flex items-start gap-2.5">
               <svg aria-hidden="true" className="w-4 h-4 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-[11px] text-text-secondary leading-relaxed">建议先在上方「章节节奏」区块生成节拍，再逐段引导写作，效果更可控。</p>
+              {!isCompact && <p className="text-[11px] text-text-secondary leading-relaxed">建议先在上方「章节节奏」区块生成节拍，再逐段引导写作，效果更可控。</p>}
+              {isCompact && <p className="text-[11px] text-text-secondary leading-relaxed">建议先生成「章节节奏」。</p>}
             </div>
           )}
 
@@ -343,11 +346,13 @@ export function AIPanel({
             </div>
           ) : (
             <>
-              <p className="text-[10px] text-text-dim text-center mb-2">
-                {memoryPreview?.loading ? '检索中…' : '预览上下文，确认后生成'}
-              </p>
+              {!isCompact && (
+                <p className="text-[10px] text-text-dim text-center mb-2">
+                  {memoryPreview?.loading ? '检索中…' : '预览上下文，确认后生成'}
+                </p>
+              )}
               <button
-                className="w-full btn-primary py-4 rounded-2xl shadow-xl shadow-primary/20 flex items-center justify-center gap-3 group active:scale-[0.98] transition relative overflow-hidden"
+                className={`w-full btn-primary ${isCompact ? "py-3" : "py-4"} rounded-2xl shadow-xl shadow-primary/20 flex items-center justify-center gap-3 group active:scale-[0.98] transition relative overflow-hidden`}
                 onClick={memoryPreview?.loading ? undefined : handlePreviewMemories}
                 disabled={status === "drafting" || memoryPreview?.loading}
               >
@@ -358,14 +363,14 @@ export function AIPanel({
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    <span className="uppercase tracking-[0.15em] text-xs font-bold">思考引擎运行中…</span>
+                    <span className={`uppercase tracking-[0.15em] ${isCompact ? "text-[10px]" : "text-xs"} font-bold`}>{isCompact ? "思考中…" : "思考引擎运行中…"}</span>
                   </>
                 ) : (
                   <>
                     <svg aria-hidden="true" className="w-5 h-5 group-hover:scale-110 group-hover:rotate-12 transition-transform" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
                     </svg>
-                    <span className="uppercase tracking-[0.15em] text-xs font-bold">预览检索记忆</span>
+                    <span className={`uppercase tracking-[0.15em] ${isCompact ? "text-[10px]" : "text-xs"} font-bold`}>预览检索记忆</span>
                   </>
                 )}
               </button>

@@ -117,12 +117,12 @@ export function EditorSidebar({
         </div>
       </nav>
 
-      <div className="p-4 border-t border-border-subtle bg-secondary/20">
+      <div className="p-4 border-t border-border-subtle bg-white">
         <button
-          className="w-full btn-secondary text-[11px] font-bold py-2.5 rounded-xl gap-2 shadow-sm"
+          className="w-full bg-primary hover:bg-primary-hover text-white text-[12px] font-bold py-3 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-md shadow-primary/10 group"
           onClick={() => setView("bible")}
         >
-          <svg aria-hidden="true" className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg aria-hidden="true" className="w-4 h-4 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
           </svg>
           查看全书作品设定
