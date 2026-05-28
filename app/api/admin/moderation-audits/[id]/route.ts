@@ -2,6 +2,7 @@ import { checkAdmin } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/http/json";
 import { UpdateModerationReviewSchema } from "@/lib/validation/moderationAudit";
+import { recordAdminAudit } from "@/lib/admin/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,6 +47,16 @@ export async function PATCH(request: Request, context: RouteContext) {
         review_note: true,
         reviewed_by: true,
         reviewed_at: true,
+      },
+    });
+    await recordAdminAudit({
+      actorUserId: admin.userId,
+      action: "moderation_audit.review",
+      targetType: "moderation_audit",
+      targetId: id,
+      metadata: {
+        review_status: parsed.data.review_status,
+        has_review_note: !!parsed.data.review_note?.trim(),
       },
     });
     return jsonOk(updated);

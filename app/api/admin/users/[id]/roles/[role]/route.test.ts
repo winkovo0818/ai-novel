@@ -2,11 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const findUnique = vi.fn();
 const deleteFn = vi.fn();
+const count = vi.fn();
+const auditCreate = vi.fn();
 const getCurrentUser = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    userRole: { findUnique, delete: deleteFn },
+    userRole: { findUnique, delete: deleteFn, count },
+    adminAudit: { create: auditCreate },
   },
 }));
 
@@ -24,6 +27,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
   findUnique.mockResolvedValue(null);
+  count.mockResolvedValue(2);
   delete process.env.ADMIN_USER_IDS;
   delete process.env.ADMIN_EMAILS;
 });
@@ -71,6 +75,27 @@ describe("DELETE /api/admin/users/[id]/roles/[role]", () => {
     expect(deleteFn).toHaveBeenCalledWith({
       where: { user_id_role: { user_id: "u-2", role: "admin" } },
     });
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: {
+        actor_user_id: "admin-1",
+        action: "user_role.revoke",
+        target_type: "user",
+        target_id: "u-2",
+        metadata: { role: "admin" },
+      },
+    });
+  });
+
+  it("blocks revoking the last database admin", async () => {
+    asAdminViaEnv();
+    count.mockResolvedValue(1);
+    const { DELETE } = await import("./route");
+    const res = await DELETE(new Request("http://localhost"), ctx("u-2", "admin"));
+    expect(res.status).toBe(409);
+    const json = await res.json();
+    expect(json.error.code).toBe("LAST_ADMIN");
+    expect(deleteFn).not.toHaveBeenCalled();
+    expect(auditCreate).not.toHaveBeenCalled();
   });
 
   it("treats P2025 (not found) as idempotent success", async () => {

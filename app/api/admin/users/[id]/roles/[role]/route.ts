@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db";
 import { adminGuardResponse } from "@/lib/auth/admin";
 import { jsonError, jsonOk } from "@/lib/http/json";
 import { RoleSchema } from "@/lib/validation/userRole";
+import { getCurrentUser } from "@/lib/auth/session";
+import { recordAdminAudit } from "@/lib/admin/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +28,17 @@ export async function DELETE(_request: Request, context: RouteContext) {
   if (!parsed.success) {
     return jsonError("INVALID_ROLE", `Role '${role}' is not allowed`, false, 400);
   }
+  if (parsed.data === "admin") {
+    const dbAdminCount = await prisma.userRole.count({ where: { role: "admin" } });
+    if (dbAdminCount <= 1) {
+      return jsonError(
+        "LAST_ADMIN",
+        "不能移除最后一个数据库 admin。请先授予另一个管理员，或确认 env allowlist 兜底后再调整数据库角色。",
+        false,
+        409,
+      );
+    }
+  }
 
   try {
     await prisma.userRole.delete({
@@ -37,6 +50,14 @@ export async function DELETE(_request: Request, context: RouteContext) {
     }
     throw err;
   }
+  const actor = await getCurrentUser();
+  await recordAdminAudit({
+    actorUserId: actor?.id ?? null,
+    action: "user_role.revoke",
+    targetType: "user",
+    targetId: id,
+    metadata: { role: parsed.data },
+  });
 
   return jsonOk({ user_id: id, role: parsed.data, deleted: true });
 }

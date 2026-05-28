@@ -4,12 +4,14 @@ const update = vi.fn();
 const updateMany = vi.fn();
 const deleteFn = vi.fn();
 const userRoleFindUnique = vi.fn();
+const auditCreate = vi.fn();
 const getCurrentUser = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     embeddingModel: { update, updateMany, delete: deleteFn },
     userRole: { findUnique: userRoleFindUnique },
+    adminAudit: { create: auditCreate },
   },
 }));
 
@@ -85,6 +87,15 @@ describe("PATCH /api/embedding-models/[id]", () => {
       data: { is_default: false },
     });
     expect(update).toHaveBeenCalledWith({ where: { id: "m1" }, data: { is_default: true } });
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        actor_user_id: "admin-1",
+        action: "embedding_model.update",
+        target_type: "embedding_model",
+        target_id: "m1",
+        metadata: { fields: ["is_default"], api_key_updated: false },
+      }),
+    });
   });
 
   it("does not encrypt when api_key is omitted", async () => {
@@ -118,5 +129,13 @@ describe("DELETE /api/embedding-models/[id]", () => {
     const res = await DELETE(new Request("http://localhost"), ctx("m1"));
     expect(res.status).toBe(200);
     expect(deleteFn).toHaveBeenCalledWith({ where: { id: "m1" } });
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        actor_user_id: "admin-1",
+        action: "embedding_model.delete",
+        target_type: "embedding_model",
+        target_id: "m1",
+      }),
+    });
   });
 });

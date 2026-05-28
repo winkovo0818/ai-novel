@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const findUnique = vi.fn();
+const update = vi.fn();
 const getRequiredUserId = vi.fn();
+const checkAdmin = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    novel: { findUnique },
+    novel: { findUnique, update },
   },
 }));
 
@@ -13,10 +15,15 @@ vi.mock("@/lib/auth/session", () => ({
   getRequiredUserId,
 }));
 
+vi.mock("@/lib/auth/admin", () => ({
+  checkAdmin,
+}));
+
 describe("GET /api/novels/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getRequiredUserId.mockResolvedValue("user-1");
+    checkAdmin.mockResolvedValue({ ok: false, reason: "FORBIDDEN", userId: "user-1", email: null });
   });
 
   it("returns a novel with bible and chapters for editor hydration", async () => {
@@ -101,5 +108,65 @@ describe("GET /api/novels/[id]", () => {
     expect(response.status).toBe(404);
     expect(json.error.code).toBe("NOVEL_NOT_FOUND");
     expect(json.error.retryable).toBe(false);
+  });
+
+  it("hides soft-deleted novels", async () => {
+    const { GET } = await import("./route");
+    findUnique.mockResolvedValue({
+      id: "novel-1",
+      user_id: "user-1",
+      deleted_at: new Date("2026-05-28T00:00:00.000Z"),
+      bible: null,
+      chapters: [],
+    });
+
+    const response = await GET(new Request("http://localhost/api/novels/novel-1"), {
+      params: Promise.resolve({ id: "novel-1" }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(json.error.code).toBe("NOVEL_NOT_FOUND");
+  });
+});
+
+describe("DELETE /api/novels/[id]", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getRequiredUserId.mockResolvedValue("user-1");
+    checkAdmin.mockResolvedValue({ ok: false, reason: "FORBIDDEN", userId: "user-1", email: null });
+  });
+
+  it("soft deletes an owned novel instead of removing rows", async () => {
+    const { DELETE } = await import("./route");
+    findUnique.mockResolvedValue({ id: "novel-1", user_id: "user-1", deleted_at: null });
+    update.mockResolvedValue({ id: "novel-1" });
+
+    const response = await DELETE(new Request("http://localhost/api/novels/novel-1", { method: "DELETE" }), {
+      params: Promise.resolve({ id: "novel-1" }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json).toEqual({ ok: true, data: { deleted: true, recoverable: true } });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "novel-1" },
+      data: { deleted_at: expect.any(Date) },
+      select: { id: true },
+    });
+  });
+
+  it("does not delete a novel owned by another user", async () => {
+    const { DELETE } = await import("./route");
+    findUnique.mockResolvedValue({ id: "novel-1", user_id: "other-user", deleted_at: null });
+
+    const response = await DELETE(new Request("http://localhost/api/novels/novel-1", { method: "DELETE" }), {
+      params: Promise.resolve({ id: "novel-1" }),
+    });
+    const json = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(json.error.code).toBe("NOVEL_NOT_FOUND");
+    expect(update).not.toHaveBeenCalled();
   });
 });

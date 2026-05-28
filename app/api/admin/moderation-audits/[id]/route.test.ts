@@ -2,12 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const findUnique = vi.fn();
 const update = vi.fn();
+const auditCreate = vi.fn();
 const getCurrentUser = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     userRole: { findUnique },
     moderationAudit: { update },
+    adminAudit: { create: auditCreate },
   },
 }));
 
@@ -103,6 +105,15 @@ describe("PATCH /api/admin/moderation-audits/[id]", () => {
         }),
       }),
     );
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: {
+        actor_user_id: "admin-1",
+        action: "moderation_audit.review",
+        target_type: "moderation_audit",
+        target_id: "audit-1",
+        metadata: { review_status: "false_positive", has_review_note: true },
+      },
+    });
   });
 
   it("returns 404 when the audit row is missing", async () => {

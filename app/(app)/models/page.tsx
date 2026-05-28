@@ -51,8 +51,8 @@ export default function ModelsPage() {
     <div className="flex-1 overflow-y-auto bg-secondary/30 custom-scrollbar">
       <div className="p-8 md:p-12 lg:p-16 max-w-6xl mx-auto min-h-full pb-32">
         <PageHeader
-          title="模型基础设施"
-          description="管理您的 AI 创作节点。支持 DeepSeek、OpenAI 及各类兼容 API 的模型接入，为您的文学创作提供动力。"
+          title="Chat 模型配置"
+          description="管理 Chat Completion 供应商、模型 ID、API 端点和默认路由。支持 DeepSeek、OpenAI 及兼容 API。"
           actions={
             <button
               onClick={() => (admin.showForm ? admin.handleCancelForm() : admin.setShowForm(true))}
@@ -66,7 +66,7 @@ export default function ModelsPage() {
                     <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
                     </svg>
-                    部署模型节点
+                    新增模型配置
                   </>
                 )}
               </div>
@@ -87,7 +87,7 @@ export default function ModelsPage() {
                  </div>
                  <div className="flex flex-col">
                     <h3 className="text-xl font-bold text-text-primary">
-                      {admin.editingId ? "编辑节点配置" : "初始化新节点协议"}
+                      {admin.editingId ? "编辑模型配置" : "新增模型配置"}
                     </h3>
                     <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider">Node Configuration</span>
                  </div>
@@ -117,8 +117,8 @@ export default function ModelsPage() {
                 <div className="md:col-span-2 flex items-center gap-4 p-5 bg-secondary/50 rounded-2xl border border-border-subtle shadow-inner">
                   <input type="checkbox" id="is_default" checked={admin.form.is_default} onChange={(e) => admin.setForm({ ...admin.form, is_default: e.target.checked })} className="h-5 w-5 border-border-strong rounded-lg text-primary focus:ring-primary/20" />
                   <div className="flex flex-col">
-                    <label htmlFor="is_default" className="text-sm font-bold text-text-primary">设为系统全局默认节点</label>
-                    <p className="text-[11px] text-text-muted mt-0.5">勾选后，所有新章节的 AI 任务将优先路由至此节点执行。</p>
+                    <label htmlFor="is_default" className="text-sm font-bold text-text-primary">设为默认 Chat 模型</label>
+                    <p className="text-[11px] text-text-muted mt-0.5">勾选后，新生成任务会优先使用此配置。</p>
                   </div>
                 </div>
               </div>
@@ -126,13 +126,13 @@ export default function ModelsPage() {
               {admin.error && (
                 <div className="mt-8 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 animate-slide-in">
                    <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                   <p className="text-[11px] font-bold text-red-700 uppercase tracking-widest">配置协议异常: {admin.error}</p>
+                   <p className="text-[11px] font-bold text-red-700 uppercase tracking-widest">配置保存失败: {admin.error}</p>
                 </div>
               )}
 
               <div className="mt-10 pt-8 border-t border-border-subtle flex gap-4">
                 <button type="submit" className="btn-primary px-10 py-3 rounded-2xl shadow-xl shadow-primary/20 active:scale-95 transition">
-                  {admin.editingId ? "应用配置更改" : "确认部署新节点"}
+                  {admin.editingId ? "保存配置更改" : "保存新配置"}
                 </button>
                 <button type="button" onClick={admin.handleCancelForm} className="btn-secondary px-8 py-3 rounded-2xl">取消</button>
               </div>
@@ -143,12 +143,12 @@ export default function ModelsPage() {
         <div className="mt-12">
           {admin.loading ? (
             <div className="py-20">
-              <LoadingState message="正在连接基础设施网络…" />
+              <LoadingState message="正在加载模型配置…" />
             </div>
           ) : admin.models.length === 0 ? (
             <EmptyState
-              title="尚未部署 AI 节点"
-              description="为了开启智能协同创作，您需要至少配置一个兼容 OpenAI 或 DeepSeek 协议的模型节点。"
+              title="尚未配置 Chat 模型"
+              description="请添加一个 OpenAI、DeepSeek 或兼容 API 的 Chat 模型配置。"
               icon={
                 <div className="h-24 w-24 bg-white rounded-3xl flex items-center justify-center shadow-premium border border-border-subtle relative overflow-hidden group">
                   <div className="absolute inset-0 bg-primary/5 group-hover:scale-150 transition-transform duration-300" />
@@ -159,7 +159,7 @@ export default function ModelsPage() {
               }
               action={
                 <button onClick={() => admin.setShowForm(true)} className="btn-primary h-12 px-12 text-sm shadow-xl shadow-text-primary/10 rounded-2xl">
-                  立即部署首个节点
+                  添加首个配置
                 </button>
               }
             />
@@ -192,7 +192,7 @@ export default function ModelsPage() {
                   </div>
                   <div className="flex items-center gap-3 border-t md:border-t-0 pt-6 md:pt-0 border-border-subtle">
                     <button onClick={() => admin.handleStartEdit(model)} className="btn-secondary !px-5 !py-2.5 text-[11px] rounded-xl hover:bg-white shadow-sm font-bold">
-                      修改协议
+                      编辑配置
                     </button>
                     <button
                       onClick={() => admin.handleToggleEnabled(model)}

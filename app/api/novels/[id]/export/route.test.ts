@@ -4,11 +4,15 @@ let mockNovel: unknown;
 let mockUserId: string | null;
 let mockModerationAllowed: boolean;
 const moderateContentMock = vi.fn();
+const exportEventCreateMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     novel: {
       findUnique: () => Promise.resolve(mockNovel),
+    },
+    exportEvent: {
+      create: exportEventCreateMock,
     },
   },
 }));
@@ -102,19 +106,96 @@ function makeBible() {
       scene: `场景${index + 1}`,
       purpose: `目的${index + 1}`,
     })),
+    story_state: {
+      characters: [
+        {
+          name: "主角",
+          current_location: "灯塔港",
+          current_goal: "找到旧航线",
+        },
+      ],
+      timeline: [{ chapter_index: 1, event: "主角离开灯塔港", impact: "旅程开始" }],
+      plot_threads: [{ id: "old-route", title: "旧航线", status: "progressing" }],
+    },
   };
 }
 
 function makeNovel(overrides?: Record<string, unknown>) {
+  const now = new Date("2026-05-28T00:00:00.000Z");
   return {
     id: "novel-1",
     title: "测试小说",
     user_id: "user-1",
+    profile: { genre_main: "web", genre_sub: "玄幻" },
+    created_at: now,
     chapters: [
-      { chapter_index: 1, title: "第一章 起点", content: "这是第一章的内容。", status: "done" },
-      { chapter_index: 2, title: "第二章 远方", content: "这是第二章的内容。", status: "draft" },
+      {
+        id: "chapter-1",
+        chapter_index: 1,
+        title: "第一章 起点",
+        content: "这是第一章的内容。",
+        status: "done",
+        target_words: 3000,
+        version: 2,
+        summary_dirty: false,
+        index_dirty: false,
+        created_at: now,
+        updated_at: now,
+        summary: {
+          id: "summary-1",
+          summary: "主角离开灯塔港。",
+          created_at: now,
+          updated_at: now,
+        },
+      },
+      {
+        id: "chapter-2",
+        chapter_index: 2,
+        title: "第二章 远方",
+        content: "这是第二章的内容。",
+        status: "draft",
+        target_words: null,
+        version: 1,
+        summary_dirty: true,
+        index_dirty: true,
+        created_at: now,
+        updated_at: now,
+        summary: null,
+      },
     ],
-    bible: { id: "bible-1", content: makeBible() },
+    bible: { id: "bible-1", content: makeBible(), created_at: now, updated_at: now },
+    volume_summaries: [
+      {
+        id: "volume-summary-1",
+        volume_index: 1,
+        summary: "第一卷讲述主角启程。",
+        covered_chapters: ["1", "2"],
+        created_at: now,
+        updated_at: now,
+      },
+    ],
+    novel_summary: {
+      id: "novel-summary-1",
+      summary: "全书围绕旧航线展开。",
+      created_at: now,
+      updated_at: now,
+    },
+    memory_chunks: [
+      {
+        id: "memory-1",
+        chapter_id: "chapter-1",
+        chunk_type: "scene",
+        text: "旧航线只在涨潮时出现。",
+        content_hash: "hash-1",
+        importance: 1.2,
+        source_kind: "chapter",
+        last_used_at: now,
+        metadata: { reason: "world_rule" },
+        created_at: now,
+        updated_at: now,
+        embedding: "should-not-export",
+      },
+    ],
     ...overrides,
   };
 }
@@ -127,6 +208,8 @@ describe("GET /api/novels/[id]/export", () => {
     mockUserId = "user-1";
     mockModerationAllowed = true;
     moderateContentMock.mockClear();
+    exportEventCreateMock.mockClear();
+    exportEventCreateMock.mockResolvedValue({});
   });
 
   it("returns 401 when not authenticated", async () => {
@@ -170,6 +253,16 @@ describe("GET /api/novels/[id]/export", () => {
     const disposition = response.headers.get("Content-Disposition") ?? "";
     expect(disposition).toContain("attachment");
     expect(disposition).toContain(".md");
+    expect(exportEventCreateMock).toHaveBeenCalledWith({
+      data: {
+        user_id: "user-1",
+        novel_id: "novel-1",
+        scope: "novel",
+        format: "markdown",
+        status: "ok",
+        error_code: null,
+      },
+    });
   });
 
   it("returns txt export with correct content", async () => {
@@ -254,6 +347,9 @@ describe("GET /api/novels/[id]/export", () => {
     await expect(response.json()).resolves.toMatchObject({
       error: { code: "INVALID_RANGE" },
     });
+    expect(exportEventCreateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "err", error_code: "INVALID_RANGE" }),
+    }));
   });
 
   it("returns 400 for invalid include_bible", async () => {
@@ -313,12 +409,87 @@ describe("GET /api/novels/[id]/export", () => {
     expect(disposition).toContain(".epub");
   });
 
+  it("returns complete json export with summaries and memory metadata", async () => {
+    const response = await GET(new Request("http://localhost/api/novels/novel-1/export?format=json&range=2&include_bible=false"), {
+      params: Promise.resolve({ id: "novel-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    const json = await response.json();
+    expect(json).toMatchObject({
+      export_schema_version: 1,
+      id: "novel-1",
+      title: "测试小说",
+      bible_draft: {
+        id: "bible-1",
+      },
+      summaries: {
+        chapters: [
+          {
+            chapter_id: "chapter-1",
+            chapter_index: 1,
+            summary: "主角离开灯塔港。",
+          },
+        ],
+        volumes: [
+          {
+            volume_index: 1,
+            summary: "第一卷讲述主角启程。",
+          },
+        ],
+        novel: {
+          id: "novel-summary-1",
+          summary: "全书围绕旧航线展开。",
+        },
+      },
+      memory_chunks: [
+        {
+          id: "memory-1",
+          chapter_id: "chapter-1",
+          chapter_index: 1,
+          chapter_title: "第一章 起点",
+          text: "旧航线只在涨潮时出现。",
+          importance: 1.2,
+        },
+      ],
+    });
+    expect(json.chapters.map((chapter: { chapter_index: number }) => chapter.chapter_index)).toEqual([1, 2]);
+    expect(json.story_state.characters[0].current_location).toBe("灯塔港");
+    expect(JSON.stringify(json)).not.toContain("embedding");
+
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    expect(disposition).toContain(".json");
+  });
+
+  it("returns complete zip export with correct content type and PK signature", async () => {
+    const response = await GET(new Request("http://localhost/api/novels/novel-1/export?format=zip"), {
+      params: Promise.resolve({ id: "novel-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("application/zip");
+    const buf = new Uint8Array(await response.arrayBuffer());
+    expect(buf[0]).toBe(0x50);
+    expect(buf[1]).toBe(0x4b);
+    const text = new TextDecoder().decode(buf);
+    expect(text).toContain("project.json");
+    expect(text).toContain("chapters/0001-第一章_起点.md");
+    expect(text).not.toContain("should-not-export");
+
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    expect(disposition).toContain(".zip");
+  });
+
   it("returns 422 when moderation blocks content", async () => {
     mockModerationAllowed = false;
     const response = await GET(new Request("http://localhost/api/novels/novel-1/export?format=markdown"), {
       params: Promise.resolve({ id: "novel-1" }),
     });
     expect(response.status).toBe(422);
+    expect(exportEventCreateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "err", error_code: "MODERATION_BLOCKED" }),
+    }));
   });
 
   it("shows placeholder for empty chapter content", async () => {

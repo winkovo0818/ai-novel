@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   formatAsDocx,
   formatAsEpub,
+  formatAsJson,
+  formatAsZip,
   formatAsMarkdown,
   formatAsTxt,
   formatNovel,
@@ -120,6 +122,8 @@ describe("formatNovel", () => {
     const txt = await formatNovel(sampleNovel, "txt");
     expect(txt).toContain("星辰之海");
     expect(txt).not.toContain("# 星辰之海");
+    const json = await formatNovel(sampleNovel, "json");
+    expect(json).toContain("\"title\": \"星辰之海\"");
   });
 
   it("contentTypeFor returns correct MIME types", () => {
@@ -127,6 +131,8 @@ describe("formatNovel", () => {
     expect(contentTypeFor("txt")).toContain("text/plain");
     expect(contentTypeFor("docx")).toContain("wordprocessingml.document");
     expect(contentTypeFor("epub")).toContain("epub+zip");
+    expect(contentTypeFor("json")).toContain("application/json");
+    expect(contentTypeFor("zip")).toContain("application/zip");
   });
 
   it("fileExtensionFor returns correct extensions", () => {
@@ -134,6 +140,46 @@ describe("formatNovel", () => {
     expect(fileExtensionFor("txt")).toBe(".txt");
     expect(fileExtensionFor("docx")).toBe(".docx");
     expect(fileExtensionFor("epub")).toBe(".epub");
+    expect(fileExtensionFor("json")).toBe(".json");
+    expect(fileExtensionFor("zip")).toBe(".zip");
+  });
+
+  it("formatAsJson serializes the complete project shape", () => {
+    const parsed = JSON.parse(formatAsJson({
+      ...sampleNovel,
+      export_schema_version: 1,
+      exported_at: "2026-05-28T00:00:00.000Z",
+      summaries: {
+        chapters: [],
+        volumes: [],
+        novel: null,
+      },
+      memory_chunks: [
+        {
+          id: "chunk-1",
+          chapter_id: "chapter-1",
+          chapter_index: 1,
+          chapter_title: "第一章 启航",
+          chunk_type: "scene",
+          source_kind: "chapter",
+          importance: 1,
+          last_used_at: null,
+          text: "旧地图第一次出现。",
+          metadata: { reason: "plot" },
+          content_hash: "hash",
+          created_at: "2026-05-28T00:00:00.000Z",
+          updated_at: "2026-05-28T00:00:00.000Z",
+        },
+      ],
+    }));
+
+    expect(parsed.export_schema_version).toBe(1);
+    expect(parsed.memory_chunks[0]).toMatchObject({
+      id: "chunk-1",
+      text: "旧地图第一次出现。",
+      chapter_index: 1,
+    });
+    expect(JSON.stringify(parsed)).not.toContain("embedding");
   });
 
   it("formatAsDocx returns a ZIP-shaped binary", async () => {
@@ -149,6 +195,20 @@ describe("formatNovel", () => {
     expect(buf.byteLength).toBeGreaterThan(0);
     expect(buf[0]).toBe(0x50);
     expect(buf[1]).toBe(0x4b);
+  });
+
+  it("formatAsZip returns a ZIP-shaped archive with project data", () => {
+    const buf = new Uint8Array(formatAsZip({
+      ...sampleNovel,
+      export_schema_version: 1,
+      exported_at: "2026-05-28T00:00:00.000Z",
+    }));
+    expect(buf.byteLength).toBeGreaterThan(0);
+    expect(buf[0]).toBe(0x50);
+    expect(buf[1]).toBe(0x4b);
+    const text = new TextDecoder().decode(buf);
+    expect(text).toContain("project.json");
+    expect(text).toContain("chapters/0001-第一章_启航.md");
   });
 
   it("formatAsDocx tolerates empty chapter content", async () => {

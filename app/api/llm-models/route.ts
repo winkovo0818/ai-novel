@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db";
 import { adminGuardResponse } from "@/lib/auth/admin";
 import { LlmModelInputSchema } from "@/lib/validation/llmModel";
 import { encryptApiKey, maskApiKey } from "@/lib/llm/encryption";
+import { getCurrentUser } from "@/lib/auth/session";
+import { recordAdminAudit } from "@/lib/admin/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,6 +64,21 @@ export async function POST(request: Request) {
       model,
       is_default: is_default ?? false,
       is_enabled: is_enabled ?? true,
+    },
+  });
+  const actor = await getCurrentUser();
+  await recordAdminAudit({
+    actorUserId: actor?.id ?? null,
+    action: "llm_model.create",
+    targetType: "llm_model",
+    targetId: llmModel.id,
+    metadata: {
+      name,
+      provider,
+      model,
+      is_default: is_default ?? false,
+      is_enabled: is_enabled ?? true,
+      api_key_updated: true,
     },
   });
 

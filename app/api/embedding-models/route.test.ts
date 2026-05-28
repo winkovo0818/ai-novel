@@ -4,12 +4,14 @@ const findMany = vi.fn();
 const create = vi.fn();
 const updateMany = vi.fn();
 const userRoleFindUnique = vi.fn();
+const auditCreate = vi.fn();
 const getCurrentUser = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     embeddingModel: { findMany, create, updateMany },
     userRole: { findUnique: userRoleFindUnique },
+    adminAudit: { create: auditCreate },
   },
 }));
 
@@ -130,5 +132,19 @@ describe("POST /api/embedding-models", () => {
       data: { is_default: false },
     });
     expect(create).toHaveBeenCalled();
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        actor_user_id: "admin-1",
+        action: "embedding_model.create",
+        target_type: "embedding_model",
+        target_id: "m1",
+        metadata: expect.objectContaining({
+          provider: "edgefn",
+          model: "BAAI/bge-m3",
+          api_key_updated: true,
+        }),
+      }),
+    });
+    expect(JSON.stringify(auditCreate.mock.calls[0][0].data.metadata)).not.toContain("sk-test");
   });
 });

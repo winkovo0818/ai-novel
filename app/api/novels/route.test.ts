@@ -40,7 +40,7 @@ describe("GET /api/novels", () => {
     expect(json.ok).toBe(true);
     expect(json.data).toHaveLength(1);
     expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { user_id: "user-1" } }),
+      expect.objectContaining({ where: { user_id: "user-1", deleted_at: null } }),
     );
   });
 });

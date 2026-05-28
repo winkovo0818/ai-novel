@@ -64,7 +64,7 @@ export default function EmbeddingsPage() {
                     <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
                     </svg>
-                    部署 Embedding 节点
+                    新增 Embedding 配置
                   </>
                 )}
               </div>
@@ -85,7 +85,7 @@ export default function EmbeddingsPage() {
                 </div>
                 <div className="flex flex-col">
                   <h3 className="text-xl font-bold text-text-primary">
-                    {admin.editingId ? "编辑 Embedding 节点" : "部署 Embedding 节点"}
+                    {admin.editingId ? "编辑 Embedding 配置" : "新增 Embedding 配置"}
                   </h3>
                   <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider">Embedding Configuration · 1024-dim only</span>
                 </div>
@@ -115,8 +115,8 @@ export default function EmbeddingsPage() {
                 <div className="md:col-span-2 flex items-center gap-4 p-5 bg-secondary/50 rounded-2xl border border-border-subtle shadow-inner">
                   <input type="checkbox" id="emb_is_default" checked={admin.form.is_default} onChange={(e) => admin.setForm({ ...admin.form, is_default: e.target.checked })} className="h-5 w-5 border-border-strong rounded-lg text-primary focus:ring-primary/20" />
                   <div className="flex flex-col">
-                    <label htmlFor="emb_is_default" className="text-sm font-bold text-text-primary">设为系统全局默认 embedding 节点</label>
-                    <p className="text-[11px] text-text-muted mt-0.5">勾选后会取消其他节点的默认标记。同一时刻只允许一个 embedding 节点处于 default。</p>
+                    <label htmlFor="emb_is_default" className="text-sm font-bold text-text-primary">设为默认 Embedding 模型</label>
+                    <p className="text-[11px] text-text-muted mt-0.5">勾选后会取消其他配置的默认标记。同一时刻只允许一个默认 Embedding 配置。</p>
                   </div>
                 </div>
               </div>
@@ -124,13 +124,13 @@ export default function EmbeddingsPage() {
               {admin.error && (
                 <div className="mt-8 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 animate-slide-in">
                   <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                  <p className="text-[11px] font-bold text-red-700 uppercase tracking-widest">配置协议异常: {admin.error}</p>
+                  <p className="text-[11px] font-bold text-red-700 uppercase tracking-widest">配置保存失败: {admin.error}</p>
                 </div>
               )}
 
               <div className="mt-10 pt-8 border-t border-border-subtle flex gap-4">
                 <button type="submit" className="btn-primary px-10 py-3 rounded-2xl shadow-xl shadow-primary/20 active:scale-95 transition">
-                  {admin.editingId ? "应用配置更改" : "确认部署新节点"}
+                  {admin.editingId ? "保存配置更改" : "保存新配置"}
                 </button>
                 <button type="button" onClick={admin.handleCancelForm} className="btn-secondary px-8 py-3 rounded-2xl">取消</button>
               </div>
@@ -145,11 +145,11 @@ export default function EmbeddingsPage() {
             </div>
           ) : admin.models.length === 0 ? (
             <EmptyState
-              title="尚未部署 Embedding 节点"
-              description="未配置时系统会 fallback 到 EDGEFN_API_KEY env。建议至少部署一个节点以便后续切换 provider。"
+              title="尚未配置 Embedding 模型"
+              description="未配置时系统会 fallback 到 EDGEFN_API_KEY env。建议至少保存一个配置以便后续切换 provider。"
               action={
                 <button onClick={() => admin.setShowForm(true)} className="btn-primary h-12 px-12 text-sm shadow-xl rounded-2xl">
-                  立即部署节点
+                  添加首个配置
                 </button>
               }
             />
@@ -175,7 +175,7 @@ export default function EmbeddingsPage() {
                   </div>
                   <div className="flex items-center gap-3 border-t md:border-t-0 pt-6 md:pt-0 border-border-subtle">
                     <button onClick={() => admin.handleStartEdit(model)} className="btn-secondary !px-5 !py-2.5 text-[11px] rounded-xl hover:bg-white shadow-sm font-bold">
-                      修改协议
+                      编辑配置
                     </button>
                     <button
                       onClick={() => admin.handleToggleEnabled(model)}

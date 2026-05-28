@@ -3,6 +3,8 @@ import { adminGuardResponse } from "@/lib/auth/admin";
 import { EmbeddingModelPatchSchema } from "@/lib/validation/embeddingModel";
 import { encryptApiKey, maskApiKey } from "@/lib/llm/encryption";
 import { jsonError, jsonOk } from "@/lib/http/json";
+import { getCurrentUser } from "@/lib/auth/session";
+import { changedFields, recordAdminAudit } from "@/lib/admin/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,6 +50,17 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (is_enabled !== undefined) data.is_enabled = is_enabled;
 
   const updated = await prisma.embeddingModel.update({ where: { id }, data });
+  const actor = await getCurrentUser();
+  await recordAdminAudit({
+    actorUserId: actor?.id ?? null,
+    action: "embedding_model.update",
+    targetType: "embedding_model",
+    targetId: id,
+    metadata: {
+      fields: changedFields(data).map((field) => field === "api_key" ? "api_key_updated" : field),
+      api_key_updated: api_key !== undefined && !!api_key,
+    },
+  });
   return jsonOk({ ...updated, api_key: maskApiKey(updated.api_key) });
 }
 
@@ -57,5 +70,12 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
   const { id } = await context.params;
   await prisma.embeddingModel.delete({ where: { id } });
+  const actor = await getCurrentUser();
+  await recordAdminAudit({
+    actorUserId: actor?.id ?? null,
+    action: "embedding_model.delete",
+    targetType: "embedding_model",
+    targetId: id,
+  });
   return jsonOk({});
 }

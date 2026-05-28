@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { checkAdmin } from "@/lib/auth/admin";
 import { jsonError, jsonOk } from "@/lib/http/json";
 import { GrantRoleSchema } from "@/lib/validation/userRole";
+import { recordAdminAudit } from "@/lib/admin/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,6 +46,13 @@ export async function POST(request: Request, context: RouteContext) {
     where: { user_id_role: { user_id: targetUserId, role } },
     create: { user_id: targetUserId, role, granted_by: admin.userId },
     update: {},
+  });
+  await recordAdminAudit({
+    actorUserId: admin.userId,
+    action: "user_role.grant",
+    targetType: "user",
+    targetId: targetUserId,
+    metadata: { role },
   });
 
   return jsonOk({ user_id: targetUserId, role, granted_by: admin.userId });

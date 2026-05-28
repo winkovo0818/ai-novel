@@ -44,6 +44,9 @@ model Novel {
   profile    Json
   session_id String?
   created_at DateTime @default(now())
+  /// Soft delete marker. Default reads hide rows with deleted_at set so users
+  /// get a recovery window before any future physical cleanup job removes data.
+  deleted_at DateTime?
 
   bible BibleDraft?
   chapters ChapterDraft[]
@@ -52,6 +55,7 @@ model Novel {
   memory_chunks MemoryChunk[]
 
   @@index([user_id])
+  @@index([user_id, deleted_at])
   @@unique([session_id])
 }
 
@@ -157,6 +161,23 @@ model UserRole {
 
   @@id([user_id, role])
   @@index([role])
+}
+
+model AdminAudit {
+  id            String   @id @default(uuid())
+  actor_user_id String?
+  action        String
+  target_type   String
+  target_id     String?
+  /// Structured, deliberately redacted metadata. Never store raw API keys or
+  /// moderated text here; use booleans / field lists / identifiers only.
+  metadata      Json?
+  created_at    DateTime @default(now())
+
+  @@index([actor_user_id])
+  @@index([action])
+  @@index([target_type, target_id])
+  @@index([created_at])
 }
 
 model User {
@@ -414,4 +435,23 @@ model DraftSession {
   @@unique([user_id, novel_id, chapter_index])
   @@index([user_id, novel_id])
   @@index([updated_at])
+}
+
+/// Export attempts for operational metrics. Stores only metadata, never the
+/// exported payload, so Prometheus can alert on failed exports without copying
+/// manuscript content into an observability table.
+model ExportEvent {
+  id          String   @id @default(uuid())
+  user_id     String?
+  novel_id    String?
+  scope       String   // novel | profile
+  format      String
+  status      String   // ok | err
+  error_code  String?
+  created_at  DateTime @default(now())
+
+  @@index([created_at])
+  @@index([scope, status, created_at])
+  @@index([user_id, created_at])
+  @@index([novel_id, created_at])
 }

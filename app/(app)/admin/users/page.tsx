@@ -80,7 +80,7 @@ export default function AdminUsersPage() {
   async function handleRevokeAdmin(user: AdminUser) {
     const ok = await confirm({
       title: `移除「${user.email ?? user.id}」的 admin 权限？`,
-      message: "移除后该用户立即失去模型与权限管理页访问。如果意外删完所有 admin，可通过 .env 的 ADMIN_EMAILS 恢复。",
+      message: "移除后该用户立即失去模型与权限管理页访问。系统会阻止移除最后一个数据库 admin；env allowlist 仍作为兜底。",
       confirmLabel: "移除权限",
       danger: true,
     });

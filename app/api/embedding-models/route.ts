@@ -3,6 +3,8 @@ import { adminGuardResponse } from "@/lib/auth/admin";
 import { EmbeddingModelInputSchema } from "@/lib/validation/embeddingModel";
 import { encryptApiKey, maskApiKey } from "@/lib/llm/encryption";
 import { jsonError, jsonOk } from "@/lib/http/json";
+import { getCurrentUser } from "@/lib/auth/session";
+import { recordAdminAudit } from "@/lib/admin/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,6 +58,22 @@ export async function POST(request: Request) {
       dim: dim ?? 1024,
       is_default: is_default ?? false,
       is_enabled: is_enabled ?? true,
+    },
+  });
+  const actor = await getCurrentUser();
+  await recordAdminAudit({
+    actorUserId: actor?.id ?? null,
+    action: "embedding_model.create",
+    targetType: "embedding_model",
+    targetId: created.id,
+    metadata: {
+      name,
+      provider,
+      model,
+      dim: dim ?? 1024,
+      is_default: is_default ?? false,
+      is_enabled: is_enabled ?? true,
+      api_key_updated: true,
     },
   });
 

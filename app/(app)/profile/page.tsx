@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { LoadingState } from "@/components/ui/StatusStates";
@@ -15,8 +16,11 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exportingData, setExportingData] = useState(false);
   const [error, setError] = useState("");
+  const [dataExportError, setDataExportError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [lastDataExport, setLastDataExport] = useState<string | null>(null);
 
   const [editName, setEditName] = useState("");
   const [editImage, setEditImage] = useState("");
@@ -72,6 +76,39 @@ export default function ProfilePage() {
     window.location.href = "/login";
   }
 
+  async function handleDataExport() {
+    if (exportingData) return;
+    setExportingData(true);
+    setDataExportError("");
+    setLastDataExport(null);
+    try {
+      const res = await fetch("/api/user/profile/export");
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        setDataExportError(json?.error?.message ?? "导出失败，请稍后重试");
+        return;
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/);
+      const filename = match ? decodeURIComponent(match[1]) : "ai-novel-account-data.json";
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+      setLastDataExport(filename);
+    } catch {
+      setDataExportError("导出失败，请检查网络连接");
+    } finally {
+      setExportingData(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="py-24">
@@ -113,9 +150,12 @@ export default function ProfilePage() {
             <div className="px-10 pb-10 -mt-16 text-center">
               <div className="relative inline-block group">
                 {profile.image ? (
-                  <img
+                  <Image
                     src={profile.image}
                     alt="头像"
+                    width={128}
+                    height={128}
+                    unoptimized
                     className="w-32 h-32 rounded-[2.5rem] object-cover ring-8 ring-white shadow-xl group-hover:scale-105 transition-transform duration-500"
                   />
                 ) : (
@@ -254,6 +294,35 @@ export default function ProfilePage() {
                 </button>
               </div>
             </div>
+          </section>
+
+          <section className="card animate-fade-in-up delay-150">
+            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="text-xl font-serif text-text-primary">数据导出</h3>
+                <p className="mt-1 text-sm text-text-muted">
+                  下载当前账号资料和所有作品的完整 JSON 备份，包含作品设定、章节、摘要和记忆元数据。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleDataExport}
+                disabled={exportingData}
+                className="btn-secondary shrink-0 !px-6 !py-2 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {exportingData ? "正在导出…" : "导出我的数据"}
+              </button>
+            </div>
+            {dataExportError && (
+              <p role="alert" className="mt-4 text-sm font-medium text-red-600">
+                {dataExportError}
+              </p>
+            )}
+            {lastDataExport && !dataExportError && (
+              <p role="status" className="mt-4 text-sm font-medium text-emerald-600">
+                已下载 {lastDataExport}
+              </p>
+            )}
           </section>
 
           {/* Notifications Placeholder */}

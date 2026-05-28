@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { isRateLimited } from "@/lib/auth/rateLimit";
 import { chatCompletion } from "@/lib/llm/client";
-import { checkQuota } from "@/lib/llm/usage";
+import { checkQuota, estimateLlmMessagesCostCny, quotaExceededResponse } from "@/lib/llm/usage";
 import { buildConsistencyPrompt } from "@/lib/llm/prompts/consistency";
 import { BibleDraftSchema, NovelProfileSchema } from "@/lib/validation/schemas";
 import { getRequiredUserId } from "@/lib/auth/session";
@@ -45,11 +45,6 @@ export async function POST(_request: Request, context: RouteContext) {
     return jsonError("RATE_LIMITED", "Too many requests, please try again later", false, 429);
   }
 
-  const quota = await checkQuota(userId);
-  if (!quota.allowed) {
-    return jsonError(quota.code ?? "QUOTA_EXCEEDED", quota.reason ?? "Usage quota exceeded", false, 429);
-  }
-
   const bible = BibleDraftSchema.safeParse(novel.bible.content);
   const profile = NovelProfileSchema.safeParse(novel.profile);
   if (!bible.success || !profile.success) {
@@ -60,6 +55,21 @@ export async function POST(_request: Request, context: RouteContext) {
   if (chaptersWithContent.length < 2) {
     return jsonError("INSUFFICIENT_CHAPTERS", "Need at least 2 chapters with content to check consistency", false, 400);
   }
+  const messages = buildConsistencyPrompt({
+    bible: bible.data,
+    profile: profile.data,
+    chapters: chaptersWithContent.map((c) => ({
+      index: c.chapter_index,
+      title: c.title,
+      content: c.content,
+    })),
+  });
+  const quota = await checkQuota(userId, {
+    estimatedCostCny: estimateLlmMessagesCostCny(messages, 4096),
+  });
+  if (!quota.allowed) {
+    return quotaExceededResponse(quota);
+  }
 
   try {
     const result = await chatCompletion({
@@ -67,15 +77,7 @@ export async function POST(_request: Request, context: RouteContext) {
       agent: "critic",
       userId,
       novelId: id,
-      messages: buildConsistencyPrompt({
-        bible: bible.data,
-        profile: profile.data,
-        chapters: chaptersWithContent.map((c) => ({
-          index: c.chapter_index,
-          title: c.title,
-          content: c.content,
-        })),
-      }),
+      messages,
       temperature: 0,
       responseFormat: "json_object",
       timeoutMs: 150_000,

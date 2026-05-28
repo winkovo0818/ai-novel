@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db";
 import { adminGuardResponse } from "@/lib/auth/admin";
 import { LlmModelPatchSchema } from "@/lib/validation/llmModel";
 import { encryptApiKey, maskApiKey } from "@/lib/llm/encryption";
+import { getCurrentUser } from "@/lib/auth/session";
+import { changedFields, recordAdminAudit } from "@/lib/admin/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,6 +56,17 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (is_enabled !== undefined) data.is_enabled = is_enabled;
 
   const llmModel = await prisma.llmModel.update({ where: { id }, data });
+  const actor = await getCurrentUser();
+  await recordAdminAudit({
+    actorUserId: actor?.id ?? null,
+    action: "llm_model.update",
+    targetType: "llm_model",
+    targetId: id,
+    metadata: {
+      fields: changedFields(data).map((field) => field === "api_key" ? "api_key_updated" : field),
+      api_key_updated: api_key !== undefined && !!api_key,
+    },
+  });
   return Response.json({ ok: true, data: { ...llmModel, api_key: maskApiKey(llmModel.api_key) } });
 }
 
@@ -63,5 +76,12 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
   const { id } = await context.params;
   await prisma.llmModel.delete({ where: { id } });
+  const actor = await getCurrentUser();
+  await recordAdminAudit({
+    actorUserId: actor?.id ?? null,
+    action: "llm_model.delete",
+    targetType: "llm_model",
+    targetId: id,
+  });
   return Response.json({ ok: true });
 }

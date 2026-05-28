@@ -3,12 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const findUnique = vi.fn();
 const upsert = vi.fn();
 const userFindUnique = vi.fn();
+const auditCreate = vi.fn();
 const getCurrentUser = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     userRole: { findUnique, upsert },
     user: { findUnique: userFindUnique },
+    adminAudit: { create: auditCreate },
   },
 }));
 
@@ -90,6 +92,15 @@ describe("POST /api/admin/users/[id]/roles", () => {
       where: { user_id_role: { user_id: "u-2", role: "admin" } },
       create: { user_id: "u-2", role: "admin", granted_by: "admin-1" },
       update: {},
+    });
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: {
+        actor_user_id: "admin-1",
+        action: "user_role.grant",
+        target_type: "user",
+        target_id: "u-2",
+        metadata: { role: "admin" },
+      },
     });
     const json = await res.json();
     expect(json.data).toEqual({ user_id: "u-2", role: "admin", granted_by: "admin-1" });

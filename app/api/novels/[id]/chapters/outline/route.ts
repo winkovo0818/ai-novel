@@ -2,7 +2,7 @@ import { jsonError } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { isRateLimited } from "@/lib/auth/rateLimit";
-import { checkQuota } from "@/lib/llm/usage";
+import { checkQuota, estimateLlmMessagesCostCny, quotaExceededResponse } from "@/lib/llm/usage";
 import { chatCompletionWithRetry } from "@/lib/llm/client";
 import { buildBeatSheetPrompt } from "@/lib/llm/prompts/beatSheet";
 import { buildChapterContext } from "@/lib/agent/chapterContext";
@@ -55,11 +55,6 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("RATE_LIMITED", "Too many requests, please try again later", false, 429);
   }
 
-  const quota = await checkQuota(userId);
-  if (!quota.allowed) {
-    return jsonError("QUOTA_EXCEEDED", quota.reason ?? "Usage quota exceeded", false, 429);
-  }
-
   if (!canAccessOwnerResource(novel.user_id, userId)) {
     return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
   }
@@ -76,6 +71,22 @@ export async function POST(request: Request, context: RouteContext) {
   const previousSummary = chapterContext.previousSummaries.length > 0
     ? chapterContext.previousSummaries[chapterContext.previousSummaries.length - 1].summary
     : undefined;
+  const messages = buildBeatSheetPrompt({
+    bible: bible.data,
+    chapterIndex: input.chapter_index,
+    chapterTitle: input.chapter_title,
+    chapterSummary: chapterContext.outline.summary,
+    previousChapterSummary: previousSummary,
+    storyState: bible.data.story_state,
+    chapterGoal: input.chapter_goal,
+  });
+
+  const quota = await checkQuota(userId, {
+    estimatedCostCny: estimateLlmMessagesCostCny(messages, 4096),
+  });
+  if (!quota.allowed) {
+    return quotaExceededResponse(quota);
+  }
 
   try {
     const result = await chatCompletionWithRetry(
@@ -84,15 +95,7 @@ export async function POST(request: Request, context: RouteContext) {
         agent: "outline",
         userId,
         novelId: id,
-        messages: buildBeatSheetPrompt({
-          bible: bible.data,
-          chapterIndex: input.chapter_index,
-          chapterTitle: input.chapter_title,
-          chapterSummary: chapterContext.outline.summary,
-          previousChapterSummary: previousSummary,
-          storyState: bible.data.story_state,
-          chapterGoal: input.chapter_goal,
-        }),
+        messages,
         temperature: 0.7,
         responseFormat: "json_object",
         timeoutMs: 90_000,

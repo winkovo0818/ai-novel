@@ -16,7 +16,7 @@ export async function GET() {
   }
 
   const novels = await prisma.novel.findMany({
-    where: { user_id: userId },
+    where: { user_id: userId, deleted_at: null },
     include: {
       bible: { select: { id: true } },
       chapters: { select: { id: true, status: true } },

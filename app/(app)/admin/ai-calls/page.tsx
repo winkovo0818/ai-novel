@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ErrorState } from "@/components/ui/StatusStates";
 
 interface CallRow {
   id: string;
@@ -33,7 +34,51 @@ interface CallData {
       totalTokenOut: number;
       totalCostCny: number;
     };
+    aggregates: {
+      byUser: AggregateUser[];
+      byNovel: AggregateNovel[];
+      byAgent: AggregateAgent[];
+      byModel: AggregateModel[];
+    };
   };
+}
+
+interface AggregateUser {
+  userId: string;
+  email: string | null;
+  name: string | null;
+  calls: number;
+  tokenIn: number;
+  tokenOut: number;
+  costCny: number;
+}
+
+interface AggregateNovel {
+  novelId: string | null;
+  title: string | null;
+  userId: string | null;
+  calls: number;
+  tokenIn: number;
+  tokenOut: number;
+  costCny: number;
+}
+
+interface AggregateAgent {
+  agent: string | null;
+  calls: number;
+  failures: number;
+  failureRate: number;
+  tokenIn: number;
+  tokenOut: number;
+  costCny: number;
+}
+
+interface AggregateModel {
+  model: string;
+  calls: number;
+  tokenIn: number;
+  tokenOut: number;
+  costCny: number;
 }
 
 const ROUTES = [
@@ -61,6 +106,27 @@ function formatDuration(ms: number | null): string {
   if (ms === null || ms === undefined) return "—";
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(2)}s`;
+}
+
+function formatPercent(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}
+
+function agentLabel(agent: string | null): string {
+  if (!agent) return "未分类";
+  const labels: Record<string, string> = {
+    writer: "起草",
+    critic: "审校",
+    state_updater: "状态更新",
+    outline: "设定/节拍",
+    summarizer: "摘要",
+    tiered_summarizer: "卷/书摘要",
+    consistency: "一致性",
+    logline: "灵感",
+    questions: "追问",
+    bible: "Bible",
+  };
+  return labels[agent] ?? agent;
 }
 
 export default function AiCallsPage() {
@@ -94,13 +160,14 @@ export default function AiCallsPage() {
 
   const rows = data?.data?.rows ?? [];
   const summary = data?.data?.summary ?? { totalCalls: 0, totalTokenIn: 0, totalTokenOut: 0, totalCostCny: 0 };
+  const aggregates = data?.data?.aggregates ?? { byUser: [], byNovel: [], byAgent: [], byModel: [] };
   const totalPages = data?.data?.totalPages ?? 1;
 
   return (
     <div className="p-8 md:p-12 max-w-7xl mx-auto animate-fade-in">
       <PageHeader 
         title="AI 调用记录" 
-        description="系统级模型调用监控，追踪实时 Token 消耗与成本。管理员专享。" 
+        description="查看系统级模型调用、Token 用量、耗时和成本。" 
       />
 
       <div className="grid gap-8 mt-10">
@@ -132,8 +199,58 @@ export default function AiCallsPage() {
           />
         </section>
 
+        {error && (
+          <ErrorState title="调用记录加载失败" message={error} />
+        )}
+
+        {!error && (
+          <section className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <AggregatePanel
+              title="高成本用户"
+              subtitle="按当前筛选范围内费用排序"
+              rows={aggregates.byUser.map((row) => ({
+                id: row.userId,
+                primary: row.email ?? row.name ?? row.userId,
+                secondary: `${row.calls.toLocaleString()} 次 · ${(row.tokenIn + row.tokenOut).toLocaleString()} tokens`,
+                value: formatCost(row.costCny),
+              }))}
+            />
+            <AggregatePanel
+              title="高成本作品"
+              subtitle="定位费用集中的作品"
+              rows={aggregates.byNovel.map((row) => ({
+                id: row.novelId ?? "unknown",
+                primary: row.title ?? row.novelId ?? "未关联作品",
+                secondary: `${row.calls.toLocaleString()} 次 · 用户 ${row.userId ?? "未知"}`,
+                value: formatCost(row.costCny),
+              }))}
+            />
+            <AggregatePanel
+              title="Agent 成本与失败率"
+              subtitle="优先关注高失败且高成本的 Agent"
+              rows={aggregates.byAgent.map((row) => ({
+                id: row.agent ?? "unknown",
+                primary: agentLabel(row.agent),
+                secondary: `${row.calls.toLocaleString()} 次 · 失败 ${row.failures.toLocaleString()} 次 · 失败率 ${formatPercent(row.failureRate)}`,
+                value: formatCost(row.costCny),
+                danger: row.failureRate >= 0.2,
+              }))}
+            />
+            <AggregatePanel
+              title="模型成本"
+              subtitle="按模型聚合 token 和费用"
+              rows={aggregates.byModel.map((row) => ({
+                id: row.model,
+                primary: row.model,
+                secondary: `${row.calls.toLocaleString()} 次 · ${(row.tokenIn + row.tokenOut).toLocaleString()} tokens`,
+                value: formatCost(row.costCny),
+              }))}
+            />
+          </section>
+        )}
+
         {/* Filter & Table Area */}
-        <section className="card !p-0 overflow-hidden shadow-premium bg-white border-border-strong/50">
+        {!error && <section className="card !p-0 overflow-hidden shadow-premium bg-white border-border-strong/50">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-8 border-b border-border-subtle bg-secondary/20">
             <div className="flex flex-wrap items-center gap-4">
               <div className="relative">
@@ -180,8 +297,8 @@ export default function AiCallsPage() {
               <thead>
                 <tr className="bg-white border-b border-border-subtle">
                   <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-dim">调用时间</th>
-                  <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-dim">智能体/路由</th>
-                  <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-dim">底座模型</th>
+                  <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-dim">Agent / 路由</th>
+                  <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-dim">模型</th>
                   <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-dim text-right">消耗 (In/Out)</th>
                   <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-dim text-right">响应时长</th>
                   <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-[0.2em] text-text-dim text-right">估算成本</th>
@@ -274,7 +391,41 @@ export default function AiCallsPage() {
               </button>
             </div>
           )}
-        </section>
+        </section>}
+      </div>
+    </div>
+  );
+}
+
+function AggregatePanel({
+  title,
+  subtitle,
+  rows,
+}: {
+  title: string;
+  subtitle: string;
+  rows: Array<{ id: string; primary: string; secondary: string; value: string; danger?: boolean }>;
+}) {
+  return (
+    <div className="card bg-white border-border-strong/50 !p-0 overflow-hidden shadow-md">
+      <div className="px-6 py-5 border-b border-border-subtle bg-secondary/20">
+        <h2 className="text-base font-bold text-text-primary">{title}</h2>
+        <p className="text-xs text-text-muted mt-1">{subtitle}</p>
+      </div>
+      <div className="divide-y divide-border-subtle">
+        {rows.length === 0 ? (
+          <div className="px-6 py-10 text-sm text-text-muted text-center">暂无聚合数据</div>
+        ) : (
+          rows.slice(0, 6).map((row) => (
+            <div key={row.id} className="flex items-center justify-between gap-4 px-6 py-4">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-text-primary truncate">{row.primary}</p>
+                <p className={`text-xs mt-1 ${row.danger ? "text-red-600" : "text-text-muted"}`}>{row.secondary}</p>
+              </div>
+              <span className="text-sm font-bold text-text-primary tabular-nums shrink-0">{row.value}</span>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

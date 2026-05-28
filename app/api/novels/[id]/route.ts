@@ -27,7 +27,7 @@ export async function GET(_request: Request, context: RouteContext) {
     },
   });
 
-  if (!novel) {
+  if (!novel || novel.deleted_at) {
     return Response.json(
       {
         ok: false,
@@ -79,9 +79,9 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const novel = await prisma.novel.findUnique({
       where: { id },
-      select: { id: true, user_id: true },
+      select: { id: true, user_id: true, deleted_at: true },
     });
-    if (!novel) {
+    if (!novel || novel.deleted_at) {
       return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
     }
 
@@ -135,10 +135,10 @@ export async function DELETE(_request: Request, context: RouteContext) {
   try {
     const novel = await prisma.novel.findUnique({
       where: { id },
-      select: { id: true, user_id: true },
+      select: { id: true, user_id: true, deleted_at: true },
     });
 
-    if (!novel) {
+    if (!novel || novel.deleted_at) {
       return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
     }
 
@@ -157,9 +157,13 @@ export async function DELETE(_request: Request, context: RouteContext) {
       return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
     }
 
-    await prisma.novel.delete({ where: { id } });
+    await prisma.novel.update({
+      where: { id },
+      data: { deleted_at: new Date() },
+      select: { id: true },
+    });
 
-    return Response.json({ ok: true });
+    return Response.json({ ok: true, data: { deleted: true, recoverable: true } });
   } catch (err) {
     const message = err instanceof Error ? err.message : "unknown error";
     return jsonError("INTERNAL", message, true, 500);
