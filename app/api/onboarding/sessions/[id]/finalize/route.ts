@@ -15,6 +15,15 @@ interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
+function isUniqueConstraintError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === "P2002"
+  );
+}
+
 export async function POST(request: Request, context: RouteContext) {
   const { id } = await context.params;
   const body = await request.json().catch(() => null);
@@ -54,39 +63,58 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    const novel = await prisma.$transaction(async (tx) => {
-      const existing = await tx.novel.findUnique({
-        where: { session_id: session.id },
-      });
-      if (existing) {
+    let novel: { id: string };
+    try {
+      novel = await prisma.$transaction(async (tx) => {
+        const existing = await tx.novel.findUnique({
+          where: { session_id: session.id },
+        });
+        if (existing) {
+          await tx.onboardingSession.update({
+            where: { id },
+            data: { status: "finalized", bible_draft: draft },
+          });
+          return existing;
+        }
+
+        const created = await tx.novel.create({
+          data: {
+            user_id: userId,
+            title: session.title?.trim() || draft.meta.suggested_title,
+            profile: parsed.data.profile,
+            session_id: session.id,
+            bible: {
+              create: {
+                content: draft,
+              },
+            },
+          },
+        });
+
         await tx.onboardingSession.update({
           where: { id },
           data: { status: "finalized", bible_draft: draft },
         });
-        return existing;
-      }
 
-      const created = await tx.novel.create({
-        data: {
-          user_id: userId,
-          title: session.title?.trim() || draft.meta.suggested_title,
-          profile: parsed.data.profile,
-          session_id: session.id,
-          bible: {
-            create: {
-              content: draft,
-            },
-          },
-        },
+        return created;
       });
+    } catch (err) {
+      if (!isUniqueConstraintError(err)) throw err;
 
-      await tx.onboardingSession.update({
+      // Concurrent double-submit race: another request created the Novel
+      // between our findUnique and create. Recover by returning the row that
+      // now owns this onboarding session instead of surfacing a 500.
+      const existing = await prisma.novel.findUnique({
+        where: { session_id: session.id },
+      });
+      if (!existing) throw err;
+
+      await prisma.onboardingSession.update({
         where: { id },
         data: { status: "finalized", bible_draft: draft },
       });
-
-      return created;
-    });
+      novel = existing;
+    }
 
     const data = FinalizeResponseSchema.parse({
       novel_id: novel.id,

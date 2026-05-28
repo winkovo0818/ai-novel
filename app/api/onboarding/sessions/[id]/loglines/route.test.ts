@@ -16,6 +16,22 @@ vi.mock("@/lib/auth/rateLimit", () => ({
 
 vi.mock("@/lib/llm/usage", () => ({
   checkQuota,
+  estimateLlmMessagesCostCny: vi.fn(() => 0.001),
+  quotaExceededResponse: vi.fn((quota: { code?: string; reason?: string }) =>
+    Response.json({
+      ok: false,
+      error: {
+        code: quota.code ?? "QUOTA_EXCEEDED",
+        message: quota.reason ?? "Usage quota exceeded",
+        retryable: false,
+        details: {
+          reason: quota.reason,
+          nextDailyResetAt: "2026-05-29T00:00:00.000Z",
+          nextMonthlyResetAt: "2026-06-01T00:00:00.000Z",
+        },
+      },
+    }, { status: 429 }),
+  ),
 }));
 
 vi.mock("@/lib/llm/client", () => ({
@@ -131,6 +147,7 @@ describe("POST /api/onboarding/sessions/[id]/loglines — auth + input gating", 
     expect(res.status).toBe(429);
     const json = await res.json();
     expect(json.error.code).toBe("QUOTA_EXCEEDED");
+    expect(json.error.details.nextDailyResetAt).toBe("2026-05-29T00:00:00.000Z");
     expect(chatCompletionWithRetry).not.toHaveBeenCalled();
   });
 

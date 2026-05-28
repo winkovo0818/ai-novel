@@ -95,6 +95,45 @@ export const GenerateChapterDraftRequestSchema = z.object({
   })).optional(),
 });
 
+export const ChapterRevisionOperationSchema = z.enum([
+  "polish",
+  "humanize",
+  "expand",
+  "shorten",
+  "dialogue",
+  "intensify_conflict",
+  "continue",
+]);
+
+export const CHAPTER_REVISION_CONTEXT_MAX_CHARS = 4_000;
+export const CHAPTER_REVISION_SELECTED_TEXT_MAX_CHARS = 12_000;
+
+const CriticIssueSchema = z.object({
+  type: z.enum(["character", "world_rule", "plot_thread", "timeline", "tone"]),
+  severity: z.enum(["critical", "major", "minor"]),
+  description: z.string().min(1).max(2000),
+  suggestion: z.string().max(2000).optional(),
+});
+
+export const ReviseDraftRequestSchema = z.union([
+  z.object({
+    chapter_index: z.number().int().min(1),
+    content: z.string().min(1).max(12_000),
+    issues: z.array(CriticIssueSchema).min(1).max(20),
+  }),
+  z.object({
+    operation: ChapterRevisionOperationSchema,
+    chapter_index: z.number().int().min(1),
+    title: z.string().min(1).max(120),
+    selected_text: z.string().trim().min(1).max(CHAPTER_REVISION_SELECTED_TEXT_MAX_CHARS),
+    before_context: z.string().max(CHAPTER_REVISION_CONTEXT_MAX_CHARS).default(""),
+    after_context: z.string().max(CHAPTER_REVISION_CONTEXT_MAX_CHARS).default(""),
+  }),
+]);
+
+export type ChapterRevisionOperation = z.infer<typeof ChapterRevisionOperationSchema>;
+export type ReviseDraftRequest = z.infer<typeof ReviseDraftRequestSchema>;
+
 export const BibleUpdateRequestSchema = z.object({
   content: BibleDraftSchema,
 });

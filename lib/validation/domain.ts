@@ -156,14 +156,35 @@ export const StoryStateV1Schema = z.object({
     name: z.string().min(1),
     current_location: z.string().optional(),
     current_goal: z.string().optional(),
+    current_status: z.string().optional(),
     emotional_state: z.string().optional(),
     known_secrets: z.array(z.string()).optional(),
     relationship_notes: z.array(z.string()).optional(),
+  })).optional(),
+  locations: z.array(z.object({
+    name: z.string().min(1),
+    current_state: z.string().optional(),
+    last_seen_chapter: z.number().int().min(1).optional(),
+    notes: z.string().optional(),
+  })).optional(),
+  items: z.array(z.object({
+    name: z.string().min(1),
+    holder: z.string().optional(),
+    location: z.string().optional(),
+    status: z.string().optional(),
+    notes: z.string().optional(),
   })).optional(),
   timeline: z.array(z.object({
     chapter_index: z.number().int().min(1),
     event: z.string().min(1),
     impact: z.string().optional(),
+  })).optional(),
+  relationships: z.array(z.object({
+    from: z.string().min(1),
+    to: z.string().min(1),
+    status: z.string().min(1),
+    notes: z.string().optional(),
+    updated_in: z.number().int().min(1).optional(),
   })).optional(),
   plot_threads: z.array(z.object({
     id: z.string().min(1),
@@ -173,33 +194,60 @@ export const StoryStateV1Schema = z.object({
     resolved_in: z.number().int().min(1).optional(),
     notes: z.string().optional(),
   })).optional(),
+  foreshadowing: z.array(z.object({
+    id: z.string().min(1),
+    clue: z.string().min(1),
+    status: z.enum(["planted", "reinforced", "revealed", "resolved"]).default("planted"),
+    introduced_in: z.number().int().min(1).optional(),
+    resolved_in: z.number().int().min(1).optional(),
+    payoff_hint: z.string().optional(),
+    notes: z.string().optional(),
+  })).optional(),
 });
 export type StoryStateV1 = z.infer<typeof StoryStateV1Schema>;
+
+const StateDiffChangeValueSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.array(z.string()),
+]).transform((value) => Array.isArray(value) ? value : String(value));
 
 /**
  * StateDiff — output from the State Updater Agent (B2).
  * Describes what changed in a single chapter relative to the existing state.
  */
 export const StateDiffSchema = z.object({
-  character_updates: z.array(z.object({
-    name: z.string().min(1),
-    changes: z.record(z.union([z.string(), z.number(), z.boolean()]).transform(String)),
-    confidence: z.enum(["low", "medium", "high"]).catch("medium"),
-  })).default([]),
-  timeline_events: z.array(z.object({
-    event: z.string().min(1),
-    impact: z.string().optional(),
-  })).default([]),
-  plot_thread_updates: z.array(z.object({
-    title: z.string().min(1),
-    status: z.enum(["open", "progressing", "resolved"]).catch("progressing"),
-    notes: z.string().optional(),
-  })).default([]),
-  new_entities: z.array(z.object({
-    type: z.enum(["character", "location", "item", "rule"]).catch("character"),
-    name: z.string().min(1),
-    description: z.string().min(1),
-  })).default([]),
+  character_updates: z.array(
+    z.object({
+      name: z.string().min(1),
+      changes: z.record(StateDiffChangeValueSchema),
+      confidence: z.enum(["low", "medium", "high"]).catch("medium"),
+    }),
+  ).default([]),
+  timeline_events: z.array(
+    z.object({
+      event: z.string().min(1),
+      impact: z.string().optional(),
+    }),
+  ).default([]),
+  plot_thread_updates: z.array(
+    z.object({
+      title: z.string().min(1),
+      status: z.enum(["open", "progressing", "resolved"]).catch("progressing"),
+      notes: z.string().optional(),
+    }),
+  ).default([]),
+  new_entities: z.array(
+    z.object({
+      type: z.enum(["character", "location", "item", "rule"]).catch("character"),
+      name: z.string().min(1),
+      description: z.string().min(1).optional(),
+    }).transform((entity) => ({
+      ...entity,
+      description: entity.description?.trim() || entity.name,
+    })),
+  ).default([]),
 });
 export type StateDiff = z.infer<typeof StateDiffSchema>;
 

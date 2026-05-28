@@ -17,6 +17,22 @@ vi.mock("@/lib/auth/rateLimit", () => ({
 
 vi.mock("@/lib/llm/usage", () => ({
   checkQuota,
+  estimateLlmMessagesCostCny: vi.fn(() => 0.001),
+  quotaExceededResponse: vi.fn((quota: { code?: string; reason?: string }) =>
+    Response.json({
+      ok: false,
+      error: {
+        code: quota.code ?? "QUOTA_EXCEEDED",
+        message: quota.reason ?? "Usage quota exceeded",
+        retryable: false,
+        details: {
+          reason: quota.reason,
+          nextDailyResetAt: "2026-05-29T00:00:00.000Z",
+          nextMonthlyResetAt: "2026-06-01T00:00:00.000Z",
+        },
+      },
+    }, { status: 429 }),
+  ),
 }));
 
 vi.mock("@/lib/moderation/moderate", () => ({
@@ -142,6 +158,27 @@ describe("POST /api/onboarding/sessions/[id]/bible — auth + input gating", () 
     const json = await res.json();
     expect(json.error.code).toBe("REGEN_LIMIT_EXCEEDED");
     expect(streamChatCompletionWithRetry).not.toHaveBeenCalled();
+  });
+
+  it("returns structured 429 QUOTA_EXCEEDED details when caller is over quota", async () => {
+    authorizeOnboardingSession.mockResolvedValue({
+      ok: true,
+      userId: "user-1",
+      session: { id: "session-1", regeneration_count: 0 },
+    });
+    checkQuota.mockResolvedValue({ allowed: false, code: "QUOTA_EXCEEDED", reason: "Over" });
+
+    const { POST } = await import("./route");
+    const res = await POST(buildRequest(validBody), {
+      params: Promise.resolve({ id: "session-1" }),
+    });
+
+    expect(res.status).toBe(429);
+    const json = await res.json();
+    expect(json.error.code).toBe("QUOTA_EXCEEDED");
+    expect(json.error.details.nextDailyResetAt).toBe("2026-05-29T00:00:00.000Z");
+    expect(streamChatCompletionWithRetry).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
   });
 
   it("returns 400 when input moderation blocks the prompt", async () => {

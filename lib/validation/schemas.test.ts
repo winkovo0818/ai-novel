@@ -4,6 +4,7 @@ import {
   CharacterSchema,
   QuestionSchema,
   NovelProfileSchema,
+  StateDiffSchema,
   buildDefaultProfile,
 } from "./schemas";
 
@@ -81,6 +82,45 @@ describe("BibleDraftSchema", () => {
   it("accepts a valid draft", () => {
     const r = BibleDraftSchema.safeParse(validBibleDraft());
     expect(r.success).toBe(true);
+  });
+
+  it("keeps old story_state optional and accepts expanded runtime fields", () => {
+    expect(BibleDraftSchema.safeParse(validBibleDraft()).success).toBe(true);
+
+    const draft = {
+      ...validBibleDraft(),
+      story_state: {
+        characters: [
+          {
+            name: "沈言",
+            current_location: "柴饦门",
+            current_goal: "活过考核",
+            current_status: "受伤但清醒",
+            relationship_notes: ["与几暂时合作"],
+          },
+        ],
+        locations: [
+          { name: "后山裂井", current_state: "封印松动", last_seen_chapter: 3 },
+        ],
+        items: [
+          { name: "追踪木牌", holder: "沈言", status: "暗藏符印" },
+        ],
+        relationships: [
+          { from: "沈言", to: "几", status: "互相试探", updated_in: 3 },
+        ],
+        foreshadowing: [
+          { id: "clue-1", clue: "父母旧案", status: "planted", introduced_in: 1 },
+        ],
+      },
+    };
+
+    const parsed = BibleDraftSchema.safeParse(draft);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.story_state?.locations?.[0].name).toBe("后山裂井");
+      expect(parsed.data.story_state?.items?.[0].holder).toBe("沈言");
+      expect(parsed.data.story_state?.foreshadowing?.[0].status).toBe("planted");
+    }
   });
 
   it("rejects when there is no protagonist", () => {
@@ -223,6 +263,43 @@ describe("CharacterSchema", () => {
   });
 });
 
+describe("StateDiffSchema", () => {
+  it("accepts array-valued character changes from real state updater output", () => {
+    const parsed = StateDiffSchema.parse({
+      character_updates: [
+        {
+          name: "沈言",
+          changes: {
+            current_location: "后山裂井",
+            known_secrets: ["体内封着上古剑魂", "几认识父亲"],
+          },
+          confidence: "high",
+        },
+      ],
+    });
+
+    expect(parsed.character_updates[0].changes.current_location).toBe("后山裂井");
+    expect(parsed.character_updates[0].changes.known_secrets).toEqual([
+      "体内封着上古剑魂",
+      "几认识父亲",
+    ]);
+  });
+
+  it("fills missing new entity descriptions from the entity name", () => {
+    const parsed = StateDiffSchema.parse({
+      new_entities: [
+        { type: "item", name: "黑木牌" },
+      ],
+    });
+
+    expect(parsed.new_entities[0]).toEqual({
+      type: "item",
+      name: "黑木牌",
+      description: "黑木牌",
+    });
+  });
+});
+
 describe("BibleDraftSchema multi-volume", () => {
   it("accepts an outline with extra volumes appended", () => {
     const draft = validBibleDraft() as ReturnType<typeof validBibleDraft> & { outline: { volumes: unknown[] } };
@@ -260,4 +337,3 @@ describe("BibleDraftSchema multi-volume", () => {
     expect(chapters.some((c) => c.index === 21)).toBe(true);
   });
 });
-

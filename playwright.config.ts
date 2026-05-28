@@ -4,6 +4,7 @@ const useBuilt = process.env.E2E_USE_BUILT === "1" || process.env.CI === "true";
 const databaseUrl =
   process.env.E2E_DATABASE_URL ??
   "postgresql://ai_novel:sffBA4NBWXGXMMtr@47.107.28.214:5432/ai_novel";
+const browserChannel = process.env.E2E_BROWSER_CHANNEL;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -34,7 +35,10 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(browserChannel ? { channel: browserChannel } : {}),
+      },
     },
   ],
 });

@@ -64,6 +64,20 @@ describe("buildStateDiffPrompt", () => {
     expect(system.content).toMatch(/low\/medium\/high/);
   });
 
+  it("prioritizes verifiable chapter state changes", () => {
+    const [system] = buildStateDiffPrompt({
+      bible,
+      chapterIndex: 1,
+      chapterTitle: "x",
+      chapterContent: "x",
+    });
+
+    expect(system.content).toContain("可验证状态变化");
+    expect(system.content).toContain("新线索、关系变化、位置变化、道具归属、敌人反应");
+    expect(system.content).toContain("行动 -> 结果");
+    expect(system.content).toContain("纯氛围描写");
+  });
+
   it("renders every character with role, personality, and motivation", () => {
     const [, user] = buildStateDiffPrompt({
       bible,

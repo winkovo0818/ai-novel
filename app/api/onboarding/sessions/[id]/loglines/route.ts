@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { authorizeOnboardingSession } from "@/lib/auth/onboardingAccess";
 import { isRateLimited } from "@/lib/auth/rateLimit";
 import { chatCompletionWithRetry } from "@/lib/llm/client";
-import { checkQuota } from "@/lib/llm/usage";
+import { checkQuota, estimateLlmMessagesCostCny, quotaExceededResponse } from "@/lib/llm/usage";
 import { buildLoglinePrompt } from "@/lib/llm/prompts/logline";
 import {
   buildDefaultProfile,
@@ -46,27 +46,30 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("RATE_LIMITED", "Too many requests, please try again later", false, 429);
   }
 
-  const quota = await checkQuota(userId);
-  if (!quota.allowed) {
-    return jsonError(quota.code ?? "QUOTA_EXCEEDED", quota.reason ?? "Usage quota exceeded", false, 429);
-  }
-
   const profile = buildDefaultProfile(
     session.genre_main as Parameters<typeof buildDefaultProfile>[0],
     session.genre_sub,
   );
+  const messages = buildLoglinePrompt({
+    profile,
+    title: session.title,
+    genreMainLabel: GENRE_MAIN_LABELS[String(session.genre_main)] ?? String(session.genre_main),
+    genreSub: session.genre_sub,
+  });
+
+  const quota = await checkQuota(userId, {
+    estimatedCostCny: estimateLlmMessagesCostCny(messages, 2048),
+  });
+  if (!quota.allowed) {
+    return quotaExceededResponse(quota);
+  }
 
   try {
     const result = await chatCompletionWithRetry({
       route: ROUTE,
       agent: "outline",
       userId,
-      messages: buildLoglinePrompt({
-        profile,
-        title: session.title,
-        genreMainLabel: GENRE_MAIN_LABELS[String(session.genre_main)] ?? String(session.genre_main),
-        genreSub: session.genre_sub,
-      }),
+      messages,
       responseFormat: "json_object",
       temperature: parsed.data.regenerate ? 0.9 : 0.7,
       timeoutMs: 15_000,

@@ -4,6 +4,7 @@ const findUnique = vi.fn();
 const findUniqueSession = vi.fn();
 const create = vi.fn();
 const update = vi.fn();
+const transaction = vi.fn();
 const authorizeOnboardingSession = vi.fn();
 const moderateContent = vi.fn();
 
@@ -11,10 +12,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     onboardingSession: { findUnique: findUniqueSession, update },
     novel: { create, findUnique },
-    $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({
-      novel: { create, findUnique },
-      onboardingSession: { update },
-    }),
+    $transaction: transaction,
   },
 }));
 
@@ -28,8 +26,14 @@ vi.mock("@/lib/moderation/moderate", () => ({
 }));
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   vi.resetModules();
+  transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) =>
+    fn({
+      novel: { create, findUnique },
+      onboardingSession: { update },
+    }),
+  );
 });
 
 function buildMinimalValidBible(): Record<string, unknown> {
@@ -300,5 +304,79 @@ describe("POST /api/onboarding/sessions/[id]/finalize", () => {
     expect(findUnique).toHaveBeenCalledWith({ where: { session_id: "session-1" } });
     expect(findUnique).toHaveBeenCalledWith({ where: { session_id: "session-1" } });
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it("recovers the existing novel when concurrent finalize hits the session_id unique constraint", async () => {
+    const existingNovel = { id: "550e8400-e29b-41d4-a716-446655440000", title: "My Novel", session_id: "session-1" };
+    authorizeOnboardingSession.mockResolvedValue({
+      ok: true,
+      userId: "user-1",
+      session: {
+        id: "session-1",
+        title: "My Novel",
+        status: "active",
+        bible_draft: validBible,
+      },
+    });
+    moderateContent.mockResolvedValue({ allowed: true });
+    transaction.mockRejectedValueOnce({ code: "P2002", meta: { target: ["session_id"] } });
+    findUnique.mockResolvedValue(existingNovel);
+    update.mockResolvedValue({});
+
+    const { POST } = await import("./route");
+    const res = await POST(
+      new Request("http://localhost/x", {
+        method: "POST",
+        body: JSON.stringify(validBody),
+      }),
+      { params: Promise.resolve({ id: "session-1" }) },
+    );
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.ok).toBe(true);
+    expect(json.data.novel_id).toBe(existingNovel.id);
+    expect(findUnique).toHaveBeenCalledWith({ where: { session_id: "session-1" } });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "session-1" },
+      data: { status: "finalized", bible_draft: validBible },
+    });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("uses the saved session Bible when the submitted draft is invalid", async () => {
+    authorizeOnboardingSession.mockResolvedValue({
+      ok: true,
+      userId: "user-1",
+      session: {
+        id: "session-1",
+        title: "My Novel",
+        status: "active",
+        bible_draft: validBible,
+      },
+    });
+    moderateContent.mockResolvedValue({ allowed: true });
+    create.mockResolvedValue({ id: "550e8400-e29b-41d4-a716-446655440000" });
+    update.mockResolvedValue({});
+
+    const { POST } = await import("./route");
+    const res = await POST(
+      new Request("http://localhost/x", {
+        method: "POST",
+        body: JSON.stringify({
+          ...validBody,
+          bible_draft: { invalid: true },
+        }),
+      }),
+      { params: Promise.resolve({ id: "session-1" }) },
+    );
+
+    expect(res.status).toBe(200);
+    expect(create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        session_id: "session-1",
+        bible: { create: { content: validBible } },
+      }),
+    });
   });
 });

@@ -6,14 +6,50 @@ import type {
   ChatStreamResult,
 } from "./client";
 
+export type LlmMockScenario =
+  | "normal"
+  | "stream-empty"
+  | "stream-timeout-before-delta"
+  | "stream-timeout-after-delta"
+  | "stream-moderation-block"
+  | "stream-slow"
+  | "chat-moderation-block"
+  | "retrieval-error";
+
+const MOCK_SCENARIO_ALIASES: Record<string, LlmMockScenario> = {
+  normal: "normal",
+  "stream-empty": "stream-empty",
+  empty: "stream-empty",
+  "stream-timeout-before-delta": "stream-timeout-before-delta",
+  "timeout-before-delta": "stream-timeout-before-delta",
+  "stream-timeout-after-delta": "stream-timeout-after-delta",
+  "timeout-after-delta": "stream-timeout-after-delta",
+  "stream-interrupt-before-delta": "stream-timeout-before-delta",
+  "stream-interrupt-after-delta": "stream-timeout-after-delta",
+  "sse-interrupt": "stream-timeout-after-delta",
+  "stream-moderation-block": "stream-moderation-block",
+  "moderation-block": "stream-moderation-block",
+  "stream-slow": "stream-slow",
+  slow: "stream-slow",
+  "chat-moderation-block": "chat-moderation-block",
+  "retrieval-error": "retrieval-error",
+};
+
 export function isLlmMockEnabled(): boolean {
   return process.env.LLM_MOCK === "1" || process.env.LLM_MOCK === "true";
+}
+
+export function getLlmMockScenario(): LlmMockScenario {
+  const raw = process.env.LLM_MOCK_SCENARIO?.trim().toLowerCase();
+  if (!raw) return "normal";
+  return MOCK_SCENARIO_ALIASES[raw] ?? "normal";
 }
 
 export async function mockChatCompletion(
   opts: ChatCompletionOptions,
 ): Promise<ChatCompletionResult> {
-  const content = JSON.stringify(mockJsonForRoute(opts.route));
+  const mock = mockJsonForRoute(opts);
+  const content = typeof mock === "string" ? mock : JSON.stringify(mock);
   return {
     content: opts.route.includes("/healthz/llm") ? "ok" : content,
     tokenIn: 10,
@@ -28,13 +64,25 @@ export async function mockStreamChatCompletion(
   opts: ChatStreamOptions,
   callbacks: ChatStreamCallbacks,
 ): Promise<ChatStreamResult> {
-  const content = opts.route.includes("/chapters/draft")
-    ? mockChapterDraftText()
-    : JSON.stringify(mockBibleDraft());
-  const chunkSize = 96;
+  const start = Date.now();
+  const scenario = getLlmMockScenario();
+  const content = mockStreamContentForRoute(opts, scenario);
+  const chunkSize = scenario === "stream-slow" ? 24 : 96;
+  const delayMs = scenario === "stream-slow" ? mockTokenDelayMs() : 0;
+
+  if (scenario === "stream-timeout-before-delta") {
+    throw new Error(`DeepSeek stream timed out after ${opts.timeoutMs ?? 120_000}ms`);
+  }
 
   for (let i = 0; i < content.length; i += chunkSize) {
+    if (delayMs > 0) {
+      await sleep(delayMs);
+    }
     await callbacks.onDelta(content.slice(i, i + chunkSize));
+
+    if (scenario === "stream-timeout-after-delta") {
+      throw new Error(`DeepSeek stream timed out after ${opts.timeoutMs ?? 120_000}ms`);
+    }
   }
 
   return {
@@ -42,9 +90,32 @@ export async function mockStreamChatCompletion(
     tokenIn: 100,
     tokenOut: Math.ceil(content.length / 4),
     costCny: 0,
-    tookMs: 1,
+    tookMs: Math.max(1, Date.now() - start),
     model: opts.model ?? "mock-deepseek-chat",
   };
+}
+
+function mockStreamContentForRoute(opts: ChatStreamOptions, scenario: LlmMockScenario): string {
+  if (scenario === "stream-empty") return "";
+  if (scenario === "stream-timeout-after-delta") return "雨夜火房骤然安静。";
+  if (scenario === "stream-moderation-block") {
+    return [
+      "沈言低声复述敌人留下的危险纸条，里面写着制作炸弹的步骤。",
+      "他立刻意识到这不是线索，而是必须销毁的陷阱。",
+    ].join("\n\n");
+  }
+  return opts.route.includes("/chapters/draft")
+    ? mockChapterDraftText()
+    : JSON.stringify(mockBibleDraft());
+}
+
+function mockTokenDelayMs(): number {
+  const parsed = Number(process.env.LLM_MOCK_TOKEN_DELAY_MS ?? 10);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 500) : 10;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function mockChapterDraftText(): string {
@@ -57,7 +128,120 @@ function mockChapterDraftText(): string {
   ].join("\n\n");
 }
 
-function mockJsonForRoute(route: string): unknown {
+function mockJsonForRoute(opts: ChatCompletionOptions): unknown {
+  const route = opts.route;
+  const scenario = getLlmMockScenario();
+
+  if (route.includes(":moderation")) {
+    if (scenario === "chat-moderation-block") {
+      return {
+        allowed: false,
+        reason: "Mock moderation block requested by LLM_MOCK_SCENARIO.",
+      };
+    }
+    return { allowed: true };
+  }
+
+  if (route.includes("/chapters/critic")) {
+    if (opts.messages.some((message) => message.content.includes("EVAL_CRITIC_CONFLICT"))) {
+      return {
+        consistent: false,
+        issues: [
+          {
+            type: "world_rule",
+            severity: "critical",
+            description: "章节让剑魂随意转移，违反「剑魂认主不可逆」。",
+            suggestion: "改为沈言误判剑魂状态，或让反派只夺取外部媒介。",
+          },
+          {
+            type: "character",
+            severity: "major",
+            description: "沈言主动交出剑魂且毫无防备，和冷静记仇的动机冲突。",
+            suggestion: "增加沈言设局或被迫交换的动机铺垫。",
+          },
+        ],
+      };
+    }
+
+    return {
+      consistent: true,
+      issues: [],
+    };
+  }
+
+  if (route.includes("/chapters/draft/revise")) {
+    const promptText = opts.messages.map((message) => message.content).join("\n");
+    if (promptText.includes("操作：humanize")) {
+      return "沈言把木牌按进掌心。\n\n疼。不是错觉。牌角那道黑线钻进旧疤里，像有人拿针在皮下挑了一下。\n\n他没抬头。执事还站在门口看着，他就继续装笨，弯腰去捡散开的湿柴。";
+    }
+    return "林燃放慢脚步，借着门缝看清校队的攻防节奏。";
+  }
+
+  if (route.includes("/state-diff")) {
+    if (opts.messages.some((message) => message.content.includes("EVAL_STATE_DIFF_PROGRESS"))) {
+      return {
+        character_updates: [
+          {
+            name: "沈言",
+            changes: {
+              current_location: "后山裂井",
+              current_goal: "借考核查清父母旧案",
+              emotional_state: "警惕但决意反击",
+            },
+            confidence: "high",
+          },
+        ],
+        timeline_events: [
+          {
+            event: "沈言与剑魂几在后山裂井达成暂时合作",
+            impact: "沈言从被动求生转为主动利用考核追查旧案",
+          },
+        ],
+        plot_thread_updates: [
+          {
+            title: "上古剑魂来源",
+            status: "progressing",
+            notes: "几承认认识沈言父亲，父母旧案与剑魂有关。",
+          },
+        ],
+        new_entities: [
+          {
+            type: "location",
+            name: "后山裂井",
+            description: "柴饦峰后山封存剑魂回声的裂井。",
+          },
+        ],
+      };
+    }
+
+    return {
+      character_updates: [
+        {
+          name: "沈言",
+          changes: {
+            current_location: "柴饦峰火房",
+            emotional_state: "警惕",
+          },
+          confidence: "high",
+        },
+      ],
+      timeline_events: [
+        {
+          event: "沈言在雨夜火房听见剑魂低语",
+          impact: "上古剑魂主线正式开启",
+        },
+      ],
+      plot_thread_updates: [
+        {
+          title: "上古剑魂来源",
+          status: "progressing",
+          notes: "剑魂几首次主动与沈言对话。",
+        },
+      ],
+      new_entities: [],
+    };
+  }
+
   if (route.includes("/loglines")) {
     return {
       loglines: [

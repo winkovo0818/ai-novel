@@ -14,6 +14,8 @@ import { prisma } from "@/lib/db";
 
 const ORIG_KEY = process.env.DEEPSEEK_API_KEY;
 const ORIG_MOCK = process.env.LLM_MOCK;
+const ORIG_MOCK_SCENARIO = process.env.LLM_MOCK_SCENARIO;
+const ORIG_MOCK_TOKEN_DELAY_MS = process.env.LLM_MOCK_TOKEN_DELAY_MS;
 const ORIG_MODEL_KEY_SECRET = process.env.MODEL_KEY_ENCRYPTION_SECRET;
 
 describe("lib/llm/client", () => {
@@ -31,6 +33,16 @@ describe("lib/llm/client", () => {
       delete process.env.LLM_MOCK;
     } else {
       process.env.LLM_MOCK = ORIG_MOCK;
+    }
+    if (ORIG_MOCK_SCENARIO === undefined) {
+      delete process.env.LLM_MOCK_SCENARIO;
+    } else {
+      process.env.LLM_MOCK_SCENARIO = ORIG_MOCK_SCENARIO;
+    }
+    if (ORIG_MOCK_TOKEN_DELAY_MS === undefined) {
+      delete process.env.LLM_MOCK_TOKEN_DELAY_MS;
+    } else {
+      process.env.LLM_MOCK_TOKEN_DELAY_MS = ORIG_MOCK_TOKEN_DELAY_MS;
     }
     if (ORIG_MODEL_KEY_SECRET === undefined) {
       delete process.env.MODEL_KEY_ENCRYPTION_SECRET;
@@ -110,6 +122,120 @@ describe("lib/llm/client", () => {
 
     expect(result.content).toBe(content);
     expect(JSON.parse(content).meta.suggested_title).toBe("逆魂纪");
+  });
+
+  it("supports an empty-stream mock scenario", async () => {
+    process.env.LLM_MOCK = "1";
+    process.env.LLM_MOCK_SCENARIO = "stream-empty";
+    delete process.env.DEEPSEEK_API_KEY;
+    let deltas = 0;
+
+    const result = await streamChatCompletion(
+      {
+        route: "/api/novels/:id/chapters/draft",
+        messages: [{ role: "user", content: "ping" }],
+      },
+      { onDelta: () => { deltas++; } },
+    );
+
+    expect(result.content).toBe("");
+    expect(result.tokenOut).toBe(0);
+    expect(deltas).toBe(0);
+  });
+
+  it("supports a before-delta timeout mock scenario", async () => {
+    process.env.LLM_MOCK = "1";
+    process.env.LLM_MOCK_SCENARIO = "stream-timeout-before-delta";
+    delete process.env.DEEPSEEK_API_KEY;
+    let captured = "";
+
+    await expect(
+      streamChatCompletionWithRetry(
+        {
+          route: "/api/novels/:id/chapters/draft",
+          messages: [{ role: "user", content: "ping" }],
+          timeoutMs: 123,
+        },
+        { onDelta: (delta) => { captured += delta; } },
+      ),
+    ).rejects.toThrow(/timed out after 123ms/);
+
+    expect(captured).toBe("");
+  });
+
+  it("supports an after-delta interruption mock scenario without retrying", async () => {
+    process.env.LLM_MOCK = "1";
+    process.env.LLM_MOCK_SCENARIO = "stream-timeout-after-delta";
+    delete process.env.DEEPSEEK_API_KEY;
+    let captured = "";
+
+    await expect(
+      streamChatCompletionWithRetry(
+        {
+          route: "/api/novels/:id/chapters/draft",
+          messages: [{ role: "user", content: "ping" }],
+          timeoutMs: 456,
+        },
+        { onDelta: (delta) => { captured += delta; } },
+      ),
+    ).rejects.toThrow(/timed out after 456ms/);
+
+    expect(captured).toBe("雨夜火房骤然安静。");
+  });
+
+  it("supports a stream moderation-block mock scenario", async () => {
+    process.env.LLM_MOCK = "1";
+    process.env.LLM_MOCK_SCENARIO = "stream-moderation-block";
+    delete process.env.DEEPSEEK_API_KEY;
+    let captured = "";
+
+    const result = await streamChatCompletion(
+      {
+        route: "/api/novels/:id/chapters/draft",
+        messages: [{ role: "user", content: "ping" }],
+      },
+      { onDelta: (delta) => { captured += delta; } },
+    );
+
+    expect(result.content).toBe(captured);
+    expect(captured).toContain("制作炸弹");
+  });
+
+  it("supports a slow-token mock scenario", async () => {
+    process.env.LLM_MOCK = "1";
+    process.env.LLM_MOCK_SCENARIO = "stream-slow";
+    process.env.LLM_MOCK_TOKEN_DELAY_MS = "1";
+    delete process.env.DEEPSEEK_API_KEY;
+    const chunks: string[] = [];
+
+    const result = await streamChatCompletion(
+      {
+        route: "/api/novels/:id/chapters/draft",
+        messages: [{ role: "user", content: "ping" }],
+      },
+      { onDelta: (delta) => { chunks.push(delta); } },
+    );
+
+    expect(result.content).toBe(chunks.join(""));
+    expect(chunks.length).toBeGreaterThan(1);
+    expect(result.tookMs).toBeGreaterThanOrEqual(1);
+  });
+
+  it("supports a chat moderation-block mock scenario", async () => {
+    process.env.LLM_MOCK = "1";
+    process.env.LLM_MOCK_SCENARIO = "chat-moderation-block";
+    delete process.env.DEEPSEEK_API_KEY;
+
+    const result = await chatCompletion({
+      route: "/api/novels/:id/chapters/draft:moderation",
+      messages: [{ role: "user", content: "ping" }],
+      responseFormat: "json_object",
+    });
+
+    expect(JSON.parse(result.content)).toEqual({
+      allowed: false,
+      reason: "Mock moderation block requested by LLM_MOCK_SCENARIO.",
+    });
   });
 
   it("retries streamChatCompletion on timeout when no delta has been emitted", async () => {
