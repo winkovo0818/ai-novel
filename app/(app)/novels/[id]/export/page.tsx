@@ -32,7 +32,7 @@ export default async function ExportCenterPage({ params }: PageProps) {
       chapters: { orderBy: { chapter_index: "asc" } },
     },
   });
-  if (!novel) notFound();
+  if (!novel || novel.deleted_at) notFound();
   if (!canAccessOwnerResource(novel.user_id, userId)) notFound();
 
   const bibleParse = novel.bible ? BibleDraftSchema.safeParse(novel.bible.content) : null;
@@ -58,7 +58,7 @@ export default async function ExportCenterPage({ params }: PageProps) {
       <div className="p-8 md:p-12 lg:p-16 max-w-7xl mx-auto min-h-full pb-32">
         <PageHeader
           title="导出中心"
-          description={`将《${novel.title}》打包为 4 种主流格式 · 已起草 ${draftedCount} 个章节`}
+          description={`将《${novel.title}》打包为阅读格式或完整项目备份 · 已起草 ${draftedCount} 个章节`}
           breadcrumb={[
             { label: "我的书架", href: "/novels" },
             { label: novel.title, href: `/novels/${novel.id}` },
@@ -136,7 +136,10 @@ export default async function ExportCenterPage({ params }: PageProps) {
               勾选「附带作品 Bible」会把角色、世界、章节大纲与当前故事状态作为附录加入导出文件。
             </li>
             <li>
-              EPUB / DOCX 会保留章节硬换行；Markdown / TXT 直接输出原始字符。
+              完整项目 JSON / ZIP 会包含作品设定、章节、摘要和记忆元数据；不会导出 embedding 向量。
+            </li>
+            <li>
+              EPUB / DOCX 会保留章节硬换行；Markdown / TXT / JSON 直接输出原始字符。
             </li>
             <li>
               下载前会做一次审核检查，若全文含违规内容会被拒绝（HTTP 422）。

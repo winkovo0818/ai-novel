@@ -1,7 +1,7 @@
 import React from "react";
 import type { WizardStep } from "@/lib/store/wizardStore";
 
-const labels = ["核心方向", "灵感合成", "决策矩阵", "圣经合成", "最终核对"];
+const labels = ["作品方向", "故事灵感", "关键问题", "生成设定", "最终核对"];
 
 export function ProgressDots({ step }: { step: WizardStep }) {
   return (
@@ -54,6 +54,5 @@ export function ProgressDots({ step }: { step: WizardStep }) {
     </div>
   );
 }
-
 
 

@@ -42,7 +42,7 @@ export function DeleteNovelButton({ novelId, novelTitle }: { novelId: string; no
   if (confirming) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-[11px] text-red-600 font-medium">确认删除「{novelTitle}」？此操作不可撤销。</span>
+        <span className="text-[11px] text-red-600 font-medium">确认移入回收状态「{novelTitle}」？恢复窗口内可找回。</span>
         <button
           type="button"
           onClick={handleDelete}

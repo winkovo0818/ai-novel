@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useWizardStore } from "@/lib/store/wizardStore";
@@ -12,8 +13,14 @@ export function Step5Review() {
   const router = useRouter();
   const store = useWizardStore();
   const validationIssues = getBibleValidationIssues(store.bible_draft);
+  const [finalizingAction, setFinalizingAction] = useState<"save_only" | "start_writing" | null>(null);
+  const [finalizedEditorUrl, setFinalizedEditorUrl] = useState<string | null>(null);
+  const finalizeInFlightRef = useRef(false);
+  const isFinalizing = finalizingAction !== null || store.status === "loading";
 
   async function finalize(action: "save_only" | "start_writing") {
+    if (isFinalizing || finalizeInFlightRef.current) return;
+
     if (!store.session_id || !store.default_profile) {
       store.setError({ step: 5, message: "缺失会话元数据", retryable: false });
       return;
@@ -30,27 +37,46 @@ export function Step5Review() {
 
     const validation = BibleDraftSchema.parse(store.bible_draft);
 
+    setFinalizedEditorUrl(null);
+    finalizeInFlightRef.current = true;
+    setFinalizingAction(action);
+    store.setError(undefined);
     store.setStatus("loading");
-    const response = await fetch(`/api/onboarding/sessions/${store.session_id}/finalize`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        bible_draft: validation,
-        profile: store.default_profile,
-        action,
-      }),
-    });
-    const json = await response.json();
-    if (!json.ok) {
-      store.setError({ step: 5, message: json.error.message, retryable: json.error.retryable });
-      return;
-    }
+    try {
+      const response = await fetch(`/api/onboarding/sessions/${store.session_id}/finalize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bible_draft: validation,
+          profile: store.default_profile,
+          action,
+        }),
+      });
+      const json = await response.json().catch(() => null);
+      if (!json?.ok) {
+        store.setError({
+          step: 5,
+          message: json?.error?.message ?? "作品确认失败，请稍后重试",
+          retryable: json?.error?.retryable ?? true,
+        });
+        return;
+      }
 
-    store.setStatus("done");
-    if (action === "start_writing") router.push(json.data.editor_url);
+      store.setStatus("done");
+      setFinalizedEditorUrl(json.data.editor_url);
+      if (action === "start_writing") router.push(json.data.editor_url);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "网络异常，请稍后重试";
+      store.setError({ step: 5, message, retryable: true });
+    } finally {
+      finalizeInFlightRef.current = false;
+      setFinalizingAction(null);
+    }
   }
 
   function regenerate() {
+    if (isFinalizing) return;
+
     if (store.regeneration_count >= 3) {
       store.setError({ step: 5, message: "重试次数已达上限", retryable: false });
       return;
@@ -61,7 +87,7 @@ export function Step5Review() {
   }
 
   return (
-    <StepShell eyebrow="分册 05" title="圣经核对与微调" description="请最后审计合成后的叙事圣经。您可以直接修改不符合预期的细节，确认无误后即可开启创作。">
+    <StepShell eyebrow="分册 05" title="核对作品设定" description="请最后检查生成后的设定和大纲。您可以直接修改不符合预期的细节，确认无误后即可开始写作。">
       <div className="grid gap-8">
         {store.bible_draft ? (
           <BibleReviewCards draft={store.bible_draft} onChange={store.setBibleDraft} />
@@ -70,10 +96,14 @@ export function Step5Review() {
         )}
         
         {validationIssues.length > 0 && <ValidationPanel issues={validationIssues} />}
+        {finalizedEditorUrl && store.status === "done" ? (
+          <FinalizeSuccess editorUrl={finalizedEditorUrl} />
+        ) : null}
 
         <footer className="flex flex-wrap items-center justify-between gap-6 pt-8 border-t border-border-subtle">
           <button 
-            className="group flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.2em] text-text-dim hover:text-red-500 transition duration-500" 
+            className="group flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.2em] text-text-dim hover:text-red-500 transition duration-500 disabled:cursor-not-allowed disabled:opacity-40" 
+            disabled={isFinalizing}
             onClick={regenerate}
           >
             <div className="h-10 w-10 rounded-full border border-border-strong flex items-center justify-center group-hover:border-red-200 group-hover:bg-red-50 transition">
@@ -81,31 +111,31 @@ export function Step5Review() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </div>
-            重新合成圣经 ({store.regeneration_count}/3)
+            重新生成设定 ({store.regeneration_count}/3)
           </button>
           
           <div className="flex items-center gap-4">
             <button 
               className="h-12 px-6 rounded-full border border-border-strong text-text-primary text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-secondary transition active:scale-95 disabled:opacity-30" 
-              disabled={store.status === "loading"} 
+              disabled={isFinalizing} 
               onClick={() => finalize("save_only")}
             >
-              暂存草稿
+              {finalizingAction === "save_only" ? "正在暂存…" : "暂存草稿"}
             </button>
             <button 
               className="group h-14 px-8 rounded-full bg-text-primary text-white text-[11px] font-bold uppercase tracking-[0.2em] shadow-premium hover:bg-accent transition flex items-center gap-3 active:scale-95 disabled:opacity-30 relative overflow-hidden" 
-              disabled={store.status === "loading"} 
+              disabled={isFinalizing} 
               onClick={() => finalize("start_writing")}
             >
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer pointer-events-none" />
-              {store.status === "loading" ? (
+              {finalizingAction === "start_writing" ? (
                 <>
                   <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                  正在初始化…
+                  正在进入编辑器…
                 </>
               ) : (
                 <>
-                  确认并开启创作
+                  确认并开始写作
                   <svg aria-hidden="true" className="w-4 h-4 group-hover:translate-x-1.5 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                   </svg>
@@ -119,17 +149,38 @@ export function Step5Review() {
   );
 }
 
+function FinalizeSuccess({ editorUrl }: { editorUrl: string }) {
+  return (
+    <div className="card border-emerald-100 bg-emerald-50/30 p-6 shadow-none">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-800">作品已暂存</p>
+          <p className="mt-2 text-sm leading-relaxed text-emerald-950/70">
+            作品设定已保存，您可以稍后从书架继续，也可以现在进入编辑器开始写正文。
+          </p>
+        </div>
+        <button
+          className="btn-primary h-11 shrink-0 rounded-full px-5 text-[11px] font-bold uppercase tracking-[0.18em]"
+          onClick={() => window.location.assign(editorUrl)}
+        >
+          进入编辑器
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ValidationPanel({ issues }: { issues: string[] }) {
   return (
     <div className="card bg-red-50/20 border-red-100 p-6 shadow-none animate-shake">
       <div className="flex items-center gap-4 mb-4">
         <span className="font-serif text-4xl text-red-200 leading-none">!</span>
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-800">叙事一致性冲突 / INTEGRITY FAULT</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-800">内容需要补充</p>
       </div>
       <ul className="grid gap-2 ml-12">
         {issues.map((issue, i) => (
           <li key={i} className="text-[13px] text-red-900/60 font-serif">
-            <span className="text-red-300 mr-2 font-sans font-bold text-[9px]">修正请求</span> {issue}
+            <span className="text-red-300 mr-2 font-sans font-bold text-[9px]">待修正</span> {issue}
           </li>
         ))}
       </ul>
@@ -247,7 +298,7 @@ function BibleReviewCards({
     if (!vol || totalChapters() >= 1000) return;
     const maxLen = volumeIndex === 0 ? 80 : 200;
     if (vol.chapters.length >= maxLen) return;
-    const nextChapters = [...vol.chapters, { index: 0, title: `新叙事单元`, summary: "等待编织梗概…".repeat(4) }];
+    const nextChapters = [...vol.chapters, { index: 0, title: `新章节`, summary: "等待补充章节梗概…".repeat(4) }];
     const updatedVol = { ...vol, chapters: nextChapters, chapter_count_estimate: Math.max(vol.chapter_count_estimate, nextChapters.length) };
     const { reindexedV1, reindexedExtras } = reindexAndApply(draft.outline.volumes, volumeIndex === 0 ? updatedVol : draft.outline.volume_1);
     if (volumeIndex === 0) {
@@ -312,7 +363,7 @@ function BibleReviewCards({
         {
           beat: nextBeat,
           scene: "新场景",
-          purpose: "叙事目标…",
+          purpose: "本段要达成的效果…",
         },
       ],
     });
@@ -333,7 +384,7 @@ function BibleReviewCards({
     <div className="grid gap-12">
       {/* Meta Section */}
       <section className="bg-white border-b border-border-strong pb-8 group relative">
-        <FolioIndex index="01" label="核心元数据 / CORE META" />
+        <FolioIndex index="01" label="作品基础信息" />
         <div className="grid gap-6 mt-8">
           <TextField
             className="text-4xl md:text-5xl font-serif font-normal !bg-transparent !border-none !px-0 focus:!ring-0 placeholder:text-text-dim/10"
@@ -358,7 +409,7 @@ function BibleReviewCards({
       {/* Characters Grid */}
       <section className="group relative">
         <header className="flex items-center justify-between mb-8">
-           <FolioIndex index="02" label="叙事角色阵列 / CHARACTER ARCHETYPES" />
+           <FolioIndex index="02" label="主要角色" />
            <button 
             className="btn-secondary !h-9 !px-5 text-[10px] font-bold rounded-full uppercase tracking-[0.2em] shadow-sm hover:border-accent" 
             disabled={(draft.characters ?? []).length >= 8} 
@@ -394,7 +445,7 @@ function BibleReviewCards({
                   className="text-[13px] leading-relaxed text-text-secondary !bg-secondary/30 !border-none rounded-xl p-4 shadow-inner font-serif" 
                   value={character.personality} 
                   onChange={(value) => updateCharacter(index, { personality: value })} 
-                  placeholder="该角色的核心特质…"
+                  placeholder="该角色的主要特质…"
                 />
                 <div className="relative border-t border-border-subtle pt-4">
                    <div className="text-[8px] font-bold text-accent/40 uppercase tracking-[0.3em] mb-2">Voice Signature / 名言</div>
@@ -413,7 +464,7 @@ function BibleReviewCards({
 
       {/* World System */}
       <section className="bg-secondary border border-border-subtle p-8 md:p-10 rounded-[3rem] group relative shadow-inner">
-        <FolioIndex index="03" label="世界系统协议 / WORLD PROTOCOL" />
+        <FolioIndex index="03" label="世界设定" />
         <div className="flex flex-col gap-8 mt-8">
           <TextArea 
             className="text-xl leading-relaxed text-text-primary !bg-white !border-none rounded-[2rem] p-6 shadow-premium font-serif" 
@@ -443,7 +494,7 @@ function BibleReviewCards({
       {/* Outline Section */}
       <section className="group relative">
         <header className="flex items-center justify-between mb-8">
-           <FolioIndex index="04" label={`叙事大纲矩阵 / 共 ${totalChapters()} 章`} />
+           <FolioIndex index="04" label={`章节大纲 / 共 ${totalChapters()} 章`} />
            <div className="flex items-center gap-3">
             {(draft.outline?.volumes?.length ?? 0) < 20 && totalChapters() < 1000 && (
               <button
@@ -479,7 +530,7 @@ function BibleReviewCards({
                     <input
                       className="flex-1 bg-transparent border-none p-0 text-2xl font-serif font-normal text-text-primary focus:ring-0 placeholder:text-text-dim/10"
                       value={chapter.title}
-                      placeholder="单元标题"
+                      placeholder="章节标题"
                       onChange={(e) => updateChapter(volumeIndex, chapterIndex, { title: e.target.value })}
                     />
                     <button
@@ -496,7 +547,7 @@ function BibleReviewCards({
                     className="text-base text-text-secondary leading-relaxed !bg-secondary/30 !border-none rounded-xl p-4 shadow-inner ml-12 font-serif"
                     value={chapter.summary}
                     onChange={(value) => updateChapter(volumeIndex, chapterIndex, { summary: value })}
-                    placeholder="该单元的叙事脉络…"
+                    placeholder="该章节的剧情梗概…"
                   />
                 </div>
               ))}
@@ -508,7 +559,7 @@ function BibleReviewCards({
       {/* Beats Section */}
       <section className="group relative">
         <header className="flex items-center justify-between mb-8">
-           <FolioIndex index="05" label="开篇叙事脉络节拍 / THE BEATS" />
+           <FolioIndex index="05" label="首章节拍" />
            <button 
             className="btn-secondary !h-9 !px-5 text-[10px] font-bold rounded-full uppercase tracking-[0.2em] shadow-sm hover:border-accent" 
             disabled={(draft.first_chapter_beats?.length ?? 0) >= 8} 
@@ -543,7 +594,7 @@ function BibleReviewCards({
                 className="text-[14px] leading-relaxed text-text-secondary !bg-secondary/30 !border-none rounded-xl p-4 shadow-inner ml-2 font-serif" 
                 value={beat.purpose} 
                 onChange={(value) => updateBeat(index, { purpose: value })} 
-                placeholder="该节拍的叙事意图…"
+                placeholder="该节拍的写作目的…"
               />
             </div>
           ))}
@@ -554,7 +605,7 @@ function BibleReviewCards({
         <summary className="cursor-pointer p-6 text-[10px] font-bold uppercase tracking-[0.2em] text-text-dim hover:text-text-primary transition-colors list-none flex justify-between items-center bg-secondary/30">
           <div className="flex items-center gap-4">
              <div className="w-1 h-1 rounded-full bg-text-dim" />
-             <span>叙事原数据审计 (JSON)</span>
+             <span>原始设定数据 (JSON)</span>
           </div>
           <svg aria-hidden="true" className="w-4 h-4 transition-transform duration-300 group-open:rotate-180 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
@@ -643,8 +694,8 @@ function FallbackNotice() {
         </svg>
       </div>
       <div className="flex flex-col gap-1.5">
-        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-text-dim">未检测到本地草稿</p>
-        <p className="text-lg font-serif text-text-dim/60 font-medium">系统将在提交时自动同步叙事云端协议。</p>
+        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-text-dim">还没有生成设定</p>
+        <p className="text-lg font-serif text-text-dim/60 font-medium">请返回上一步生成作品设定，或稍后再试。</p>
       </div>
     </div>
   );

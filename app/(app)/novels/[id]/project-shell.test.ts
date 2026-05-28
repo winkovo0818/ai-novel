@@ -7,6 +7,7 @@ interface TestElement {
 
 const mocks = vi.hoisted(() => ({
   findUnique: vi.fn(),
+  chapterFindMany: vi.fn(),
   llmFindMany: vi.fn(),
   getRequiredUserId: vi.fn(),
   notFound: vi.fn(() => {
@@ -73,6 +74,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/db", () => ({
   prisma: {
     novel: { findUnique: mocks.findUnique },
+    chapterDraft: { findMany: mocks.chapterFindMany },
     llmUsage: { findMany: mocks.llmFindMany },
   },
 }));
@@ -93,6 +95,7 @@ vi.mock("./history/HistoryClient", () => ({
 import NovelDetailPage from "./page";
 import ExportCenterPage from "./export/page";
 import GenerationHistoryPage from "./history/page";
+import TimelinePage from "./timeline/page";
 
 function isElement(value: unknown): value is TestElement {
   return value !== null && typeof value === "object" && "type" in value && "props" in value;
@@ -105,6 +108,7 @@ function childNodes(value: unknown): unknown[] {
 }
 
 function collectText(root: unknown): string {
+  if (Array.isArray(root)) return root.map(collectText).join("");
   if (typeof root === "string" || typeof root === "number") return String(root);
   if (!isElement(root)) return "";
   return childNodes(root).map(collectText).join("");
@@ -113,6 +117,10 @@ function collectText(root: unknown): string {
 function collectHrefs(root: unknown): string[] {
   const hrefs: string[] = [];
   function walk(node: unknown) {
+    if (Array.isArray(node)) {
+      for (const child of node) walk(child);
+      return;
+    }
     if (!isElement(node)) return;
     if (typeof node.props.href === "string") hrefs.push(node.props.href);
     for (const child of childNodes(node)) walk(child);
@@ -146,11 +154,11 @@ function bibleDraft() {
     },
     characters: [
       character("protagonist", "林舟"),
-      character("ally", "许岚"),
+      character("sidekick", "许岚"),
       character("antagonist", "黑塔"),
     ],
     world: {
-      setting_summary: "人类在星际移民后重新发现旧地球遗迹，各方势力围绕失落航道展开竞争。",
+      setting_summary: "人类在星际移民后重新发现旧地球遗迹，各方势力围绕失落航道、深空灯塔和被封存的记忆技术展开竞争。",
       factions: [
         { name: "远航会", alignment: "秩序", role: "探索旧航道" },
         { name: "黑塔", alignment: "混乱", role: "封锁遗迹" },
@@ -238,6 +246,15 @@ describe("project shell pages", () => {
     });
     mocks.getRequiredUserId.mockResolvedValue("user-1");
     mocks.findUnique.mockResolvedValue(novel());
+    mocks.chapterFindMany.mockResolvedValue([
+      {
+        chapter_index: 1,
+        title: "第一章",
+        content: "正文",
+        status: "draft",
+        updated_at: new Date("2026-05-01T00:00:00.000Z"),
+      },
+    ]);
     mocks.llmFindMany.mockResolvedValue([]);
   });
 
@@ -252,10 +269,14 @@ describe("project shell pages", () => {
     const hrefs = collectHrefs(root);
     expect(text).toContain("星河纪");
     expect(text).toContain("继续写作 (第 2 章)");
+    expect(text).toContain("记忆库");
+    expect(text).toContain("故事时间线");
     expect(hrefs).toContain("/editor/novel-1?chapter=2");
     expect(hrefs).toContain("/novels/novel-1/export");
     expect(hrefs).toContain("/novels/novel-1/history");
     expect(hrefs).toContain("/novels/novel-1/chapters");
+    expect(hrefs).toContain("/novels/novel-1/memories");
+    expect(hrefs).toContain("/novels/novel-1/timeline");
     expect(mocks.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "novel-1" },
@@ -334,5 +355,37 @@ describe("project shell pages", () => {
         },
       ],
     });
+  });
+
+  it("renders the story timeline from Bible state and chapter drafts", async () => {
+    mocks.findUnique.mockResolvedValue(novel({
+      bible: {
+        id: "bible-1",
+        content: {
+          ...bibleDraft(),
+          story_state: {
+            timeline: [{ chapter_index: 1, event: "林舟离开灯塔港", impact: "主线旅程开启" }],
+            plot_threads: [{ id: "old-route", title: "旧航线", status: "progressing", introduced_in: 1 }],
+            foreshadowing: [{ id: "signal", clue: "空白信号", status: "planted", introduced_in: 1 }],
+            relationships: [{ from: "林舟", to: "许岚", status: "开始信任", updated_in: 1 }],
+          },
+        },
+      },
+    }));
+
+    const root = await TimelinePage({ params: Promise.resolve({ id: "novel-1" }) });
+    const text = collectText(root);
+
+    expect(text).toContain("故事时间线");
+    expect(text).toContain("林舟离开灯塔港");
+    expect(text).toContain("旧航线");
+    expect(text).toContain("空白信号");
+    expect(text).toContain("林舟 / 许岚");
+    expect(mocks.chapterFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { novel_id: "novel-1" },
+        orderBy: { chapter_index: "asc" },
+      }),
+    );
   });
 });

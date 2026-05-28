@@ -6,6 +6,7 @@ import { getRequiredUserId } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { EmptyState } from "@/components/ui/StatusStates";
 import { formatDate } from "@/lib/format/datetime";
 
 export const dynamic = "force-dynamic";
@@ -88,7 +89,7 @@ export default async function DashboardPage() {
       <div className="p-8 md:p-12 lg:p-16 max-w-7xl mx-auto min-h-full pb-24">
         <PageHeader
           title="创作工作台"
-          description="欢迎回来。在这里查看您的创作进度、AI 调用统计以及待办任务。"
+          description="查看最近作品、待继续章节和本月用量。"
           actions={
             <Link href="/new" className="btn-primary gap-2 px-6">
               <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -105,7 +106,7 @@ export default async function DashboardPage() {
             {suggestion ? (
               <Link
                 href={suggestion.href}
-                aria-label={`智能建议: ${suggestion.title}. ${suggestion.detail}`}
+                aria-label={`下一步建议: ${suggestion.title}. ${suggestion.detail}`}
                 className="card glass-panel bg-text-primary text-white border-transparent flex items-center justify-between gap-8 h-full group hover:shadow-[0_32px_64px_-16px_rgba(99,102,241,0.3)] transition-all duration-500 hover:-translate-y-1 relative overflow-hidden"
               >
                 {/* Animated glow effect */}
@@ -115,7 +116,7 @@ export default async function DashboardPage() {
                   <div className="inline-flex items-center gap-2 px-2 py-0.5 bg-white/10 rounded-md mb-4 border border-white/5">
                      <span className="h-1 w-1 rounded-full bg-accent animate-pulse" />
                      <p className="text-[9px] font-bold uppercase tracking-[0.2em] opacity-80">
-                       智能创作协议 / DIRECTIVE
+                       下一步建议
                      </p>
                   </div>
                   <h3 className="text-3xl font-serif font-bold group-hover:translate-x-1 transition-transform duration-500 leading-tight">
@@ -134,10 +135,10 @@ export default async function DashboardPage() {
             ) : (
               <div className="card bg-white h-full flex flex-col justify-center">
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-dim mb-2">
-                  当前状态 / STATUS
+                  今日进度
                 </p>
-                <h3 className="text-xl font-serif font-bold text-text-primary">渐入佳境</h3>
-                <p className="text-sm text-text-muted mt-3">所有的创作任务都已处理完成，准备开启新的篇章吗？</p>
+                <h3 className="text-xl font-serif font-bold text-text-primary">暂时没有待办</h3>
+                <p className="text-sm text-text-muted mt-3">所有章节和后台任务都已处理完成，可以继续写下一章或开启新作品。</p>
               </div>
             )}
           </div>
@@ -171,7 +172,7 @@ export default async function DashboardPage() {
           <div className="lg:col-span-2 flex flex-col gap-8">
             <SectionCard 
               title="最近编辑的作品" 
-              subtitle="您最近活跃的文学项目"
+              subtitle="最近有编辑记录的作品"
               actions={
                 <Link href="/novels" className="text-[11px] font-bold text-primary hover:underline uppercase tracking-wider">
                   查看全部
@@ -179,20 +180,21 @@ export default async function DashboardPage() {
               }
             >
               {recentNovels.length === 0 ? (
-                <div className="py-20 text-center bg-secondary/10 rounded-2xl border border-dashed border-border-strong flex flex-col items-center gap-6">
-                  <div className="relative w-16 h-16">
-                    <div className="absolute inset-0 bg-primary/5 rounded-2xl rotate-6" />
-                    <div className="absolute inset-0 bg-white border border-border-subtle rounded-2xl flex items-center justify-center shadow-sm -rotate-3 transition-transform group-hover:rotate-0 duration-300">
+                <EmptyState
+                  title="还没有作品"
+                  description="从一个灵感开始，创建第一部作品。"
+                  icon={
+                    <div className="relative w-16 h-16">
+                      <div className="absolute inset-0 bg-primary/5 rounded-2xl rotate-6" />
+                      <div className="absolute inset-0 bg-white border border-border-subtle rounded-2xl flex items-center justify-center shadow-sm -rotate-3 transition-transform duration-300">
                       <svg aria-hidden="true" className="w-8 h-8 text-text-dim" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                       </svg>
+                      </div>
                     </div>
-                  </div>
-                  <div className="max-w-xs">
-                    <p className="text-sm font-bold text-text-primary mb-1">还没有创作项目</p>
-                    <p className="text-xs text-text-muted leading-relaxed">灵感正在酝酿中。点击上方「新建」按钮，开启您的首部 AI 协同小说。</p>
-                  </div>
-                </div>
+                  }
+                  className="bg-secondary/10 border-border-strong"
+                />
               ) : (
                 <div className="grid gap-6 sm:grid-cols-2">
                   {recentNovels.map((n) => (
@@ -242,9 +244,12 @@ export default async function DashboardPage() {
               subtitle="从上次停下的地方继续"
             >
               {pendingChapters.length === 0 ? (
-                <div className="py-8 text-center bg-secondary/10 rounded-xl border border-border-subtle">
-                  <p className="text-sm text-text-muted">所有已创建章节均已完成，干得漂亮！</p>
-                </div>
+                <EmptyState
+                  size="compact"
+                  title="没有待继续的章节"
+                  description="所有已创建章节均已完成。"
+                  className="bg-secondary/10 border-border-subtle rounded-xl"
+                />
               ) : (
                 <div className="overflow-x-auto custom-scrollbar -mx-2 px-2">
                   <div className="inline-block min-w-full align-middle">
@@ -299,13 +304,16 @@ export default async function DashboardPage() {
             </SectionCard>
           </div>
 
-          {/* Right Column: AI Activity & System Health */}
+          {/* Right Column: Activity & Jobs */}
           <div className="flex flex-col gap-8">
-            <SectionCard title="AI 活动记录 / ACTIVITY" subtitle="最近的智能写作调用">
+            <SectionCard title="最近生成记录" subtitle="最近的 AI 写作调用">
               {generations.length === 0 ? (
-                <div className="py-12 text-center bg-secondary/10 rounded-2xl border border-dashed border-border-subtle">
-                   <p className="text-sm text-text-dim">尚未生成日志</p>
-                </div>
+                <EmptyState
+                  size="compact"
+                  title="还没有生成记录"
+                  description="使用写作助手后，最近调用会显示在这里。"
+                  className="bg-secondary/10 border-border-subtle rounded-2xl"
+                />
               ) : (
                 <div className="space-y-3">
                   {generations.map((g) => (
@@ -324,14 +332,14 @@ export default async function DashboardPage() {
               )}
             </SectionCard>
 
-            <SectionCard title="系统与异常 / HEALTH" subtitle="后台任务运行状态">
+            <SectionCard title="任务状态" subtitle="摘要、索引和记忆刷新">
               <div className="space-y-6">
                  <div>
-                   <dt className="text-[9px] font-bold uppercase tracking-[0.2em] text-text-dim mb-4 px-1">核心异步队列</dt>
+                   <dt className="text-[9px] font-bold uppercase tracking-[0.2em] text-text-dim mb-4 px-1">失败任务</dt>
                    <dd className={`flex items-center justify-between p-5 rounded-[2rem] border ${ownedFailedJobs.length > 0 ? 'bg-red-50 border-red-100 text-red-600' : 'bg-emerald-50/20 border-emerald-100/50 text-emerald-600 shadow-inner'}`}>
                       <div className="flex items-center gap-3">
                          <div className={`h-2 w-2 rounded-full ${ownedFailedJobs.length > 0 ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
-                         <span className="text-sm font-bold uppercase tracking-tight">{ownedFailedJobs.length} 个异常任务</span>
+                         <span className="text-sm font-bold uppercase tracking-tight">{ownedFailedJobs.length} 个失败任务</span>
                       </div>
                       {ownedFailedJobs.length > 0 && (
                         <div className="h-7 w-7 rounded-full bg-red-100 flex items-center justify-center">
@@ -346,12 +354,12 @@ export default async function DashboardPage() {
                  {ownedFailedJobs.length > 0 ? (
                    <div className="p-5 rounded-2xl bg-amber-50 border border-amber-100/50">
                      <p className="text-[11px] text-amber-700 leading-relaxed font-bold">
-                        PROTOCOL ALERT: 建议进入作品编辑器，通过顶部红色徽章重试失败的任务，以确保叙事逻辑一致性。
+                        有失败任务。请进入最近作品的编辑器，在顶部任务面板中重试。
                      </p>
                    </div>
                  ) : (
                     <div className="p-5 rounded-2xl bg-secondary/30 border border-border-subtle/50 border-dashed text-center">
-                       <p className="text-[10px] font-bold text-text-dim uppercase tracking-widest">所有系统协议运行正常</p>
+                       <p className="text-[10px] font-bold text-text-dim uppercase tracking-widest">暂无失败任务</p>
                     </div>
                  )}
               </div>
@@ -373,22 +381,22 @@ interface SuggestionInput {
 function nextStepSuggestion(input: SuggestionInput): { title: string; detail: string; href: string } | null {
   if (input.novels === 0) {
     return {
-      title: "开启您的首个创作项目",
-      detail: "通过我们的智能向导，从一个灵感片段开始，在 5 分钟内构建出完整的作品设定集。",
+      title: "创建第一部作品",
+      detail: "从题材和灵感开始，先生成一份可编辑的设定和大纲。",
       href: "/new",
     };
   }
   if (input.failedJobs > 0) {
     return {
-      title: `处理 ${input.failedJobs} 个待修复的任务`,
-      detail: "检测到部分记忆同步任务由于网络原因失败。请进入编辑器进行手动重试以确保一致性。",
+      title: `处理 ${input.failedJobs} 个失败任务`,
+      detail: "有摘要或索引任务未完成。进入编辑器后可在任务面板中重试。",
       href: input.recentNovel ? `/editor/${input.recentNovel.id}` : "/novels",
     };
   }
   if (input.pendingChapters > 0 && input.recentNovel) {
     return {
-      title: `继续打磨《${input.recentNovel.title}》`,
-      detail: `您还有 ${input.pendingChapters} 个章节处于草稿阶段。继续编写，让故事走向高潮。`,
+      title: `继续写作《${input.recentNovel.title}》`,
+      detail: `还有 ${input.pendingChapters} 个章节处于草稿状态，可以从最近的作品继续。`,
       href: `/novels/${input.recentNovel.id}`,
     };
   }

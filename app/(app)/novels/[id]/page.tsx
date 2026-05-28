@@ -33,7 +33,7 @@ export default async function NovelDetailPage({ params }: PageProps) {
     },
   });
 
-  if (!novel) notFound();
+  if (!novel || novel.deleted_at) notFound();
   if (!canAccessOwnerResource(novel.user_id, userId)) notFound();
 
   const bibleParse = novel.bible ? BibleDraftSchema.safeParse(novel.bible.content) : null;
@@ -138,6 +138,18 @@ export default async function NovelDetailPage({ params }: PageProps) {
               title="叙事大纲"
               description={bibleOk ? `共规划 ${outlineChapters.length} 个节拍点` : "需先合成 Bible"}
               icon="outline"
+            />
+            <NavCard
+              href={`/novels/${novel.id}/memories`}
+              title="记忆库"
+              description="摘要 · 分层梗概 · RAG 片段"
+              icon="memory"
+            />
+            <NavCard
+              href={`/novels/${novel.id}/timeline`}
+              title="故事时间线"
+              description="事件 · 伏笔 · 关系变化"
+              icon="timeline"
             />
              <NavCard
               href={`/novels/${novel.id}/chapters`}
@@ -259,7 +271,7 @@ function NavCard({
   href: string;
   title: string;
   description: string;
-  icon: "characters" | "world" | "outline" | "chapters" | "export" | "relationships";
+  icon: "characters" | "world" | "outline" | "chapters" | "export" | "relationships" | "memory" | "timeline";
 }) {
   const iconPaths: Record<typeof icon, string> = {
     characters:
@@ -268,6 +280,10 @@ function NavCard({
       "M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
     outline:
       "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+    memory:
+      "M4 6c0-1.657 3.582-3 8-3s8 1.343 8 3-3.582 3-8 3-8-1.343-8-3zm0 0v6c0 1.657 3.582 3 8 3s8-1.343 8-3V6m-16 6v6c0 1.657 3.582 3 8 3s8-1.343 8-3v-6",
+    timeline:
+      "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
     chapters:
       "M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4",
     export:

@@ -27,26 +27,26 @@ export default function NewPage() {
           <div className="flex flex-col gap-3">
              <div className="flex items-center gap-2">
                <div className="h-1.5 w-1.5 rounded-full bg-accent" />
-               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-text-muted">创意工作室核心 / STUDIO CORE</span>
+               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-text-muted">新作品向导</span>
              </div>
              <h1 className="text-5xl md:text-6xl font-serif font-normal text-text-primary tracking-tighter">
                创作向导<span className="text-accent">.</span>
              </h1>
              <p className="text-lg text-text-secondary max-w-lg opacity-60">
-               从一粒灵感的种子，到一部宏大的叙事圣经。
+               从题材、灵感和几个关键问题开始，生成可编辑的设定和大纲。
              </p>
           </div>
           <button
             className="group flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.2em] text-text-dim hover:text-red-500 transition duration-500"
             onClick={store.reset}
-            aria-label="重置向导协议"
+            aria-label="重置向导"
           >
             <div className="h-9 w-9 rounded-full border border-border-strong flex items-center justify-center group-hover:border-red-200 group-hover:bg-red-50 transition" aria-hidden="true">
               <svg aria-hidden="true" className="w-3.5 h-3.5 transition-transform duration-300 group-hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </div>
-            重置向导协议
+            重置向导
           </button>
         </header>
 
@@ -59,7 +59,7 @@ export default function NewPage() {
             <div className="card bg-red-50/30 border-red-100 flex items-start gap-6 p-8 shadow-none">
               <span className="font-serif text-5xl text-red-200 leading-none">!</span>
               <div className="flex flex-col gap-1">
-                <p className="text-[10px] font-bold text-red-800 uppercase tracking-[0.3em]">引擎逻辑故障 / ENGINE FAULT</p>
+                <p className="text-[10px] font-bold text-red-800 uppercase tracking-[0.3em]">生成遇到问题</p>
                 <p className="text-lg text-red-900/70">{store.error.message}</p>
               </div>
             </div>
@@ -104,10 +104,10 @@ function Step1() {
   }
 
   return (
-    <StepShell eyebrow="分册 01" title="锚定叙事原点" description="每一篇伟大的作品都始于一个名字和它所属的领域。">
+    <StepShell eyebrow="分册 01" title="确定作品方向" description="先写下作品名称、类型和你想要的整体感觉。">
       <div className="grid gap-6">
         <section className="grid gap-4">
-          <FolioLabel index="01" label="作品暂定标题 / THE TITLE" htmlFor="wizard-title" />
+          <FolioLabel index="01" label="作品暂定标题" htmlFor="wizard-title" />
           <input
             id="wizard-title"
             name="title"
@@ -121,7 +121,7 @@ function Step1() {
         </section>
 
         <section className="grid gap-8">
-          <FolioLabel index="02" label="文学领域划分 / GENRE SELECTION" />
+          <FolioLabel index="02" label="作品类型" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {genres.map((genre) => (
               <button 
@@ -156,7 +156,7 @@ function Step1() {
         </section>
 
         <section className="grid gap-4">
-          <FolioLabel index="03" label="细分题材 / 风格标签 / THE VIBE" htmlFor="wizard-genre-sub" />
+          <FolioLabel index="03" label="细分题材 / 风格标签" htmlFor="wizard-genre-sub" />
           <div className="relative group">
             <input
               id="wizard-genre-sub"
@@ -171,13 +171,13 @@ function Step1() {
         </section>
 
         <section className="grid gap-4">
-          <FolioLabel index="04" label="作品简介 / STORY DESCRIPTION" htmlFor="wizard-description" />
+          <FolioLabel index="04" label="作品简介" htmlFor="wizard-description" />
           <textarea
             id="wizard-description"
             name="description"
             maxLength={500}
             className="w-full min-h-32 text-base font-serif font-normal py-4 px-6 bg-secondary/50 border border-transparent rounded-xl focus:bg-white focus:border-accent/30 transition shadow-inner resize-y"
-            placeholder="简要介绍作品的主角、核心冲突与阅读期待，可留空后续补充…"
+            placeholder="简要介绍作品的主角、主要冲突与阅读期待，可留空后续补充…"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
@@ -186,7 +186,7 @@ function Step1() {
 
         <footer className="pt-6 flex justify-end">
           <PrimaryButton busy={store.status === "loading"} onClick={submit}>
-            继续：捕捉灵感碎片
+            继续：填写灵感
             <svg aria-hidden="true" className="w-5 h-5 ml-3 group-hover:translate-x-1.5 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
             </svg>
@@ -219,10 +219,10 @@ function Step2() {
   }
 
   return (
-    <StepShell eyebrow="分册 02" title="灵感火花捕捉" description="请描述您故事的核心冲突。AI 可以提供叙事向量建议。">
+    <StepShell eyebrow="分册 02" title="写下灵感" description="请描述故事的主要冲突。需要时可以让 AI 给几条灵感。">
       <div className="grid gap-6">
         <section className="grid gap-4">
-          <FolioLabel index="01" label="核心创意描述 / THE LOGLINE" htmlFor="wizard-logline" />
+          <FolioLabel index="01" label="故事灵感" htmlFor="wizard-logline" />
           <div className="relative group">
             <div className="absolute -inset-4 bg-accent/5 rounded-[3rem] blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <textarea
@@ -232,7 +232,7 @@ function Step2() {
               className="relative z-10 w-full min-h-[200px] p-8 text-2xl md:text-3xl font-serif font-normal leading-[1.6] bg-white border border-border-subtle rounded-[2.5rem] shadow-premium focus:border-accent/40 focus:outline-none transition placeholder:text-text-dim/10 selection:bg-accent/10"
               value={logline}
               onChange={(e) => setLogline(e.target.value)}
-              placeholder="描述一个令你激动的场景、矛盾，或者核心人物的命运转折…"
+              placeholder="描述一个令你激动的场景或矛盾，或者人物的命运转折…"
             />
             <div className="absolute bottom-6 right-6 w-10 h-10 border-b-2 border-r-2 border-accent/20 rounded-br-[1.5rem] pointer-events-none" />
           </div>
@@ -249,11 +249,11 @@ function Step2() {
                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.628.283a2 2 0 01-1.186.128l-2.094-.31a2 2 0 00-1.226.226l-1.314.876a2 2 0 01-.813.294l-1.606.16a2 2 0 00-1.225.565l-1.141.913a2 2 0 01-1.127.38H2" />
                </svg>
             </div>
-            {store.status === "loading" ? "正在调取叙事建议…" : "AI 推荐灵感向量"}
+            {store.status === "loading" ? "正在生成建议…" : "AI 推荐灵感"}
           </button>
           
           <PrimaryButton onClick={next}>
-            下一步：定义叙事细节
+            继续：回答问题
             <svg aria-hidden="true" className="w-5 h-5 ml-3 group-hover:translate-x-1.5 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
             </svg>
@@ -262,7 +262,7 @@ function Step2() {
 
         {store.inputs.logline_suggestions && (
           <section className="grid gap-8 pt-12 border-t border-border-strong animate-fade-in">
-            <FolioLabel index="02" label="叙事灵感锚点 / AI FRAGMENTS" />
+            <FolioLabel index="02" label="可选灵感" />
             <div className="grid gap-4">
               {store.inputs.logline_suggestions.map((item, i) => (
                 <button 
@@ -304,7 +304,7 @@ function Step3() {
   }
 
   return (
-    <StepShell eyebrow="分册 03" title="叙事逻辑推演" description="为了让 AI 深度理解您的创作意图，我们需要解决几个关键的分支。">
+    <StepShell eyebrow="分册 03" title="回答关键问题" description="回答几个问题，帮助生成更贴近你预期的设定和大纲。">
       <div className="grid gap-6">
         {!store.inputs.questions ? (
           <div className="flex flex-col items-center justify-center py-16 gap-8 border-2 border-dashed border-border-strong rounded-[2.5rem] bg-secondary/10 relative overflow-hidden group shadow-inner">
@@ -315,11 +315,11 @@ function Step3() {
                </svg>
             </div>
             <div className="flex flex-col items-center gap-3 text-center px-10 relative z-10">
-              <p className="text-[11px] font-bold text-text-primary uppercase tracking-[0.3em]">待命执行：叙事逻辑审计</p>
-              <p className="text-lg text-text-dim max-w-md">AI 将基于您的灵感，生成一组深度叙事追问。</p>
+              <p className="text-[11px] font-bold text-text-primary uppercase tracking-[0.3em]">准备生成问题</p>
+              <p className="text-lg text-text-dim max-w-md">AI 将基于您的灵感，生成一组创作追问。</p>
             </div>
             <PrimaryButton busy={store.status === "loading"} onClick={loadQuestions}>
-              启动逻辑扫描协议
+              生成追问
             </PrimaryButton>
           </div>
         ) : (
@@ -333,7 +333,7 @@ function Step3() {
             </div>
             <footer className="pt-8 border-t border-border-subtle flex justify-end">
               <PrimaryButton onClick={() => store.setStep(4)}>
-                开启叙事圣经合成
+                开始生成作品设定
                 <svg aria-hidden="true" className="w-5 h-5 ml-3 group-hover:translate-x-1.5 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
@@ -356,7 +356,7 @@ function QuestionBlock({ question, index }: { question: Question; index: number 
            {String(index).padStart(2, '0')}
          </span>
          <div className="flex flex-col gap-2">
-            <span className="text-[9px] font-bold text-accent uppercase tracking-[0.3em]">{question.type === 'single' ? '单选决策 / DISCRETE' : '多重决策 / MULTI-VECTOR'}</span>
+            <span className="text-[9px] font-bold text-accent uppercase tracking-[0.3em]">{question.type === 'single' ? '单选问题' : '多选问题'}</span>
             <h3 className="text-2xl font-serif font-normal text-text-primary leading-tight">{question.question}</h3>
          </div>
       </div>
@@ -419,7 +419,7 @@ function PrimaryButton({ busy, onClick, children }: { busy?: boolean; onClick: (
       {busy ? (
         <div className="flex items-center gap-3">
           <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-          <span className="tracking-wide">协议执行中…</span>
+          <span className="tracking-wide">正在处理…</span>
         </div>
       ) : (
         <div className="flex items-center gap-2">
@@ -429,4 +429,3 @@ function PrimaryButton({ busy, onClick, children }: { busy?: boolean; onClick: (
     </button>
   );
 }
-

@@ -54,8 +54,8 @@ export function NovelCard({ id, title, description, chapterCount, doneCount, upd
               ? "bg-red-500 text-white shadow-md scale-100"
               : "bg-white/80 text-text-dim opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 shadow-sm border border-border-subtle"
           }`}
-          aria-label={confirming ? "确认删除" : "删除作品"}
-          title={confirming ? "再次点击确认删除" : "删除"}
+          aria-label={confirming ? "确认移入回收状态" : "删除作品"}
+          title={confirming ? "再次点击确认移入回收状态" : "删除"}
         >
           {deleting ? (
             <span className="h-3 w-3 rounded-full border-2 border-white/30 border-t-white animate-spin" aria-hidden="true" />

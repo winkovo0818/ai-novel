@@ -5,14 +5,21 @@ interface EmptyStateProps {
   description: string;
   icon?: React.ReactNode;
   action?: React.ReactNode;
+  size?: "compact" | "default";
+  className?: string;
 }
 
-export function EmptyState({ title, description, icon, action }: EmptyStateProps) {
+export function EmptyState({ title, description, icon, action, size = "default", className = "" }: EmptyStateProps) {
+  const compact = size === "compact";
   return (
-    <div className="flex flex-col items-center justify-center py-20 px-6 text-center border-2 border-dashed border-border-strong rounded-3xl bg-white/40 animate-fade-in">
-      {icon && <div className="mb-6">{icon}</div>}
-      <h3 className="text-xl font-bold text-text-primary mb-2">{title}</h3>
-      <p className="text-sm text-text-secondary mb-8 max-w-xs mx-auto leading-relaxed">{description}</p>
+    <div
+      className={`flex flex-col items-center justify-center px-6 text-center border-2 border-dashed border-border-strong rounded-3xl bg-white/40 animate-fade-in ${
+        compact ? "py-8" : "py-20"
+      } ${className}`}
+    >
+      {icon && <div className={compact ? "mb-4" : "mb-6"}>{icon}</div>}
+      <h3 className={`${compact ? "text-base" : "text-xl"} font-bold text-text-primary mb-2`}>{title}</h3>
+      <p className={`${compact ? "text-xs mb-0" : "text-sm mb-8"} text-text-secondary max-w-xs mx-auto leading-relaxed`}>{description}</p>
       {action && <div className="flex justify-center">{action}</div>}
     </div>
   );

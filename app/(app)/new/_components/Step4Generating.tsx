@@ -28,12 +28,12 @@ export function Step4Generating() {
 
   async function start() {
     if (store.regeneration_count >= 3) {
-      store.setError({ step: 4, message: "重试次数已达上限。请继续执行当前协议或联系管理员。", retryable: false });
+      store.setError({ step: 4, message: "重试次数已达上限。请先使用当前内容，或稍后再试。", retryable: false });
       return;
     }
 
     if (!store.session_id || !store.default_profile || !store.inputs.logline) {
-      store.setError({ step: 4, message: "协议参数不完整，无法启动合成过程。", retryable: false });
+      store.setError({ step: 4, message: "缺少必要信息，无法开始生成。", retryable: false });
       return;
     }
 
@@ -62,7 +62,7 @@ export function Step4Generating() {
           if (typeof data.regeneration_count === "number") {
             store.setRegenerationCount(data.regeneration_count);
           }
-          store.setError({ step: 4, message: data.message ?? "合成阶段故障", retryable: data.retryable ?? true });
+          store.setError({ step: 4, message: data.message ?? "生成阶段遇到问题", retryable: data.retryable ?? true });
           return;
         }
 
@@ -88,7 +88,7 @@ export function Step4Generating() {
   }
 
   return (
-    <StepShell eyebrow="分册 04" title="圣经合成中" description="AI 正在根据您的灵感、题材与决策维度，实时合成一套完整的叙事基础设施。">
+    <StepShell eyebrow="分册 04" title="生成设定和大纲" description="AI 正在根据您的灵感、题材和回答，生成一份可编辑的作品设定。">
       <div className="grid gap-8">
         {/* Stale-streaming recovery banner */}
         {recovered && (
@@ -125,20 +125,20 @@ export function Step4Generating() {
                   <div className="relative w-5 h-5">
                     <div className="absolute inset-0 rounded-full border-2 border-accent/20 border-t-accent animate-spin" />
                   </div>
-                  <span className="font-serif text-base tracking-wide">正在实时编织中…</span>
+                  <span className="font-serif text-base tracking-wide">正在生成中…</span>
                 </>
               ) : (
                 <>
                   <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
-                  初始化合成流
+                  开始生成
                 </>
               )}
             </button>
             
             <div className="flex flex-col gap-1 border-l border-border-strong pl-6">
-               <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-text-dim">当前合成周期</span>
+               <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-text-dim">已生成次数</span>
                <div className="flex items-center gap-2">
                  <div className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
                  <span className="font-serif text-lg text-text-primary">{store.regeneration_count}/3</span>
@@ -153,7 +153,7 @@ export function Step4Generating() {
             <svg aria-hidden="true" className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
             </svg>
-            修改叙事决策
+            修改回答
           </button>
         </header>
 
@@ -161,7 +161,7 @@ export function Step4Generating() {
         <div className="bg-secondary/30 border border-border-subtle rounded-[2rem] p-6 relative overflow-hidden group">
           <div className="flex items-center justify-between gap-8 mb-4 relative z-10">
             <div className="flex flex-col gap-1">
-              <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-accent">核心合成算法运行中 / CORE ENGINE</p>
+              <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-accent">生成进度</p>
               <h4 className="text-2xl font-serif font-normal text-text-primary tracking-tight">{phase.label}</h4>
             </div>
             <div className="text-right">
@@ -185,7 +185,7 @@ export function Step4Generating() {
           <summary className="cursor-pointer p-5 text-[10px] font-bold uppercase tracking-[0.3em] text-text-dim hover:text-text-primary transition-colors list-none flex justify-between items-center bg-secondary/20">
             <div className="flex items-center gap-3">
                <div className="w-1 h-1 rounded-full bg-accent" />
-               <span>叙事合成日志 ({events.length} 条记录)</span>
+               <span>生成日志 ({events.length} 条记录)</span>
             </div>
             <svg aria-hidden="true" className="w-4 h-4 transition-transform duration-300 group-open:rotate-180 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
@@ -193,7 +193,7 @@ export function Step4Generating() {
           </summary>
           <div className="border-t border-border-subtle bg-white p-6 max-h-[400px] overflow-auto font-mono text-[11px] space-y-3 custom-scrollbar">
             {events.length === 0 && (
-              <p className="text-text-dim opacity-50 font-serif text-base">等待首个叙事数据包解压…</p>
+              <p className="text-text-dim opacity-50 font-serif text-base">等待第一段内容生成…</p>
             )}
             {events.map((item, index) => (
               <article key={`${item.event}-${index}`} className="group/entry relative pl-6 border-l border-border-strong hover:border-accent transition-colors duration-500">
@@ -215,13 +215,13 @@ export function Step4Generating() {
 }
 
 function getStreamPhase(draft: Partial<BibleDraft> | undefined, status: string) {
-  if (status === "done") return { label: "合成已完成，正在装订分册…", percent: 100 };
-  if (!draft?.meta) return { label: "初始化元叙事协议…", percent: 8 };
-  if (!draft.characters?.length) return { label: "编织角色原型矩阵…", percent: 22 };
-  if (!draft.world) return { label: "架构世界系统规则…", percent: 42 };
-  if (!draft.outline?.volume_1?.chapters?.length) return { label: "构建叙事大纲脉络…", percent: 62 };
-  if (!draft.first_chapter_beats?.length) return { label: "映射首章叙事节拍…", percent: 82 };
-  return { label: "执行最后的完整性校验…", percent: 95 };
+  if (status === "done") return { label: "设定已生成，正在进入核对步骤…", percent: 100 };
+  if (!draft?.meta) return { label: "准备作品标题和基础信息…", percent: 8 };
+  if (!draft.characters?.length) return { label: "正在生成主要角色…", percent: 22 };
+  if (!draft.world) return { label: "正在生成世界观和规则…", percent: 42 };
+  if (!draft.outline?.volume_1?.chapters?.length) return { label: "正在生成章节大纲…", percent: 62 };
+  if (!draft.first_chapter_beats?.length) return { label: "正在生成首章节拍…", percent: 82 };
+  return { label: "正在检查内容完整性…", percent: 95 };
 }
 
 function BibleStreamCards({ draft, eventsCount }: { draft?: Partial<BibleDraft>; eventsCount: number }) {
@@ -234,8 +234,8 @@ function BibleStreamCards({ draft, eventsCount }: { draft?: Partial<BibleDraft>;
           <div className="h-2 w-2 rounded-full bg-accent/60 animate-pulse [animation-delay:400ms]" />
         </div>
         <div className="flex flex-col gap-1.5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-text-dim">正在建立神经连接</p>
-          <p className="text-lg font-serif text-text-dim/60">等待首个叙事数据包解压…</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-text-dim">准备生成内容</p>
+          <p className="text-lg font-serif text-text-dim/60">等待第一段内容生成…</p>
         </div>
       </div>
     );
@@ -244,7 +244,7 @@ function BibleStreamCards({ draft, eventsCount }: { draft?: Partial<BibleDraft>;
   return (
     <div className="grid gap-8 animate-fade-in">
       {draft.meta ? (
-        <StreamCard label="核心设定" title={draft.meta.suggested_title} folio="01">
+        <StreamCard label="基础设定" title={draft.meta.suggested_title} folio="01">
           <div className="flex flex-wrap gap-2 mt-4">
              {draft.meta.alternative_titles.map((title, i) => (
                <div key={i} className="px-4 py-1 bg-secondary border border-border-subtle rounded-full text-[12px] font-serif text-text-secondary">
@@ -258,7 +258,7 @@ function BibleStreamCards({ draft, eventsCount }: { draft?: Partial<BibleDraft>;
 
       {draft.characters?.length ? (
         <div className="grid gap-6">
-          <FolioLabel index="02" label="活跃角色原型 / CHARACTER ARCHETYPES" />
+          <FolioLabel index="02" label="主要角色" />
           <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {draft.characters.map((character, index) => (
               <StreamCard key={`${character.name}-${index}`} label={character.role} title={character.name} minimalist>
@@ -275,7 +275,7 @@ function BibleStreamCards({ draft, eventsCount }: { draft?: Partial<BibleDraft>;
       ) : null}
 
       {draft.world ? (
-        <StreamCard label="世界观" title="系统性设定基座" folio="03">
+        <StreamCard label="世界观" title="世界设定" folio="03">
           <p className="text-base leading-relaxed text-text-secondary font-serif mb-4 max-w-3xl">{draft.world.setting_summary}</p>
           <div className="flex flex-wrap gap-2">
             {draft.world.rules.map((rule) => (
@@ -289,7 +289,7 @@ function BibleStreamCards({ draft, eventsCount }: { draft?: Partial<BibleDraft>;
 
       {draft.outline?.volume_1?.chapters?.length ? (
         <div className="grid gap-6">
-          <FolioLabel index="04" label="叙事大纲 / THE MANUSCRIPT INDEX" />
+          <FolioLabel index="04" label="章节大纲" />
           <StreamCard label="首卷分册" title={draft.outline.volume_1.name || "新征程"} minimalist>
             <div className="grid gap-2 mt-4">
               {draft.outline.volume_1.chapters.map((chapter) => (
@@ -378,7 +378,7 @@ function mergeBibleEvent(draft: Partial<BibleDraft> | undefined, item: StreamEve
       volume_1: {
         ...(next.outline?.volume_1 ?? {
           name: "开篇卷",
-          theme: "首卷成长与核心冲突",
+          theme: "首卷成长与主要冲突",
           chapter_count_estimate: 8,
         }),
         chapters: upsertAt(
@@ -407,4 +407,3 @@ function upsertAt<T>(current: T[] | undefined, index: number, value: T): T[] {
   next[index] = value;
   return next.filter(Boolean);
 }
-

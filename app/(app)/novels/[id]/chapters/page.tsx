@@ -33,7 +33,7 @@ export default async function ChaptersPage({ params, searchParams }: PageProps) 
       chapters: { orderBy: { chapter_index: "asc" }, include: { summary: true } },
     },
   });
-  if (!novel) notFound();
+  if (!novel || novel.deleted_at) notFound();
   if (!canAccessOwnerResource(novel.user_id, userId)) notFound();
   if (!novel.bible) notFound();
 

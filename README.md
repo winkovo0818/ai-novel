@@ -2,9 +2,9 @@
 
 # 墨境 · AI Novel Studio
 
-**从一粒灵感的种子，到一部宏大的叙事圣经。**
+**面向长篇小说写作的 AI 辅助工作台。**
 
-AI 驱动的小说共创平台 —— 灵感捕捉、叙事圣经合成、多章节 AI 协作写作，全链路创作伙伴。
+覆盖作品设定、大纲、章节编辑、候选稿、记忆库、导出和后台任务，帮助作者从灵感开始持续推进一部长篇作品。
 
 [![CI](https://github.com/YunDanFengQing/ai-novel/actions/workflows/ci.yml/badge.svg)](https://github.com/YunDanFengQing/ai-novel/actions/workflows/ci.yml)
 [![TypeScript Strict](https://img.shields.io/badge/TypeScript-strict-blue)](https://www.typescriptlang.org/tsconfig#strict)
@@ -19,14 +19,14 @@ AI 驱动的小说共创平台 —— 灵感捕捉、叙事圣经合成、多章
 
 ### 🪄 五步创作向导
 
-将一句话灵感变成完整叙事圣经，仅需几分钟：
+将一句话灵感整理成可继续写作的作品设定：
 
 | 步骤 | 内容 | 说明 |
 |:----:|------|------|
 | 01 | 类型与标题 | 选择文学领域（网文 / 严肃文学 / 剧本 / 同人 / 短篇集），命名作品 |
-| 02 | 灵感火花 | 撰写核心冲突，或让 AI 推荐 5 条叙事向量 |
-| 03 | 反向提问 | AI 生成深挖世界与角色的探针问题，附带推荐答案 |
-| 04 | 圣经合成 | SSE 实时流式生成角色、世界观、阵营、章节大纲 |
+| 02 | 故事灵感 | 撰写核心冲突，或让 AI 推荐 5 条灵感建议 |
+| 03 | 创作追问 | AI 生成深挖世界与角色的关键问题，附带推荐答案 |
+| 04 | 生成设定 | SSE 实时流式生成角色、世界观、阵营、章节大纲 |
 | 05 | 核对微调 | 逐字段编辑、最多 3 次重新合成，确认后直接进入写作 |
 
 ### 📝 多章节协作编辑器
@@ -43,15 +43,15 @@ AI 驱动的小说共创平台 —— 灵感捕捉、叙事圣经合成、多章
 
 ### 🗂 项目工作台
 
-- **仪表盘** — 最近编辑、待写章节、AI 调用统计、月度用量、失败任务提醒、智能"下一步"
-- **作品详情** — 创作进度、圣经状态、最近章节、6 张导航卡片
+- **仪表盘** — 最近编辑、待写章节、AI 调用统计、月度用量、失败任务提醒、下一步建议
+- **作品详情** — 创作进度、作品设定状态、最近章节、6 张导航卡片
 - **角色编辑器** — 全 schema 角色卡片
 - **世界观编辑器** — 背景、规则、地理、阵营结构化编辑
 - **大纲编辑器** — 按卷分组的章节大纲，草稿状态标记
 - **角色关系图** — 交互式 SVG 关系图，可编辑关系卡片
 - **章节管理** — 可筛选表格，摘要/索引脏标记，批量刷新
 - **AI 调用历史** — 最近 100 条调用，按 Agent/状态/费用筛选
-- **导出中心** — Markdown / 纯文本 / Word (.docx) / EPUB，支持章节范围和圣经附录
+- **导出中心** — Markdown / 纯文本 / Word (.docx) / EPUB，支持章节范围和设定附录
 
 ### 🛡 管理与安全
 
@@ -158,7 +158,7 @@ ai-novel/
 ├── app/                          # Next.js App Router
 │   ├── (app)/                    # 认证路由（侧边栏布局）
 │   │   ├── dashboard/            # 工作台仪表盘
-│   │   ├── novels/               # 作品管理 & 圣经编辑器
+│   │   ├── novels/               # 作品管理 & 设定编辑器
 │   │   ├── editor/[novelId]/     # 多章节编辑器
 │   │   ├── new/                  # 五步创作向导
 │   │   ├── models/               # LLM & Embedding 配置（管理）
@@ -196,7 +196,7 @@ ai-novel/
 | `User` / `Account` / `Session` / `VerificationToken` | Auth.js 本地认证 |
 | `OnboardingSession` | 五步向导状态 |
 | `Novel` | 小说项目（用户所有）|
-| `BibleDraft` | 叙事圣经内容（与 Novel 1:1）|
+| `BibleDraft` | 作品设定内容（与 Novel 1:1）|
 | `ChapterDraft` | 章节内容 + 乐观锁 |
 | `ChapterVersion` | 版本历史快照 |
 | `ChapterSummary` / `VolumeSummary` / `NovelSummary` | 分层摘要（RAG）|

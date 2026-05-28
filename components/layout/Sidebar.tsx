@@ -20,6 +20,11 @@ const mainNavItems = [
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
     </svg>
   )},
+  { name: "我的用量", href: "/activity", icon: (
+    <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 3h2v18h-2zM5 11h2v10H5zM17 7h2v14h-2z" />
+    </svg>
+  )},
 ];
 
 const adminNavItems = [
@@ -34,7 +39,7 @@ const adminNavItems = [
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 11c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z" />
     </svg>
   )},
-  { name: "AI 调用日志", href: "/activity", icon: (
+  { name: "系统调用日志", href: "/admin/ai-calls", icon: (
     <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>

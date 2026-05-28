@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-type Format = "markdown" | "txt" | "docx" | "epub";
+type Format = "markdown" | "txt" | "docx" | "epub" | "json" | "zip";
 
 interface FormatMeta {
   id: Format;
@@ -59,6 +59,30 @@ const FORMATS: FormatMeta[] = [
     icon: (
       <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+      </svg>
+    ),
+  },
+  {
+    id: "json",
+    label: "完整项目 JSON",
+    extension: ".json",
+    description: "结构化备份，包含作品设定、章节、摘要和记忆元数据。",
+    useCase: "适合迁移、恢复、排查数据问题，或交给后续工具处理。",
+    icon: (
+      <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7l-4 5 4 5m8-10l4 5-4 5M14 4l-4 16" />
+      </svg>
+    ),
+  },
+  {
+    id: "zip",
+    label: "完整项目包",
+    extension: ".zip",
+    description: "ZIP 备份包，包含 project.json 和按章节拆分的 Markdown 正文。",
+    useCase: "适合离线归档、人工检查、跨环境恢复前保存完整快照。",
+    icon: (
+      <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3h6l4 4v14H7a2 2 0 01-2-2V5a2 2 0 012-2zm5 0v5h5M10 11h4M10 14h4M10 17h4" />
       </svg>
     ),
   },

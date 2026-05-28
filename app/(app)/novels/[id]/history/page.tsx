@@ -29,7 +29,7 @@ export default async function GenerationHistoryPage({ params, searchParams }: Pa
     where: { id },
     include: { bible: true },
   });
-  if (!novel) notFound();
+  if (!novel || novel.deleted_at) notFound();
   if (!canAccessOwnerResource(novel.user_id, userId)) notFound();
 
   const bibleParse = novel.bible ? BibleDraftSchema.safeParse(novel.bible.content) : null;
