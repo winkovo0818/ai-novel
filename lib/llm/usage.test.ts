@@ -63,6 +63,31 @@ describe("checkQuota", () => {
     expect(result.monthlyCostCny).toBe(42.1);
     expect(result.dailyLimitCny).toBe(50);
     expect(result.monthlyLimitCny).toBe(500);
+    expect(result.dailyCalls).toBe(7);
+    expect(result.monthlyCalls).toBe(88);
+    expect(result.dailyCallLimit).toBe(200);
+    expect(result.monthlyCallLimit).toBe(5000);
+  });
+
+  it("returns next daily and monthly reset timestamps", async () => {
+    aggregate.mockResolvedValue({ _sum: { cost_cny: 0 }, _count: 0 });
+    const { checkQuota } = await import("./usage");
+
+    const result = await checkQuota("user-1", { now: new Date("2026-05-28T10:30:00+08:00") });
+    expect(result.nextDailyResetAt).toBe(new Date(2026, 4, 29).toISOString());
+    expect(result.nextMonthlyResetAt).toBe(new Date(2026, 5, 1).toISOString());
+  });
+
+  it("blocks before DB lookup when single request budget is exceeded", async () => {
+    vi.stubEnv("SINGLE_REQUEST_COST_LIMIT_CNY", "0.01");
+    const { checkQuota } = await import("./usage");
+
+    const result = await checkQuota("user-1", { estimatedCostCny: 0.02 });
+    expect(result.allowed).toBe(false);
+    expect(result.code).toBe("QUOTA_EXCEEDED");
+    expect(result.limitType).toBe("single_request_cost");
+    expect(result.estimatedCostCny).toBe(0.02);
+    expect(aggregate).not.toHaveBeenCalled();
   });
 
   it("treats a null _sum.cost_cny aggregate as zero cost", async () => {
@@ -83,6 +108,8 @@ describe("checkQuota", () => {
 
     const result = await checkQuota("user-1");
     expect(result.allowed).toBe(false);
+    expect(result.code).toBe("QUOTA_EXCEEDED");
+    expect(result.limitType).toBe("daily_cost");
     expect(result.reason).toContain("Daily cost limit");
   });
 
@@ -94,6 +121,8 @@ describe("checkQuota", () => {
 
     const result = await checkQuota("user-1");
     expect(result.allowed).toBe(false);
+    expect(result.code).toBe("QUOTA_EXCEEDED");
+    expect(result.limitType).toBe("monthly_cost");
     expect(result.reason).toContain("Monthly cost limit");
     expect(result.monthlyCostCny).toBe(500);
   });
@@ -106,6 +135,7 @@ describe("checkQuota", () => {
 
     const result = await checkQuota("user-1");
     expect(result.allowed).toBe(false);
+    expect(result.limitType).toBe("daily_calls");
     expect(result.reason).toContain("Daily call limit");
   });
 
@@ -117,6 +147,7 @@ describe("checkQuota", () => {
 
     const result = await checkQuota("user-1");
     expect(result.allowed).toBe(false);
+    expect(result.limitType).toBe("monthly_calls");
     expect(result.reason).toContain("Monthly call limit");
   });
 
@@ -128,6 +159,7 @@ describe("checkQuota", () => {
     const result = await checkQuota("user-1");
     expect(result.allowed).toBe(false);
     expect(result.code).toBe("QUOTA_CHECK_FAILED");
+    expect(result.limitType).toBe("quota_check_failed");
     expect(result.reason).toContain("temporarily unavailable");
   });
 
@@ -160,6 +192,42 @@ describe("checkQuota", () => {
     const result = await checkQuota("user-1");
     expect(result.allowed).toBe(false);
     expect(result.code).toBe("QUOTA_CHECK_FAILED");
+  });
+});
+
+describe("quota helpers", () => {
+  it("estimates request cost from message text and output token budget", async () => {
+    const { estimateLlmMessagesCostCny } = await import("./usage");
+
+    const cost = estimateLlmMessagesCostCny([{ content: "abcd" }, { content: "ef" }], 10);
+    expect(cost).toBeCloseTo((3 * 0.001 + 10 * 0.002) / 1000, 8);
+  });
+
+  it("builds a structured quota response with reset details", async () => {
+    const { quotaExceededResponse } = await import("./usage");
+    const response = quotaExceededResponse({
+      allowed: false,
+      code: "QUOTA_EXCEEDED",
+      reason: "Daily cost limit reached",
+      limitType: "daily_cost",
+      dailyCostCny: 50,
+      monthlyCostCny: 120,
+      dailyLimitCny: 50,
+      monthlyLimitCny: 500,
+      dailyCalls: 30,
+      monthlyCalls: 300,
+      dailyCallLimit: 200,
+      monthlyCallLimit: 5000,
+      singleRequestLimitCny: 10,
+      nextDailyResetAt: "2026-05-29T00:00:00.000Z",
+      nextMonthlyResetAt: "2026-06-01T00:00:00.000Z",
+    });
+
+    expect(response.status).toBe(429);
+    const json = await response.json();
+    expect(json.error.code).toBe("QUOTA_EXCEEDED");
+    expect(json.error.details.limitType).toBe("daily_cost");
+    expect(json.error.details.nextDailyResetAt).toBe("2026-05-29T00:00:00.000Z");
   });
 });
 

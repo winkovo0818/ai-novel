@@ -105,10 +105,73 @@ export async function getUserUsage(
   return summary;
 }
 
-const DAILY_COST_LIMIT_CNY = Number(process.env.DAILY_COST_LIMIT_CNY) || 50;
-const MONTHLY_COST_LIMIT_CNY = Number(process.env.MONTHLY_COST_LIMIT_CNY) || 500;
-const DAILY_CALL_LIMIT = Number(process.env.DAILY_CALL_LIMIT) || 200;
-const MONTHLY_CALL_LIMIT = Number(process.env.MONTHLY_CALL_LIMIT) || 5000;
+const DEFAULT_DAILY_COST_LIMIT_CNY = 50;
+const DEFAULT_MONTHLY_COST_LIMIT_CNY = 500;
+const DEFAULT_DAILY_CALL_LIMIT = 200;
+const DEFAULT_MONTHLY_CALL_LIMIT = 5000;
+const DEFAULT_SINGLE_REQUEST_COST_LIMIT_CNY = 10;
+const DEFAULT_COST_ESTIMATE_CHARS_PER_TOKEN = 2;
+const DEFAULT_COST_ESTIMATE_OUTPUT_TOKENS = 4096;
+
+function positiveNumberEnv(name: string, fallback: number): number {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function getQuotaLimits() {
+  return {
+    dailyLimitCny: positiveNumberEnv("DAILY_COST_LIMIT_CNY", DEFAULT_DAILY_COST_LIMIT_CNY),
+    monthlyLimitCny: positiveNumberEnv("MONTHLY_COST_LIMIT_CNY", DEFAULT_MONTHLY_COST_LIMIT_CNY),
+    dailyCallLimit: Math.floor(positiveNumberEnv("DAILY_CALL_LIMIT", DEFAULT_DAILY_CALL_LIMIT)),
+    monthlyCallLimit: Math.floor(positiveNumberEnv("MONTHLY_CALL_LIMIT", DEFAULT_MONTHLY_CALL_LIMIT)),
+    singleRequestLimitCny: positiveNumberEnv(
+      "SINGLE_REQUEST_COST_LIMIT_CNY",
+      DEFAULT_SINGLE_REQUEST_COST_LIMIT_CNY,
+    ),
+  };
+}
+
+function getQuotaResetTimes(now: Date) {
+  return {
+    nextDailyResetAt: new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 1,
+    ).toISOString(),
+    nextMonthlyResetAt: new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      1,
+    ).toISOString(),
+  };
+}
+
+export function estimateLlmRequestCostCny(input: {
+  inputChars: number;
+  outputTokenBudget?: number;
+}): number {
+  const charsPerToken = positiveNumberEnv(
+    "LLM_COST_ESTIMATE_CHARS_PER_TOKEN",
+    DEFAULT_COST_ESTIMATE_CHARS_PER_TOKEN,
+  );
+  const outputTokens = input.outputTokenBudget ?? positiveNumberEnv(
+    "LLM_COST_ESTIMATE_OUTPUT_TOKENS",
+    DEFAULT_COST_ESTIMATE_OUTPUT_TOKENS,
+  );
+  const tokenIn = Math.ceil(Math.max(0, input.inputChars) / charsPerToken);
+  const tokenOut = Math.max(0, outputTokens);
+  return (tokenIn * 0.001 + tokenOut * 0.002) / 1000;
+}
+
+export function estimateLlmMessagesCostCny(
+  messages: Array<{ content: string }>,
+  outputTokenBudget?: number,
+): number {
+  return estimateLlmRequestCostCny({
+    inputChars: messages.reduce((sum, message) => sum + message.content.length, 0),
+    outputTokenBudget,
+  });
+}
 
 export type QuotaFailureMode = "allow" | "block";
 
@@ -122,20 +185,69 @@ export interface QuotaCheck {
   allowed: boolean;
   reason?: string;
   code?: "QUOTA_EXCEEDED" | "QUOTA_CHECK_FAILED";
+  limitType?:
+    | "daily_cost"
+    | "monthly_cost"
+    | "daily_calls"
+    | "monthly_calls"
+    | "single_request_cost"
+    | "quota_check_failed";
   dailyCostCny: number;
   monthlyCostCny: number;
   dailyLimitCny: number;
   monthlyLimitCny: number;
+  dailyCalls: number;
+  monthlyCalls: number;
+  dailyCallLimit: number;
+  monthlyCallLimit: number;
+  singleRequestLimitCny: number;
+  estimatedCostCny?: number;
+  nextDailyResetAt: string;
+  nextMonthlyResetAt: string;
 }
 
-export async function checkQuota(userId: string): Promise<QuotaCheck> {
+export interface QuotaCheckOptions {
+  estimatedCostCny?: number;
+  now?: Date;
+}
+
+export async function checkQuota(userId: string, options: QuotaCheckOptions = {}): Promise<QuotaCheck> {
   let dailyCost = 0;
   let monthlyCost = 0;
   let dailyCalls = 0;
   let monthlyCalls = 0;
+  const now = options.now ?? new Date();
+  const limits = getQuotaLimits();
+  const resets = getQuotaResetTimes(now);
+  const estimatedCostCny = typeof options.estimatedCostCny === "number"
+    && Number.isFinite(options.estimatedCostCny)
+    ? Math.max(0, options.estimatedCostCny)
+    : undefined;
+  const base = {
+    dailyCostCny: dailyCost,
+    monthlyCostCny: monthlyCost,
+    dailyLimitCny: limits.dailyLimitCny,
+    monthlyLimitCny: limits.monthlyLimitCny,
+    dailyCalls,
+    monthlyCalls,
+    dailyCallLimit: limits.dailyCallLimit,
+    monthlyCallLimit: limits.monthlyCallLimit,
+    singleRequestLimitCny: limits.singleRequestLimitCny,
+    estimatedCostCny,
+    ...resets,
+  };
+
+  if (estimatedCostCny !== undefined && estimatedCostCny > limits.singleRequestLimitCny) {
+    return {
+      allowed: false,
+      reason: `Single request cost estimate exceeds limit (¥${estimatedCostCny.toFixed(2)} / ¥${limits.singleRequestLimitCny})`,
+      code: "QUOTA_EXCEEDED",
+      limitType: "single_request_cost",
+      ...base,
+    };
+  }
 
   try {
-    const now = new Date();
     const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -169,10 +281,8 @@ export async function checkQuota(userId: string): Promise<QuotaCheck> {
         allowed: false,
         reason: "Usage quota service is temporarily unavailable, please try again later",
         code: "QUOTA_CHECK_FAILED",
-        dailyCostCny: 0,
-        monthlyCostCny: 0,
-        dailyLimitCny: DAILY_COST_LIMIT_CNY,
-        monthlyLimitCny: MONTHLY_COST_LIMIT_CNY,
+        limitType: "quota_check_failed",
+        ...base,
       };
     }
     logWarn("usage.quota_check_failed", {
@@ -182,62 +292,96 @@ export async function checkQuota(userId: string): Promise<QuotaCheck> {
     });
     return {
       allowed: true,
-      dailyCostCny: 0,
-      monthlyCostCny: 0,
-      dailyLimitCny: DAILY_COST_LIMIT_CNY,
-      monthlyLimitCny: MONTHLY_COST_LIMIT_CNY,
+      ...base,
     };
   }
 
-  if (dailyCost >= DAILY_COST_LIMIT_CNY) {
+  const usage = {
+    ...base,
+    dailyCostCny: dailyCost,
+    monthlyCostCny: monthlyCost,
+    dailyCalls,
+    monthlyCalls,
+  };
+
+  if (dailyCost >= limits.dailyLimitCny) {
     return {
       allowed: false,
-      reason: `Daily cost limit reached (¥${dailyCost.toFixed(2)} / ¥${DAILY_COST_LIMIT_CNY})`,
-      dailyCostCny: dailyCost,
-      monthlyCostCny: monthlyCost,
-      dailyLimitCny: DAILY_COST_LIMIT_CNY,
-      monthlyLimitCny: MONTHLY_COST_LIMIT_CNY,
+      reason: `Daily cost limit reached (¥${dailyCost.toFixed(2)} / ¥${limits.dailyLimitCny})`,
+      code: "QUOTA_EXCEEDED",
+      limitType: "daily_cost",
+      ...usage,
     };
   }
 
-  if (monthlyCost >= MONTHLY_COST_LIMIT_CNY) {
+  if (monthlyCost >= limits.monthlyLimitCny) {
     return {
       allowed: false,
-      reason: `Monthly cost limit reached (¥${monthlyCost.toFixed(2)} / ¥${MONTHLY_COST_LIMIT_CNY})`,
-      dailyCostCny: dailyCost,
-      monthlyCostCny: monthlyCost,
-      dailyLimitCny: DAILY_COST_LIMIT_CNY,
-      monthlyLimitCny: MONTHLY_COST_LIMIT_CNY,
+      reason: `Monthly cost limit reached (¥${monthlyCost.toFixed(2)} / ¥${limits.monthlyLimitCny})`,
+      code: "QUOTA_EXCEEDED",
+      limitType: "monthly_cost",
+      ...usage,
     };
   }
 
-  if (dailyCalls >= DAILY_CALL_LIMIT) {
+  if (dailyCalls >= limits.dailyCallLimit) {
     return {
       allowed: false,
-      reason: `Daily call limit reached (${dailyCalls} / ${DAILY_CALL_LIMIT})`,
-      dailyCostCny: dailyCost,
-      monthlyCostCny: monthlyCost,
-      dailyLimitCny: DAILY_COST_LIMIT_CNY,
-      monthlyLimitCny: MONTHLY_COST_LIMIT_CNY,
+      reason: `Daily call limit reached (${dailyCalls} / ${limits.dailyCallLimit})`,
+      code: "QUOTA_EXCEEDED",
+      limitType: "daily_calls",
+      ...usage,
     };
   }
 
-  if (monthlyCalls >= MONTHLY_CALL_LIMIT) {
+  if (monthlyCalls >= limits.monthlyCallLimit) {
     return {
       allowed: false,
-      reason: `Monthly call limit reached (${monthlyCalls} / ${MONTHLY_CALL_LIMIT})`,
-      dailyCostCny: dailyCost,
-      monthlyCostCny: monthlyCost,
-      dailyLimitCny: DAILY_COST_LIMIT_CNY,
-      monthlyLimitCny: MONTHLY_COST_LIMIT_CNY,
+      reason: `Monthly call limit reached (${monthlyCalls} / ${limits.monthlyCallLimit})`,
+      code: "QUOTA_EXCEEDED",
+      limitType: "monthly_calls",
+      ...usage,
     };
   }
 
   return {
     allowed: true,
-    dailyCostCny: dailyCost,
-    monthlyCostCny: monthlyCost,
-    dailyLimitCny: DAILY_COST_LIMIT_CNY,
-    monthlyLimitCny: MONTHLY_COST_LIMIT_CNY,
+    ...usage,
   };
+}
+
+export function quotaErrorDetails(quota: QuotaCheck) {
+  return {
+    reason: quota.reason,
+    limitType: quota.limitType,
+    dailyCostCny: quota.dailyCostCny,
+    monthlyCostCny: quota.monthlyCostCny,
+    dailyLimitCny: quota.dailyLimitCny,
+    monthlyLimitCny: quota.monthlyLimitCny,
+    dailyCalls: quota.dailyCalls,
+    monthlyCalls: quota.monthlyCalls,
+    dailyCallLimit: quota.dailyCallLimit,
+    monthlyCallLimit: quota.monthlyCallLimit,
+    singleRequestLimitCny: quota.singleRequestLimitCny,
+    estimatedCostCny: quota.estimatedCostCny,
+    nextDailyResetAt: quota.nextDailyResetAt,
+    nextMonthlyResetAt: quota.nextMonthlyResetAt,
+  };
+}
+
+export function quotaExceededResponse(quota: QuotaCheck): Response {
+  const code = quota.code ?? "QUOTA_EXCEEDED";
+  const checkFailed = code === "QUOTA_CHECK_FAILED";
+  return Response.json(
+    {
+      ok: false,
+      error: {
+        code,
+        message: quota.reason ?? "Usage quota exceeded",
+        retryable: checkFailed,
+        details: quotaErrorDetails(quota),
+      },
+    },
+    { status: checkFailed ? 503 : 429 },
+  );
 }

@@ -4,6 +4,50 @@
 # - Production uses Supabase (or a managed Postgres). DO NOT deploy this file.
 
 services:
+  app:
+    build:
+      context: .
+    image: ai-novel-app
+    container_name: ai-novel-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/ai_novel?schema=public}
+      DIRECT_URL: ${DIRECT_URL:-postgresql://postgres:postgres@postgres:5432/ai_novel?schema=public}
+      AUTH_SECRET: ${AUTH_SECRET:-replace-with-a-long-random-auth-secret}
+      MODEL_KEY_ENCRYPTION_SECRET: ${MODEL_KEY_ENCRYPTION_SECRET:-change-me-to-a-random-32-char-secret-key}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      LLM_MOCK: ${LLM_MOCK:-1}
+      QUOTA_FAILURE_MODE: ${QUOTA_FAILURE_MODE:-allow}
+      MODERATION_FAILURE_MODE: ${MODERATION_FAILURE_MODE:-allow}
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  worker:
+    image: ai-novel-app
+    container_name: ai-novel-worker
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    command: ["npm", "run", "jobs:worker"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/ai_novel?schema=public}
+      DIRECT_URL: ${DIRECT_URL:-postgresql://postgres:postgres@postgres:5432/ai_novel?schema=public}
+      AUTH_SECRET: ${AUTH_SECRET:-replace-with-a-long-random-auth-secret}
+      MODEL_KEY_ENCRYPTION_SECRET: ${MODEL_KEY_ENCRYPTION_SECRET:-change-me-to-a-random-32-char-secret-key}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      LLM_MOCK: ${LLM_MOCK:-1}
+      QUOTA_FAILURE_MODE: ${QUOTA_FAILURE_MODE:-allow}
+      MODERATION_FAILURE_MODE: ${MODERATION_FAILURE_MODE:-allow}
+      JOBS_WORKER_POLL_MS: ${JOBS_WORKER_POLL_MS:-2000}
+
   postgres:
     image: postgres:16-alpine
     container_name: ai-novel-pg
@@ -24,4 +68,3 @@ services:
 
 volumes:
   ai-novel-pg-data:
-

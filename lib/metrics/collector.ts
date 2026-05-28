@@ -21,11 +21,22 @@ export async function collectMetrics(): Promise<MetricFamily[]> {
     llmByAgent,
     llmCost24h,
     llmCost30d,
+    llmRecentStatus,
     llmP95ByRoute,
     moderationDecisions24h,
     moderationReviewQueue,
+    moderationRecentOutcomes,
+    exportRecentStatus,
+    exportRecentByScope,
     jobsByStatus,
     jobsActive,
+    jobsBacklogPending,
+    jobsBacklogRunning,
+    jobsBacklogFailed,
+    jobsOldestAges,
+    jobsRecentDone,
+    jobsRecentFailed,
+    draftSessionsRecent,
     novelCount,
     chaptersByStatus,
   ] = await Promise.all([
@@ -51,6 +62,13 @@ export async function collectMetrics(): Promise<MetricFamily[]> {
         created_at: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
       },
       _sum: { cost_cny: true },
+    }),
+    prisma.llmUsage.groupBy({
+      by: ["status"],
+      where: {
+        created_at: { gte: new Date(Date.now() - 15 * 60 * 1000) },
+      },
+      _count: { _all: true },
     }),
     prisma.$queryRaw<Array<{ route: string; p95_ms: number | bigint }>>`
       SELECT
@@ -79,12 +97,63 @@ export async function collectMetrics(): Promise<MetricFamily[]> {
       },
       _count: { _all: true },
     }),
+    prisma.moderationAudit.groupBy({
+      by: ["outcome"],
+      where: {
+        created_at: { gte: new Date(Date.now() - 15 * 60 * 1000) },
+      },
+      _count: { _all: true },
+    }),
+    prisma.exportEvent.groupBy({
+      by: ["status"],
+      where: {
+        created_at: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      },
+      _count: { _all: true },
+    }),
+    prisma.exportEvent.groupBy({
+      by: ["scope", "status"],
+      where: {
+        created_at: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      },
+      _count: { _all: true },
+    }),
     prisma.backgroundJob.groupBy({
       by: ["status"],
       _count: { _all: true },
     }),
     prisma.backgroundJob.count({
       where: { status: { in: ["pending", "running"] } },
+    }),
+    prisma.backgroundJob.count({ where: { status: "pending" } }),
+    prisma.backgroundJob.count({ where: { status: "running" } }),
+    prisma.backgroundJob.count({ where: { status: "failed" } }),
+    prisma.$queryRaw<Array<{ status: string; oldest_age_seconds: number | bigint | null }>>`
+      SELECT
+        status,
+        EXTRACT(EPOCH FROM (NOW() - MIN(created_at))) AS oldest_age_seconds
+      FROM "BackgroundJob"
+      WHERE status IN ('pending', 'running', 'failed')
+      GROUP BY status
+    `,
+    prisma.backgroundJob.count({
+      where: {
+        status: "done",
+        finished_at: { gte: new Date(Date.now() - 15 * 60 * 1000) },
+      },
+    }),
+    prisma.backgroundJob.count({
+      where: {
+        status: "failed",
+        finished_at: { gte: new Date(Date.now() - 15 * 60 * 1000) },
+      },
+    }),
+    prisma.draftSession.groupBy({
+      by: ["status"],
+      where: {
+        updated_at: { gte: new Date(Date.now() - 15 * 60 * 1000) },
+      },
+      _count: { _all: true },
     }),
     prisma.novel.count(),
     prisma.chapterDraft.groupBy({
@@ -94,6 +163,19 @@ export async function collectMetrics(): Promise<MetricFamily[]> {
   ]);
 
   const families: MetricFamily[] = [];
+  const llmRecentOk = countBy(llmRecentStatus, "status", "ok");
+  const llmRecentErr = countBy(llmRecentStatus, "status", "err");
+  const llmRecentTotal = llmRecentOk + llmRecentErr;
+  const moderationBlocked = countBy(moderationRecentOutcomes, "outcome", "blocked");
+  const moderationAllowed = countBy(moderationRecentOutcomes, "outcome", "allowed");
+  const moderationTotal = moderationBlocked + moderationAllowed;
+  const exportRecentOk = countBy(exportRecentStatus, "status", "ok");
+  const exportRecentErr = countBy(exportRecentStatus, "status", "err");
+  const exportRecentTotal = exportRecentOk + exportRecentErr;
+  const draftCompleted = countBy(draftSessionsRecent, "status", "completed");
+  const draftFailed = countBy(draftSessionsRecent, "status", "failed");
+  const draftStreaming = countBy(draftSessionsRecent, "status", "streaming");
+  const draftFinished = draftCompleted + draftFailed;
 
   families.push({
     name: "ai_novel_llm_requests_total",
@@ -160,6 +242,18 @@ export async function collectMetrics(): Promise<MetricFamily[]> {
   });
 
   families.push({
+    name: "ai_novel_llm_success_rate",
+    help: "LLM success ratio over recent alerting windows.",
+    type: "gauge",
+    samples: [
+      {
+        labels: { window: "15m" },
+        value: ratio(llmRecentOk, llmRecentTotal),
+      },
+    ],
+  });
+
+  families.push({
     name: "ai_novel_llm_took_ms_p95",
     help: "LLM request p95 latency in milliseconds by route over the last hour.",
     type: "gauge",
@@ -195,6 +289,40 @@ export async function collectMetrics(): Promise<MetricFamily[]> {
   });
 
   families.push({
+    name: "ai_novel_moderation_block_rate",
+    help: "Moderation blocked ratio over recent alerting windows.",
+    type: "gauge",
+    samples: [
+      {
+        labels: { window: "15m" },
+        value: ratio(moderationBlocked, moderationTotal),
+      },
+    ],
+  });
+
+  families.push({
+    name: "ai_novel_exports_total",
+    help: "Export attempts by scope and status over recent alerting windows.",
+    type: "gauge",
+    samples: exportRecentByScope.map((row) => ({
+      labels: { scope: row.scope, status: row.status, window: "24h" },
+      value: row._count._all,
+    })),
+  });
+
+  families.push({
+    name: "ai_novel_exports_failure_rate",
+    help: "Export failure ratio over recent alerting windows.",
+    type: "gauge",
+    samples: [
+      {
+        labels: { window: "24h" },
+        value: ratio(exportRecentErr, exportRecentTotal),
+      },
+    ],
+  });
+
+  families.push({
     name: "ai_novel_jobs_total",
     help: "Total background jobs by status (all-time counter).",
     type: "counter",
@@ -209,6 +337,61 @@ export async function collectMetrics(): Promise<MetricFamily[]> {
     help: "Background jobs currently pending or running.",
     type: "gauge",
     samples: [{ value: jobsActive }],
+  });
+
+  families.push({
+    name: "ai_novel_jobs_backlog",
+    help: "Current background job backlog by status.",
+    type: "gauge",
+    samples: [
+      { labels: { status: "pending" }, value: jobsBacklogPending },
+      { labels: { status: "running" }, value: jobsBacklogRunning },
+      { labels: { status: "failed" }, value: jobsBacklogFailed },
+    ],
+  });
+
+  families.push({
+    name: "ai_novel_jobs_oldest_age_seconds",
+    help: "Age in seconds of the oldest background job by non-terminal status.",
+    type: "gauge",
+    samples: ["pending", "running", "failed"].map((status) => {
+      const row = jobsOldestAges.find((item) => item.status === status);
+      return {
+        labels: { status },
+        value: row?.oldest_age_seconds == null ? 0 : Number(row.oldest_age_seconds),
+      };
+    }),
+  });
+
+  families.push({
+    name: "ai_novel_jobs_failure_rate",
+    help: "Background job failure ratio over recent alerting windows.",
+    type: "gauge",
+    samples: [
+      {
+        labels: { window: "15m" },
+        value: ratio(jobsRecentFailed, jobsRecentDone + jobsRecentFailed),
+      },
+    ],
+  });
+
+  families.push({
+    name: "ai_novel_draft_sessions_active",
+    help: "Recent draft SSE sessions still marked streaming.",
+    type: "gauge",
+    samples: [{ labels: { window: "15m" }, value: draftStreaming }],
+  });
+
+  families.push({
+    name: "ai_novel_draft_sessions_failure_rate",
+    help: "Draft SSE session failure ratio over recent alerting windows.",
+    type: "gauge",
+    samples: [
+      {
+        labels: { window: "15m" },
+        value: ratio(draftFailed, draftFinished),
+      },
+    ],
   });
 
   families.push({
@@ -229,4 +412,18 @@ export async function collectMetrics(): Promise<MetricFamily[]> {
   });
 
   return families;
+}
+
+function ratio(numerator: number, denominator: number): number {
+  if (denominator <= 0) return 0;
+  return Number((numerator / denominator).toFixed(6));
+}
+
+function countBy<T extends Record<string, unknown>>(rows: T[], key: keyof T, value: string): number {
+  const row = rows.find((item) => item[key] === value);
+  const count = row?._count;
+  if (count && typeof count === "object" && "_all" in count && typeof count._all === "number") {
+    return count._all;
+  }
+  return 0;
 }

@@ -8,13 +8,17 @@ const jobCount = vi.fn();
 const novelCount = vi.fn();
 const chapterGroupBy = vi.fn();
 const moderationGroupBy = vi.fn();
+const exportGroupBy = vi.fn();
+const draftSessionGroupBy = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     llmUsage: { groupBy: llmGroupBy, aggregate: llmAggregate },
     $queryRaw: queryRaw,
     moderationAudit: { groupBy: moderationGroupBy },
+    exportEvent: { groupBy: exportGroupBy },
     backgroundJob: { groupBy: jobGroupBy, count: jobCount },
+    draftSession: { groupBy: draftSessionGroupBy },
     novel: { count: novelCount },
     chapterDraft: { groupBy: chapterGroupBy },
   },
@@ -44,6 +48,11 @@ describe("collectMetrics", () => {
           _count: { _all: 5 },
           _sum: { token_in: 100, token_out: 50, cost_cny: 0.01 },
         },
+      ])
+      // by: ["status"] within 15m
+      .mockResolvedValueOnce([
+        { status: "ok", _count: { _all: 8 } },
+        { status: "err", _count: { _all: 2 } },
       ]);
 
     jobGroupBy.mockResolvedValue([
@@ -53,10 +62,15 @@ describe("collectMetrics", () => {
     llmAggregate
       .mockResolvedValueOnce({ _sum: { cost_cny: 9.5 } })
       .mockResolvedValueOnce({ _sum: { cost_cny: 120.25 } });
-    queryRaw.mockResolvedValue([
-      { route: "/api/novels/[id]/chapters/draft", p95_ms: 8200 },
-      { route: "/api/chapters/[id]/state-diff", p95_ms: 900n },
-    ]);
+    queryRaw
+      .mockResolvedValueOnce([
+        { route: "/api/novels/[id]/chapters/draft", p95_ms: 8200 },
+        { route: "/api/chapters/[id]/state-diff", p95_ms: 900n },
+      ])
+      .mockResolvedValueOnce([
+        { status: "pending", oldest_age_seconds: 120 },
+        { status: "running", oldest_age_seconds: 30n },
+      ]);
     moderationGroupBy
       .mockResolvedValueOnce([
         {
@@ -75,8 +89,33 @@ describe("collectMetrics", () => {
       .mockResolvedValueOnce([
         { review_status: "pending", _count: { _all: 4 } },
         { review_status: "confirmed", _count: { _all: 1 } },
+      ])
+      .mockResolvedValueOnce([
+        { outcome: "blocked", _count: { _all: 3 } },
+        { outcome: "allowed", _count: { _all: 9 } },
       ]);
-    jobCount.mockResolvedValue(3);
+    exportGroupBy
+      .mockResolvedValueOnce([
+        { status: "ok", _count: { _all: 7 } },
+        { status: "err", _count: { _all: 1 } },
+      ])
+      .mockResolvedValueOnce([
+        { scope: "novel", status: "ok", _count: { _all: 6 } },
+        { scope: "novel", status: "err", _count: { _all: 1 } },
+        { scope: "profile", status: "ok", _count: { _all: 1 } },
+      ]);
+    jobCount
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(4)
+      .mockResolvedValueOnce(8)
+      .mockResolvedValueOnce(2);
+    draftSessionGroupBy.mockResolvedValue([
+      { status: "completed", _count: { _all: 8 } },
+      { status: "failed", _count: { _all: 2 } },
+      { status: "streaming", _count: { _all: 1 } },
+    ]);
     novelCount.mockResolvedValue(7);
     chapterGroupBy.mockResolvedValue([
       { status: "draft", _count: { _all: 12 } },
@@ -116,6 +155,9 @@ describe("collectMetrics", () => {
     expect(byName.ai_novel_llm_cost_cny_window.samples).toEqual([
       { labels: { window: "24h" }, value: 9.5 },
       { labels: { window: "30d" }, value: 120.25 },
+    ]);
+    expect(byName.ai_novel_llm_success_rate.samples).toEqual([
+      { labels: { window: "15m" }, value: 0.8 },
     ]);
     expect(byName.ai_novel_llm_took_ms_p95.samples).toEqual([
       {
@@ -157,8 +199,38 @@ describe("collectMetrics", () => {
         value: 1,
       },
     ]);
+    expect(byName.ai_novel_moderation_block_rate.samples).toEqual([
+      { labels: { window: "15m" }, value: 0.25 },
+    ]);
+    expect(byName.ai_novel_exports_total.samples).toEqual([
+      { labels: { scope: "novel", status: "ok", window: "24h" }, value: 6 },
+      { labels: { scope: "novel", status: "err", window: "24h" }, value: 1 },
+      { labels: { scope: "profile", status: "ok", window: "24h" }, value: 1 },
+    ]);
+    expect(byName.ai_novel_exports_failure_rate.samples).toEqual([
+      { labels: { window: "24h" }, value: 0.125 },
+    ]);
 
     expect(byName.ai_novel_jobs_active.samples).toEqual([{ value: 3 }]);
+    expect(byName.ai_novel_jobs_backlog.samples).toEqual([
+      { labels: { status: "pending" }, value: 2 },
+      { labels: { status: "running" }, value: 1 },
+      { labels: { status: "failed" }, value: 4 },
+    ]);
+    expect(byName.ai_novel_jobs_oldest_age_seconds.samples).toEqual([
+      { labels: { status: "pending" }, value: 120 },
+      { labels: { status: "running" }, value: 30 },
+      { labels: { status: "failed" }, value: 0 },
+    ]);
+    expect(byName.ai_novel_jobs_failure_rate.samples).toEqual([
+      { labels: { window: "15m" }, value: 0.2 },
+    ]);
+    expect(byName.ai_novel_draft_sessions_active.samples).toEqual([
+      { labels: { window: "15m" }, value: 1 },
+    ]);
+    expect(byName.ai_novel_draft_sessions_failure_rate.samples).toEqual([
+      { labels: { window: "15m" }, value: 0.2 },
+    ]);
     expect(byName.ai_novel_novels_total.samples).toEqual([{ value: 7 }]);
     expect(byName.ai_novel_chapters_total.samples).toEqual([
       { labels: { status: "draft" }, value: 12 },
@@ -167,14 +239,16 @@ describe("collectMetrics", () => {
   });
 
   it("bounds the moderation review_queue groupBy with a 30d created_at window", async () => {
-    llmGroupBy.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    llmGroupBy.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     llmAggregate
       .mockResolvedValueOnce({ _sum: { cost_cny: null } })
       .mockResolvedValueOnce({ _sum: { cost_cny: null } });
     queryRaw.mockResolvedValue([]);
-    moderationGroupBy.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    moderationGroupBy.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    exportGroupBy.mockResolvedValue([]);
     jobGroupBy.mockResolvedValue([]);
     jobCount.mockResolvedValue(0);
+    draftSessionGroupBy.mockResolvedValue([]);
     novelCount.mockResolvedValue(0);
     chapterGroupBy.mockResolvedValue([]);
 
@@ -202,14 +276,17 @@ describe("collectMetrics", () => {
           _count: { _all: 0 },
           _sum: { token_in: null, token_out: null, cost_cny: null },
         },
-      ]);
+      ])
+      .mockResolvedValueOnce([]);
     llmAggregate
       .mockResolvedValueOnce({ _sum: { cost_cny: null } })
       .mockResolvedValueOnce({ _sum: { cost_cny: null } });
     queryRaw.mockResolvedValue([]);
-    moderationGroupBy.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    moderationGroupBy.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    exportGroupBy.mockResolvedValue([]);
     jobGroupBy.mockResolvedValue([]);
     jobCount.mockResolvedValue(0);
+    draftSessionGroupBy.mockResolvedValue([]);
     novelCount.mockResolvedValue(0);
     chapterGroupBy.mockResolvedValue([]);
 

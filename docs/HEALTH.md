@@ -18,6 +18,7 @@
 
 ## 最近更新
 
+- **2026-05-28 (P6-12 备份检查与恢复演练模板)** — 新增 `npm run backup:check` / `scripts/backup-check.ts`，上线前可验证数据库连接、关键表数量、最近写入和备份成功时间；`.env.example` 增加 `BACKUP_LAST_SUCCESS_AT` 与检查阈值说明；本文档新增数据备份与恢复演练模板。新增 4 条 backup-check 单测，定向 lint/typecheck 通过；本地未应用最新 migration 时会按预期拦截关键表缺失。
 - **2026-05-15 (本地 smoke 通过)** — `scripts/onboarding-api-smoke.ts` 跟随当前章节乐观锁契约更新：章节 PATCH 带 `expected_version`，负向章节创建用 `chapter_index=0` 断言 `INVALID_INPUT`。本地 `npm run smoke:onboarding` 已通过，覆盖 onboarding session、logline、questions、Bible SSE、finalize、章节创建、章节起草 SSE、章节 PATCH 持久化、novel 回读、第二章起草和非法章节拒绝。
 - **2026-05-14 (内容审核 review queue + TTL)** — 新增 `/admin/moderation` 人工复核队列，`GET/PATCH /api/admin/moderation-audits` 支持按 review 状态筛选与确认/误杀/忽略；`ModerationAudit` 增加 review 状态、复核人、复核时间和备注，`collectMetrics()` 增加 `ai_novel_moderation_review_queue{review_status}`；新增 `GET /api/cron/moderation-audits/cleanup` + `vercel.json` 每日 03:20 UTC 清理超过 90 天 audit 行，`MODERATION_AUDIT_RETENTION_MS` 可调。新增 14 条 review/TTL/metrics 回归测试，Vitest 666 → 680 tests；API route 39 → 42，page.tsx 21 → 22。
 - **2026-05-14 (内容审核 audit trail)** — 新增 `ModerationAudit` Prisma model + migration `20260514010000_add_moderation_audit`，`moderateContent()` 在 block / fail-open / review 决策时 best-effort 写入审核元数据（不存原文，只存 sha256 + 字符数）；`collectMetrics()` 增加 `ai_novel_moderation_decisions_total{source,action,outcome,window="24h"}`。新增 1 条 audit 持久化失败不影响审核决策测试，Vitest 665 → 666 tests；Prisma migrations 22 → 23，models 15 → 16。
@@ -74,6 +75,7 @@
 | `npm run build` | ✅ 通过 | |
 | Playwright E2E | ✅ 8 tests（onboarding / editor-failure / editor-candidate × 4 / version-restore / beat-to-draft）全绿；P0-1 后按钮文案对齐 M1.3 候选稿模式 | 本轮全量 `npx playwright test` 已通过 |
 | `npm run smoke:onboarding` | ✅ 通过 | 2026-05-15 本地生产服务 + `LLM_MOCK=1` |
+| `npm run backup:check` | 待生产配置后运行 | 需设置 `BACKUP_LAST_SUCCESS_AT` 或 `BACKUP_CHECK_LAST_SUCCESS_AT` |
 | Coverage（v8） | ✅ lines/statements 68 · functions 93 · branches 83 阈值入 CI；基线 70.04/94.24/85.50 | summaries / handlers / chapterStatus 100% |
 | Prisma migrations | 24 条 | 含 `20260515010000_add_authjs_tables`；部署前需 `prisma migrate deploy` |
 
@@ -181,7 +183,58 @@ F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关
 
 ---
 
-## 六、文档地图
+## 六、数据备份与恢复演练
+
+### 上线前备份检查
+
+运行：
+
+```bash
+npm run db:deploy
+npm run backup:check
+```
+
+脚本检查项：
+
+- 数据库连接是否可用。
+- `User`、`Novel`、`BibleDraft`、`ChapterDraft`、`ChapterVersion`、`MemoryChunk`、`LlmUsage`、`ModerationAudit`、`BackgroundJob`、`DraftSession`、`ExportEvent` 等关键表是否可统计。
+- 最近一次应用写入时间，避免误连空库或旧库。
+- 最近一次外部备份成功时间。生产环境默认要求设置 `BACKUP_LAST_SUCCESS_AT` 或 `BACKUP_CHECK_LAST_SUCCESS_AT`，超过 `BACKUP_CHECK_MAX_BACKUP_AGE_HOURS` 会失败。
+- 如果检查提示 `relation "... " does not exist`，先确认目标数据库已执行 `npm run db:deploy`，再重跑检查。
+
+本地只想检查数据库连通性时，可以临时设置：
+
+```bash
+BACKUP_CHECK_REQUIRE_BACKUP=0 npm run backup:check
+```
+
+### 恢复演练模板
+
+| 字段 | 记录 |
+|---|---|
+| 演练日期 | YYYY-MM-DD |
+| 演练负责人 |  |
+| 源环境 / 备份点 | production / `BACKUP_LAST_SUCCESS_AT=...` |
+| 目标环境 | staging / 临时恢复库 |
+| 恢复方式 | 托管 Postgres PITR / dump restore / provider snapshot |
+| 恢复耗时 |  |
+| 恢复后迁移状态 | `npm run db:deploy` 结果 |
+| 数据完整性检查 | `BACKUP_CHECK_REQUIRE_BACKUP=0 npm run backup:check` 结果 |
+| 关键业务 smoke | 登录、作品列表、编辑器打开、导出、`/api/metrics` |
+| 发现问题 |  |
+| 后续动作 |  |
+
+恢复后必须确认：
+
+- 目标环境没有连接生产写库，避免误写。
+- `prisma migrate deploy` 已执行，迁移版本与应用版本一致。
+- 至少抽查 1 个账号、1 部作品、1 个 Bible、1 个章节、1 条版本历史、1 条记忆记录。
+- 导出 JSON / ZIP 能下载，且不会包含 embedding 向量。
+- `/api/metrics` 有 token 保护，worker 和 cron 的密钥已换成目标环境值。
+
+---
+
+## 七、文档地图
 
 | 文档 | 角色 |
 |---|---|

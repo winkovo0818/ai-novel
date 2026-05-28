@@ -20,6 +20,7 @@
     "db:deploy": "dotenv -e .env -- prisma migrate deploy",
     "db:reset": "dotenv -e .env -- prisma migrate reset --force",
     "db:smoke": "dotenv -e .env -- tsx scripts/db-smoke-test.ts",
+    "backup:check": "dotenv -e .env -- tsx scripts/backup-check.ts",
     "eval:ai": "tsx scripts/eval-ai-quality.ts",
     "eval:novel-quality": "tsx scripts/eval-novel-quality.ts",
     "eval:novel-quality:matrix": "tsx scripts/eval-novel-quality-matrix.ts",
