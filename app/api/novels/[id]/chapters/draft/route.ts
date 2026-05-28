@@ -2,13 +2,14 @@ import { jsonError } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { isRateLimited } from "@/lib/auth/rateLimit";
-import { checkQuota } from "@/lib/llm/usage";
+import { checkQuota, estimateLlmMessagesCostCny, quotaExceededResponse } from "@/lib/llm/usage";
 import { moderateContent, stringifyForModeration } from "@/lib/moderation/moderate";
 import { StreamModerationGuard } from "@/lib/moderation/streamGuard";
 import { ModerationBlockError } from "@/lib/moderation/errors";
 import { StreamSegmenter } from "@/lib/agent/streamSegmenter";
 import { streamChatCompletionWithRetry } from "@/lib/llm/client";
 import { buildChapterPrompt } from "@/lib/llm/prompts/chapter";
+import { cleanupWriterOutputSegment } from "@/lib/llm/writerOutputCleanup";
 import { buildChapterContext } from "@/lib/agent/chapterContext";
 import { retrieveMemories, type RetrievalStatus } from "@/lib/agent/retrieval";
 import type { RetrievalResult } from "@/lib/agent/contracts";
@@ -49,6 +50,7 @@ function normalizeRetrievalResult(result: Partial<RetrievalResult> | null | unde
     status,
     memories,
     errorMessage: typeof result?.errorMessage === "string" ? result.errorMessage : undefined,
+    explanation: result?.explanation,
   };
 }
 
@@ -113,12 +115,6 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  // Quota check: prevent cost overruns
-  const quota = await checkQuota(userId);
-  if (!quota.allowed) {
-    return jsonError("QUOTA_EXCEEDED", quota.reason ?? "Usage quota exceeded", false, 429);
-  }
-
   const bible = BibleDraftSchema.safeParse(novel.bible.content);
   const profile = NovelProfileSchema.safeParse(novel.profile);
   if (!bible.success || !profile.success) {
@@ -156,10 +152,13 @@ export async function POST(request: Request, context: RouteContext) {
   const retrievalPreview = {
     status: retrievalStatus,
     error: retrievalResult.errorMessage,
+    explanation: retrievalResult.explanation,
     memories: retrievalResult.memories.map((m) => ({
+      id: m.id,
       source: m.source,
       reason: m.reason,
       score: m.score,
+      explanation: m.explanation,
       text: m.text.length > RETRIEVAL_PREVIEW_CHARS
         ? `${m.text.slice(0, RETRIEVAL_PREVIEW_CHARS)}…`
         : m.text,
@@ -175,6 +174,19 @@ export async function POST(request: Request, context: RouteContext) {
   });
 
   const policy = getGenerationPolicy(profile.data);
+  const messages = buildChapterPrompt({
+    context: chapterContext,
+    profile: profile.data,
+    existingContent: input.existing_content,
+    generationPolicy: policy,
+  });
+
+  const quota = await checkQuota(userId, {
+    estimatedCostCny: estimateLlmMessagesCostCny(messages, 8192),
+  });
+  if (!quota.allowed) {
+    return quotaExceededResponse(quota);
+  }
 
   // UX3: persist this draft attempt so the client can resume if the SSE
   // connection drops. Created before the stream opens so the row's id can
@@ -219,7 +231,11 @@ export async function POST(request: Request, context: RouteContext) {
             verdict.code ?? "MODERATION_BLOCKED_INLINE",
           );
         }
-        send(sseEncode("chapter_delta", { delta: segment }));
+        const cleanedSegment = cleanupWriterOutputSegment(segment);
+        if (cleanedSegment) {
+          content += cleanedSegment;
+          send(sseEncode("chapter_delta", { delta: cleanedSegment }));
+        }
         flusher.schedule(content);
       }
 
@@ -238,12 +254,7 @@ export async function POST(request: Request, context: RouteContext) {
             agent: "writer",
             userId,
             novelId: id,
-            messages: buildChapterPrompt({
-              context: chapterContext,
-              profile: profile.data,
-              existingContent: input.existing_content,
-              generationPolicy: policy,
-            }),
+            messages,
             temperature: policy.temperature,
             // Anti-AI-signature sampling: push the model off its high-probability
             // "favorite token" rails so 朱雀-class detectors see flatter unigram
@@ -258,7 +269,6 @@ export async function POST(request: Request, context: RouteContext) {
           },
           {
             onDelta(delta) {
-              content += delta;
               // P0-8: do NOT forward `delta` directly to the client.
               // Feed the segmenter; only completed segments are scanned
               // and forwarded. The throw inside emitSegment propagates

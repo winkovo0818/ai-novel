@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildChapterRevisionPrompt } from "./chapterRevision";
+import { buildChapterRevisionPrompt, buildLocalChapterRevisionPrompt } from "./chapterRevision";
 import type { ChapterContext } from "@/lib/agent/chapterContext";
 
 const context = {
@@ -66,5 +66,72 @@ describe("buildChapterRevisionPrompt", () => {
     expect(user.content).toContain("增加林燃故意观察校队训练");
     expect(user.content).toContain("林燃路过训练室");
     expect(user.content).toContain("冲突必须可追溯");
+  });
+});
+
+describe("buildLocalChapterRevisionPrompt", () => {
+  it("asks for local body only and includes selection context", () => {
+    const [system, user] = buildLocalChapterRevisionPrompt({
+      context,
+      operation: "polish",
+      title: "训练室",
+      selectedText: "林燃路过训练室，被叫进去陪练。",
+      beforeContext: "林燃刚看完赵锐投篮。",
+      afterContext: "老王吹响哨子。",
+    });
+
+    expect(system.content).toContain("只返回改写后的局部正文");
+    expect(system.content).toContain("不要输出前后文");
+    expect(system.content).toContain("润色选中段落");
+    expect(user.content).toContain("操作：polish");
+    expect(user.content).toContain("选区前文");
+    expect(user.content).toContain("待改写选区");
+    expect(user.content).toContain("选区后文");
+    expect(user.content).toContain("林燃路过训练室");
+  });
+
+  it("uses distinct instructions for each local operation", () => {
+    const operations = [
+      ["polish", "润色选中段落"],
+      ["humanize", "去 AI 味"],
+      ["expand", "扩写选中段落"],
+      ["shorten", "缩写选中段落"],
+      ["dialogue", "改对白"],
+      ["intensify_conflict", "增强冲突"],
+      ["continue", "续写选中段落"],
+    ] as const;
+
+    for (const [operation, expected] of operations) {
+      const [system, user] = buildLocalChapterRevisionPrompt({
+        context,
+        operation,
+        title: "训练室",
+        selectedText: "林燃路过训练室。",
+        beforeContext: "",
+        afterContext: "",
+      });
+      expect(system.content).toContain(expected);
+      expect(user.content).toContain(`操作：${operation}`);
+      expect(user.content).toContain(expected);
+    }
+  });
+
+  it("includes concrete anti-AI rewriting rules for humanize", () => {
+    const [system, user] = buildLocalChapterRevisionPrompt({
+      context,
+      operation: "humanize",
+      title: "训练室",
+      selectedText: "这一刻，林燃知道真正的考验才刚刚开始。",
+      beforeContext: "",
+      afterContext: "",
+    });
+
+    expect(system.content).toContain("改写前先在内部检查 AI 痕迹");
+    expect(user.content).toContain("操作：humanize");
+    expect(user.content).toContain("5 类 29 种痕迹");
+    expect(user.content).toContain("聊天机器人痕迹");
+    expect(user.content).toContain("三连排比");
+    expect(user.content).toContain("命运的齿轮");
+    expect(user.content).toContain("只修掉 AI 痕迹");
   });
 });

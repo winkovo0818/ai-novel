@@ -1,0 +1,135 @@
+{
+  "id": "history-conservative",
+  "description": "历史保守样例：验证低自由度设定下的角色动机、时代约束和权谋推进。",
+  "profile": {
+    "genre_main": "web",
+    "genre_sub": "历史权谋",
+    "description": "明末一名小吏无意中拿到了一份能证明京中权臣通敌的奏章副本。",
+    "audience": "general",
+    "length": "long",
+    "tone": "serious",
+    "pace": "slow",
+    "pov": "third_limited",
+    "chapter_word_count": 3000,
+    "ai_freedom": "conservative"
+  },
+  "logline": "明末一名小吏无意中拿到了一份能证明京中权臣通敌的奏章副本。",
+  "answers": {
+    "protagonist_personality": "谨慎守拙",
+    "core_conflict": "权臣派系排查与小吏求生之间的猫鼠",
+    "historical_limit": "不改变大历史，只写夹缝求生"
+  },
+  "bible": {
+    "meta": {
+      "suggested_title": "副奏录",
+      "alternative_titles": ["暗折", "纸上锋", "吏火"]
+    },
+    "characters": [
+      {
+        "role": "protagonist",
+        "name": "陈观澜",
+        "age": 27,
+        "appearance": "青布旧袍，袖口常沾墨痕",
+        "personality": "谨慎守拙，擅长把锋芒藏在账册和公文里",
+        "catchphrase": "小吏只认文书。",
+        "abilities": ["案牍核验", "账册推理"],
+        "goals": "短期保住家人和奏章副本，长期揭开通敌案而不被派系吞没。",
+        "motivation": "他父亲曾因替人递错文书被牵连致死，因此深知公文既能救命也能杀人。",
+        "secrets": ["藏有奏章副本的半页残纸"],
+        "relations": ["与沈知县互相试探"]
+      },
+      {
+        "role": "mentor",
+        "name": "沈砚之",
+        "age": 51,
+        "appearance": "面容清瘦，常握一枚旧铜印",
+        "personality": "圆滑克制，不轻易表态，却会在关键处留一线活路",
+        "catchphrase": "案子要往纸上走。",
+        "abilities": ["官场周旋", "刑名判断"],
+        "goals": "短期稳住县衙不被京中派系清洗，长期保全地方百姓。",
+        "motivation": "他见过太多直臣死于无用的刚烈，更相信证据和时机。",
+        "secrets": ["年轻时曾受权臣门生提拔"],
+        "relations": ["陈观澜的上官与潜在庇护者"]
+      },
+      {
+        "role": "antagonist",
+        "name": "魏承岳",
+        "age": 48,
+        "appearance": "京中权臣，眉眼含笑却不看人",
+        "personality": "耐心、周密，习惯用制度漏洞清除异己",
+        "catchphrase": "规矩本就为会用的人设。",
+        "abilities": ["派系经营", "密折操控"],
+        "goals": "短期找回奏章副本，长期切断自己通敌证据并稳住边贸利益。",
+        "motivation": "他认为朝局已无可救药，借边贸换取派系生存是唯一务实选择。",
+        "secrets": ["与边镇私商有密信往来"],
+        "relations": ["沈砚之旧日恩主"]
+      }
+    ],
+    "world": {
+      "setting_summary": "明末县衙与京城派系相互牵连，边镇军费、商路和密折构成权力暗线。小吏没有武力与官阶，只能利用文书流程、账册漏洞和时间差求生。",
+      "factions": [
+        { "name": "清河县衙", "alignment": "地方", "role": "陈观澜所在官署" },
+        { "name": "魏党", "alignment": "京中权臣", "role": "追查奏章副本的压力来源" },
+        { "name": "边镇商路", "alignment": "灰色", "role": "通敌案利益链" }
+      ],
+      "rules": ["小吏不得越级上奏", "公文流转需钤印登记", "边镇军报三日一递", "家眷可被地方豪强胁迫"],
+      "geography": ["清河县衙", "驿站", "城外纸坊"]
+    },
+    "outline": {
+      "volume_1": {
+        "name": "残奏卷",
+        "theme": "小吏在纸面刀锋中求一条活路",
+        "chapter_count_estimate": 8,
+        "chapters": [
+          {
+            "index": 1,
+            "title": "半页残奏",
+            "summary": "陈观澜在废纸堆中发现奏章副本残页，意识到它牵连京中权臣和边镇商路。"
+          },
+          {
+            "index": 2,
+            "title": "钤印错位",
+            "summary": "县衙公文钤印出现错位，陈观澜判断有人已经开始追查残奏来源。"
+          },
+          {
+            "index": 3,
+            "title": "驿站夜火",
+            "summary": "驿站失火烧毁军报，小高潮中陈观澜救出账册却暴露自己知道太多。"
+          },
+          {
+            "index": 4,
+            "title": "知县问案",
+            "summary": "沈砚之审问陈观澜，两人用公文暗语互相试探，暂时结成脆弱同盟。"
+          },
+          {
+            "index": 5,
+            "title": "纸坊密信",
+            "summary": "陈观澜在纸坊水印中发现边镇私商印记，伏笔指向魏承岳与商路密信。"
+          },
+          {
+            "index": 6,
+            "title": "家书为饵",
+            "summary": "魏党以陈观澜家眷为饵逼他交出残奏，沈砚之却要求他先保文书证据。"
+          },
+          {
+            "index": 7,
+            "title": "三日军报",
+            "summary": "陈观澜利用军报三日一递的时差布置假账，让追查者误判残奏已送往别处。"
+          },
+          {
+            "index": 8,
+            "title": "暗折入京",
+            "summary": "残奏副本以合法公文名义入京，陈观澜暂保性命，但魏承岳也锁定了清河县。"
+          }
+        ]
+      }
+    },
+    "first_chapter_beats": [
+      { "beat": 1, "scene": "县衙废纸房", "purpose": "建立小吏身份与案牍世界" },
+      { "beat": 2, "scene": "残页显字", "purpose": "抛出通敌证据" },
+      { "beat": 3, "scene": "同僚试探", "purpose": "制造被盯上的压力" },
+      { "beat": 4, "scene": "家中藏纸", "purpose": "绑定家人风险与主角动机" },
+      { "beat": 5, "scene": "夜半钤印", "purpose": "引出下一章公文追查危机" }
+    ]
+  }
+}

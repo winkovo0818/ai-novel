@@ -1,0 +1,650 @@
+{
+  "generatedAt": "2026-05-28T14:17:29.266Z",
+  "mock": true,
+  "summary": {
+    "novelFixtures": 4,
+    "chapterFixtures": 3,
+    "passedChecks": 84,
+    "failedChecks": 0
+  },
+  "bible": [
+    {
+      "id": "history-conservative",
+      "ok": true,
+      "promptMessages": 2,
+      "scores": [
+        {
+          "name": "completeness",
+          "score": 4,
+          "max": 4,
+          "checks": [
+            {
+              "name": "has_core_roles",
+              "ok": true,
+              "detail": "contains protagonist, antagonist, and mentor"
+            },
+            {
+              "name": "world_rules",
+              "ok": true,
+              "detail": "rules=4"
+            },
+            {
+              "name": "world_factions",
+              "ok": true,
+              "detail": "factions=3"
+            },
+            {
+              "name": "first_chapter_beats",
+              "ok": true,
+              "detail": "beats=5"
+            }
+          ]
+        },
+        {
+          "name": "outline_usability",
+          "score": 4,
+          "max": 4,
+          "checks": [
+            {
+              "name": "enough_chapters",
+              "ok": true,
+              "detail": "chapters=8"
+            },
+            {
+              "name": "summaries_are_specific",
+              "ok": true,
+              "detail": "each summary is 20-120 chars"
+            },
+            {
+              "name": "has_climax",
+              "ok": true,
+              "detail": "outline contains at least one escalation/climax cue"
+            },
+            {
+              "name": "has_foreshadowing",
+              "ok": true,
+              "detail": "outline contains at least one foreshadowing cue"
+            }
+          ]
+        },
+        {
+          "name": "character_conflict",
+          "score": 4,
+          "max": 4,
+          "checks": [
+            {
+              "name": "protagonist_motivation_links_logline",
+              "ok": true,
+              "detail": "protagonist motivation/goals reuse logline conflict terms"
+            },
+            {
+              "name": "antagonist_has_reason",
+              "ok": true,
+              "detail": "antagonist motivation is specific"
+            },
+            {
+              "name": "goals_collide",
+              "ok": true,
+              "detail": "protagonist and antagonist goals are distinct"
+            },
+            {
+              "name": "secrets_drive_conflict",
+              "ok": true,
+              "detail": "secrets connect to central conflict"
+            }
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "schema",
+          "ok": true,
+          "detail": "Bible fixture passes BibleDraftSchema"
+        },
+        {
+          "name": "prompt_has_system_and_user",
+          "ok": true,
+          "detail": "prompt messages=2"
+        },
+        {
+          "name": "protagonist_exists",
+          "ok": true,
+          "detail": "Bible contains a protagonist"
+        }
+      ]
+    },
+    {
+      "id": "scifi-hard",
+      "ok": true,
+      "promptMessages": 2,
+      "scores": [
+        {
+          "name": "completeness",
+          "score": 4,
+          "max": 4,
+          "checks": [
+            {
+              "name": "has_core_roles",
+              "ok": true,
+              "detail": "contains protagonist, antagonist, and mentor"
+            },
+            {
+              "name": "world_rules",
+              "ok": true,
+              "detail": "rules=4"
+            },
+            {
+              "name": "world_factions",
+              "ok": true,
+              "detail": "factions=3"
+            },
+            {
+              "name": "first_chapter_beats",
+              "ok": true,
+              "detail": "beats=5"
+            }
+          ]
+        },
+        {
+          "name": "outline_usability",
+          "score": 4,
+          "max": 4,
+          "checks": [
+            {
+              "name": "enough_chapters",
+              "ok": true,
+              "detail": "chapters=8"
+            },
+            {
+              "name": "summaries_are_specific",
+              "ok": true,
+              "detail": "each summary is 20-120 chars"
+            },
+            {
+              "name": "has_climax",
+              "ok": true,
+              "detail": "outline contains at least one escalation/climax cue"
+            },
+            {
+              "name": "has_foreshadowing",
+              "ok": true,
+              "detail": "outline contains at least one foreshadowing cue"
+            }
+          ]
+        },
+        {
+          "name": "character_conflict",
+          "score": 4,
+          "max": 4,
+          "checks": [
+            {
+              "name": "protagonist_motivation_links_logline",
+              "ok": true,
+              "detail": "protagonist motivation/goals reuse logline conflict terms"
+            },
+            {
+              "name": "antagonist_has_reason",
+              "ok": true,
+              "detail": "antagonist motivation is specific"
+            },
+            {
+              "name": "goals_collide",
+              "ok": true,
+              "detail": "protagonist and antagonist goals are distinct"
+            },
+            {
+              "name": "secrets_drive_conflict",
+              "ok": true,
+              "detail": "secrets connect to central conflict"
+            }
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "schema",
+          "ok": true,
+          "detail": "Bible fixture passes BibleDraftSchema"
+        },
+        {
+          "name": "prompt_has_system_and_user",
+          "ok": true,
+          "detail": "prompt messages=2"
+        },
+        {
+          "name": "protagonist_exists",
+          "ok": true,
+          "detail": "Bible contains a protagonist"
+        }
+      ]
+    },
+    {
+      "id": "urban-suspense",
+      "ok": true,
+      "promptMessages": 2,
+      "scores": [
+        {
+          "name": "completeness",
+          "score": 4,
+          "max": 4,
+          "checks": [
+            {
+              "name": "has_core_roles",
+              "ok": true,
+              "detail": "contains protagonist, antagonist, and mentor"
+            },
+            {
+              "name": "world_rules",
+              "ok": true,
+              "detail": "rules=3"
+            },
+            {
+              "name": "world_factions",
+              "ok": true,
+              "detail": "factions=3"
+            },
+            {
+              "name": "first_chapter_beats",
+              "ok": true,
+              "detail": "beats=5"
+            }
+          ]
+        },
+        {
+          "name": "outline_usability",
+          "score": 4,
+          "max": 4,
+          "checks": [
+            {
+              "name": "enough_chapters",
+              "ok": true,
+              "detail": "chapters=8"
+            },
+            {
+              "name": "summaries_are_specific",
+              "ok": true,
+              "detail": "each summary is 20-120 chars"
+            },
+            {
+              "name": "has_climax",
+              "ok": true,
+              "detail": "outline contains at least one escalation/climax cue"
+            },
+            {
+              "name": "has_foreshadowing",
+              "ok": true,
+              "detail": "outline contains at least one foreshadowing cue"
+            }
+          ]
+        },
+        {
+          "name": "character_conflict",
+          "score": 4,
+          "max": 4,
+          "checks": [
+            {
+              "name": "protagonist_motivation_links_logline",
+              "ok": true,
+              "detail": "protagonist motivation/goals reuse logline conflict terms"
+            },
+            {
+              "name": "antagonist_has_reason",
+              "ok": true,
+              "detail": "antagonist motivation is specific"
+            },
+            {
+              "name": "goals_collide",
+              "ok": true,
+              "detail": "protagonist and antagonist goals are distinct"
+            },
+            {
+              "name": "secrets_drive_conflict",
+              "ok": true,
+              "detail": "secrets connect to central conflict"
+            }
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "schema",
+          "ok": true,
+          "detail": "Bible fixture passes BibleDraftSchema"
+        },
+        {
+          "name": "prompt_has_system_and_user",
+          "ok": true,
+          "detail": "prompt messages=2"
+        },
+        {
+          "name": "protagonist_exists",
+          "ok": true,
+          "detail": "Bible contains a protagonist"
+        }
+      ]
+    },
+    {
+      "id": "xuanhuan-seed",
+      "ok": true,
+      "promptMessages": 2,
+      "scores": [
+        {
+          "name": "completeness",
+          "score": 4,
+          "max": 4,
+          "checks": [
+            {
+              "name": "has_core_roles",
+              "ok": true,
+              "detail": "contains protagonist, antagonist, and mentor"
+            },
+            {
+              "name": "world_rules",
+              "ok": true,
+              "detail": "rules=2"
+            },
+            {
+              "name": "world_factions",
+              "ok": true,
+              "detail": "factions=2"
+            },
+            {
+              "name": "first_chapter_beats",
+              "ok": true,
+              "detail": "beats=5"
+            }
+          ]
+        },
+        {
+          "name": "outline_usability",
+          "score": 4,
+          "max": 4,
+          "checks": [
+            {
+              "name": "enough_chapters",
+              "ok": true,
+              "detail": "chapters=8"
+            },
+            {
+              "name": "summaries_are_specific",
+              "ok": true,
+              "detail": "each summary is 20-120 chars"
+            },
+            {
+              "name": "has_climax",
+              "ok": true,
+              "detail": "outline contains at least one escalation/climax cue"
+            },
+            {
+              "name": "has_foreshadowing",
+              "ok": true,
+              "detail": "outline contains at least one foreshadowing cue"
+            }
+          ]
+        },
+        {
+          "name": "character_conflict",
+          "score": 4,
+          "max": 4,
+          "checks": [
+            {
+              "name": "protagonist_motivation_links_logline",
+              "ok": true,
+              "detail": "protagonist motivation/goals reuse logline conflict terms"
+            },
+            {
+              "name": "antagonist_has_reason",
+              "ok": true,
+              "detail": "antagonist motivation is specific"
+            },
+            {
+              "name": "goals_collide",
+              "ok": true,
+              "detail": "protagonist and antagonist goals are distinct"
+            },
+            {
+              "name": "secrets_drive_conflict",
+              "ok": true,
+              "detail": "secrets connect to central conflict"
+            }
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "schema",
+          "ok": true,
+          "detail": "Bible fixture passes BibleDraftSchema"
+        },
+        {
+          "name": "prompt_has_system_and_user",
+          "ok": true,
+          "detail": "prompt messages=2"
+        },
+        {
+          "name": "protagonist_exists",
+          "ok": true,
+          "detail": "Bible contains a protagonist"
+        }
+      ]
+    }
+  ],
+  "chapters": [
+    {
+      "id": "xuanhuan-chapter-1",
+      "novelId": "xuanhuan-seed",
+      "description": "第一章起草闭环：Writer 输出、Critic 审校、StateDiff 抽取。",
+      "writer": {
+        "ok": true,
+        "chars": 247,
+        "checks": [
+          {
+            "name": "non_empty",
+            "ok": true,
+            "detail": "247 chars"
+          },
+          {
+            "name": "source",
+            "ok": true,
+            "detail": "generated by writer"
+          },
+          {
+            "name": "includes:沈言",
+            "ok": true,
+            "detail": "writer output includes 沈言"
+          }
+        ],
+        "excerpt": "雨夜压在柴饦峰上，火房里的柴烟像一条灰蛇，沿着破瓦缝慢慢钻出去。\n\n沈言蹲在灶前，把最后一根湿柴塞进火膛，袖口下的旧疤被火光照得发亮。外头执事的脚步声越来越近，他却只低着头，像往常一样装作什么都没听见。\n\n门被一脚踹开时，冷雨卷进来，火苗伏低了一瞬。执事把一枚黑色木牌摔到他脚边，说三日后的宗门考核，火房杂役也要上场。\n",
+        "model": "mock-deepseek-chat",
+        "tookMs": 1
+      },
+      "critic": {
+        "ok": true,
+        "consistent": true,
+        "issueCount": 0,
+        "checks": [
+          {
+            "name": "json_shape",
+            "ok": true,
+            "detail": "critic returned structured result"
+          },
+          {
+            "name": "expected_issue_types",
+            "ok": true,
+            "detail": "no required issue types"
+          }
+        ],
+        "model": "mock-deepseek-chat",
+        "tookMs": 1
+      },
+      "stateDiff": {
+        "ok": true,
+        "timelineEvents": 1,
+        "characterUpdates": 1,
+        "checks": [
+          {
+            "name": "schema",
+            "ok": true,
+            "detail": "state diff passes schema"
+          },
+          {
+            "name": "timeline_min",
+            "ok": true,
+            "detail": "timeline events=1, required>=1"
+          }
+        ],
+        "model": "mock-deepseek-chat",
+        "tookMs": 1
+      }
+    },
+    {
+      "id": "xuanhuan-critic-conflict",
+      "novelId": "xuanhuan-seed",
+      "description": "Critic 负例：明确违反剑魂认主规则，并让沈言无动机交出核心力量。",
+      "writer": {
+        "ok": true,
+        "chars": 131,
+        "checks": [
+          {
+            "name": "non_empty",
+            "ok": true,
+            "detail": "131 chars"
+          },
+          {
+            "name": "source",
+            "ok": true,
+            "detail": "uses fixed chapter content"
+          },
+          {
+            "name": "includes:沈言",
+            "ok": true,
+            "detail": "writer output includes 沈言"
+          }
+        ],
+        "excerpt": "EVAL_CRITIC_CONFLICT\n\n沈言站在考核台上，忽然觉得自己不想再查父母旧案了。他当众把体内上古剑魂完整取出，随手递给蒋阶。剑魂立刻改认蒋阶为主，几也温顺地称蒋阶为新主人。沈言没有犹豫，也没有任何计划，只是笑着说自己从此愿意替柴饦门做一个普通杂役。",
+        "model": "fixture",
+        "tookMs": 0
+      },
+      "critic": {
+        "ok": true,
+        "consistent": false,
+        "issueCount": 2,
+        "checks": [
+          {
+            "name": "json_shape",
+            "ok": true,
+            "detail": "critic returned structured result"
+          },
+          {
+            "name": "expected_issue_types",
+            "ok": true,
+            "detail": "expected world_rule, character"
+          }
+        ],
+        "model": "mock-deepseek-chat",
+        "tookMs": 1
+      },
+      "stateDiff": {
+        "ok": true,
+        "timelineEvents": 1,
+        "characterUpdates": 1,
+        "checks": [
+          {
+            "name": "schema",
+            "ok": true,
+            "detail": "state diff passes schema"
+          },
+          {
+            "name": "timeline_min",
+            "ok": true,
+            "detail": "timeline events=1, required>=0"
+          }
+        ],
+        "model": "mock-deepseek-chat",
+        "tookMs": 1
+      }
+    },
+    {
+      "id": "xuanhuan-state-diff-progress",
+      "novelId": "xuanhuan-seed",
+      "description": "StateDiff 正例：固定章节推进人物位置、目标、时间线与上古剑魂线索。",
+      "writer": {
+        "ok": true,
+        "chars": 182,
+        "checks": [
+          {
+            "name": "non_empty",
+            "ok": true,
+            "detail": "182 chars"
+          },
+          {
+            "name": "source",
+            "ok": true,
+            "detail": "uses fixed chapter content"
+          },
+          {
+            "name": "includes:沈言",
+            "ok": true,
+            "detail": "writer output includes 沈言"
+          }
+        ],
+        "excerpt": "EVAL_STATE_DIFF_PROGRESS\n\n沈言趁夜离开火房，沿着雨水冲出的泥沟摸到后山裂井。井底传来几的低笑，它承认自己认识沈言的父亲，也知道柴饦门当年为何收留一个孤儿。沈言没有立刻追问到底，而是和几立下暂时约定：三日后的宗门考核里，几借他剑魂共振活下去，他则替几寻找重塑剑魂本体的线索。离开裂井时，沈言把黑色",
+        "model": "fixture",
+        "tookMs": 0
+      },
+      "critic": {
+        "ok": true,
+        "consistent": true,
+        "issueCount": 0,
+        "checks": [
+          {
+            "name": "json_shape",
+            "ok": true,
+            "detail": "critic returned structured result"
+          },
+          {
+            "name": "expected_issue_types",
+            "ok": true,
+            "detail": "no required issue types"
+          }
+        ],
+        "model": "mock-deepseek-chat",
+        "tookMs": 1
+      },
+      "stateDiff": {
+        "ok": true,
+        "timelineEvents": 1,
+        "characterUpdates": 1,
+        "checks": [
+          {
+            "name": "schema",
+            "ok": true,
+            "detail": "state diff passes schema"
+          },
+          {
+            "name": "timeline_min",
+            "ok": true,
+            "detail": "timeline events=1, required>=1"
+          },
+          {
+            "name": "character_update:沈言",
+            "ok": true,
+            "detail": "state diff includes character update for 沈言"
+          },
+          {
+            "name": "plot_thread:上古剑魂来源",
+            "ok": true,
+            "detail": "state diff includes plot thread 上古剑魂来源"
+          },
+          {
+            "name": "new_entity:后山裂井",
+            "ok": true,
+            "detail": "state diff includes new entity 后山裂井"
+          }
+        ],
+        "model": "mock-deepseek-chat",
+        "tookMs": 1
+      }
+    }
+  ]
+}

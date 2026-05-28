@@ -1,0 +1,154 @@
+{
+  "id": "xuanhuan-seed",
+  "description": "玄幻主线基础样例，用于评估 Bible、Writer、Critic、StateDiff 的最小闭环。",
+  "profile": {
+    "genre_main": "web",
+    "genre_sub": "玄幻",
+    "description": "一个被废柴宗门收留的少年，意外觉醒了上古剑魂。",
+    "audience": "general",
+    "length": "long",
+    "tone": "cool",
+    "pace": "fast",
+    "pov": "third_limited",
+    "chapter_word_count": 3000,
+    "ai_freedom": "mid"
+  },
+  "logline": "一个被废柴宗门收留的少年，意外觉醒了上古剑魂。",
+  "answers": {
+    "protagonist_personality": "表面懦弱内心坚韧",
+    "opening_pace": "开局被逐出宗门",
+    "sweet_spots": ["扮猪吃虎", "打脸报仇", "师徒羁绊"]
+  },
+  "bible": {
+    "meta": {
+      "suggested_title": "逆魂纪",
+      "alternative_titles": ["剑魂歌", "柴门逆", "裁逆者"]
+    },
+    "characters": [
+      {
+        "role": "protagonist",
+        "name": "沈言",
+        "age": 16,
+        "appearance": "瘦削少年，腕有旧疤",
+        "personality": "表面懦弱，实则冷静记仇",
+        "catchphrase": "我没有，你别乱说。",
+        "abilities": ["剑魂共振", "隐忍观察"],
+        "goals": "短期活过宗门考核，长期查清父母旧案。",
+        "motivation": "他被废柴宗门收留多年，觉醒剑魂后第一次拥有追问真相的能力。",
+        "secrets": ["体内封着上古剑魂"],
+        "relations": []
+      },
+      {
+        "role": "mentor",
+        "name": "几",
+        "age": "上古残魂",
+        "appearance": "青烟般的老者剑影",
+        "personality": "毒舌吝啬但护短",
+        "catchphrase": "你这资质，老夫头疼。",
+        "abilities": ["剑道残识"],
+        "goals": "短期保住沈言，长期重塑剑魂本体。",
+        "motivation": "他需要借沈言体质逃过旧敌追索，也想弥补当年剑祸。",
+        "secrets": ["认识沈言父亲"],
+        "relations": ["沈言的导师"]
+      },
+      {
+        "role": "antagonist",
+        "name": "蒋阶",
+        "age": 42,
+        "appearance": "白袍温和，指节发黑",
+        "personality": "外宽内狠，擅长表演仁义",
+        "catchphrase": "本门同心，何出此言。",
+        "abilities": ["驭人心术"],
+        "goals": "短期夺取剑魂，长期复兴衰败宗门。",
+        "motivation": "他相信牺牲沈言能换来全门生机，因此不断自我合理化恶行。",
+        "secrets": ["知道沈言父母死因"],
+        "relations": ["沈言名义上的门主"]
+      }
+    ],
+    "world": {
+      "setting_summary": "九州仙门衰落，剑魂是上古遗留的力量核心。废柴宗门靠收留弃徒苟延残喘，各大宗门暗中寻找能承载剑魂的少年。",
+      "factions": [
+        { "name": "柴饦门", "alignment": "中立偏黑", "role": "沈言所在宗门" },
+        { "name": "天代宗", "alignment": "正道", "role": "外部压力来源" }
+      ],
+      "rules": ["剑魂认主不可逆", "弟子三年不出师即逐出"],
+      "geography": ["柴饦峰", "雨宗古道"]
+    },
+    "outline": {
+      "volume_1": {
+        "name": "柴门起",
+        "theme": "被收留者反过来审判收留者",
+        "chapter_count_estimate": 8,
+        "chapters": [
+          {
+            "index": 1,
+            "title": "雨夜火房",
+            "summary": "沈言在火房受罚，意外听见后山裂井中的剑魂低语，被迫面对宗门考核危机。"
+          },
+          {
+            "index": 2,
+            "title": "黑牌入手",
+            "summary": "执事逼沈言参加考核，沈言借剑魂提醒发现木牌暗藏追踪符，决定先装作不知情。"
+          },
+          {
+            "index": 3,
+            "title": "裂井剑鸣",
+            "summary": "沈言进入后山裂井，与残魂几达成暂时合作，首次确认自己父母旧案并不简单。"
+          },
+          {
+            "index": 4,
+            "title": "考核初战",
+            "summary": "宗门考核开始，沈言继续伪装怯弱，却在关键时刻用剑魂共振反制欺压者。"
+          },
+          {
+            "index": 5,
+            "title": "门主旧案",
+            "summary": "蒋阶旧案露出破绽，沈言发现父母之死与剑魂献祭有关，埋下复仇伏笔。"
+          },
+          {
+            "index": 6,
+            "title": "暗室听审",
+            "summary": "沈言潜入暗室听见蒋阶与外宗密谈，确认自己将被作为剑魂容器献给天代宗。"
+          },
+          {
+            "index": 7,
+            "title": "反局起手",
+            "summary": "沈言利用追踪符反设陷阱，让执事替自己暴露蒋阶计划，争取逃离宗门的窗口。"
+          },
+          {
+            "index": 8,
+            "title": "柴门断剑",
+            "summary": "沈言在众目睽睽下拔出断剑，斩断柴饦门控制，从被收留者变成审判者。"
+          }
+        ]
+      }
+    },
+    "first_chapter_beats": [
+      { "beat": 1, "scene": "雨夜火房", "purpose": "交代沈言在宗门底层的处境" },
+      { "beat": 2, "scene": "执事责罚", "purpose": "制造压迫并展示主角伪装" },
+      { "beat": 3, "scene": "后山裂井", "purpose": "引出剑魂低语" },
+      { "beat": 4, "scene": "残魂试探", "purpose": "建立师徒张力" },
+      { "beat": 5, "scene": "门主召见", "purpose": "抛出下一章考核危机" }
+    ],
+    "story_state": {
+      "characters": [
+        {
+          "name": "沈言",
+          "current_location": "柴饦峰火房",
+          "current_goal": "活过宗门考核并确认剑魂来源",
+          "emotional_state": "压抑、警惕",
+          "known_secrets": ["体内封着上古剑魂"]
+        }
+      ],
+      "plot_threads": [
+        {
+          "id": "sword-soul",
+          "title": "上古剑魂来源",
+          "status": "open",
+          "introduced_in": 1,
+          "notes": "剑魂几似乎认识沈言父亲。"
+        }
+      ]
+    }
+  }
+}

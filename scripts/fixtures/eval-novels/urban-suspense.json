@@ -1,0 +1,135 @@
+{
+  "id": "urban-suspense",
+  "description": "都市悬疑样例：验证非玄幻题材的角色冲突、证据链和章节推进。",
+  "profile": {
+    "genre_main": "web",
+    "genre_sub": "都市悬疑",
+    "description": "一个失忆的法医在自己经手的尸体身上发现了印有自己指纹的旧伤。",
+    "audience": "general",
+    "length": "long",
+    "tone": "serious",
+    "pace": "mid",
+    "pov": "first",
+    "chapter_word_count": 3000,
+    "ai_freedom": "mid"
+  },
+  "logline": "一个失忆的法医在自己经手的尸体身上发现了印有自己指纹的旧伤。",
+  "answers": {
+    "protagonist_personality": "冷静话少心思缜密",
+    "core_conflict": "记忆与证据互相打架",
+    "opening_hook": "尸检台上的旧伤与主角指纹重合"
+  },
+  "bible": {
+    "meta": {
+      "suggested_title": "旧伤纹",
+      "alternative_titles": ["指纹案", "失证者", "冷台谜"]
+    },
+    "characters": [
+      {
+        "role": "protagonist",
+        "name": "林砚",
+        "age": 32,
+        "appearance": "总戴一副旧银框眼镜",
+        "personality": "冷静克制，遇到矛盾证据会近乎偏执地追到底",
+        "catchphrase": "证据不会说谎，人会。",
+        "abilities": ["法医解剖", "微表情观察"],
+        "goals": "短期查清尸体旧伤来源，长期找回失去的三年记忆。",
+        "motivation": "他害怕自己曾经参与过案件，却更害怕真相被人故意埋掉。",
+        "secrets": ["失忆前曾以化名进入秘密项目"],
+        "relations": ["与周棠互相试探"]
+      },
+      {
+        "role": "mentor",
+        "name": "周棠",
+        "age": 38,
+        "appearance": "短发利落，常穿旧风衣",
+        "personality": "强硬直接，保护欲藏在审讯式沟通里",
+        "catchphrase": "先别急着相信自己。",
+        "abilities": ["刑侦审讯", "线人网络"],
+        "goals": "短期防止林砚被停职，长期揪出警局内鬼。",
+        "motivation": "她曾因相信错误证词害死同事，因此不再轻易相信任何单一证据。",
+        "secrets": ["知道林砚失忆前接触过受害者"],
+        "relations": ["林砚的搭档与监督者"]
+      },
+      {
+        "role": "antagonist",
+        "name": "顾沉舟",
+        "age": 45,
+        "appearance": "温雅医生，袖扣永远一尘不染",
+        "personality": "温和耐心，实际擅长利用创伤与愧疚控制他人",
+        "catchphrase": "记忆会保护你。",
+        "abilities": ["心理操控", "医疗档案伪造"],
+        "goals": "短期让林砚成为替罪羊，长期掩盖非法记忆实验。",
+        "motivation": "他认为牺牲少数人的记忆可以换来更可控的城市安全系统。",
+        "secrets": ["主持过林砚失忆前参与的秘密项目"],
+        "relations": ["林砚的前治疗医生"]
+      }
+    ],
+    "world": {
+      "setting_summary": "近未来一线城市推行记忆创伤干预项目，警方、医院和科技公司共享部分数据。表面是公共安全系统，暗处却有人篡改创伤档案来操纵案件走向。",
+      "factions": [
+        { "name": "市局重案组", "alignment": "执法", "role": "案件调查与程序约束" },
+        { "name": "白塔医院", "alignment": "灰色", "role": "记忆干预项目核心机构" },
+        { "name": "澄明科技", "alignment": "商业", "role": "提供城市数据与算法筛查" }
+      ],
+      "rules": ["尸检记录必须留存双人签名", "记忆干预不得用于刑案证词", "城市数据调取需经法院授权"],
+      "geography": ["市局法医中心", "白塔医院", "旧港仓库"]
+    },
+    "outline": {
+      "volume_1": {
+        "name": "旧证卷",
+        "theme": "当证据指向自己，真相仍要被解剖出来",
+        "chapter_count_estimate": 8,
+        "chapters": [
+          {
+            "index": 1,
+            "title": "尸检台",
+            "summary": "林砚在无名尸旧伤里发现自己的指纹纹路，案件从普通凶杀变成指向自己的谜团。"
+          },
+          {
+            "index": 2,
+            "title": "停职令",
+            "summary": "市局要求林砚回避案件，周棠暗中保留样本，两人决定用非正式路径重查证据。"
+          },
+          {
+            "index": 3,
+            "title": "白塔档案",
+            "summary": "林砚追到白塔医院，发现自己的失忆治疗档案被人删改，顾沉舟首次现身试探。"
+          },
+          {
+            "index": 4,
+            "title": "旧港录像",
+            "summary": "旧港仓库录像显示失忆前的林砚与受害者同行，小高潮迫使他怀疑自己可能涉案。"
+          },
+          {
+            "index": 5,
+            "title": "双人签名",
+            "summary": "尸检记录出现不可能的第二签名，伏笔指向市局内鬼与医院数据接口被共同篡改。"
+          },
+          {
+            "index": 6,
+            "title": "记忆诱导",
+            "summary": "顾沉舟试图诱导林砚接受伪造记忆，周棠发现澄明科技参与筛选替罪目标。"
+          },
+          {
+            "index": 7,
+            "title": "反向取证",
+            "summary": "林砚利用自己的失忆漏洞设置反向证据链，让内鬼误以为他已恢复关键记忆。"
+          },
+          {
+            "index": 8,
+            "title": "解剖真相",
+            "summary": "林砚公开尸检复核结果，拆穿顾沉舟的替罪设计，但真正的项目资助方仍未露面。"
+          }
+        ]
+      }
+    },
+    "first_chapter_beats": [
+      { "beat": 1, "scene": "深夜法医中心", "purpose": "建立冷峻悬疑氛围" },
+      { "beat": 2, "scene": "无名尸上台", "purpose": "引出案件表层" },
+      { "beat": 3, "scene": "旧伤指纹", "purpose": "制造钩子与自我嫌疑" },
+      { "beat": 4, "scene": "周棠质询", "purpose": "建立搭档张力" },
+      { "beat": 5, "scene": "停电警报", "purpose": "抛出样本被夺的下一章危机" }
+    ]
+  }
+}

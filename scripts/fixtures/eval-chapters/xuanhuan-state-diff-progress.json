@@ -1,0 +1,24 @@
+{
+  "id": "xuanhuan-state-diff-progress",
+  "novel_fixture": "xuanhuan-seed",
+  "description": "StateDiff 正例：固定章节推进人物位置、目标、时间线与上古剑魂线索。",
+  "chapter_index": 3,
+  "chapter_title": "裂井剑鸣",
+  "fixed_chapter_content": "EVAL_STATE_DIFF_PROGRESS\n\n沈言趁夜离开火房，沿着雨水冲出的泥沟摸到后山裂井。井底传来几的低笑，它承认自己认识沈言的父亲，也知道柴饦门当年为何收留一个孤儿。沈言没有立刻追问到底，而是和几立下暂时约定：三日后的宗门考核里，几借他剑魂共振活下去，他则替几寻找重塑剑魂本体的线索。离开裂井时，沈言把黑色木牌贴在井壁裂缝里，决定借考核查清父母旧案。",
+  "previous_chapters": [
+    {
+      "chapter_index": 1,
+      "title": "雨夜火房",
+      "content": "沈言在雨夜火房听见剑魂几的低语。",
+      "summary": "沈言在火房受罚，听见剑魂几低语。"
+    }
+  ],
+  "expected": {
+    "writer_must_include": ["沈言"],
+    "critic_issue_types": [],
+    "state_diff_min_timeline_events": 1,
+    "state_diff_character_updates": ["沈言"],
+    "state_diff_plot_threads": ["上古剑魂来源"],
+    "state_diff_new_entities": ["后山裂井"]
+  }
+}

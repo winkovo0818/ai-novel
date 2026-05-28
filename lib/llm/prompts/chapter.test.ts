@@ -108,12 +108,151 @@ function makeContext(overrides: Partial<ChapterContext> = {}): ChapterContext {
 }
 
 describe("buildChapterPrompt", () => {
+  it("keeps the writer context sections in a stable order", () => {
+    const messages = buildChapterPrompt({
+      context: makeContext({
+        outline: { chapterIndex: 2, title: "第2章", summary: "沈言带着木牌前往后山裂井。" },
+        novelSummary: "沈言长期被柴饦门压迫，剑魂主线已经启动。",
+        volumeSummary: "柴门起卷聚焦沈言从被收留者变成审判者。",
+        previousSummaries: [
+          { chapterIndex: 1, title: "第1章", summary: "第 1 章《第1章》：沈言在雨夜火房听见剑魂。" },
+        ],
+        retrievalStatus: "success",
+        retrievedMemories: [
+          { source: "chapter:1", text: "沈言拿到黑色木牌。", reason: "承接上一章道具" },
+        ],
+        beatSheet: {
+          beats: [
+            { index: 1, description: "沈言发现木牌异常" },
+            { index: 2, description: "剑魂几给出警告" },
+          ],
+        },
+        bible: {
+          ...bible,
+          story_state: {
+            characters: [
+              {
+                name: "沈言",
+                current_location: "柴饦峰火房",
+                current_goal: "确认木牌用途",
+                emotional_state: "警惕",
+              },
+            ],
+            timeline: [
+              { chapter_index: 1, event: "沈言听见剑魂低语", impact: "主线启动" },
+            ],
+            plot_threads: [
+              { id: "t1", title: "黑色木牌", status: "open", notes: "可能是追踪符" },
+            ],
+          },
+        },
+      }),
+      profile,
+      existingContent: "沈言把木牌藏进袖中。",
+    });
+    const userContent = messages[1]?.content ?? "";
+    const anchors = [
+      "小说标题：",
+      "章节：第 2 章",
+      "章节大纲：",
+      "全书梗概：",
+      "当前卷摘要：",
+      "近 1 章摘要",
+      "相关历史片段",
+      "主角：",
+      "世界观：",
+      "世界规则：",
+      "当前运行时状态",
+      "本章隐形计划",
+      "本章节拍",
+      "已有正文",
+      "现在开始输出章节正文。",
+    ];
+
+    const indexes = anchors.map((anchor) => userContent.indexOf(anchor));
+    expect(indexes.every((index) => index >= 0)).toBe(true);
+    expect(indexes).toEqual([...indexes].sort((a, b) => a - b));
+    expect(anchors).toMatchInlineSnapshot(`
+      [
+        "小说标题：",
+        "章节：第 2 章",
+        "章节大纲：",
+        "全书梗概：",
+        "当前卷摘要：",
+        "近 1 章摘要",
+        "相关历史片段",
+        "主角：",
+        "世界观：",
+        "世界规则：",
+        "当前运行时状态",
+        "本章隐形计划",
+        "本章节拍",
+        "已有正文",
+        "现在开始输出章节正文。",
+      ]
+    `);
+    expect(userContent).toContain("沈言拿到黑色木牌。");
+    expect(userContent).toContain("沈言发现木牌异常");
+    expect(userContent).toContain("沈言把木牌藏进袖中。");
+  });
+
   it("uses first chapter beats for chapter one", () => {
     const messages = buildChapterPrompt({ context: makeContext(), profile });
     const userContent = messages[1]?.content ?? "";
 
     expect(userContent).toContain("第一章节拍");
     expect(userContent).toContain("雨夜火房");
+  });
+
+  it("injects the humanizer skill trace checklist into the writer system prompt", () => {
+    const messages = buildChapterPrompt({ context: makeContext(), profile });
+    const systemContent = messages[0]?.content ?? "";
+
+    expect(systemContent).toContain("humanizer SKILL");
+    expect(systemContent).toContain("5 类 29 种 AI 写作痕迹");
+    expect(systemContent).toContain("命运的齿轮");
+    expect(systemContent).toContain("聊天机器人痕迹");
+    expect(systemContent).toContain("不要输出检查过程");
+    expect(systemContent).toContain("输出前自检并改稿");
+    expect(systemContent).toContain("旁白里的破折号");
+    expect(systemContent).toContain("慢慢、似乎、仿佛");
+    expect(systemContent).toContain("**粗体**");
+    expect(systemContent).toContain("接下来/下面是/以下是");
+    expect(systemContent).toContain("打断、改口、省略");
+  });
+
+  it("requires an internal goal-obstacle-action-result chain and a state change", () => {
+    const messages = buildChapterPrompt({
+      context: makeContext({
+        outline: { chapterIndex: 2, title: "第2章", summary: "沈言带着木牌前往后山裂井。" },
+        previousSummaries: [{ chapterIndex: 1, title: "第1章", summary: "沈言拿到黑色木牌，听见裂井里的剑魂低语。" }],
+        bible: {
+          ...bible,
+          story_state: {
+            characters: [{ name: "沈言", current_goal: "确认黑色木牌用途" }],
+            plot_threads: [{ id: "wood-token", title: "黑色木牌", status: "open", notes: "可能藏有追踪符" }],
+            timeline: [{ chapter_index: 1, event: "沈言拿到黑色木牌", impact: "被迫参加宗门考核" }],
+          },
+        },
+      }),
+      profile,
+    });
+    const systemContent = messages[0]?.content ?? "";
+    const userContent = messages[1]?.content ?? "";
+
+    expect(systemContent).toContain("目标 -> 阻碍 -> 行动 -> 结果");
+    expect(systemContent).toContain("清晰因果钩");
+    expect(systemContent).toContain("至少保留两个清晰因果钩");
+    expect(systemContent).toContain("角色当场判断");
+    expect(systemContent).toContain("可被 Story State 记录的状态变化");
+    expect(userContent).toContain("本章隐形计划");
+    expect(userContent).toContain("上一章结果");
+    expect(userContent).toContain("当前目标");
+    expect(userContent).toContain("当前阻碍");
+    expect(userContent).toContain("至少留下两处自然的因果/转折/代价句");
+    expect(userContent).toContain("扔掉太干净");
+    expect(userContent).toContain("本章结果");
+    expect(userContent).toContain("新线索、关系变化、位置变化、道具归属、敌人反应");
   });
 
   it("uses previous context instead of first chapter beats for later chapters", () => {

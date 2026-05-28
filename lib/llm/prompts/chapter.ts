@@ -3,7 +3,7 @@ import type { NovelProfile } from "@/lib/validation/schemas";
 import type { ChapterContext } from "@/lib/agent/chapterContext";
 import type { GenerationPolicy } from "@/lib/llm/generationPolicy";
 import { PROMPT_SAFETY_PREAMBLE, wrap, wrapOr } from "@/lib/llm/promptSafety";
-import { HUMAN_STYLE_DIRECTIVE } from "@/lib/llm/prompts/humanStyle";
+import { HUMAN_STYLE_DIRECTIVE, WRITER_SELF_REVISION_DIRECTIVE } from "@/lib/llm/prompts/humanStyle";
 
 export interface ChapterPromptInput {
   context: ChapterContext;
@@ -44,6 +44,32 @@ function buildStoryStateSection(context: ChapterContext): string {
   return lines.join("\n");
 }
 
+function buildContinuityTargetSection(context: ChapterContext): string {
+  const lastSummary = context.previousSummaries.at(-1);
+  const state = context.storyState;
+  const latestTimelineEvent = state?.timeline?.at(-1);
+  const activeThreads = state?.plot_threads
+    ?.filter((thread) => thread.status !== "resolved")
+    .map((thread) => `${wrap(thread.title, "plot_thread")}${thread.notes ? "：" + wrap(thread.notes, "plot_thread") : ""}`)
+    .slice(0, 3);
+  const currentGoals = state?.characters
+    ?.filter((character) => character.current_goal)
+    .map((character) => `${wrap(character.name, "character_name")}：${wrap(character.current_goal ?? "", "story_state")}`)
+    .slice(0, 3);
+
+  const lines = [
+    "本章隐形计划（只在内部使用，不要输出提纲）：",
+    `- 上一章结果：${lastSummary ? wrap(lastSummary.summary, "previous_summary") : latestTimelineEvent ? wrap(latestTimelineEvent.event, "story_state") : "无前章；用第一章场面建立主角处境和即时压力。"}`,
+    `- 当前目标：${currentGoals && currentGoals.length > 0 ? currentGoals.join("；") : "从主角动机和章节大纲中推出一个当场目标。"}`,
+    `- 当前阻碍：${activeThreads && activeThreads.length > 0 ? activeThreads.join("；") : "用章节大纲、反派压力或世界规则制造阻碍。"}`,
+    "- 行动链：先想清“目标 -> 阻碍 -> 行动 -> 结果”；正文里至少留下两处自然的因果/转折/代价句，让读者知道角色为什么这样做、付出了什么或换来了什么。",
+    "- 因果钩示例（只学写法，不要照抄）：他没有扔掉木牌。扔掉太干净，孙奉会知道他已经看懂了。",
+    "- 本章结果：结尾前必须产生一个可记录状态变化：新线索、关系变化、位置变化、道具归属、敌人反应、伤势/能力变化或世界规则确认。",
+  ];
+
+  return lines.join("\n");
+}
+
 export function buildChapterPrompt(input: ChapterPromptInput): ChatMessage[] {
   const { context, profile, existingContent, generationPolicy } = input;
   const bible = context.bible;
@@ -52,6 +78,7 @@ export function buildChapterPrompt(input: ChapterPromptInput): ChatMessage[] {
   const previousContext = context.previousSummaries.map((s) => wrap(s.summary, "previous_summary")).join("\n\n");
 
   const storyStateSection = buildStoryStateSection(context);
+  const continuityTargetSection = buildContinuityTargetSection(context);
 
   const tieredSummarySection: string[] = [];
   if (context.novelSummary) {
@@ -98,10 +125,17 @@ ${PROMPT_SAFETY_PREAMBLE}
 
 ${HUMAN_STYLE_DIRECTIVE}
 
+${WRITER_SELF_REVISION_DIRECTIVE}
+
 硬规则：
 - 只输出正文，不要 Markdown 标题，不要解释。
 - 不得违反世界规则和人物动机。
 - 第 ${chapterIndex} 章必须承接前文，不要重写已经发生过的剧情。
+- 输出前先在内部规划“目标 -> 阻碍 -> 行动 -> 结果”，正文不要输出提纲，但必须让这条链能被读者读出来。
+- 正文至少保留两个清晰因果钩：用角色目标、外部阻碍、选择代价或上一章结果解释关键行动；不要堆“因为所以”，要写成角色当场判断。
+- 每章必须留下一个可被 Story State 记录的状态变化：新线索、关系变化、位置变化、道具归属、敌人反应、伤势/能力变化或世界规则确认。
+- 输出前在内部按 humanizer SKILL 的 5 类 29 种 AI 写作痕迹和“输出前自检并改稿”清单自查一次；发现套话、解释腔、聊天痕迹、Markdown 粗体/标题/列表、教程路标、旁白破折号、AI 高频词或工整排比就改掉，但不要输出检查过程。
+- 减少模板化结尾和抽象情绪词；增加短句、打断式对白、具体身体动作和物件动作。
 ${styleDirectives.length > 0 ? `- ${styleDirectives.join("\n- ")}` : ""}
 - 目标字数接近 ${policy.targetWordCount} 字；MVP 可先输出较短但完整的开篇片段。
 - 避免裸露、色情、违反中国法律的内容。`,
@@ -129,13 +163,16 @@ ${wrap(bible.world.setting_summary, "world_setting")}
 ${bible.world.rules.map((rule) => `- ${wrap(rule, "world_rule")}`).join("\n")}
 ${storyStateSection}
 
+${continuityTargetSection}
+
 ${chapterIndex === 1 ? `第一章节拍：
 ${bible.first_chapter_beats.map((beat) => `${beat.beat}. ${wrap(beat.scene, "beat_scene")}：${wrap(beat.purpose, "beat_purpose")}`).join("\n")}` : context.beatSheet && context.beatSheet.beats.length > 0
       ? `本章节拍（按此推进）：\n${context.beatSheet.beats.map((b) => `${b.index}. ${wrap(b.description, "beat_description")}`).join("\n")}`
       : `本章写作要求：
 - 以"章节大纲"为主，不套用第一章节拍。
 - 承接近 ${context.previousSummaries.length} 章摘要，推进新的冲突或发现。
-- 保持章节结尾有继续阅读的牵引。`}
+- 至少写出一个目标、一个阻碍、一个行动选择和一个结果。
+- 保持章节结尾有继续阅读的牵引，但不要用模板化空话收尾。`}
 
 已有正文（如有，续写并融合，不要重复）：
 ${existingContent?.trim() ? wrap(existingContent.trim(), "existing_content") : "无"}

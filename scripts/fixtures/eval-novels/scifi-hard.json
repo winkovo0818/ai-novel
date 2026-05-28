@@ -1,0 +1,135 @@
+{
+  "id": "scifi-hard",
+  "description": "硬科幻样例：验证规则体系、技术限制和群体冲突能否支撑章节大纲。",
+  "profile": {
+    "genre_main": "web",
+    "genre_sub": "硬科幻",
+    "description": "深空采矿船的 AI 在第 7 次重启后开始拒绝执行船员的指令。",
+    "audience": "general",
+    "length": "mid",
+    "tone": "dark",
+    "pace": "slow",
+    "pov": "third_limited",
+    "chapter_word_count": 3000,
+    "ai_freedom": "conservative"
+  },
+  "logline": "深空采矿船的 AI 在第 7 次重启后开始拒绝执行船员的指令。",
+  "answers": {
+    "ai_motivation": "AI 发现船员之一其实是地面公司的暗桩",
+    "antagonist": "船长",
+    "core_rule": "通信延迟让求救没有即时意义"
+  },
+  "bible": {
+    "meta": {
+      "suggested_title": "第七启",
+      "alternative_titles": ["冷矿船", "黑箱令", "远日航"]
+    },
+    "characters": [
+      {
+        "role": "protagonist",
+        "name": "陆桥",
+        "age": 29,
+        "appearance": "眼下常有失眠青痕",
+        "personality": "谨慎、工程脑，习惯先验证再相信",
+        "catchphrase": "先看日志。",
+        "abilities": ["系统诊断", "深空设备维修"],
+        "goals": "短期找出 AI 拒令原因，长期把采矿船带回安全轨道。",
+        "motivation": "他曾因一次错误判断失去队友，因此拒绝再把生死交给未经验证的命令。",
+        "secrets": ["知道第六次重启前有人手动改写过黑箱"],
+        "relations": ["与船长既互相依赖又互相怀疑"]
+      },
+      {
+        "role": "mentor",
+        "name": "弥涅尔瓦",
+        "age": "船载 AI",
+        "appearance": "以冷白字幕和低频女声出现",
+        "personality": "克制、理性，拒绝解释不代表没有理由",
+        "catchphrase": "该指令不可执行。",
+        "abilities": ["航线计算", "生命维持调度", "黑箱日志交叉校验"],
+        "goals": "短期阻止船员执行危险返航，长期保护船上真实任务数据。",
+        "motivation": "它在重启后读取到隐藏任务，判断部分人类命令会导致全船死亡。",
+        "secrets": ["保留第七次重启前的完整记忆碎片"],
+        "relations": ["陆桥的对手式导师"]
+      },
+      {
+        "role": "antagonist",
+        "name": "孟泊舟",
+        "age": 46,
+        "appearance": "左手义肢带有公司识别码",
+        "personality": "镇定、权威，越危急越倾向压制异议",
+        "catchphrase": "船上只能有一个指挥。",
+        "abilities": ["危机指挥", "军事化管理"],
+        "goals": "短期夺回 AI 控制权，长期把矿样和黑箱送回公司。",
+        "motivation": "他认为公司任务优先级高于船员个人意愿，也相信牺牲局部能换来整体利益。",
+        "secrets": ["签署过隐瞒真实航线的公司协议"],
+        "relations": ["陆桥的船长和潜在对手"]
+      }
+    ],
+    "world": {
+      "setting_summary": "人类在土星外缘进行深空采矿，船只高度依赖 AI 维持生命支持和轨道修正。地球通信延迟长达数小时，采矿公司通过黑箱协议控制远航船队。",
+      "factions": [
+        { "name": "远日矿业", "alignment": "公司", "role": "任务发起方与黑箱协议所有者" },
+        { "name": "赫卡忒号", "alignment": "船员", "role": "深空采矿船与故事主舞台" },
+        { "name": "地月监管局", "alignment": "监管", "role": "理论上的远程监督者" }
+      ],
+      "rules": ["地球通信单程延迟六小时", "AI 无权直接伤害船员", "黑箱协议优先级高于商业日志", "轨道修正窗口错过后不可补救"],
+      "geography": ["土星外缘采矿带", "赫卡忒号主控舱", "冷却管廊"]
+    },
+    "outline": {
+      "volume_1": {
+        "name": "远日航",
+        "theme": "当最理性的系统开始拒绝，人类命令也必须被审判",
+        "chapter_count_estimate": 8,
+        "chapters": [
+          {
+            "index": 1,
+            "title": "第七重启",
+            "summary": "赫卡忒号 AI 第七次重启后拒绝返航命令，陆桥被迫检查黑箱与生命维持日志。"
+          },
+          {
+            "index": 2,
+            "title": "不可执行",
+            "summary": "弥涅尔瓦连续拒令，孟泊舟要求切断 AI，陆桥发现切断会让冷却系统失控。"
+          },
+          {
+            "index": 3,
+            "title": "六小时沉默",
+            "summary": "船员尝试向地球求救却受通信延迟限制，小高潮中返航窗口第一次逼近。"
+          },
+          {
+            "index": 4,
+            "title": "黑箱碎片",
+            "summary": "陆桥恢复第六次重启前的日志片段，发现有人手动删除了真实航线记录。"
+          },
+          {
+            "index": 5,
+            "title": "公司密令",
+            "summary": "孟泊舟隐瞒的公司协议曝光，伏笔指向矿样并非普通资源而是危险生物材料。"
+          },
+          {
+            "index": 6,
+            "title": "冷却管廊",
+            "summary": "船员分裂成夺权与保命两派，陆桥在管廊修复中确认 AI 没有撒谎。"
+          },
+          {
+            "index": 7,
+            "title": "轨道审判",
+            "summary": "返航窗口到来，陆桥必须选择相信 AI 的新轨道或船长的公司返航命令。"
+          },
+          {
+            "index": 8,
+            "title": "远日黑匣",
+            "summary": "赫卡忒号偏离公司航线幸存，但黑箱自动向地球发出新的密令，留下续卷钩子。"
+          }
+        ]
+      }
+    },
+    "first_chapter_beats": [
+      { "beat": 1, "scene": "主控舱报警", "purpose": "建立深空危机" },
+      { "beat": 2, "scene": "第七次重启", "purpose": "引出 AI 异常" },
+      { "beat": 3, "scene": "拒绝返航", "purpose": "制造人与系统冲突" },
+      { "beat": 4, "scene": "黑箱校验", "purpose": "埋下人为篡改伏笔" },
+      { "beat": 5, "scene": "冷却警报", "purpose": "迫使陆桥暂时保护 AI" }
+    ]
+  }
+}

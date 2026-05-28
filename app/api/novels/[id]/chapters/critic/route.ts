@@ -2,7 +2,7 @@ import { jsonError } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { isRateLimited } from "@/lib/auth/rateLimit";
-import { checkQuota } from "@/lib/llm/usage";
+import { checkQuota, estimateLlmMessagesCostCny, quotaExceededResponse } from "@/lib/llm/usage";
 import { chatCompletionWithRetry } from "@/lib/llm/client";
 import { buildCriticPrompt } from "@/lib/llm/prompts/critic";
 import { buildChapterContext } from "@/lib/agent/chapterContext";
@@ -52,11 +52,6 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("RATE_LIMITED", "Too many requests, please try again later", false, 429);
   }
 
-  const quota = await checkQuota(userId);
-  if (!quota.allowed) {
-    return jsonError("QUOTA_EXCEEDED", quota.reason ?? "Usage quota exceeded", false, 429);
-  }
-
   const bible = BibleDraftSchema.safeParse(novel.bible.content);
   const profile = NovelProfileSchema.safeParse(novel.profile);
   if (!bible.success || !profile.success) {
@@ -98,6 +93,19 @@ export async function POST(request: Request, context: RouteContext) {
     retrievedMemories: retrieval.memories.map((m) => ({ source: m.source, text: m.text, reason: m.reason })),
     retrievalStatus: retrieval.status,
   });
+  const messages = buildCriticPrompt({
+    context: chapterContext,
+    chapterContent: body.content,
+    chapterIndex: body.chapter_index,
+    isRevision: body.is_revision === true,
+  });
+
+  const quota = await checkQuota(userId, {
+    estimatedCostCny: estimateLlmMessagesCostCny(messages, 4096),
+  });
+  if (!quota.allowed) {
+    return quotaExceededResponse(quota);
+  }
 
   try {
     // mimo-v2.5-pro on an 8K-char chapter critic call routinely takes 30-60s.
@@ -109,12 +117,7 @@ export async function POST(request: Request, context: RouteContext) {
         agent: "critic",
         userId,
         novelId: id,
-        messages: buildCriticPrompt({
-          context: chapterContext,
-          chapterContent: body.content,
-          chapterIndex: body.chapter_index,
-          isRevision: body.is_revision === true,
-        }),
+        messages,
         temperature: 0,
         responseFormat: "json_object",
         timeoutMs: 120_000,

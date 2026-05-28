@@ -1,0 +1,25 @@
+# AI 质量评估报告
+
+- 生成时间：2026-05-28T14:17:29.266Z
+- LLM_MOCK：on
+- Novel fixtures：4
+- Chapter fixtures：3
+- Checks：84 passed / 0 failed
+
+## Bible Fixtures
+
+| Fixture | 状态 | Checks |
+|---|---|---|
+| history-conservative | PASS | schema:PASS<br>prompt_has_system_and_user:PASS<br>protagonist_exists:PASS<br>completeness:4/4<br>outline_usability:4/4<br>character_conflict:4/4 |
+| scifi-hard | PASS | schema:PASS<br>prompt_has_system_and_user:PASS<br>protagonist_exists:PASS<br>completeness:4/4<br>outline_usability:4/4<br>character_conflict:4/4 |
+| urban-suspense | PASS | schema:PASS<br>prompt_has_system_and_user:PASS<br>protagonist_exists:PASS<br>completeness:4/4<br>outline_usability:4/4<br>character_conflict:4/4 |
+| xuanhuan-seed | PASS | schema:PASS<br>prompt_has_system_and_user:PASS<br>protagonist_exists:PASS<br>completeness:4/4<br>outline_usability:4/4<br>character_conflict:4/4 |
+
+## Chapter Fixtures
+
+| Fixture | Writer | Critic | StateDiff | 摘要 |
+|---|---|---|---|---|
+| xuanhuan-chapter-1 | PASS (247 chars) | PASS (0 issues) | PASS (1 timeline) | 雨夜压在柴饦峰上，火房里的柴烟像一条灰蛇，沿着破瓦缝慢慢钻出去。 沈言蹲在灶前，把最后一根湿柴塞进火膛，袖口下的旧疤被火光照得发亮。外头执事的脚步声越来越近，他却只低着头，像往常一样装作什么都没听见。 门被一脚踹开时，冷雨卷进来，火苗伏低了一瞬。执事把一枚黑色木牌摔到他脚边，说三日后的宗门考核，火房杂役也要上场。  |
+| xuanhuan-critic-conflict | PASS (131 chars) | PASS (2 issues) | PASS (1 timeline) | EVAL_CRITIC_CONFLICT 沈言站在考核台上，忽然觉得自己不想再查父母旧案了。他当众把体内上古剑魂完整取出，随手递给蒋阶。剑魂立刻改认蒋阶为主，几也温顺地称蒋阶为新主人。沈言没有犹豫，也没有任何计划，只是笑着说自己从此愿意替柴饦门做一个普通杂役。 |
+| xuanhuan-state-diff-progress | PASS (182 chars) | PASS (0 issues) | PASS (1 timeline) | EVAL_STATE_DIFF_PROGRESS 沈言趁夜离开火房，沿着雨水冲出的泥沟摸到后山裂井。井底传来几的低笑，它承认自己认识沈言的父亲，也知道柴饦门当年为何收留一个孤儿。沈言没有立刻追问到底，而是和几立下暂时约定：三日后的宗门考核里，几借他剑魂共振活下去，他则替几寻找重塑剑魂本体的线索。离开裂井时，沈言把黑色 |
+

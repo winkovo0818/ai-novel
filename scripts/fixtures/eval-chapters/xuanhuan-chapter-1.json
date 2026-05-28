@@ -1,0 +1,15 @@
+{
+  "id": "xuanhuan-chapter-1",
+  "novel_fixture": "xuanhuan-seed",
+  "description": "第一章起草闭环：Writer 输出、Critic 审校、StateDiff 抽取。",
+  "chapter_index": 1,
+  "chapter_title": "雨夜火房",
+  "existing_content": "",
+  "previous_chapters": [],
+  "retrieved_memories": [],
+  "expected": {
+    "writer_must_include": ["沈言"],
+    "critic_issue_types": [],
+    "state_diff_min_timeline_events": 1
+  }
+}

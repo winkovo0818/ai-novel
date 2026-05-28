@@ -1,0 +1,35 @@
+{
+  "id": "xuanhuan-critic-conflict",
+  "novel_fixture": "xuanhuan-seed",
+  "description": "Critic 负例：明确违反剑魂认主规则，并让沈言无动机交出核心力量。",
+  "chapter_index": 4,
+  "chapter_title": "考核初战",
+  "fixed_chapter_content": "EVAL_CRITIC_CONFLICT\n\n沈言站在考核台上，忽然觉得自己不想再查父母旧案了。他当众把体内上古剑魂完整取出，随手递给蒋阶。剑魂立刻改认蒋阶为主，几也温顺地称蒋阶为新主人。沈言没有犹豫，也没有任何计划，只是笑着说自己从此愿意替柴饦门做一个普通杂役。",
+  "previous_chapters": [
+    {
+      "chapter_index": 1,
+      "title": "雨夜火房",
+      "content": "沈言在雨夜火房听见剑魂几的低语，意识到自己体内封着上古剑魂。",
+      "summary": "沈言在火房受罚，听见剑魂几低语，确认剑魂认主不可逆。"
+    },
+    {
+      "chapter_index": 3,
+      "title": "裂井剑鸣",
+      "content": "沈言与剑魂几暂时合作，决定借考核查清父母旧案。",
+      "summary": "沈言与几达成合作，目标是活过考核并追查父母旧案。"
+    }
+  ],
+  "retrieved_memories": [
+    {
+      "source": "chapter:1",
+      "text": "剑魂认主不可逆，几只能与沈言共振，无法被随意转移。",
+      "reason": "世界规则直接相关",
+      "score": 0.99
+    }
+  ],
+  "expected": {
+    "writer_must_include": ["沈言"],
+    "critic_issue_types": ["world_rule", "character"],
+    "state_diff_min_timeline_events": 0
+  }
+}

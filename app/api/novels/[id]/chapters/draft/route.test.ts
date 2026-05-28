@@ -201,11 +201,24 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
     });
     retrieveMemories.mockResolvedValue({
       status: "success",
+      explanation: {
+        queryTexts: ["主线 query", "角色 query"],
+        keywordFilters: ["沈言", "柴饦门"],
+      },
       memories: [
         {
+          id: "chunk-1",
           source: "chapter:3",
           reason: "shared protagonist arc",
           score: 0.873,
+          explanation: {
+            chunkType: "plot_thread",
+            similarity: 0.873,
+            chapterDistance: 2,
+            timeDecay: 0.833,
+            importance: 1.5,
+            matchedKeywords: ["沈言"],
+          },
           text: "短记忆片段 ABC",
         },
         {
@@ -213,6 +226,14 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
           source: "world:rule:1",
           reason: "rule referenced in beat sheet",
           score: 0.612,
+          explanation: {
+            chunkType: "world_rule",
+            similarity: 0.612,
+            chapterDistance: 0,
+            timeDecay: 1,
+            importance: 1.2,
+            matchedKeywords: ["柴饦门"],
+          },
           text: "长".repeat(300),
         },
       ],
@@ -235,8 +256,13 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
     expect(text).toContain("event: retrieval");
     expect(text).toContain('"status":"success"');
     expect(text).toContain('"source":"chapter:3"');
+    expect(text).toContain('"id":"chunk-1"');
     expect(text).toContain('"score":0.873');
     expect(text).toContain('"reason":"shared protagonist arc"');
+    expect(text).toContain('"queryTexts":["主线 query","角色 query"]');
+    expect(text).toContain('"keywordFilters":["沈言","柴饦门"]');
+    expect(text).toContain('"chunkType":"plot_thread"');
+    expect(text).toContain('"matchedKeywords":["沈言"]');
     // Truncated payload — exactly 200 "长" plus ellipsis, never the full 300
     expect(text).toContain(`${"长".repeat(200)}…`);
     expect(text).not.toContain("长".repeat(201));
@@ -275,6 +301,54 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
     expect(text).toContain('"memories":[]');
     expect(text).toContain("event: done");
     expect(text).not.toContain("Cannot read properties");
+  });
+
+  it("emits retrieval error metadata and keeps generating when retrieval fails", async () => {
+    const { POST } = await import("./route");
+    findUnique.mockResolvedValue({
+      id: "novel-1",
+      user_id: "user-1",
+      profile,
+      bible: { content: bible },
+      chapters: [],
+      volume_summaries: [],
+      novel_summary: null,
+    });
+    retrieveMemories.mockResolvedValue({
+      status: "error",
+      memories: [],
+      errorMessage: "vector index unavailable",
+    });
+    streamChatCompletionWithRetry.mockImplementation(async (_args, callbacks) => {
+      callbacks?.onDelta?.("检索失败后仍然生成正文。");
+      return { tokenIn: 100, tokenOut: 50, costCny: 0.0001, tookMs: 10 };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/novels/novel-1/chapters/draft", {
+        method: "POST",
+        body: JSON.stringify({ chapter_index: 1, title: "第1章" }),
+      }),
+      { params: Promise.resolve({ id: "novel-1" }) },
+    );
+    const text = await response.text();
+
+    expect(text).toContain("event: retrieval");
+    expect(text).toContain('"status":"error"');
+    expect(text).toContain('"error":"vector index unavailable"');
+    expect(text).toContain("event: chapter_delta");
+    expect(text).toContain("event: done");
+    expect(text).toContain('"retrieval_status":"error"');
+    expect(completeDraftSession).toHaveBeenCalledWith(
+      "ds-test",
+      expect.objectContaining({
+        retrieval: expect.objectContaining({
+          status: "error",
+          error: "vector index unavailable",
+          memories: [],
+        }),
+      }),
+    );
   });
 
   // ─────────────────────────────────────────────
@@ -324,6 +398,39 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
     expect(text).not.toContain("event: error");
     expect(failDraftSession).not.toHaveBeenCalled();
     expect(completeDraftSession).toHaveBeenCalledOnce();
+  });
+
+  it("cleans hard AI-writing artifacts before streaming and saving the draft", async () => {
+    const { POST } = await import("./route");
+    setupOwnedNovel();
+    streamChatCompletionWithRetry.mockImplementation(async (_args, callbacks) => {
+      callbacks?.onDelta?.("沈言慢慢抬头——**井外人**似乎就在门外。");
+      callbacks?.onDelta?.("接下来他把木牌藏进袖口。");
+      return { tokenIn: 50, tokenOut: 100, costCny: 0.0002, tookMs: 30 };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/novels/novel-1/chapters/draft", {
+        method: "POST",
+        body: JSON.stringify({ chapter_index: 1, title: "第1章" }),
+      }),
+      { params: Promise.resolve({ id: "novel-1" }) },
+    );
+    const text = await response.text();
+
+    expect(text).toContain("event: chapter_delta");
+    expect(text).toContain("沈言抬头。井外人像是就在门外。");
+    expect(text).toContain("他把木牌藏进袖口。");
+    expect(text).not.toContain("慢慢");
+    expect(text).not.toContain("——");
+    expect(text).not.toContain("**井外人**");
+    expect(text).not.toContain("接下来");
+    expect(completeDraftSession).toHaveBeenCalledWith(
+      "ds-test",
+      expect.objectContaining({
+        buffer: expect.stringContaining("沈言抬头。井外人像是就在门外。"),
+      }),
+    );
   });
 
   it("blocks an in-stream keyword hit with MODERATION_BLOCKED_INLINE + aborts the LLM (P0-8)", async () => {

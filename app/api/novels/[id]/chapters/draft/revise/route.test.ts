@@ -102,6 +102,143 @@ describe("POST /api/novels/[id]/chapters/draft/revise", () => {
     expect(chatCompletionWithRetry).not.toHaveBeenCalled();
   });
 
+  it("revises a local selection using the operation prompt", async () => {
+    chatCompletionWithRetry.mockResolvedValue({
+      content: "林燃放慢脚步，借着门缝看清校队的攻防节奏。",
+      tokenIn: 80,
+      tokenOut: 30,
+      costCny: 0.0005,
+      tookMs: 800,
+      model: "deepseek-chat",
+    });
+
+    const { POST } = await import("./route");
+    const response = await POST(
+      new Request("http://localhost/api/novels/novel-1/chapters/draft/revise", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "polish",
+          chapter_index: 2,
+          title: "训练室",
+          selected_text: "林燃路过训练室。",
+          before_context: "上文说他看见赵锐训练。",
+          after_context: "下文他决定加入陪练。",
+        }),
+      }),
+      { params: Promise.resolve({ id: "novel-1" }) },
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(json.data.content).toContain("放慢脚步");
+    const call = chatCompletionWithRetry.mock.calls[0][0];
+    expect(call.messages[0].content).toContain("只返回改写后的局部正文");
+    expect(call.messages[0].content).toContain("润色选中段落");
+    expect(call.messages[1].content).toContain("待改写选区");
+    expect(call.messages[1].content).toContain("林燃路过训练室");
+  });
+
+  it("revises a local selection with the humanize prompt", async () => {
+    chatCompletionWithRetry.mockResolvedValue({
+      content: "林燃把球拍回地面。\n\n响声不大，赵锐却停了半拍。",
+      tokenIn: 90,
+      tokenOut: 35,
+      costCny: 0.0006,
+      tookMs: 900,
+      model: "deepseek-chat",
+    });
+
+    const { POST } = await import("./route");
+    const response = await POST(
+      new Request("http://localhost/api/novels/novel-1/chapters/draft/revise", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "humanize",
+          chapter_index: 2,
+          title: "训练室",
+          selected_text: "这一刻，林燃知道真正的考验才刚刚开始。",
+          before_context: "赵锐把球扔过来。",
+          after_context: "老王没有吹哨。",
+        }),
+      }),
+      { params: Promise.resolve({ id: "novel-1" }) },
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.ok).toBe(true);
+    expect(json.data.content).toContain("赵锐却停了半拍");
+    const call = chatCompletionWithRetry.mock.calls[0][0];
+    expect(call.messages[0].content).toContain("去 AI 味");
+    expect(call.messages[1].content).toContain("操作：humanize");
+    expect(call.messages[1].content).toContain("命运的齿轮");
+    expect(call.messages[1].content).toContain("三连排比");
+  });
+
+  it("rejects an invalid local revision operation", async () => {
+    const { POST } = await import("./route");
+    const response = await POST(
+      new Request("http://localhost/api/novels/novel-1/chapters/draft/revise", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "rewrite_everything",
+          chapter_index: 2,
+          title: "训练室",
+          selected_text: "林燃路过训练室。",
+          before_context: "",
+          after_context: "",
+        }),
+      }),
+      { params: Promise.resolve({ id: "novel-1" }) },
+    );
+
+    expect(response.status).toBe(400);
+    expect(chatCompletionWithRetry).not.toHaveBeenCalled();
+  });
+
+  it("rejects empty selected text for local revision", async () => {
+    const { POST } = await import("./route");
+    const response = await POST(
+      new Request("http://localhost/api/novels/novel-1/chapters/draft/revise", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "expand",
+          chapter_index: 2,
+          title: "训练室",
+          selected_text: "   ",
+          before_context: "",
+          after_context: "",
+        }),
+      }),
+      { params: Promise.resolve({ id: "novel-1" }) },
+    );
+
+    expect(response.status).toBe(400);
+    expect(chatCompletionWithRetry).not.toHaveBeenCalled();
+  });
+
+  it("rejects overlong local revision context", async () => {
+    const { POST } = await import("./route");
+    const response = await POST(
+      new Request("http://localhost/api/novels/novel-1/chapters/draft/revise", {
+        method: "POST",
+        body: JSON.stringify({
+          operation: "dialogue",
+          chapter_index: 2,
+          title: "训练室",
+          selected_text: "林燃路过训练室。",
+          before_context: "上".repeat(4001),
+          after_context: "",
+        }),
+      }),
+      { params: Promise.resolve({ id: "novel-1" }) },
+    );
+
+    expect(response.status).toBe(400);
+    expect(chatCompletionWithRetry).not.toHaveBeenCalled();
+  });
+
   it("hides novels from non-owners", async () => {
     findUnique.mockResolvedValue({
       id: "novel-1",

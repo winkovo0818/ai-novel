@@ -1,0 +1,708 @@
+{
+  "generatedAt": "2026-05-28T17:21:31.865Z",
+  "fixtureIds": [
+    "xuanhuan-seed",
+    "urban-suspense"
+  ],
+  "models": [
+    "mimo-v2.5-pro"
+  ],
+  "chapterCount": 3,
+  "revisionRounds": 1,
+  "mode": "real_llm",
+  "summary": {
+    "caseCount": 2,
+    "averageDraftScore": 95.7,
+    "averageRevisedScore": 95.7,
+    "averageDelta": 0,
+    "bestCase": "玄幻/mimo-v2.5-pro",
+    "weakestCase": "都市悬疑/mimo-v2.5-pro",
+    "improvedCases": 0
+  },
+  "cases": [
+    {
+      "fixtureId": "xuanhuan-seed",
+      "title": "逆魂纪",
+      "genre": "玄幻",
+      "model": "mimo-v2.5-pro",
+      "mode": "real_llm",
+      "chapterCount": 3,
+      "revisionRounds": 1,
+      "changedChapters": 0,
+      "criticIssues": 0,
+      "draftReport": {
+        "generatedAt": "2026-05-28T17:14:03.494Z",
+        "fixtureId": "xuanhuan-seed",
+        "title": "逆魂纪",
+        "chapterCount": 3,
+        "totalChars": 6546,
+        "overallScore": 69,
+        "maxScore": 70,
+        "level": "excellent",
+        "metrics": [
+          {
+            "key": "continuity",
+            "label": "连续性",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "连续章节数 3，足够观察承接。",
+              "多数章节会复用前章关键人物、地点或线索。",
+              "章节正文多数能落到对应大纲关键词。",
+              "章节之间重复度可控，最高相似度 8%。",
+              "后续章节存在承上启下的时间、物件或事件桥。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "logic",
+            "label": "因果逻辑",
+            "score": 9,
+            "max": 10,
+            "findings": [
+              "因果/转折提示密度 0.10，有基本提示，但仍需靠具体选择句补强。",
+              "未命中明显的无动机跳转风险词。",
+              "多数章节保留了可读的因果钩（3/3）。",
+              "多数章节能读出“目标 -> 行动 -> 结果”链条（3/3）。",
+              "结尾没有大量依赖模板化悬念句。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "character_consistency",
+            "label": "人物一致性",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "主角「沈言」在连续样本中稳定出现。",
+              "主角目标/动机关键词能在正文中回响。",
+              "反派或压力源「蒋阶」已进入样本。",
+              "未发现明显违背主角核心动机的表层信号。",
+              "核心角色覆盖 4/5。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "plot_progress",
+            "label": "剧情推进",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "剧情动作/发现类词出现 8 次，推进感较明确。",
+              "多数章节有可记录的结果或状态变化（3/3）。",
+              "主线关键词覆盖 49/486。",
+              "章节开头没有明显复制模板。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "world_rules",
+            "label": "世界规则",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "正文能触及世界规则或规则关键词。",
+              "地点/势力覆盖 2/8。",
+              "未命中常见世界规则硬冲突信号。",
+              "样本包含可追踪的设定物件或稳定舞台。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "ai_voice",
+            "label": "AI 味控制",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "humanizer 规则命中 4 次，处于可控范围。",
+              "破折号 0 次，处于可控范围。",
+              "AI 高频词 0 次，处于可控范围。",
+              "短句比例 36%，有一定句式错落。",
+              "段落长度变异系数 0.68，段落节奏不算机械。",
+              "句首重复模式不明显。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "prose_readability",
+            "label": "正文可读性",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "平均句长 13.8，可读性正常。",
+              "对白 53 处，人物互动不全靠旁白。",
+              "有足够具体物象支撑画面。",
+              "标点密度正常。",
+              "摘要腔词汇不过量。"
+            ],
+            "warnings": []
+          }
+        ],
+        "chapterSummaries": [
+          {
+            "chapterIndex": 1,
+            "title": "雨夜火房",
+            "chars": 2491,
+            "sentenceCount": 177,
+            "dialogueCount": 21,
+            "excerpt": "柴饦峰的火房漏雨。 沈言蹲在灶膛前，把湿透的松枝往火里塞。烟呛得他睁不开眼，雨水顺着屋梁的缝隙滴进后颈，凉得他一哆嗦。火舌舔着潮湿的木柴，发出嗤嗤的哀鸣，像他此刻的处境。 柴堆已经见底。他拨开堆在脚边的湿柴，指尖触到一块硬木。不是柴，是半截烧焦的牌位，正面字迹早已模糊。他没扔，塞"
+          },
+          {
+            "chapterIndex": 2,
+            "title": "黑牌入手",
+            "chars": 1793,
+            "sentenceCount": 107,
+            "dialogueCount": 14,
+            "excerpt": "柴饦峰正殿的石阶还沾着夜露。沈言退出殿门时，蒋阶最后那句话粘在耳朵里：“子时，裂井外，能听见什么算你的造化。” 造化。他低头看自己的手，掌心还残留着之前添柴时蹭上的炭灰。火房执事王胥站在阶下阴影里，蓑衣早已脱了，露出里面洗得发白的青布短打。他没有走过来，只是抬手，朝火房方向点了两"
+          },
+          {
+            "chapterIndex": 3,
+            "title": "裂井剑鸣",
+            "chars": 2262,
+            "sentenceCount": 141,
+            "dialogueCount": 18,
+            "excerpt": "后山裂井在柴饦峰西侧断崖下方。 沈言站在崖边，夜风卷着湿气往领口里灌。子时还没到，但月亮已经躲进厚云里，四周黑得只剩脚下碎石边缘泛着一点灰白。黑牌揣在怀里，那股阴冷隔着衣料往肋骨缝里钻。他手指摸到牌位，焦木的粗糙边缘磨着指尖。 热气从丹田涌上来，撞在黑牌的寒气上，像烧红的铁块丢进"
+          }
+        ],
+        "riskFlags": [],
+        "recommendations": [
+          "当前样本质量稳定，下一步可以扩大到多题材、多模型、多轮修订前后对比。"
+        ],
+        "aiTraceHits": [
+          {
+            "id": "rule_of_three",
+            "category": "language",
+            "label": "三连排比",
+            "count": 2,
+            "examples": [
+              "。视野边缘闪过些东西：断裂的石柱、暗红的池水、还",
+              "。 脑海里又闪过碎片：暗红的水、断裂的石柱、这次"
+            ]
+          },
+          {
+            "id": "vague_attribution",
+            "category": "content",
+            "label": "模糊归因",
+            "count": 2,
+            "examples": [
+              "传闻"
+            ]
+          }
+        ]
+      },
+      "revisedReport": {
+        "generatedAt": "2026-05-28T17:15:08.581Z",
+        "fixtureId": "xuanhuan-seed",
+        "title": "逆魂纪",
+        "chapterCount": 3,
+        "totalChars": 6546,
+        "overallScore": 69,
+        "maxScore": 70,
+        "level": "excellent",
+        "metrics": [
+          {
+            "key": "continuity",
+            "label": "连续性",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "连续章节数 3，足够观察承接。",
+              "多数章节会复用前章关键人物、地点或线索。",
+              "章节正文多数能落到对应大纲关键词。",
+              "章节之间重复度可控，最高相似度 8%。",
+              "后续章节存在承上启下的时间、物件或事件桥。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "logic",
+            "label": "因果逻辑",
+            "score": 9,
+            "max": 10,
+            "findings": [
+              "因果/转折提示密度 0.10，有基本提示，但仍需靠具体选择句补强。",
+              "未命中明显的无动机跳转风险词。",
+              "多数章节保留了可读的因果钩（3/3）。",
+              "多数章节能读出“目标 -> 行动 -> 结果”链条（3/3）。",
+              "结尾没有大量依赖模板化悬念句。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "character_consistency",
+            "label": "人物一致性",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "主角「沈言」在连续样本中稳定出现。",
+              "主角目标/动机关键词能在正文中回响。",
+              "反派或压力源「蒋阶」已进入样本。",
+              "未发现明显违背主角核心动机的表层信号。",
+              "核心角色覆盖 4/5。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "plot_progress",
+            "label": "剧情推进",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "剧情动作/发现类词出现 8 次，推进感较明确。",
+              "多数章节有可记录的结果或状态变化（3/3）。",
+              "主线关键词覆盖 49/486。",
+              "章节开头没有明显复制模板。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "world_rules",
+            "label": "世界规则",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "正文能触及世界规则或规则关键词。",
+              "地点/势力覆盖 2/9。",
+              "未命中常见世界规则硬冲突信号。",
+              "样本包含可追踪的设定物件或稳定舞台。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "ai_voice",
+            "label": "AI 味控制",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "humanizer 规则命中 4 次，处于可控范围。",
+              "破折号 0 次，处于可控范围。",
+              "AI 高频词 0 次，处于可控范围。",
+              "短句比例 36%，有一定句式错落。",
+              "段落长度变异系数 0.68，段落节奏不算机械。",
+              "句首重复模式不明显。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "prose_readability",
+            "label": "正文可读性",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "平均句长 13.8，可读性正常。",
+              "对白 53 处，人物互动不全靠旁白。",
+              "有足够具体物象支撑画面。",
+              "标点密度正常。",
+              "摘要腔词汇不过量。"
+            ],
+            "warnings": []
+          }
+        ],
+        "chapterSummaries": [
+          {
+            "chapterIndex": 1,
+            "title": "雨夜火房",
+            "chars": 2491,
+            "sentenceCount": 177,
+            "dialogueCount": 21,
+            "excerpt": "柴饦峰的火房漏雨。 沈言蹲在灶膛前，把湿透的松枝往火里塞。烟呛得他睁不开眼，雨水顺着屋梁的缝隙滴进后颈，凉得他一哆嗦。火舌舔着潮湿的木柴，发出嗤嗤的哀鸣，像他此刻的处境。 柴堆已经见底。他拨开堆在脚边的湿柴，指尖触到一块硬木。不是柴，是半截烧焦的牌位，正面字迹早已模糊。他没扔，塞"
+          },
+          {
+            "chapterIndex": 2,
+            "title": "黑牌入手",
+            "chars": 1793,
+            "sentenceCount": 107,
+            "dialogueCount": 14,
+            "excerpt": "柴饦峰正殿的石阶还沾着夜露。沈言退出殿门时，蒋阶最后那句话粘在耳朵里：“子时，裂井外，能听见什么算你的造化。” 造化。他低头看自己的手，掌心还残留着之前添柴时蹭上的炭灰。火房执事王胥站在阶下阴影里，蓑衣早已脱了，露出里面洗得发白的青布短打。他没有走过来，只是抬手，朝火房方向点了两"
+          },
+          {
+            "chapterIndex": 3,
+            "title": "裂井剑鸣",
+            "chars": 2262,
+            "sentenceCount": 141,
+            "dialogueCount": 18,
+            "excerpt": "后山裂井在柴饦峰西侧断崖下方。 沈言站在崖边，夜风卷着湿气往领口里灌。子时还没到，但月亮已经躲进厚云里，四周黑得只剩脚下碎石边缘泛着一点灰白。黑牌揣在怀里，那股阴冷隔着衣料往肋骨缝里钻。他手指摸到牌位，焦木的粗糙边缘磨着指尖。 热气从丹田涌上来，撞在黑牌的寒气上，像烧红的铁块丢进"
+          }
+        ],
+        "riskFlags": [],
+        "recommendations": [
+          "当前样本质量稳定，下一步可以扩大到多题材、多模型、多轮修订前后对比。"
+        ],
+        "aiTraceHits": [
+          {
+            "id": "rule_of_three",
+            "category": "language",
+            "label": "三连排比",
+            "count": 2,
+            "examples": [
+              "。视野边缘闪过些东西：断裂的石柱、暗红的池水、还",
+              "。 脑海里又闪过碎片：暗红的水、断裂的石柱、这次"
+            ]
+          },
+          {
+            "id": "vague_attribution",
+            "category": "content",
+            "label": "模糊归因",
+            "count": 2,
+            "examples": [
+              "传闻"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "fixtureId": "urban-suspense",
+      "title": "旧伤纹",
+      "genre": "都市悬疑",
+      "model": "mimo-v2.5-pro",
+      "mode": "real_llm",
+      "chapterCount": 3,
+      "revisionRounds": 1,
+      "changedChapters": 0,
+      "criticIssues": 0,
+      "draftReport": {
+        "generatedAt": "2026-05-28T17:20:36.466Z",
+        "fixtureId": "urban-suspense",
+        "title": "旧伤纹",
+        "chapterCount": 3,
+        "totalChars": 8499,
+        "overallScore": 65,
+        "maxScore": 70,
+        "level": "excellent",
+        "metrics": [
+          {
+            "key": "continuity",
+            "label": "连续性",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "连续章节数 3，足够观察承接。",
+              "多数章节会复用前章关键人物、地点或线索。",
+              "章节正文多数能落到对应大纲关键词。",
+              "章节之间重复度可控，最高相似度 7%。",
+              "后续章节存在承上启下的时间、物件或事件桥。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "logic",
+            "label": "因果逻辑",
+            "score": 7,
+            "max": 10,
+            "findings": [
+              "因果/转折提示密度 0.10，有基本提示，但仍需靠具体选择句补强。",
+              "未命中明显的无动机跳转风险词。",
+              "多数章节保留了可读的因果钩（3/3）。",
+              "结尾没有大量依赖模板化悬念句。"
+            ],
+            "warnings": [
+              "仅 1/3 章能读出“目标 -> 行动 -> 结果”的明确链条。"
+            ]
+          },
+          {
+            "key": "character_consistency",
+            "label": "人物一致性",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "主角「林砚」在连续样本中稳定出现。",
+              "主角目标/动机关键词能在正文中回响。",
+              "反派或压力源「顾沉舟」已进入样本。",
+              "未发现明显违背主角核心动机的表层信号。",
+              "核心角色覆盖 3/3。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "plot_progress",
+            "label": "剧情推进",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "剧情动作/发现类词出现 8 次，推进感较明确。",
+              "多数章节有可记录的结果或状态变化（3/3）。",
+              "主线关键词覆盖 98/540。",
+              "章节开头没有明显复制模板。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "world_rules",
+            "label": "世界规则",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "正文能触及世界规则或规则关键词。",
+              "地点/势力覆盖 2/13。",
+              "未命中常见世界规则硬冲突信号。",
+              "样本包含可追踪的设定物件或稳定舞台。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "ai_voice",
+            "label": "AI 味控制",
+            "score": 8,
+            "max": 10,
+            "findings": [
+              "humanizer 规则命中 4 次，处于可控范围。",
+              "破折号 0 次，处于可控范围。",
+              "AI 高频词 0 次，处于可控范围。",
+              "短句比例 38%，有一定句式错落。",
+              "段落长度变异系数 0.71，段落节奏不算机械。"
+            ],
+            "warnings": [
+              "句首重复模式 5 次，扣 2 分。"
+            ]
+          },
+          {
+            "key": "prose_readability",
+            "label": "正文可读性",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "平均句长 13.9，可读性正常。",
+              "对白 120 处，人物互动不全靠旁白。",
+              "有足够具体物象支撑画面。",
+              "标点密度正常。",
+              "摘要腔词汇不过量。"
+            ],
+            "warnings": []
+          }
+        ],
+        "chapterSummaries": [
+          {
+            "chapterIndex": 1,
+            "title": "尸检台",
+            "chars": 2502,
+            "sentenceCount": 134,
+            "dialogueCount": 22,
+            "excerpt": "消毒水的气味淡了，取而代之的是更深层的、混合了福尔马林和钢铁的寒意。午夜十二点，法医中心的解剖室只剩下我一个人，手术灯在头顶发出稳定却刺眼的白光，把不锈钢台面照得能映出人脸。值班记录上签着我的名字：林砚。对面另一块空白签名栏还留着，尸检记录必须双人签名，但周棠半小时前去处理一起夜"
+          },
+          {
+            "chapterIndex": 2,
+            "title": "停职令",
+            "chars": 3164,
+            "sentenceCount": 217,
+            "dialogueCount": 65,
+            "excerpt": "停电持续了四秒。解剖室的应急灯亮起时，我手里的样本管差点脱手。塑料管壁冰凉，管内那块带皮肤的组织在昏黄光线下像一小片泡发的树皮。 脚步声从隔壁传来，急促，踢到门框。周棠的声音压得很低：“别动，我去看看总闸。” 我没动。手术灯的余温还在空气里浮动，混着福尔马林的甜腻气味。刚才那四秒"
+          },
+          {
+            "chapterIndex": 3,
+            "title": "白塔档案",
+            "chars": 2833,
+            "sentenceCount": 201,
+            "dialogueCount": 33,
+            "excerpt": "车门关上的声音很轻。我坐在驾驶座，没立刻发动引擎。地下停车场的通风管道在头顶嗡嗡作响，混杂着远处某辆车怠速的震颤。周棠的身影消失在通往办公楼的电梯口。她去找督查科的人周旋，给我争取时间。 时间。我摸向口袋，指尖碰到硬质卡片的边缘。周棠塞给我的。不是工牌，是一张空白的就诊卡，背面用"
+          }
+        ],
+        "riskFlags": [],
+        "recommendations": [
+          "让 Writer 输出前先规划“目标 -> 阻碍 -> 行动 -> 结果”，正文里至少保留一个清晰因果钩。"
+        ],
+        "aiTraceHits": [
+          {
+            "id": "rule_of_three",
+            "category": "language",
+            "label": "三连排比",
+            "count": 2,
+            "examples": [
+              "。你的储物柜、办公室、家里",
+              "，姓名、性别、出生日期"
+            ]
+          },
+          {
+            "id": "copula_avoidance",
+            "category": "language",
+            "label": "绕开简单判断",
+            "count": 1,
+            "examples": [
+              "构成了"
+            ]
+          },
+          {
+            "id": "chatbot_artifact",
+            "category": "communication",
+            "label": "聊天机器人话术",
+            "count": 1,
+            "examples": [
+              "如果你愿意"
+            ]
+          }
+        ]
+      },
+      "revisedReport": {
+        "generatedAt": "2026-05-28T17:21:31.865Z",
+        "fixtureId": "urban-suspense",
+        "title": "旧伤纹",
+        "chapterCount": 3,
+        "totalChars": 8499,
+        "overallScore": 65,
+        "maxScore": 70,
+        "level": "excellent",
+        "metrics": [
+          {
+            "key": "continuity",
+            "label": "连续性",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "连续章节数 3，足够观察承接。",
+              "多数章节会复用前章关键人物、地点或线索。",
+              "章节正文多数能落到对应大纲关键词。",
+              "章节之间重复度可控，最高相似度 7%。",
+              "后续章节存在承上启下的时间、物件或事件桥。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "logic",
+            "label": "因果逻辑",
+            "score": 7,
+            "max": 10,
+            "findings": [
+              "因果/转折提示密度 0.10，有基本提示，但仍需靠具体选择句补强。",
+              "未命中明显的无动机跳转风险词。",
+              "多数章节保留了可读的因果钩（3/3）。",
+              "结尾没有大量依赖模板化悬念句。"
+            ],
+            "warnings": [
+              "仅 1/3 章能读出“目标 -> 行动 -> 结果”的明确链条。"
+            ]
+          },
+          {
+            "key": "character_consistency",
+            "label": "人物一致性",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "主角「林砚」在连续样本中稳定出现。",
+              "主角目标/动机关键词能在正文中回响。",
+              "反派或压力源「顾沉舟」已进入样本。",
+              "未发现明显违背主角核心动机的表层信号。",
+              "核心角色覆盖 3/3。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "plot_progress",
+            "label": "剧情推进",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "剧情动作/发现类词出现 8 次，推进感较明确。",
+              "多数章节有可记录的结果或状态变化（3/3）。",
+              "主线关键词覆盖 98/540。",
+              "章节开头没有明显复制模板。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "world_rules",
+            "label": "世界规则",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "正文能触及世界规则或规则关键词。",
+              "地点/势力覆盖 2/13。",
+              "未命中常见世界规则硬冲突信号。",
+              "样本包含可追踪的设定物件或稳定舞台。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "ai_voice",
+            "label": "AI 味控制",
+            "score": 8,
+            "max": 10,
+            "findings": [
+              "humanizer 规则命中 4 次，处于可控范围。",
+              "破折号 0 次，处于可控范围。",
+              "AI 高频词 0 次，处于可控范围。",
+              "短句比例 38%，有一定句式错落。",
+              "段落长度变异系数 0.71，段落节奏不算机械。"
+            ],
+            "warnings": [
+              "句首重复模式 5 次，扣 2 分。"
+            ]
+          },
+          {
+            "key": "prose_readability",
+            "label": "正文可读性",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "平均句长 13.9，可读性正常。",
+              "对白 120 处，人物互动不全靠旁白。",
+              "有足够具体物象支撑画面。",
+              "标点密度正常。",
+              "摘要腔词汇不过量。"
+            ],
+            "warnings": []
+          }
+        ],
+        "chapterSummaries": [
+          {
+            "chapterIndex": 1,
+            "title": "尸检台",
+            "chars": 2502,
+            "sentenceCount": 134,
+            "dialogueCount": 22,
+            "excerpt": "消毒水的气味淡了，取而代之的是更深层的、混合了福尔马林和钢铁的寒意。午夜十二点，法医中心的解剖室只剩下我一个人，手术灯在头顶发出稳定却刺眼的白光，把不锈钢台面照得能映出人脸。值班记录上签着我的名字：林砚。对面另一块空白签名栏还留着，尸检记录必须双人签名，但周棠半小时前去处理一起夜"
+          },
+          {
+            "chapterIndex": 2,
+            "title": "停职令",
+            "chars": 3164,
+            "sentenceCount": 217,
+            "dialogueCount": 65,
+            "excerpt": "停电持续了四秒。解剖室的应急灯亮起时，我手里的样本管差点脱手。塑料管壁冰凉，管内那块带皮肤的组织在昏黄光线下像一小片泡发的树皮。 脚步声从隔壁传来，急促，踢到门框。周棠的声音压得很低：“别动，我去看看总闸。” 我没动。手术灯的余温还在空气里浮动，混着福尔马林的甜腻气味。刚才那四秒"
+          },
+          {
+            "chapterIndex": 3,
+            "title": "白塔档案",
+            "chars": 2833,
+            "sentenceCount": 201,
+            "dialogueCount": 33,
+            "excerpt": "车门关上的声音很轻。我坐在驾驶座，没立刻发动引擎。地下停车场的通风管道在头顶嗡嗡作响，混杂着远处某辆车怠速的震颤。周棠的身影消失在通往办公楼的电梯口。她去找督查科的人周旋，给我争取时间。 时间。我摸向口袋，指尖碰到硬质卡片的边缘。周棠塞给我的。不是工牌，是一张空白的就诊卡，背面用"
+          }
+        ],
+        "riskFlags": [],
+        "recommendations": [
+          "让 Writer 输出前先规划“目标 -> 阻碍 -> 行动 -> 结果”，正文里至少保留一个清晰因果钩。"
+        ],
+        "aiTraceHits": [
+          {
+            "id": "rule_of_three",
+            "category": "language",
+            "label": "三连排比",
+            "count": 2,
+            "examples": [
+              "。你的储物柜、办公室、家里",
+              "，姓名、性别、出生日期"
+            ]
+          },
+          {
+            "id": "copula_avoidance",
+            "category": "language",
+            "label": "绕开简单判断",
+            "count": 1,
+            "examples": [
+              "构成了"
+            ]
+          },
+          {
+            "id": "chatbot_artifact",
+            "category": "communication",
+            "label": "聊天机器人话术",
+            "count": 1,
+            "examples": [
+              "如果你愿意"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
