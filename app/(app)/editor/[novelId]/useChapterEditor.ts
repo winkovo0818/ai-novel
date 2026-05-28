@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 
 import { getAllChapters } from "@/lib/validation/schemas";
 import type { BibleDraft } from "@/lib/validation/schemas";
 import { useConfirm } from "@/components/ui/ConfirmDialog";
 import {
   deriveChapterStateFromDraft,
+  countNonWhitespaceCharacters,
   hasUnsavedChapterChanges,
   resolveStartIndex,
 } from "@/lib/editor/chapterUtils";
+import type { OfflineChapterDraft } from "@/lib/editor/chapterUtils";
 import type { ChapterDraftView } from "./EditorClient";
 import { useChapterActions } from "./useChapterActions";
 import { useChapterBeatSheet } from "./useChapterBeatSheet";
@@ -25,6 +27,7 @@ interface UseChapterEditorOptions {
   bible: BibleDraft;
   initialChapters: ChapterDraftView[];
   initialChapterIndex?: number;
+  online?: boolean;
 }
 
 /**
@@ -46,7 +49,13 @@ interface UseChapterEditorOptions {
  *   that consumes another hook'''s output, wire it here, not inside the
  *   sub-hook.
  */
-export function useChapterEditor({ novelId, bible, initialChapters, initialChapterIndex }: UseChapterEditorOptions) {
+export function useChapterEditor({
+  novelId,
+  bible,
+  initialChapters,
+  initialChapterIndex,
+  online = true,
+}: UseChapterEditorOptions) {
   const confirm = useConfirm();
   const allOutlineChapters = getAllChapters(bible);
   const startIndex = resolveStartIndex(
@@ -70,7 +79,8 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     { title: core.chapterTitle, content: core.content, status: core.chapterStatus },
     { title: core.savedTitle, content: core.savedContent, status: core.savedStatus },
   );
-  const characterCount = core.content.replace(/\s/g, "").length;
+  const deferredContent = useDeferredValue(core.content);
+  const characterCount = countNonWhitespaceCharacters(deferredContent);
 
   const {
     stateDiffOpen,
@@ -102,6 +112,7 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
       targetWords: core.targetWords,
       hasUnsavedChanges,
       status: core.status,
+      online,
     },
     setters: {
       setChapterId: core.setChapterId,
@@ -121,6 +132,23 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     },
   });
 
+  async function saveOfflineDraft(draft: OfflineChapterDraft) {
+    core.setStatus("saving");
+    core.setMessage(undefined);
+    try {
+      await persistChapter(draft.content, draft.title, draft.status, "manual", draft.version);
+      core.setChapterTitle(draft.title);
+      core.setContent(draft.content);
+      core.setChapterStatus(draft.status);
+      core.setStatus("saved");
+      core.setMessage("本地草稿已同步");
+    } catch (err) {
+      core.setStatus(err instanceof Error && err.name === "ChapterVersionConflict" ? "conflict" : "error");
+      core.setMessage(err instanceof Error ? err.message : "本地草稿同步失败");
+      throw err;
+    }
+  }
+
   const {
     candidateOpen,
     candidateContent,
@@ -134,10 +162,14 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     draftChapter,
     reviseCandidate,
     feedbackRevise,
-    setCursorPos,
+    reviseSelection,
+    setEditorSelection,
     acceptCandidate,
+    localRevisionLoading,
+    localRevisionError,
     candidates,
     lastRetrievalStatus,
+    lastRetrievalExplanation,
     lastRetrievedMemories,
     lastRetrievalError,
     candidateStreamError,
@@ -157,6 +189,7 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     chapterTitle: core.chapterTitle,
     content: core.content,
     chapterStatus: core.chapterStatus,
+    hasUnsavedChanges,
     persistChapter,
     setContent: core.setContent,
     setStatus: core.setStatus,
@@ -263,6 +296,7 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     characterCount,
     selectChapter,
     saveChapter,
+    saveOfflineDraft,
     draftChapterWithMemories,
     draftChapter,
     deleteChapter,
@@ -301,8 +335,11 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     candidateStreamErrorRetryable,
     reviseCandidate,
     feedbackRevise,
-    setCursorPos,
+    reviseSelection,
+    setEditorSelection,
     acceptCandidate,
+    localRevisionLoading,
+    localRevisionError,
     // M1.5 writing tools
     targetWords: core.targetWords,
     setTargetWords,
@@ -318,6 +355,7 @@ export function useChapterEditor({ novelId, bible, initialChapters, initialChapt
     // M2.5 retrieval visibility
     candidates,
     lastRetrievalStatus,
+    lastRetrievalExplanation,
     // M3.4 retrieval transparency: actual chunks fed into the LLM
     lastRetrievedMemories,
     lastRetrievalError,

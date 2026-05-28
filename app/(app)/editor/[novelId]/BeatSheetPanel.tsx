@@ -85,7 +85,7 @@ export function BeatSheetPanel({
         <div>
           <h4 className="text-[13px] font-bold text-text-primary mb-1">章节节拍生成</h4>
           <p className="text-[11px] text-text-dim leading-relaxed">
-            为第 {chapterIndex} 章「{chapterTitle}」编织叙事动力。AI 将根据章节目标提供 5-8 个关键场景锚点。
+            为第 {chapterIndex} 章「{chapterTitle}」生成 5-8 个关键场景，便于逐段起草。
           </p>
         </div>
         <div className="relative group">
@@ -108,7 +108,7 @@ export function BeatSheetPanel({
           <svg aria-hidden="true" className="w-4 h-4 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.628.283a2 2 0 01-1.186.128l-2.094-.31a2 2 0 00-1.226.226l-1.314.876a2 2 0 01-.813.294l-1.606.16a2 2 0 00-1.225.565l-1.141.913a2 2 0 01-1.127.38H2" />
           </svg>
-          生成智能节拍
+          生成章节节拍
         </button>
       </section>
     );
@@ -122,7 +122,7 @@ export function BeatSheetPanel({
           <div className="absolute inset-2 rounded-full border-2 border-primary/10 border-b-primary animate-spin-slow" />
         </div>
         <p className="text-[12px] font-bold text-text-dim uppercase tracking-widest">
-          正在构思叙事路径...
+          正在生成章节节拍...
         </p>
       </section>
     );
@@ -169,9 +169,8 @@ export function BeatSheetPanel({
         <svg aria-hidden="true" className="w-4 h-4 group-hover:animate-bounce" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
         </svg>
-        执行节拍引导起草
+        基于节拍起草本章
       </button>
     </section>
   );
 }
-

@@ -20,6 +20,7 @@ function currentRuntime(): HookRuntime {
 
 vi.mock("react", () => ({
   useCallback: (fn: unknown) => fn,
+  useDeferredValue: <T,>(value: T) => value,
   useEffect: (effect: () => void | (() => void), deps?: readonly unknown[]) =>
     currentRuntime().useEffect(effect, deps),
   useRef: <T,>(initial: T) => currentRuntime().useRef(initial),
@@ -180,7 +181,7 @@ describe("useChapterActions", () => {
         version: 0,
       }),
     );
-    expect(options.setStatus).toHaveBeenCalledWith("idle");
+    expect(options.setStatus).toHaveBeenCalledWith("clean");
     expect(options.setMessage).toHaveBeenCalledWith("章节已删除");
   });
 
@@ -326,7 +327,7 @@ describe("useChapterSelection", () => {
       }),
     );
     expect(options.setConflictChapter).toHaveBeenCalledWith(null);
-    expect(options.setStatus).toHaveBeenCalledWith("idle");
+    expect(options.setStatus).toHaveBeenCalledWith("clean");
     expect(options.setMessage).toHaveBeenCalledWith(undefined);
   });
 
@@ -439,7 +440,8 @@ describe("useChapterPersistence", () => {
           chapterVersion: 2,
           targetWords: 1200,
           hasUnsavedChanges: false,
-          status: "idle",
+          status: "clean",
+          online: true,
         },
         setters,
       }),
@@ -515,7 +517,8 @@ describe("useChapterPersistence", () => {
           chapterVersion: 1,
           targetWords: null,
           hasUnsavedChanges: false,
-          status: "idle",
+          status: "clean",
+          online: true,
         },
         setters,
       }),
@@ -526,6 +529,204 @@ describe("useChapterPersistence", () => {
       message: "章节已被另一处修改",
     });
     expect(setters.setConflictChapter).toHaveBeenCalledWith(latest);
+  });
+
+  it("marks manual saves as conflict when optimistic locking fails", async () => {
+    const latest = chapter({ content: "其他窗口的正文", version: 9 });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        okJson(
+          {
+            ok: false,
+            error: { code: "CHAPTER_VERSION_CONFLICT", message: "章节已被另一处修改" },
+            data: latest,
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+    const setters = {
+      setChapterId: vi.fn(),
+      setSavedTitle: vi.fn(),
+      setSavedContent: vi.fn(),
+      setSavedStatus: vi.fn(),
+      setTargetWordsState: vi.fn(),
+      setLastSavedAt: vi.fn(),
+      setStatus: vi.fn(),
+      setMessage: vi.fn(),
+      setChapterVersion: vi.fn(),
+      setConflictChapter: vi.fn(),
+      setChapters: vi.fn(),
+      setPendingStateDiff: vi.fn(),
+      setPendingStateDiffChapterIndex: vi.fn(),
+      setAutoStateDiffError: vi.fn(),
+    };
+
+    const hook = currentRuntime().render(() =>
+      useChapterPersistence({
+        state: {
+          chapterId: "chapter-1",
+          novelId: "novel-1",
+          selectedIndex: 1,
+          chapterTitle: "本地标题",
+          content: "本地正文",
+          chapterStatus: "draft",
+          savedStatus: "draft",
+          chapterVersion: 1,
+          targetWords: null,
+          hasUnsavedChanges: false,
+          status: "dirty",
+          online: true,
+        },
+        setters,
+      }),
+    );
+
+    await hook.saveChapter();
+
+    expect(setters.setConflictChapter).toHaveBeenCalledWith(latest);
+    expect(setters.setStatus).toHaveBeenLastCalledWith("conflict");
+    expect(setters.setMessage).toHaveBeenLastCalledWith("章节已被另一处修改");
+  });
+
+  it("keeps manual saves offline and skips network requests when disconnected", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const setters = {
+      setChapterId: vi.fn(),
+      setSavedTitle: vi.fn(),
+      setSavedContent: vi.fn(),
+      setSavedStatus: vi.fn(),
+      setTargetWordsState: vi.fn(),
+      setLastSavedAt: vi.fn(),
+      setStatus: vi.fn(),
+      setMessage: vi.fn(),
+      setChapterVersion: vi.fn(),
+      setConflictChapter: vi.fn(),
+      setChapters: vi.fn(),
+      setPendingStateDiff: vi.fn(),
+      setPendingStateDiffChapterIndex: vi.fn(),
+      setAutoStateDiffError: vi.fn(),
+    };
+
+    const hook = currentRuntime().render(() =>
+      useChapterPersistence({
+        state: {
+          chapterId: "chapter-1",
+          novelId: "novel-1",
+          selectedIndex: 1,
+          chapterTitle: "本地标题",
+          content: "本地正文",
+          chapterStatus: "draft",
+          savedStatus: "draft",
+          chapterVersion: 1,
+          targetWords: null,
+          hasUnsavedChanges: true,
+          status: "dirty",
+          online: false,
+        },
+        setters,
+      }),
+    );
+
+    await hook.saveChapter();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(setters.setStatus).toHaveBeenLastCalledWith("offline");
+    expect(setters.setMessage).toHaveBeenLastCalledWith("网络已断开，恢复连接后再保存");
+  });
+
+  it("does not silently autosave a recovered offline draft after reconnecting", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const setters = {
+      setChapterId: vi.fn(),
+      setSavedTitle: vi.fn(),
+      setSavedContent: vi.fn(),
+      setSavedStatus: vi.fn(),
+      setTargetWordsState: vi.fn(),
+      setLastSavedAt: vi.fn(),
+      setStatus: vi.fn(),
+      setMessage: vi.fn(),
+      setChapterVersion: vi.fn(),
+      setConflictChapter: vi.fn(),
+      setChapters: vi.fn(),
+      setPendingStateDiff: vi.fn(),
+      setPendingStateDiffChapterIndex: vi.fn(),
+      setAutoStateDiffError: vi.fn(),
+    };
+
+    currentRuntime().render(() =>
+      useChapterPersistence({
+        state: {
+          chapterId: "chapter-1",
+          novelId: "novel-1",
+          selectedIndex: 1,
+          chapterTitle: "本地标题",
+          content: "本地正文",
+          chapterStatus: "draft",
+          savedStatus: "draft",
+          chapterVersion: 1,
+          targetWords: null,
+          hasUnsavedChanges: true,
+          status: "offline",
+          online: true,
+        },
+        setters,
+      }),
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(setters.setStatus).not.toHaveBeenCalledWith("dirty");
+    expect(setters.setMessage).toHaveBeenLastCalledWith("网络已恢复，请处理本地草稿后同步");
+  });
+
+  it("uses a longer autosave debounce for 50k-character chapters", async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    vi.stubGlobal("window", {
+      setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout,
+    });
+    const setters = {
+      setChapterId: vi.fn(),
+      setSavedTitle: vi.fn(),
+      setSavedContent: vi.fn(),
+      setSavedStatus: vi.fn(),
+      setTargetWordsState: vi.fn(),
+      setLastSavedAt: vi.fn(),
+      setStatus: vi.fn(),
+      setMessage: vi.fn(),
+      setChapterVersion: vi.fn(),
+      setConflictChapter: vi.fn(),
+      setChapters: vi.fn(),
+      setPendingStateDiff: vi.fn(),
+      setPendingStateDiffChapterIndex: vi.fn(),
+      setAutoStateDiffError: vi.fn(),
+    };
+
+    currentRuntime().render(() =>
+      useChapterPersistence({
+        state: {
+          chapterId: "chapter-1",
+          novelId: "novel-1",
+          selectedIndex: 1,
+          chapterTitle: "本地标题",
+          content: "x".repeat(50_000),
+          chapterStatus: "draft",
+          savedStatus: "draft",
+          chapterVersion: 1,
+          targetWords: null,
+          hasUnsavedChanges: true,
+          status: "dirty",
+          online: true,
+        },
+        setters,
+      }),
+    );
+
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 8_000);
+    setTimeoutSpy.mockClear();
   });
 
   it("blocks manual saves that exceed the chapter content cap before fetch", async () => {
@@ -561,7 +762,8 @@ describe("useChapterPersistence", () => {
           chapterVersion: 1,
           targetWords: null,
           hasUnsavedChanges: false,
-          status: "idle",
+          status: "clean",
+          online: true,
         },
         setters,
       }),
@@ -709,6 +911,7 @@ describe("useChapterDrafting", () => {
       chapterTitle: "第一章",
       content: "已有正文",
       chapterStatus: "draft" as const,
+      hasUnsavedChanges: false,
       persistChapter: vi.fn(),
       setContent: vi.fn(),
       setStatus,
@@ -738,7 +941,7 @@ describe("useChapterDrafting", () => {
     expect(hook.draftSessionId).toBe("draft-session-1");
     expect(hook.lastRetrievalStatus).toBe("ok");
     expect(hook.lastRetrievedMemories).toEqual(memories);
-    expect(setStatus).toHaveBeenLastCalledWith("idle");
+    expect(setStatus).toHaveBeenLastCalledWith("clean");
     expect(setMessage).toHaveBeenLastCalledWith("候选稿就绪，请选择处理方式");
   });
 
@@ -770,6 +973,7 @@ describe("useChapterDrafting", () => {
       chapterTitle: "第一章",
       content: "已有正文",
       chapterStatus: "draft" as const,
+      hasUnsavedChanges: false,
       persistChapter,
       setContent,
       setStatus,
@@ -805,6 +1009,243 @@ describe("useChapterDrafting", () => {
     expect(hook.draftSessionId).toBeNull();
   });
 
+  it("accepts an inserted candidate at the tracked editor selection start", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        okJson({
+          ok: true,
+          data: {
+            id: "resume-1",
+            status: "completed",
+            buffer: "候选正文足够长超过十个字",
+            error_message: null,
+          },
+        }),
+      )
+      .mockResolvedValue(okJson({ ok: true, data: { issues: [] } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const persistChapter = vi.fn().mockResolvedValue(chapter());
+    const setContent = vi.fn();
+    const hookOptions = {
+      novelId: "novel-1",
+      selectedIndex: 1,
+      chapterId: "chapter-1",
+      chapterTitle: "第一章",
+      content: "abcdef",
+      chapterStatus: "draft" as const,
+      hasUnsavedChanges: false,
+      persistChapter,
+      setContent,
+      setStatus: vi.fn(),
+      setMessage: vi.fn(),
+    };
+
+    let hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    await flushAsyncEffects();
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    hook.applyResumableDraft();
+    hook.setEditorSelection({ selectionStart: 2, selectionEnd: 5, selectedText: "cde" });
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+
+    await hook.acceptCandidate("insert");
+
+    expect(persistChapter).toHaveBeenNthCalledWith(2, "ab候选正文足够长超过十个字cdef", "第一章", "draft", "ai");
+    expect(setContent).toHaveBeenCalledWith("ab候选正文足够长超过十个字cdef");
+  });
+
+  it("accepts a candidate by replacing only the tracked editor selection", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        okJson({
+          ok: true,
+          data: {
+            id: "resume-1",
+            status: "completed",
+            buffer: "替换文本足够长超过十个字",
+            error_message: null,
+          },
+        }),
+      )
+      .mockResolvedValue(okJson({ ok: true, data: { issues: [] } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const persistChapter = vi.fn().mockResolvedValue(chapter());
+    const setContent = vi.fn();
+    const hookOptions = {
+      novelId: "novel-1",
+      selectedIndex: 1,
+      chapterId: "chapter-1",
+      chapterTitle: "第一章",
+      content: "前文需要替换的句子后文",
+      chapterStatus: "draft" as const,
+      hasUnsavedChanges: false,
+      persistChapter,
+      setContent,
+      setStatus: vi.fn(),
+      setMessage: vi.fn(),
+    };
+
+    let hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    await flushAsyncEffects();
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    hook.applyResumableDraft();
+    hook.setEditorSelection({ selectionStart: 2, selectionEnd: 9, selectedText: "需要替换的句子" });
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+
+    await hook.acceptCandidate("replace_selection");
+
+    expect(persistChapter).toHaveBeenNthCalledWith(
+      2,
+      "前文替换文本足够长超过十个字后文",
+      "第一章",
+      "draft",
+      "ai",
+    );
+    expect(setContent).toHaveBeenCalledWith("前文替换文本足够长超过十个字后文");
+  });
+
+  it("creates a local revision candidate from the tracked editor selection", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okJson({ ok: false }, { status: 404 }))
+      .mockResolvedValueOnce(okJson({
+        ok: true,
+        data: {
+          content: "改写后的局部正文",
+          token_in: 10,
+          token_out: 5,
+          cost_cny: 0,
+          took_ms: 20,
+        },
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const setStatus = vi.fn();
+    const setMessage = vi.fn();
+    const hookOptions = {
+      novelId: "novel-1",
+      selectedIndex: 1,
+      chapterId: "chapter-1",
+      chapterTitle: "第一章",
+      content: "前文一二三需要改写的句子后文四五六",
+      chapterStatus: "draft" as const,
+      hasUnsavedChanges: false,
+      persistChapter: vi.fn(),
+      setContent: vi.fn(),
+      setStatus,
+      setMessage,
+    };
+
+    let hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    await flushAsyncEffects();
+    hook.setEditorSelection({ selectionStart: 5, selectionEnd: 12, selectedText: "需要改写的句子" });
+    await hook.reviseSelection("polish");
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/novels/novel-1/chapters/draft/revise",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          operation: "polish",
+          chapter_index: 1,
+          title: "第一章",
+          selected_text: "需要改写的句子",
+          before_context: "前文一二三",
+          after_context: "后文四五六",
+        }),
+      }),
+    );
+    expect(hook.candidateOpen).toBe(true);
+    expect(hook.candidateContent).toBe("改写后的局部正文");
+    expect(hook.localRevisionLoading).toBe(false);
+    expect(hook.localRevisionError).toBeUndefined();
+    expect(setStatus).toHaveBeenLastCalledWith("clean");
+    expect(setMessage).toHaveBeenLastCalledWith("局部改写候选稿就绪");
+  });
+
+  it("creates a humanized local revision candidate from the tracked editor selection", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okJson({ ok: false }, { status: 404 }))
+      .mockResolvedValueOnce(okJson({
+        ok: true,
+        data: {
+          content: "去掉套话后的局部正文",
+          token_in: 10,
+          token_out: 5,
+          cost_cny: 0,
+          took_ms: 20,
+        },
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const hookOptions = {
+      novelId: "novel-1",
+      selectedIndex: 1,
+      chapterId: "chapter-1",
+      chapterTitle: "第一章",
+      content: "前文真正的考验才刚刚开始后文",
+      chapterStatus: "draft" as const,
+      hasUnsavedChanges: false,
+      persistChapter: vi.fn(),
+      setContent: vi.fn(),
+      setStatus: vi.fn(),
+      setMessage: vi.fn(),
+    };
+
+    let hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    await flushAsyncEffects();
+    hook.setEditorSelection({ selectionStart: 2, selectionEnd: 12, selectedText: "真正的考验才刚刚开始" });
+    await hook.reviseSelection("humanize");
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/novels/novel-1/chapters/draft/revise",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          operation: "humanize",
+          chapter_index: 1,
+          title: "第一章",
+          selected_text: "真正的考验才刚刚开始",
+          before_context: "前文",
+          after_context: "后文",
+        }),
+      }),
+    );
+    expect(hook.candidateContent).toBe("去掉套话后的局部正文");
+  });
+
+  it("reports a local revision error when no text is selected", async () => {
+    const hookOptions = {
+      novelId: "novel-1",
+      selectedIndex: 1,
+      chapterId: "chapter-1",
+      chapterTitle: "第一章",
+      content: "正文",
+      chapterStatus: "draft" as const,
+      hasUnsavedChanges: false,
+      persistChapter: vi.fn(),
+      setContent: vi.fn(),
+      setStatus: vi.fn(),
+      setMessage: vi.fn(),
+    };
+
+    let hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+    await flushAsyncEffects();
+    await hook.reviseSelection("expand");
+    hook = currentRuntime().render(() => useChapterDrafting(hookOptions));
+
+    expect(hook.localRevisionError).toBe("请先在正文中选中需要改写的文本");
+    expect(hookOptions.setMessage).toHaveBeenLastCalledWith("请先在正文中选中需要改写的文本");
+  });
+
   it("discards candidates without saving and dismisses the resumable session", async () => {
     const fetchMock = vi
       .fn()
@@ -832,6 +1273,7 @@ describe("useChapterDrafting", () => {
       chapterTitle: "第一章",
       content: "已有正文",
       chapterStatus: "draft" as const,
+      hasUnsavedChanges: false,
       persistChapter,
       setContent: vi.fn(),
       setStatus,
@@ -852,7 +1294,7 @@ describe("useChapterDrafting", () => {
       "/api/novels/novel-1/chapters/draft/resume?chapter_index=1",
       { method: "DELETE" },
     );
-    expect(setStatus).toHaveBeenLastCalledWith("idle");
+    expect(setStatus).toHaveBeenLastCalledWith("clean");
     expect(setMessage).toHaveBeenLastCalledWith("候选稿已丢弃，正文未改动");
     expect(hook.candidateContent).toBe("");
     expect(hook.candidateOpen).toBe(false);
@@ -887,6 +1329,7 @@ describe("useChapterDrafting", () => {
       chapterTitle: "第四章",
       content: "当前正文",
       chapterStatus: "draft" as const,
+      hasUnsavedChanges: false,
       persistChapter: vi.fn().mockResolvedValue(chapter()),
       setContent: vi.fn(),
       setStatus: vi.fn(),
@@ -944,6 +1387,7 @@ describe("useChapterDrafting", () => {
       chapterTitle: "第二章",
       content: "当前正文",
       chapterStatus: "draft" as const,
+      hasUnsavedChanges: false,
       persistChapter: vi.fn(),
       setContent: vi.fn(),
       setStatus: vi.fn(),
@@ -1016,6 +1460,7 @@ describe("useChapterDrafting", () => {
       chapterTitle: "第三章",
       content: "当前正文",
       chapterStatus: "draft" as const,
+      hasUnsavedChanges: false,
       persistChapter: vi.fn(),
       setContent: vi.fn(),
       setStatus: vi.fn(),
@@ -1067,6 +1512,7 @@ describe("useChapterDrafting", () => {
       chapterTitle: "第五章",
       content: "当前正文",
       chapterStatus: "draft" as const,
+      hasUnsavedChanges: false,
       persistChapter: vi.fn(),
       setContent: vi.fn(),
       setStatus: vi.fn(),

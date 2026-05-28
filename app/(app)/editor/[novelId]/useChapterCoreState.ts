@@ -3,9 +3,9 @@
 import { useCallback, useState } from "react";
 
 import { deriveChapterStateFromDraft } from "@/lib/editor/chapterUtils";
+import type { ChapterEditorStatus } from "@/lib/editor/chapterUtils";
 
 type ChapterStatus = "draft" | "done";
-type EditorStatus = "idle" | "saving" | "saved" | "drafting" | "error";
 type ChapterEditorState = ReturnType<typeof deriveChapterStateFromDraft>;
 
 export function useChapterCoreState(initialState: ChapterEditorState) {
@@ -18,7 +18,7 @@ export function useChapterCoreState(initialState: ChapterEditorState) {
   const [savedStatus, setSavedStatus] = useState<ChapterStatus>(initialState.status);
   const [targetWords, setTargetWordsState] = useState<number | null>(initialState.targetWords);
   const [lastSavedAt, setLastSavedAt] = useState<string | undefined>(initialState.lastSavedAt);
-  const [status, setStatus] = useState<EditorStatus>("idle");
+  const [status, setStatus] = useState<ChapterEditorStatus>("clean");
   const [message, setMessage] = useState<string>();
   const [chapterVersion, setChapterVersion] = useState<number>(initialState.version);
 

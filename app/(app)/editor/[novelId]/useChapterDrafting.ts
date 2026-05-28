@@ -9,14 +9,21 @@ import {
   buildCandidateCriticRequest,
   buildCandidateRevisionRequest,
   buildDraftChapterRequest,
+  buildLocalRevisionRequest,
   buildResumableDraftRequest,
   candidateAcceptedMessage,
   normalizeResumableDraftPayload,
+  resolveSettledChapterStatus,
   resumableDraftLoadedMessage,
+  type ChapterEditorStatus,
   type DraftCandidate,
+  type EditorSelection,
   type DraftSseState,
+  type RetrievalExplanationPreview,
+  type RetrievedMemoryPreview,
 } from "@/lib/editor/chapterUtils";
 import { readSse } from "@/lib/stream/readSse";
+import type { ChapterRevisionOperation } from "@/lib/validation/schemas";
 import type { BeatItem } from "./BeatSheetPanel";
 import type {
   CandidateCriticResult,
@@ -25,13 +32,15 @@ import type {
 import type { ChapterDraftView } from "./EditorClient";
 
 type ChapterStatus = "draft" | "done";
-type EditorStatus = "idle" | "saving" | "saved" | "drafting" | "error";
 type SaveSource = "autosave" | "manual" | "ai";
+type DraftMemory = RetrievedMemoryPreview;
+const LOCAL_REVISION_CONTEXT_CHARS = 4_000;
 type PersistChapter = (
   nextContent: string,
   nextTitle?: string,
   nextStatus?: ChapterStatus,
   source?: SaveSource,
+  expectedVersion?: number,
 ) => Promise<ChapterDraftView>;
 
 interface UseChapterDraftingOptions {
@@ -41,9 +50,10 @@ interface UseChapterDraftingOptions {
   chapterTitle: string;
   content: string;
   chapterStatus: ChapterStatus;
+  hasUnsavedChanges: boolean;
   persistChapter: PersistChapter;
   setContent(value: string): void;
-  setStatus(value: EditorStatus): void;
+  setStatus(value: ChapterEditorStatus): void;
   setMessage(value: string | undefined): void;
 }
 
@@ -54,6 +64,7 @@ export function useChapterDrafting({
   chapterTitle,
   content,
   chapterStatus,
+  hasUnsavedChanges,
   persistChapter,
   setContent,
   setStatus,
@@ -67,6 +78,8 @@ export function useChapterDrafting({
   const [candidateCriticResult, setCandidateCriticResult] = useState<CandidateCriticResult>();
   const [candidateCriticError, setCandidateCriticError] = useState<string>();
   const [candidateRevisionLoading, setCandidateRevisionLoading] = useState(false);
+  const [localRevisionLoading, setLocalRevisionLoading] = useState(false);
+  const [localRevisionError, setLocalRevisionError] = useState<string>();
   // P1-6: critic failure that persists after the candidate panel closes.
   // When critic fails, candidateCriticError is shown in-panel BUT the panel can
   // close (X / discard / accept) and the error would be gone. We mirror it into
@@ -78,8 +91,9 @@ export function useChapterDrafting({
   } | null>(null);
   const [criticRetrying, setCriticRetrying] = useState(false);
   const [lastRetrievalStatus, setLastRetrievalStatus] = useState<string>();
+  const [lastRetrievalExplanation, setLastRetrievalExplanation] = useState<RetrievalExplanationPreview>();
   const [lastRetrievedMemories, setLastRetrievedMemories] = useState<
-    Array<{ source: string; reason: string; score: number; text: string }>
+    RetrievedMemoryPreview[]
   >([]);
   const [candidates, setCandidates] = useState<DraftCandidate[]>();
   const [lastRetrievalError, setLastRetrievalError] = useState<string>();
@@ -93,9 +107,12 @@ export function useChapterDrafting({
     errorMessage: string | null;
   } | null>(null);
 
-  const cursorPosRef = useRef<number | null>(null);
-  const setCursorPos = useCallback((pos: number | null) => {
-    cursorPosRef.current = pos;
+  const selectionRef = useRef<EditorSelection | null>(null);
+  const setEditorSelection = useCallback((selection: EditorSelection | null) => {
+    selectionRef.current = selection;
+    if (selection?.selectedText.trim()) {
+      setLocalRevisionError(undefined);
+    }
   }, []);
 
   const clearCandidate = useCallback(() => {
@@ -106,6 +123,7 @@ export function useChapterDrafting({
     setCandidateCriticResult(undefined);
     setCandidateCriticError(undefined);
     setCandidateRevisionLoading(false);
+    setLocalRevisionError(undefined);
   }, []);
 
   const dismissResumableDraftServer = useCallback(
@@ -242,6 +260,78 @@ export function useChapterDrafting({
     setMessage,
   ]);
 
+  const reviseSelection = useCallback(async (operation: ChapterRevisionOperation) => {
+    const selection = selectionRef.current;
+    if (!selection?.selectedText.trim()) {
+      const message = "请先在正文中选中需要改写的文本";
+      setLocalRevisionError(message);
+      setMessage(message);
+      return;
+    }
+    if (localRevisionLoading) return;
+
+    const beforeContext = content.slice(
+      Math.max(0, selection.selectionStart - LOCAL_REVISION_CONTEXT_CHARS),
+      selection.selectionStart,
+    );
+    const afterContext = content.slice(
+      selection.selectionEnd,
+      Math.min(content.length, selection.selectionEnd + LOCAL_REVISION_CONTEXT_CHARS),
+    );
+
+    setLocalRevisionLoading(true);
+    setLocalRevisionError(undefined);
+    setCandidateCriticError(undefined);
+    setCandidateCriticResult(undefined);
+    setCandidateRevisionLoading(false);
+    setStatus("drafting");
+    setMessage("AI 正在改写选中文本…");
+
+    try {
+      const request = buildLocalRevisionRequest({
+        novelId,
+        selectedIndex,
+        title: chapterTitle,
+        operation,
+        selectedText: selection.selectedText,
+        beforeContext,
+        afterContext,
+      });
+      const response = await fetch(request.url, {
+        method: request.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request.payload),
+      });
+      const json = await response.json();
+      if (!json.ok) throw new Error(json.error?.message ?? "局部改写失败");
+      const revised = String(json.data?.content ?? "");
+      if (!revised.trim()) throw new Error("AI 未返回改写正文");
+
+      setCandidateContent(revised);
+      setCandidateOpen(true);
+      setCandidateStreaming(false);
+      setCandidateCriticLoading(false);
+      setStatus(resolveSettledChapterStatus({ hasUnsavedChanges, status: "clean" }));
+      setMessage("局部改写候选稿就绪");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "局部改写失败";
+      setLocalRevisionError(message);
+      setStatus("error");
+      setMessage(message);
+    } finally {
+      setLocalRevisionLoading(false);
+    }
+  }, [
+    chapterTitle,
+    content,
+    hasUnsavedChanges,
+    localRevisionLoading,
+    novelId,
+    selectedIndex,
+    setMessage,
+    setStatus,
+  ]);
+
   // P1-6: retry the last failed critic against the currently selected
   // chapter's content. On success, clear the persistent failure badge and
   // surface the result via the status line. On failure, update the badge.
@@ -320,14 +410,14 @@ export function useChapterDrafting({
     setCandidateOpen(true);
     setCandidateStreaming(false);
     setDraftSessionId(resumableDraft.sessionId);
-    setStatus("idle");
+    setStatus(resolveSettledChapterStatus({ hasUnsavedChanges, status: "clean" }));
     setMessage(resumableDraftLoadedMessage(resumableDraft.status));
     setResumableDraft(null);
     void runCandidateCritic(resumableDraft.buffer);
-  }, [resumableDraft, runCandidateCritic, setMessage, setStatus]);
+  }, [hasUnsavedChanges, resumableDraft, runCandidateCritic, setMessage, setStatus]);
 
   const draftChapter = useCallback(
-    async (beatsOrOpts?: BeatItem[] | { retrieved_memories?: Array<{ source: string; text: string; reason: string; score: number }> }) => {
+    async (beatsOrOpts?: BeatItem[] | { retrieved_memories?: DraftMemory[] }) => {
       const beats = Array.isArray(beatsOrOpts) ? beatsOrOpts : undefined;
       const retrievedMemories = (!Array.isArray(beatsOrOpts) && beatsOrOpts?.retrieved_memories) ? beatsOrOpts.retrieved_memories : undefined;
       if (candidateContent && !candidateStreaming) {
@@ -348,6 +438,7 @@ export function useChapterDrafting({
       setCandidateCriticError(undefined);
       setCandidateRevisionLoading(false);
       setLastRetrievedMemories([]);
+      setLastRetrievalExplanation(undefined);
       setLastRetrievalError(undefined);
       setStatus("drafting");
       setCandidateStreamError(undefined);
@@ -380,6 +471,7 @@ export function useChapterDrafting({
           if (draftState.sessionId) setDraftSessionId(draftState.sessionId);
           setCandidateContent(draftState.generated);
           if (draftState.retrievalStatus) setLastRetrievalStatus(draftState.retrievalStatus);
+          if (draftState.retrievalExplanation) setLastRetrievalExplanation(draftState.retrievalExplanation);
           if (draftState.retrievalError) setLastRetrievalError(draftState.retrievalError);
           if (draftState.candidates) setCandidates(draftState.candidates);
           if (draftState.retrievedMemories) setLastRetrievedMemories(draftState.retrievedMemories);
@@ -392,7 +484,7 @@ export function useChapterDrafting({
         if (!draftState.generated.trim()) throw new Error("AI 未返回章节正文");
 
         setCandidateStreaming(false);
-        setStatus("idle");
+        setStatus(resolveSettledChapterStatus({ hasUnsavedChanges, status: "clean" }));
         setMessage("候选稿就绪，请选择处理方式");
         void runCandidateCritic(draftState.generated);
       } catch (err) {
@@ -401,7 +493,10 @@ export function useChapterDrafting({
         setStatus("error");
         setMessage(msg);
         setCandidateStreamError(msg);
-        setCandidateStreamErrorRetryable(!msg.includes("违规") && !msg.includes("MODERATION"));
+        setCandidateStreamErrorRetryable(
+          draftState.streamErrorRetryable ?? (!msg.includes("违规") && !msg.includes("MODERATION")),
+        );
+        if (draftState.sessionId) setDraftSessionId(draftState.sessionId);
       }
     },
     [
@@ -410,6 +505,7 @@ export function useChapterDrafting({
       chapterTitle,
       confirm,
       content,
+      hasUnsavedChanges,
       novelId,
       runCandidateCritic,
       selectedIndex,
@@ -422,7 +518,7 @@ export function useChapterDrafting({
     async (mode: CandidateMode) => {
       if (mode === "discard") {
         clearCandidate();
-        setStatus("idle");
+        setStatus(resolveSettledChapterStatus({ hasUnsavedChanges, status: "clean" }));
         setMessage("候选稿已丢弃，正文未改动");
         void dismissResumableDraftServer(selectedIndex);
         setDraftSessionId(null);
@@ -434,7 +530,7 @@ export function useChapterDrafting({
 
       if (!candidateContent) return;
 
-      const nextContent = applyAcceptMode(content, candidateContent, mode, cursorPosRef.current);
+      const nextContent = applyAcceptMode(content, candidateContent, mode, selectionRef.current);
 
       setStatus("saving");
       setMessage("保存候选稿…");
@@ -468,6 +564,7 @@ export function useChapterDrafting({
       clearCandidate,
       content,
       dismissResumableDraftServer,
+      hasUnsavedChanges,
       persistChapter,
       selectedIndex,
       setContent,
@@ -476,8 +573,8 @@ export function useChapterDrafting({
     ],
   );
 
-  const draftChapterWithMemories = (memories: Array<{ source: string; text: string; reason: string; score: number }>) => {
-    void draftChapter({ retrieved_memories: memories } as any);
+  const draftChapterWithMemories = (memories: DraftMemory[]) => {
+    void draftChapter({ retrieved_memories: memories });
   };
 
   return {
@@ -493,10 +590,14 @@ export function useChapterDrafting({
     draftChapterWithMemories,
     reviseCandidate,
     feedbackRevise,
-    setCursorPos,
+    reviseSelection,
+    setEditorSelection,
     acceptCandidate,
+    localRevisionLoading,
+    localRevisionError,
     candidates,
     lastRetrievalStatus,
+    lastRetrievalExplanation,
     lastRetrievedMemories,
     lastRetrievalError,
     candidateStreamError,

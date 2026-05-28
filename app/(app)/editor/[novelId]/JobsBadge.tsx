@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface JobsSummary {
   pending: number;
@@ -31,10 +31,10 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 /**
- * Badge that polls /api/novels/[id]/jobs and surfaces the state of
+ * Badge that loads /api/novels/[id]/jobs and surfaces the state of
  * background memory work — chapter summarize, RAG indexing, tiered
- * summary refresh. Click to expand a panel showing recent jobs with
- * a per-job retry action that hits POST /jobs/:jobId/retry.
+ * summary refresh. The compact badge fetches once on mount; the expanded
+ * panel polls so worker-driven progress becomes visible without a reload.
  */
 export function JobsBadge({ novelId, intervalMs = 5000 }: JobsBadgeProps) {
   const [summary, setSummary] = useState<JobsSummary | null>(null);
@@ -42,39 +42,43 @@ export function JobsBadge({ novelId, intervalMs = 5000 }: JobsBadgeProps) {
   const [open, setOpen] = useState(false);
   const [retryingId, setRetryingId] = useState<string>();
 
+  const refreshJobs = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/novels/${novelId}/jobs`);
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.ok && json.data) {
+        if (json.data.summary) setSummary(json.data.summary as JobsSummary);
+        if (Array.isArray(json.data.jobs)) setJobs(json.data.jobs as JobRow[]);
+      }
+    } catch {
+      // Silent — badge is best-effort UI.
+    }
+  }, [novelId]);
+
   useEffect(() => {
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
 
-    async function fetchJobs() {
-      try {
-        const res = await fetch(`/api/novels/${novelId}/jobs`);
-        if (!res.ok) return;
-        const json = await res.json();
-        if (!cancelled && json.ok && json.data) {
-          if (json.data.summary) setSummary(json.data.summary as JobsSummary);
-          if (Array.isArray(json.data.jobs)) setJobs(json.data.jobs as JobRow[]);
-        }
-      } catch {
-        // Silent — badge is best-effort UI.
-      }
-    }
-
-    function schedule() {
-      if (intervalMs <= 0) return;
-      timer = setTimeout(async () => {
-        await fetchJobs();
-        if (!cancelled) schedule();
-      }, intervalMs);
-    }
-
-    void fetchJobs();
-    schedule();
+    void refreshJobs().finally(() => {
+      if (cancelled) return;
+    });
     return () => {
       cancelled = true;
-      if (timer) clearTimeout(timer);
     };
-  }, [novelId, intervalMs]);
+  }, [refreshJobs]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    void refreshJobs();
+    if (intervalMs <= 0) return;
+
+    const timer = setInterval(() => {
+      void refreshJobs();
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [open, intervalMs, refreshJobs]);
 
   async function retryJob(jobId: string) {
     setRetryingId(jobId);
@@ -83,13 +87,7 @@ export function JobsBadge({ novelId, intervalMs = 5000 }: JobsBadgeProps) {
         method: "POST",
       });
       if (res.ok) {
-        // Optimistically refresh the panel.
-        const summaryRes = await fetch(`/api/novels/${novelId}/jobs`);
-        const summaryJson = await summaryRes.json();
-        if (summaryJson.ok && summaryJson.data) {
-          if (summaryJson.data.summary) setSummary(summaryJson.data.summary);
-          if (Array.isArray(summaryJson.data.jobs)) setJobs(summaryJson.data.jobs);
-        }
+        await refreshJobs();
       }
     } finally {
       setRetryingId(undefined);

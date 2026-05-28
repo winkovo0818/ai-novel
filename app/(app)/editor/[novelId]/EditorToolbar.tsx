@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import type { ChapterEditorStatus } from "@/lib/editor/chapterUtils";
 
 interface EditorToolbarProps {
   novelId: string;
@@ -8,7 +9,7 @@ interface EditorToolbarProps {
   chapterStatus: "draft" | "done";
   isSaved: boolean;
   characterCount: number;
-  status: "idle" | "saving" | "saved" | "drafting" | "error";
+  status: ChapterEditorStatus;
   message?: string;
   hasUnsavedChanges: boolean;
   targetWords?: number | null;
@@ -28,6 +29,8 @@ export function EditorToolbar({
   chapterTitle,
   chapterStatus,
   status,
+  message,
+  hasUnsavedChanges,
   isSaved,
   characterCount,
   targetWords,
@@ -42,6 +45,7 @@ export function EditorToolbar({
   const isBusy = status === "drafting" || status === "saving";
   const lastSavedRelative = useRelativeTime(lastSavedAt);
   const chapterCost = useChapterCost(novelId, chapterIndex);
+  const saveDisplay = getEditorSaveDisplay(status, hasUnsavedChanges, lastSavedRelative, message);
 
   return (
     <div className="flex flex-col gap-8 mb-10 animate-fade-in">
@@ -112,8 +116,14 @@ export function EditorToolbar({
         </div>
       </div>
 
-      {/* Writing meta row: word target + cost + last saved */}
-      <div className="flex flex-wrap items-center gap-4 text-[11px] text-text-dim font-bold uppercase tracking-wider">
+      <div className="flex flex-wrap items-center gap-3 text-[11px] text-text-dim font-bold uppercase tracking-wider">
+        <span
+          className={`inline-flex min-w-[156px] items-center gap-2 rounded-lg border px-2.5 py-1.5 normal-case tracking-normal ${saveDisplay.className}`}
+          title={saveDisplay.detail}
+        >
+          <span className={`h-2 w-2 rounded-full ${saveDisplay.dotClass} ${saveDisplay.pulse ? "animate-pulse" : ""}`} />
+          <span className="truncate">{saveDisplay.label}</span>
+        </span>
         <WordTarget characterCount={characterCount} target={targetWords} onSetTarget={onSetTargetWords} disabled={!isSaved} />
         {chapterCost !== null && (
           <>
@@ -126,18 +136,101 @@ export function EditorToolbar({
             </span>
           </>
         )}
-        <span className="h-3 w-px bg-border-strong" />
-        <span className="font-bold flex items-center gap-1.5">
-          <svg aria-hidden="true" className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          {lastSavedRelative ? `已于 ${lastSavedRelative} 保存` : "尚未保存到云端"}
-        </span>
       </div>
 
       <div className="h-px bg-gradient-to-r from-border-strong/40 via-border-strong/40 to-transparent w-full" />
     </div>
   );
+}
+
+interface EditorSaveDisplay {
+  label: string;
+  detail: string;
+  className: string;
+  dotClass: string;
+  pulse?: boolean;
+}
+
+export function getEditorSaveDisplay(
+  status: ChapterEditorStatus,
+  hasUnsavedChanges: boolean,
+  lastSavedRelative?: string,
+  message?: string,
+): EditorSaveDisplay {
+  const lastSavedText = lastSavedRelative ? `上次保存：${lastSavedRelative}` : "尚未保存到云端";
+  const cleanLabel = lastSavedRelative ? `已保存 · ${lastSavedRelative}` : "已同步";
+
+  if (status === "drafting") {
+    return {
+      label: "AI 生成中",
+      detail: message ?? lastSavedText,
+      className: "border-primary/20 bg-primary/5 text-primary",
+      dotClass: "bg-primary",
+      pulse: true,
+    };
+  }
+
+  if (status === "saving") {
+    return {
+      label: "正在保存",
+      detail: message ?? lastSavedText,
+      className: "border-blue-200 bg-blue-50 text-blue-700",
+      dotClass: "bg-blue-500",
+      pulse: true,
+    };
+  }
+
+  if (status === "conflict") {
+    return {
+      label: "版本冲突",
+      detail: message ?? "云端版本较新，请先处理冲突",
+      className: "border-amber-200 bg-amber-50 text-amber-800",
+      dotClass: "bg-amber-500",
+    };
+  }
+
+  if (status === "offline") {
+    return {
+      label: "离线未同步",
+      detail: message ?? "网络恢复后再同步到云端",
+      className: "border-red-200 bg-red-50 text-red-700",
+      dotClass: "bg-red-500",
+    };
+  }
+
+  if (status === "error") {
+    return {
+      label: "保存失败",
+      detail: message ?? lastSavedText,
+      className: "border-red-200 bg-red-50 text-red-700",
+      dotClass: "bg-red-500",
+    };
+  }
+
+  if (status === "dirty" || hasUnsavedChanges) {
+    return {
+      label: "有未保存修改",
+      detail: lastSavedText,
+      className: "border-amber-200 bg-amber-50 text-amber-700",
+      dotClass: "bg-amber-500",
+    };
+  }
+
+  if (status === "saved") {
+    return {
+      label: cleanLabel,
+      detail: message ?? lastSavedText,
+      className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      dotClass: "bg-emerald-500",
+    };
+  }
+
+  return {
+    label: cleanLabel,
+    detail: lastSavedText,
+    className: "border-border-subtle bg-secondary/60 text-text-secondary",
+    dotClass: "bg-text-dim",
+  };
 }
 
 function WordTarget({
@@ -275,7 +368,7 @@ function useRelativeTime(timestamp?: string): string | undefined {
   return new Date(timestamp).toLocaleString("zh-CN", { month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' });
 }
 
-function useChapterCost(novelId: string, _chapterIndex: number): { cost: number; calls: number } | null {
+function useChapterCost(novelId: string, chapterIndex: number): { cost: number; calls: number } | null {
   const [cost, setCost] = useState<{ cost: number; calls: number } | null>(null);
 
   useEffect(() => {
@@ -295,7 +388,7 @@ function useChapterCost(novelId: string, _chapterIndex: number): { cost: number;
       .catch(() => {});
 
     return () => { cancelled = true; };
-  }, [novelId]);
+  }, [chapterIndex, novelId]);
 
   return cost;
 }

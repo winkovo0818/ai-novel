@@ -3,10 +3,10 @@
 import { useCallback } from "react";
 
 import { deriveChapterStateFromDraft } from "@/lib/editor/chapterUtils";
+import type { ChapterEditorStatus } from "@/lib/editor/chapterUtils";
 import type { ChapterDraftView } from "./EditorClient";
 
 type ChapterEditorState = ReturnType<typeof deriveChapterStateFromDraft>;
-type EditorStatus = "idle" | "saving" | "saved" | "drafting" | "error";
 
 interface ChapterOutlineSlot {
   index: number;
@@ -29,7 +29,7 @@ interface UseChapterSelectionOptions {
   resetEditorState(next: ChapterEditorState): void;
   setSelectedIndex(value: number): void;
   setConflictChapter(value: ChapterDraftView | null): void;
-  setStatus(value: EditorStatus): void;
+  setStatus(value: ChapterEditorStatus): void;
   setMessage(value: string | undefined): void;
 }
 
@@ -81,7 +81,7 @@ export function useChapterSelection({
       setSelectedIndex(index);
       resetEditorState(next);
       setConflictChapter(null);
-      setStatus("idle");
+      setStatus("clean");
       setMessage(undefined);
     },
     [

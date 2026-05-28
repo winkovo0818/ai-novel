@@ -7,9 +7,9 @@ import {
   deriveChapterStateFromDraft,
   patchChapterInList,
 } from "@/lib/editor/chapterUtils";
+import type { ChapterEditorStatus } from "@/lib/editor/chapterUtils";
 import type { ChapterDraftView } from "./EditorClient";
 
-type EditorStatus = "idle" | "saving" | "saved" | "drafting" | "error";
 type ChapterEditorState = ReturnType<typeof deriveChapterStateFromDraft>;
 
 export interface ChapterVersionView {
@@ -28,7 +28,7 @@ interface UseChapterVersionsOptions {
   resetEditorState(next: ChapterEditorState): void;
   setChapters(updater: (current: ChapterDraftView[]) => ChapterDraftView[]): void;
   setConflictChapter(value: ChapterDraftView | null): void;
-  setStatus(value: EditorStatus): void;
+  setStatus(value: ChapterEditorStatus): void;
   setMessage(value: string | undefined): void;
   setChapterVersion(value: number): void;
 }
@@ -107,7 +107,8 @@ export function useChapterVersions({
       setChapterVersion(conflictChapter.version);
     }
     setConflictChapter(null);
-  }, [conflictChapter, setChapterVersion, setConflictChapter]);
+    setStatus("dirty");
+  }, [conflictChapter, setChapterVersion, setConflictChapter, setStatus]);
 
   return {
     versionsOpen,

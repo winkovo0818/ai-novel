@@ -2,8 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { DiffView } from "@/components/ui/DiffView";
+import type {
+  EditorSelection,
+  RetrievalExplanationPreview,
+  RetrievedMemoryPreview,
+} from "@/lib/editor/chapterUtils";
 
-export type CandidateMode = "replace" | "append" | "insert" | "discard";
+export type CandidateMode = "replace" | "append" | "insert" | "replace_selection" | "discard";
 
 interface CandidateCriticIssue {
   type: string;
@@ -15,6 +20,22 @@ interface CandidateCriticIssue {
 export interface CandidateCriticResult {
   consistent: boolean;
   issues: CandidateCriticIssue[];
+}
+
+export function getCandidateActionState(input: {
+  content: string;
+  streaming: boolean;
+  criticLoading: boolean;
+  revisionLoading?: boolean;
+}) {
+  const hasCandidateText = input.content.trim().length > 0;
+  const busy = input.streaming || input.criticLoading || Boolean(input.revisionLoading);
+
+  return {
+    hasCandidateText,
+    canApply: hasCandidateText && !busy,
+    canDiscard: !input.streaming,
+  };
 }
 
 interface CandidatePanelProps {
@@ -34,11 +55,12 @@ interface CandidatePanelProps {
   hasExistingContent: boolean;
   /** The current chapter body, used as the "before" side of the diff toggle. */
   currentContent: string;
-  cursorPos: number | null;
+  editorSelection: EditorSelection | null;
   /** Status of the RAG retrieval used for this draft (success/empty/error). */
   retrievalStatus?: string;
   /** M3.4: actual memory chunks the model received (truncated text). */
-  retrievedMemories?: Array<{ source: string; reason: string; score: number; text: string }>;
+  retrievedMemories?: RetrievedMemoryPreview[];
+  retrievalExplanation?: RetrievalExplanationPreview;
   /** Server-side retrieval error message, when status === "error". */
   retrievalError?: string;
   /** Error message from the draft SSE stream (timeout, moderation block, etc.). */
@@ -49,6 +71,7 @@ interface CandidatePanelProps {
   onRevise?(): void;
   onFeedbackRevise?(instruction: string): void;
   onRetryDraft?(): void;
+  onMemoryFeedback?(memoryChunkId: string, rating: "helpful" | "irrelevant"): Promise<void> | void;
   onClose(): void;
 }
 
@@ -61,9 +84,10 @@ export function CandidatePanel({
   criticError,
   hasExistingContent,
   currentContent,
-  cursorPos,
+  editorSelection,
   retrievalStatus,
   retrievedMemories,
+  retrievalExplanation,
   retrievalError,
   streamError,
   streamErrorRetryable,
@@ -72,11 +96,13 @@ export function CandidatePanel({
   onRevise,
   onFeedbackRevise,
   onRetryDraft,
+  onMemoryFeedback,
   onClose,
 }: CandidatePanelProps) {
   const [confirmingOverwrite, setConfirmingOverwrite] = useState<CandidateMode | null>(null);
   const [viewMode, setViewMode] = useState<"preview" | "diff">("preview");
   const [feedbackText, setFeedbackText] = useState("");
+  const [memoryFeedbackState, setMemoryFeedbackState] = useState<Record<string, "helpful" | "irrelevant" | "saving" | "error">>({});
   // Active candidate tab when multi-candidate generation produces >1 result.
   const [activeCandidate, setActiveCandidate] = useState<string>("c0");
   const multiCandidate = (candidates?.length ?? 0) > 1;
@@ -97,6 +123,12 @@ export function CandidatePanel({
   const activeContent = multiCandidate
     ? candidates?.find((c) => c.id === activeCandidate)?.content ?? content
     : content;
+  const actionState = getCandidateActionState({
+    content: activeContent,
+    streaming,
+    criticLoading,
+    revisionLoading,
+  });
   // When switching to the non-primary candidate, auto-trigger critic if
   // not already reviewed and critic is available.
   const handleCandidateSwitch = (id: string) => {
@@ -110,17 +142,34 @@ export function CandidatePanel({
   const hasBlockingIssue = criticResult?.issues.some(
     (i) => i.severity === "critical" || i.severity === "major",
   );
-  const charCount = content.replace(/\s/g, "").length;
-  const canAccept = !streaming && !criticLoading && !revisionLoading;
-  const canRevise = Boolean(onRevise && criticResult?.issues.length && !streaming && !criticLoading && !revisionLoading);
-  const canFeedbackRevise = Boolean(onFeedbackRevise && !streaming && !criticLoading && !revisionLoading);
+  const charCount = activeContent.replace(/\s/g, "").length;
+  const canAccept = actionState.canApply;
+  const cursorPos = editorSelection?.selectionStart ?? null;
+  const hasSelectionRange = Boolean(
+    editorSelection && editorSelection.selectionEnd > editorSelection.selectionStart,
+  );
+  const canRevise = Boolean(
+    onRevise &&
+      actionState.hasCandidateText &&
+      criticResult?.issues.length &&
+      !streaming &&
+      !criticLoading &&
+      !revisionLoading,
+  );
+  const canFeedbackRevise = Boolean(
+    onFeedbackRevise &&
+      actionState.hasCandidateText &&
+      !streaming &&
+      !criticLoading &&
+      !revisionLoading,
+  );
 
   const handleAccept = (mode: CandidateMode) => {
     if (mode === "discard") {
       onAccept(mode);
       return;
     }
-    // Overwrite/insert/append require an extra confirm if critic flagged blocking issues
+    // Overwrite/insert/append/selection replace require an extra confirm if critic flagged blocking issues
     // OR if replacing a non-trivial existing body.
     const needsConfirm =
       hasBlockingIssue ||
@@ -130,6 +179,17 @@ export function CandidatePanel({
       return;
     }
     onAccept(mode);
+  };
+
+  const submitMemoryFeedback = async (memoryChunkId: string, rating: "helpful" | "irrelevant") => {
+    if (!onMemoryFeedback) return;
+    setMemoryFeedbackState((current) => ({ ...current, [memoryChunkId]: "saving" }));
+    try {
+      await onMemoryFeedback(memoryChunkId, rating);
+      setMemoryFeedbackState((current) => ({ ...current, [memoryChunkId]: rating }));
+    } catch {
+      setMemoryFeedbackState((current) => ({ ...current, [memoryChunkId]: "error" }));
+    }
   };
 
   const handleConfirmOverwrite = () => {
@@ -196,7 +256,7 @@ export function CandidatePanel({
       </header>
 
       {/* Retrieval status — small line above critic banner */}
-      {retrievalStatus && retrievalStatus !== "success" && !streaming && (
+      {retrievalStatus && retrievalStatus !== "success" && (
         <div
           className={`px-6 py-2 text-[11px] border-b ${
             retrievalStatus === "error"
@@ -205,8 +265,8 @@ export function CandidatePanel({
           }`}
         >
           {retrievalStatus === "error"
-            ? `记忆检索失败 · 本次起草未引用历史章节${retrievalError ? `（${retrievalError}）` : ""}`
-            : "未检索到长程记忆 · 基于 Bible 与章节摘要生成"}
+            ? `记忆检索失败 · 已降级为无检索生成${retrievalError ? `（${retrievalError}）` : ""}`
+            : "未检索到长程记忆 · 正基于 Bible 与章节摘要生成"}
         </div>
       )}
 
@@ -223,6 +283,15 @@ export function CandidatePanel({
             </svg>
           </summary>
           <ul className="px-6 pb-3 pt-1 space-y-2">
+            {retrievalExplanation && (
+              <li className="text-[11px] leading-relaxed border border-border-subtle bg-white rounded-md px-3 py-2">
+                <p className="font-bold text-text-primary mb-1">召回策略</p>
+                <div className="space-y-1 text-text-muted">
+                  <p>Query expansion：{retrievalExplanation.queryTexts.slice(0, 3).join(" / ")}</p>
+                  <p>Keyword filters：{retrievalExplanation.keywordFilters.slice(0, 8).join(" · ") || "无"}</p>
+                </div>
+              </li>
+            )}
             {retrievedMemories.map((m, i) => (
               <li
                 key={i}
@@ -239,7 +308,59 @@ export function CandidatePanel({
                 {m.reason && (
                   <p className="text-text-muted mb-1">{m.reason}</p>
                 )}
+                {m.explanation && (
+                  <div className="mb-2 flex flex-wrap gap-1.5">
+                    {m.explanation.chunkType && (
+                      <MemoryReasonPill label="类型" value={m.explanation.chunkType} />
+                    )}
+                    {typeof m.explanation.similarity === "number" && (
+                      <MemoryReasonPill label="相似度" value={`${(m.explanation.similarity * 100).toFixed(1)}%`} />
+                    )}
+                    {typeof m.explanation.chapterDistance === "number" && (
+                      <MemoryReasonPill label="距离" value={`${m.explanation.chapterDistance} 章`} />
+                    )}
+                    {typeof m.explanation.timeDecay === "number" && (
+                      <MemoryReasonPill label="衰减" value={`${(m.explanation.timeDecay * 100).toFixed(0)}%`} />
+                    )}
+                    {typeof m.explanation.importance === "number" && (
+                      <MemoryReasonPill label="重要性" value={m.explanation.importance.toFixed(2)} />
+                    )}
+                    {m.explanation.matchedKeywords?.slice(0, 4).map((keyword) => (
+                      <MemoryReasonPill key={keyword} label="关键词" value={keyword} />
+                    ))}
+                  </div>
+                )}
                 <p className="text-text-secondary whitespace-pre-wrap break-words">{m.text}</p>
+                {m.id && onMemoryFeedback && (
+                  <div className="mt-2 flex items-center gap-2 border-t border-border-subtle pt-2">
+                    <button
+                      onClick={() => void submitMemoryFeedback(m.id!, "helpful")}
+                      disabled={memoryFeedbackState[m.id] === "saving"}
+                      className="text-[10px] font-bold text-emerald-700 hover:underline disabled:opacity-50"
+                    >
+                      有用
+                    </button>
+                    <button
+                      onClick={() => void submitMemoryFeedback(m.id!, "irrelevant")}
+                      disabled={memoryFeedbackState[m.id] === "saving"}
+                      className="text-[10px] font-bold text-red-600 hover:underline disabled:opacity-50"
+                    >
+                      不相关
+                    </button>
+                    {memoryFeedbackState[m.id] && memoryFeedbackState[m.id] !== "saving" && (
+                      <span className="text-[10px] text-text-muted">
+                        {memoryFeedbackState[m.id] === "error"
+                          ? "标记失败"
+                          : memoryFeedbackState[m.id] === "helpful"
+                            ? "已标记有用"
+                            : "已标记不相关"}
+                      </span>
+                    )}
+                    {memoryFeedbackState[m.id] === "saving" && (
+                      <span className="text-[10px] text-text-muted">保存中…</span>
+                    )}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -251,17 +372,34 @@ export function CandidatePanel({
         <div className={`px-6 py-3 border-b ${streamErrorRetryable ? "bg-amber-50 border-amber-100" : "bg-red-50 border-red-100"}`}>
           <p className={`text-[12px] ${streamErrorRetryable ? "text-amber-800" : "text-red-800"}`}>
             <strong>{streamErrorRetryable ? "生成中断" : "生成被拦截"}</strong>：{streamError}
-            {content.trim().length > 0 && " · 已保留部分内容，可选择应用或丢弃"}
+            {actionState.hasCandidateText
+              ? " · 已保留部分内容，可选择应用或丢弃"
+              : streamErrorRetryable
+                ? " · 未生成可用正文，可重新生成"
+                : " · 请修改输入后再重新尝试"}
           </p>
-          {streamErrorRetryable && onRetryDraft && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {streamErrorRetryable && onRetryDraft && (
+              <button
+                type="button"
+                onClick={onRetryDraft}
+                className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full bg-amber-600 text-white hover:bg-amber-700 transition"
+              >
+                重新生成
+              </button>
+            )}
             <button
               type="button"
-              onClick={onRetryDraft}
-              className="mt-2 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full bg-amber-600 text-white hover:bg-amber-700 transition"
+              onClick={() => handleAccept("discard")}
+              className={`px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full border transition ${
+                streamErrorRetryable
+                  ? "border-amber-200 text-amber-800 hover:bg-amber-100"
+                  : "border-red-200 text-red-800 hover:bg-red-100"
+              }`}
             >
-              重新生成
+              丢弃本次结果
             </button>
-          )}
+          </div>
         </div>
       )}
 
@@ -354,7 +492,7 @@ export function CandidatePanel({
 
       {/* View mode toggle — only meaningful once streaming is done and there
           is an existing body to diff against. */}
-      {!streaming && hasExistingContent && content.length > 0 && (
+      {!streaming && hasExistingContent && actionState.hasCandidateText && (
         <div className="flex items-center gap-1 px-6 py-2 border-b border-border-subtle bg-secondary/10">
           <button
             onClick={() => setViewMode("preview")}
@@ -382,7 +520,7 @@ export function CandidatePanel({
 
       {/* Candidate body preview */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-        {streaming && content.length === 0 ? (
+        {streaming && !actionState.hasCandidateText ? (
           <div className="text-center py-12 text-sm text-text-muted flex flex-col items-center gap-3">
             <svg aria-hidden="true" className="w-6 h-6 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -390,7 +528,19 @@ export function CandidatePanel({
             </svg>
             等待首段内容…
           </div>
-        ) : (criticLoading || revisionLoading) && content.length > 0 ? (
+        ) : streamError && !streaming && !actionState.hasCandidateText ? (
+          <div className="text-center py-12 text-sm text-text-muted flex flex-col items-center gap-3">
+            <svg aria-hidden="true" className={`w-6 h-6 ${streamErrorRetryable ? "text-amber-600" : "text-red-600"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <p className="font-bold text-text-secondary">本次没有生成可用正文</p>
+              <p className="mt-1 text-[12px] text-text-muted">
+                {streamErrorRetryable ? "可以重新生成，或丢弃后调整输入。" : "请丢弃本次结果，调整输入后再尝试。"}
+              </p>
+            </div>
+          </div>
+        ) : (criticLoading || revisionLoading) && actionState.hasCandidateText ? (
           <div className="space-y-4 py-4">
             <article className="font-serif text-[15px] leading-[1.9] text-text-primary whitespace-pre-wrap break-words">
               {activeContent}
@@ -406,8 +556,8 @@ export function CandidatePanel({
               {revisionLoading ? "模型正在思考修订方案，可能需要 1–2 分钟，请耐心等待…" : "正在分析候选稿质量，即将完成…"}
             </div>
           </div>
-        ) : viewMode === "diff" && !streaming && hasExistingContent ? (
-          <DiffView before={currentContent} after={content} />
+        ) : viewMode === "diff" && !streaming && hasExistingContent && actionState.hasCandidateText ? (
+          <DiffView before={currentContent} after={activeContent} />
         ) : (
           <article className="font-serif text-[15px] leading-[1.9] text-text-primary whitespace-pre-wrap break-words">
             {activeContent}
@@ -496,9 +646,15 @@ export function CandidatePanel({
             onClick={() => handleAccept("insert")}
           />
           <ActionButton
+            label="替换选区"
+            tooltip={hasSelectionRange ? "只替换当前选中的正文片段" : "需先在正文中选中一段文本"}
+            disabled={!canAccept || !hasSelectionRange}
+            onClick={() => handleAccept("replace_selection")}
+          />
+          <ActionButton
             label="放弃候选稿"
             tooltip="丢弃这次生成结果，正文保持不变"
-            disabled={streaming}
+            disabled={!actionState.canDiscard}
             danger
             outline
             onClick={() => handleAccept("discard")}
@@ -544,6 +700,14 @@ export function CandidatePanel({
         </div>
       )}
     </aside>
+  );
+}
+
+function MemoryReasonPill({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="rounded-full border border-border-subtle bg-secondary/40 px-2 py-0.5 text-[10px] text-text-muted">
+      <span className="font-bold text-text-secondary">{label}</span> {value}
+    </span>
   );
 }
 

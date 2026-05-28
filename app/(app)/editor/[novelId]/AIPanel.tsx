@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import type { BibleDraft } from "@/lib/validation/schemas";
+import type { BibleDraft, ChapterRevisionOperation } from "@/lib/validation/schemas";
+import type { ChapterEditorStatus, EditorSelection } from "@/lib/editor/chapterUtils";
 import type { ConsistencyResult } from "./useChapterActions";
 import { BeatSheetPanel, type BeatItem } from "./BeatSheetPanel";
 
@@ -16,12 +17,16 @@ interface AIPanelProps {
   onClose(): void;
   bible: BibleDraft;
   novelId: string;
-  status: "idle" | "saving" | "saved" | "drafting" | "error";
+  status: ChapterEditorStatus;
   message?: string;
   selectedOutline?: { summary?: string } | null;
   selectedChapterIndex: number;
   chapterTitle: string;
+  editorSelection: EditorSelection | null;
   onDraftChapter(): void;
+  onReviseSelection(operation: ChapterRevisionOperation): void;
+  localRevisionLoading?: boolean;
+  localRevisionError?: string;
   /** Draft with pre-approved memories from the preview flow. */
   onDraftWithMemories(memories: MemoryPreviewItem[]): void;
   onRunConsistency(): void;
@@ -39,6 +44,16 @@ interface AIPanelProps {
   onClearBeats(): void;
   onDraftWithBeats(): void;
 }
+
+const LOCAL_REVISION_ACTIONS: Array<{ operation: ChapterRevisionOperation; label: string }> = [
+  { operation: "polish", label: "润色" },
+  { operation: "humanize", label: "去AI味" },
+  { operation: "expand", label: "扩写" },
+  { operation: "shorten", label: "缩写" },
+  { operation: "dialogue", label: "对白" },
+  { operation: "intensify_conflict", label: "冲突" },
+  { operation: "continue", label: "续写" },
+];
 
 function AIActionBtn({ label, icon, onClick, disabled }: { label: string; icon: React.ReactNode; onClick?: () => void; disabled?: boolean }) {
   return (
@@ -66,7 +81,11 @@ export function AIPanel({
   selectedOutline,
   selectedChapterIndex,
   chapterTitle,
+  editorSelection,
   onDraftChapter,
+  onReviseSelection,
+  localRevisionLoading = false,
+  localRevisionError,
   onDraftWithMemories,
   onRunConsistency,
   consistencyRunning,
@@ -111,6 +130,15 @@ export function AIPanel({
       });
     }
   };
+
+  const handleDraftWithoutMemoryPreview = () => {
+    setMemoryPreview(null);
+    onDraftChapter();
+  };
+  const selectedText = editorSelection?.selectedText.trim() ?? "";
+  const hasSelectedText = selectedText.length > 0;
+  const localRevisionDisabled = status === "drafting" || localRevisionLoading || !hasSelectedText;
+
   return (
     <aside
       className={`bg-white border-l border-border-subtle h-full flex flex-col transition-all duration-500 ease-in-out shadow-premium relative z-20 ${
@@ -127,10 +155,10 @@ export function AIPanel({
             </div>
             <div className="flex flex-col">
               <span className={`${isCompact ? "text-[10px]" : "text-[11px]"} font-bold text-text-primary uppercase tracking-[0.2em] transition-all`}>灵感助手</span>
-              {!isCompact && <span className="text-[9px] font-medium text-text-dim uppercase tracking-wider mt-0.5">Neural Creative Engine</span>}
+              {!isCompact && <span className="text-[9px] font-medium text-text-dim uppercase tracking-wider mt-0.5">写作辅助</span>}
             </div>
           </div>
-          <button onClick={onClose} aria-label="关闭 AI 创作助手" className="p-2 hover:bg-secondary rounded-xl text-text-dim hover:text-text-primary transition">
+          <button onClick={onClose} aria-label="关闭写作助手" className="p-2 hover:bg-secondary rounded-xl text-text-dim hover:text-text-primary transition">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -140,7 +168,7 @@ export function AIPanel({
         <div className={`flex-1 overflow-y-auto ${isCompact ? "p-4 space-y-6" : "p-6 space-y-10"} custom-scrollbar transition-all`}>
           <section className="animate-fade-in">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">{isCompact ? "创作指令" : "创作指令 / COMMANDS"}</h3>
+              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">{isCompact ? "写作操作" : "写作操作"}</h3>
               <div className="h-px flex-1 bg-border-subtle ml-4 opacity-50" />
             </div>
             <div className={`grid ${isCompact ? "grid-cols-1" : "grid-cols-2"} gap-3 transition-all`}>
@@ -155,13 +183,13 @@ export function AIPanel({
                 icon={<svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z" /></svg>} 
               />
               <AIActionBtn 
-                label="逻辑审计" 
+                label="一致性检查" 
                 icon={<svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>} 
                 onClick={onRunConsistency} 
                 disabled={consistencyRunning} 
               />
               <AIActionBtn 
-                label="时态追踪" 
+                label="状态分析" 
                 icon={<svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} 
                 onClick={onGenerateStateDiff} 
                 disabled={stateDiffLoading} 
@@ -169,9 +197,48 @@ export function AIPanel({
             </div>
           </section>
 
+          <section className="animate-fade-in delay-75">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">{isCompact ? "局部改写" : "局部改写 / SELECTION"}</h3>
+              <div className="h-px flex-1 bg-border-subtle ml-4 opacity-50" />
+            </div>
+            <div className="rounded-2xl border border-border-subtle bg-secondary/20 p-3">
+              <div className="mb-3 rounded-xl bg-white border border-border-subtle px-3 py-2">
+                {hasSelectedText ? (
+                  <>
+                    <div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-wider text-text-dim">
+                      <span>已选中</span>
+                      <span>{selectedText.length} 字</span>
+                    </div>
+                    <p className="mt-1 text-[12px] leading-relaxed text-text-secondary line-clamp-2">{selectedText}</p>
+                  </>
+                ) : (
+                  <p className="text-[12px] leading-relaxed text-text-muted">先在正文中选中文本，再使用局部改写。</p>
+                )}
+              </div>
+              <div className={`grid ${isCompact ? "grid-cols-2" : "grid-cols-3"} gap-2`}>
+                {LOCAL_REVISION_ACTIONS.map((action) => (
+                  <button
+                    key={action.operation}
+                    type="button"
+                    onClick={() => onReviseSelection(action.operation)}
+                    disabled={localRevisionDisabled}
+                    title={hasSelectedText ? `${action.label}选中文本` : "请先选中文本"}
+                    className="px-3 py-2 text-[11px] font-bold rounded-lg border border-border-subtle bg-white text-text-secondary hover:border-primary/30 hover:text-primary hover:bg-primary/5 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {localRevisionLoading ? "处理中" : action.label}
+                  </button>
+                ))}
+              </div>
+              {localRevisionError && (
+                <p className="mt-2 text-[11px] leading-relaxed text-red-600">{localRevisionError}</p>
+              )}
+            </div>
+          </section>
+
           <section className="animate-fade-in delay-100">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">{isCompact ? "叙事蓝图" : "叙事蓝图 / BLUEPRINT"}</h3>
+              <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">{isCompact ? "章节提示" : "章节提示"}</h3>
               <div className="h-px flex-1 bg-border-subtle ml-4 opacity-50" />
             </div>
             <div className="p-5 bg-secondary/30 rounded-2xl text-[13px] text-text-secondary leading-relaxed border border-border-subtle/50 relative overflow-hidden shadow-inner group">
@@ -226,7 +293,7 @@ export function AIPanel({
           {(consistencyRunning || consistencyResult || consistencyError) && (
             <section className="animate-fade-in">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">一致性审计报告</h3>
+                <h3 className="text-[10px] font-bold text-text-dim uppercase tracking-[0.2em]">一致性检查结果</h3>
                 <div className="h-px flex-1 bg-border-subtle ml-4 opacity-50" />
               </div>
               {consistencyRunning && (
@@ -235,7 +302,7 @@ export function AIPanel({
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  <span className="font-bold tracking-tight">AI 正在审阅全文设定的一致性…</span>
+                  <span className="font-bold tracking-tight">正在检查全文设定的一致性…</span>
                 </div>
               )}
               {!consistencyRunning && consistencyError && (
@@ -322,17 +389,36 @@ export function AIPanel({
             </div>
           )}
           {memoryPreview?.error && (
-            <div className="mb-3 p-3 bg-amber-50 border border-amber-100 rounded-xl text-[11px] text-amber-700">
-              {memoryPreview.error}
+            <div className="mb-3 p-3 bg-amber-50 border border-amber-100 rounded-xl text-[11px] text-amber-800 leading-relaxed">
+              <p className="font-bold">记忆检索失败</p>
+              <p className="mt-1">{memoryPreview.error}</p>
             </div>
           )}
 
           {/* Buttons: preview or draft */}
-          {memoryPreview && !memoryPreview.loading && !memoryPreview.error ? (
+          {memoryPreview?.error ? (
             <div className="flex gap-2">
               <button
                 className="flex-1 btn-secondary py-3 rounded-xl text-[11px]"
-                onClick={() => setMemoryPreview(null)}
+                onClick={handlePreviewMemories}
+                disabled={status === "drafting"}
+              >
+                重新检索
+              </button>
+              <button
+                className="flex-1 btn-primary py-3 rounded-xl text-[11px] shadow-lg shadow-primary/20"
+                onClick={handleDraftWithoutMemoryPreview}
+                disabled={status === "drafting"}
+              >
+                跳过检索生成
+              </button>
+            </div>
+          ) : memoryPreview && !memoryPreview.loading ? (
+            <div className="flex gap-2">
+              <button
+                className="flex-1 btn-secondary py-3 rounded-xl text-[11px]"
+                onClick={handlePreviewMemories}
+                disabled={status === "drafting"}
               >
                 重新检索
               </button>
@@ -363,7 +449,7 @@ export function AIPanel({
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
-                    <span className={`uppercase tracking-[0.15em] ${isCompact ? "text-[10px]" : "text-xs"} font-bold`}>{isCompact ? "思考中…" : "思考引擎运行中…"}</span>
+                    <span className={`uppercase tracking-[0.15em] ${isCompact ? "text-[10px]" : "text-xs"} font-bold`}>{isCompact ? "生成中…" : "正在生成正文…"}</span>
                   </>
                 ) : (
                   <>
@@ -381,4 +467,3 @@ export function AIPanel({
     </aside>
   );
 }
-

@@ -8,12 +8,12 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: false,
-    include: ["lib/**/*.test.ts", "app/**/*.test.ts", "scripts/**/*.test.ts"],
+    include: ["lib/**/*.test.ts", "app/**/*.test.ts", "components/**/*.test.ts", "scripts/**/*.test.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json-summary"],
       reportsDirectory: "./coverage",
-      include: ["lib/**/*.ts", "app/**/*.ts"],
+      include: ["lib/**/*.ts", "app/**/*.ts", "components/**/*.ts"],
       exclude: [
         "**/*.test.ts",
         "**/*.d.ts",

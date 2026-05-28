@@ -1,9 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import type { BibleDraft } from "@/lib/validation/schemas";
-import { applyStateDiff } from "@/lib/validation/stateDiffMerge";
-import { getChapterContentLimitState } from "@/lib/editor/chapterUtils";
+import { applyStateDiff, detectStateDiffConflicts } from "@/lib/validation/stateDiffMerge";
+import {
+  buildOfflineChapterDraftKey,
+  getChapterContentLimitState,
+  markChapterEditorDirty,
+  normalizeEditorSelection,
+  parseOfflineChapterDraft,
+  type EditorSelection,
+  type OfflineChapterDraft,
+} from "@/lib/editor/chapterUtils";
 import { EditorSidebar } from "./EditorSidebar";
 import { EditorToolbar } from "./EditorToolbar";
 import { useChapterEditor } from "./useChapterEditor";
@@ -57,16 +66,21 @@ function readStoredFontScale(): FontScale {
 
 export function EditorClient({ novelId, title, bible: initialBible, initialChapters, initialChapterIndex }: EditorClientProps) {
   const [bible, setBible] = useState(initialBible);
-  const editor = useChapterEditor({ novelId, bible, initialChapters, initialChapterIndex });
   const online = useOnlineStatus();
+  const editor = useChapterEditor({ novelId, bible, initialChapters, initialChapterIndex, online });
   const [showBible, setShowBible] = useState(true);
   const [showAI, setShowAI] = useState(true);
   const [isAICompact, setIsAICompact] = useState(true);
-  const [cursorPos, setCursorPosState] = useState<number | null>(null);
+  const [editorSelection, setEditorSelectionState] = useState<EditorSelection | null>(null);
+  const [offlineDraft, setOfflineDraft] = useState<OfflineChapterDraft | null>(null);
   // Default to "md" on the server render to avoid hydration mismatch; the
   // effect below pulls the persisted preference on the client.
   const [fontScale, setFontScale] = useState<FontScale>("md");
   const contentLimit = getChapterContentLimitState(editor.content);
+  const stateDiffWarnings = useMemo(
+    () => (editor.stateDiff ? detectStateDiffConflicts(bible, editor.stateDiff) : []),
+    [bible, editor.stateDiff],
+  );
 
   useEffect(() => {
     setFontScale(readStoredFontScale());
@@ -77,9 +91,48 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
     window.localStorage.setItem(FONT_STORAGE_KEY, fontScale);
   }, [fontScale]);
 
-  const updateCursorPos = (pos: number | null) => {
-    setCursorPosState(pos);
-    editor.setCursorPos(pos);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = buildOfflineChapterDraftKey(novelId, editor.selectedIndex);
+    const draft = parseOfflineChapterDraft(window.localStorage.getItem(key));
+    setOfflineDraft(draft);
+  }, [editor.selectedIndex, novelId]);
+
+  const clearOfflineDraft = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(buildOfflineChapterDraftKey(novelId, editor.selectedIndex));
+    }
+    setOfflineDraft(null);
+    if (editor.status === "offline") {
+      editor.setStatus(editor.hasUnsavedChanges ? "dirty" : "clean");
+    }
+  };
+
+  const applyOfflineDraft = () => {
+    if (!offlineDraft) return;
+    editor.setChapterTitle(offlineDraft.title);
+    editor.setContent(offlineDraft.content);
+    editor.setChapterStatus(offlineDraft.status);
+    editor.setStatus("dirty");
+    clearOfflineDraft();
+  };
+
+  const syncOfflineDraft = async () => {
+    if (!offlineDraft) return;
+    try {
+      await editor.saveOfflineDraft(offlineDraft);
+      clearOfflineDraft();
+    } catch {
+      // The editor status/message already explains the failure.
+    }
+  };
+
+  const updateEditorSelection = (input: HTMLTextAreaElement | null) => {
+    const nextSelection = input
+      ? normalizeEditorSelection(input.value, input.selectionStart, input.selectionEnd)
+      : null;
+    setEditorSelectionState(nextSelection);
+    editor.setEditorSelection(nextSelection);
   };
 
   return (
@@ -115,6 +168,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
             isBusy={editor.status === "drafting" || editor.status === "saving"}
             onSelectChapter={(index) => {
               editor.selectChapter(index);
+              updateEditorSelection(null);
             }}
             onBibleUpdate={(updated) => setBible(updated)}
           />
@@ -193,13 +247,30 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               </button>
             )}
 
-            {(editor.status !== "idle" || editor.chapterStatus === "done") && (
-              <StatusTag type={editor.status === "drafting" ? "drafting" : editor.status === "saving" ? "saving" : editor.chapterStatus === "done" ? "done" : "idle"} />
+            {(editor.status !== "clean" || editor.chapterStatus === "done") && (
+              <StatusTag
+                type={
+                  editor.status === "clean" && editor.chapterStatus === "done"
+                    ? "done"
+                    : editor.status
+                }
+              />
             )}
             
             <div className="h-4 w-px bg-border-strong/50 mx-1" />
             
             <JobsBadge novelId={novelId} />
+
+            <Link
+              href={`/novels/${novelId}/memories`}
+              className="p-2 rounded-lg transition text-text-muted hover:bg-secondary hover:text-text-primary"
+              title="打开记忆库"
+              aria-label="打开记忆库"
+            >
+              <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6c0-1.657 3.582-3 8-3s8 1.343 8 3-3.582 3-8 3-8-1.343-8-3zm0 0v6c0 1.657 3.582 3 8 3s8-1.343 8-3V6m-16 6v6c0 1.657 3.582 3 8 3s8-1.343 8-3v-6" />
+              </svg>
+            </Link>
 
             {/* M3.4.4 reading font scale — small / medium / large. Persisted to
                 localStorage so long sessions keep the user's preference across
@@ -230,12 +301,12 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
             
             <button
               onClick={() => setShowAI(!showAI)}
-              aria-label={showAI ? "收起 AI 创作助手" : "展开 AI 创作助手"}
+              aria-label={showAI ? "收起写作助手" : "展开写作助手"}
               aria-expanded={showAI}
               className={`p-2 rounded-xl transition duration-300 ${
                 showAI ? "bg-text-primary text-white shadow-premium scale-105" : "text-text-dim hover:bg-secondary hover:text-text-primary"
               }`}
-              title="AI 创作助手"
+              title="写作助手"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -274,12 +345,12 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               lastSavedAt={editor.lastSavedAt}
               onTitleChange={(nextTitle) => {
                 editor.setChapterTitle(nextTitle);
-                if (editor.status === "saved") editor.setStatus("idle");
+                editor.setStatus(markChapterEditorDirty(editor.status));
               }}
           onDraftChapter={editor.draftChapter}
               onToggleStatus={() => {
                 editor.setChapterStatus((current) => current === "done" ? "draft" : "done");
-                if (editor.status === "saved") editor.setStatus("idle");
+                editor.setStatus(markChapterEditorDirty(editor.status));
               }}
               onSave={editor.saveChapter}
               onDeleteChapter={editor.deleteChapter}
@@ -312,6 +383,38 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
                     className="px-4 py-1.5 text-[11px] font-bold rounded-lg border border-amber-200 text-amber-800 hover:bg-amber-100 transition-colors"
                   >
                     忽略
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {offlineDraft && !editor.conflictChapter && (
+              <div className="mt-8 rounded-lg border border-blue-200 bg-blue-50/70 p-4 flex flex-wrap items-center justify-between gap-4 animate-slide-in">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-bold text-blue-900">发现本地未同步草稿</p>
+                  <p className="text-[12px] text-blue-800/80 truncate">
+                    第 {offlineDraft.chapterIndex} 章 · {offlineDraft.content.length.toLocaleString()} 字 · {new Date(offlineDraft.savedAt).toLocaleString("zh-CN")}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => void syncOfflineDraft()}
+                    disabled={!online || editor.status === "saving" || editor.status === "drafting"}
+                    className="px-4 py-1.5 text-[11px] font-bold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    同步本地草稿
+                  </button>
+                  <button
+                    onClick={applyOfflineDraft}
+                    className="px-4 py-1.5 text-[11px] font-bold rounded-lg border border-blue-200 text-blue-800 hover:bg-blue-100 transition-colors"
+                  >
+                    载入编辑器
+                  </button>
+                  <button
+                    onClick={clearOfflineDraft}
+                    className="px-4 py-1.5 text-[11px] font-bold rounded-lg border border-blue-200 text-blue-800 hover:bg-blue-100 transition-colors"
+                  >
+                    丢弃
                   </button>
                 </div>
               </div>
@@ -383,17 +486,17 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
                 value={editor.content}
                 onChange={(event) => {
                   editor.setContent(event.target.value);
-                  updateCursorPos(event.target.selectionStart);
-                  if (editor.status === "saved") editor.setStatus("idle");
+                  updateEditorSelection(event.target);
+                  editor.setStatus(markChapterEditorDirty(editor.status));
                 }}
                 onSelect={(event) => {
-                  updateCursorPos((event.target as HTMLTextAreaElement).selectionStart);
+                  updateEditorSelection(event.target as HTMLTextAreaElement);
                 }}
                 onClick={(event) => {
-                  updateCursorPos((event.target as HTMLTextAreaElement).selectionStart);
+                  updateEditorSelection(event.target as HTMLTextAreaElement);
                 }}
                 onKeyUp={(event) => {
-                  updateCursorPos((event.target as HTMLTextAreaElement).selectionStart);
+                  updateEditorSelection(event.target as HTMLTextAreaElement);
                 }}
               />
             </div>
@@ -420,8 +523,12 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
             selectedOutline={editor.selectedOutline}
             selectedChapterIndex={editor.selectedIndex}
             chapterTitle={editor.chapterTitle}
+            editorSelection={editorSelection}
+            onReviseSelection={editor.reviseSelection}
+            localRevisionLoading={editor.localRevisionLoading}
+            localRevisionError={editor.localRevisionError}
             onDraftWithMemories={editor.draftChapterWithMemories}
-          onDraftChapter={editor.draftChapter}
+            onDraftChapter={editor.draftChapter}
             onRunConsistency={editor.runConsistency}
             consistencyRunning={editor.consistencyRunning}
             consistencyResult={editor.consistencyResult}
@@ -458,6 +565,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
           loading={editor.stateDiffLoading}
           error={editor.stateDiffError}
           diff={editor.stateDiff}
+          warnings={stateDiffWarnings}
           onClose={editor.closeStateDiff}
           onAccept={(diff) => {
             const updated = applyStateDiff(bible, diff, editor.selectedIndex);
@@ -492,8 +600,9 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
           criticError={editor.candidateCriticError}
           hasExistingContent={editor.content.trim().length > 0}
           currentContent={editor.content}
-          cursorPos={cursorPos}
+          editorSelection={editorSelection}
           retrievalStatus={editor.lastRetrievalStatus}
+          retrievalExplanation={editor.lastRetrievalExplanation}
           retrievedMemories={editor.lastRetrievedMemories}
           retrievalError={editor.lastRetrievalError}
           streamError={editor.candidateStreamError}
@@ -502,6 +611,18 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
           onAccept={(mode) => editor.acceptCandidate(mode)}
           onRevise={() => editor.reviseCandidate()}
             onFeedbackRevise={(instruction) => editor.feedbackRevise(instruction)}
+          onMemoryFeedback={async (memoryChunkId, rating) => {
+            const response = await fetch(`/api/novels/${novelId}/memories/feedback`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                memory_chunk_id: memoryChunkId,
+                rating,
+              }),
+            });
+            const json = await response.json();
+            if (!json.ok) throw new Error(json.error?.message ?? "记忆反馈保存失败");
+          }}
           onRetryDraft={() => editor.draftChapter()}
           onClose={() => editor.acceptCandidate("discard")}
         />

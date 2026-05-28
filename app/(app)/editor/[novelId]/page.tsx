@@ -30,7 +30,7 @@ export default async function EditorPlaceholderPage({ params, searchParams }: Pa
     },
   });
 
-  if (!novel || !novel.bible) notFound();
+  if (!novel || novel.deleted_at || !novel.bible) notFound();
   if (!canAccessOwnerResource(novel.user_id, userId)) notFound();
 
   const bible = BibleDraftSchema.safeParse(novel.bible.content);

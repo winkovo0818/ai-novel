@@ -7,9 +7,9 @@ import {
   buildDeleteChapterRequest,
   deriveChapterStateFromDraft,
 } from "@/lib/editor/chapterUtils";
+import type { ChapterEditorStatus } from "@/lib/editor/chapterUtils";
 import type { ChapterDraftView } from "./EditorClient";
 
-type EditorStatus = "idle" | "saving" | "saved" | "drafting" | "error";
 type ChapterEditorState = ReturnType<typeof deriveChapterStateFromDraft>;
 
 export interface ConsistencyIssue {
@@ -37,7 +37,7 @@ interface UseChapterActionsOptions {
   }): Promise<boolean>;
   resetEditorState(next: ChapterEditorState): void;
   setChapters(updater: (current: ChapterDraftView[]) => ChapterDraftView[]): void;
-  setStatus(value: EditorStatus): void;
+  setStatus(value: ChapterEditorStatus): void;
   setMessage(value: string | undefined): void;
 }
 
@@ -81,7 +81,7 @@ export function useChapterActions({
 
       setChapters((current) => current.filter((chapter) => chapter.id !== chapterId));
       resetEditorState(deriveChapterStateFromDraft(undefined, selectedOutlineTitle, selectedIndex));
-      setStatus("idle");
+      setStatus("clean");
       setMessage("章节已删除");
     } catch (err) {
       setStatus("error");

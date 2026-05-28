@@ -2,11 +2,20 @@ import type { ChapterDraftView } from "@/app/(app)/editor/[novelId]/EditorClient
 import type { CandidateMode } from "@/app/(app)/editor/[novelId]/CandidatePanel";
 import type { BeatItem } from "@/app/(app)/editor/[novelId]/BeatSheetPanel";
 import { CHAPTER_CONTENT_MAX_CHARS } from "@/lib/validation/schemas";
+import type { ChapterRevisionOperation } from "@/lib/validation/schemas";
 import type { StateDiff } from "@/lib/validation/schemas";
 
 export type ChapterStatus = "draft" | "done";
 export type ChapterSaveSource = "autosave" | "manual" | "ai";
-export type ChapterEditorStatus = "idle" | "saving" | "saved" | "drafting" | "error";
+export type ChapterEditorStatus =
+  | "clean"
+  | "dirty"
+  | "saving"
+  | "saved"
+  | "conflict"
+  | "offline"
+  | "error"
+  | "drafting";
 
 export interface ChapterEditorState {
   chapterId?: string;
@@ -22,6 +31,17 @@ export interface ChapterTextState {
   title: string;
   content: string;
   status: ChapterStatus;
+}
+
+export interface OfflineChapterDraft {
+  novelId: string;
+  chapterIndex: number;
+  chapterId?: string;
+  title: string;
+  content: string;
+  status: ChapterStatus;
+  version: number;
+  savedAt: string;
 }
 
 export interface ChapterContentLimitState {
@@ -114,6 +134,16 @@ export interface CandidateRevisionRequestInput extends CandidateCriticRequestInp
   }>;
 }
 
+export interface LocalRevisionRequestInput {
+  novelId: string;
+  selectedIndex: number;
+  title: string;
+  operation: ChapterRevisionOperation;
+  selectedText: string;
+  beforeContext: string;
+  afterContext: string;
+}
+
 export interface DraftCandidate {
   id: string;
   label: string;
@@ -126,11 +156,35 @@ export interface DraftSseState {
   /** All candidates when multi-candidate generation is active. */
   candidates?: DraftCandidate[];
   streamError?: string;
+  streamErrorCode?: string;
+  streamErrorRetryable?: boolean;
   sessionId?: string;
   retrievalStatus?: string;
   retrievalError?: string;
-  retrievedMemories?: Array<{ source: string; reason: string; score: number; text: string }>;
+  retrievedMemories?: RetrievedMemoryPreview[];
+  retrievalExplanation?: RetrievalExplanationPreview;
   done: boolean;
+}
+
+export interface RetrievalExplanationPreview {
+  queryTexts: string[];
+  keywordFilters: string[];
+}
+
+export interface RetrievedMemoryPreview {
+  id?: string;
+  source: string;
+  reason: string;
+  score: number;
+  text: string;
+  explanation?: {
+    chunkType?: string;
+    similarity?: number;
+    chapterDistance?: number;
+    timeDecay?: number;
+    importance?: number;
+    matchedKeywords?: string[];
+  };
 }
 
 /**
@@ -193,6 +247,23 @@ export function hasUnsavedChapterChanges(
   return current.title !== saved.title || current.content !== saved.content || current.status !== saved.status;
 }
 
+export function markChapterEditorDirty(status: ChapterEditorStatus): ChapterEditorStatus {
+  if (status === "saving" || status === "drafting" || status === "conflict" || status === "offline") {
+    return status;
+  }
+  return "dirty";
+}
+
+export function resolveSettledChapterStatus(input: {
+  hasUnsavedChanges: boolean;
+  status: ChapterEditorStatus;
+}): ChapterEditorStatus {
+  if (input.status === "conflict" || input.status === "offline" || input.status === "error") {
+    return input.status;
+  }
+  return input.hasUnsavedChanges ? "dirty" : "clean";
+}
+
 export function shouldAutoSaveChapter(input: {
   hasUnsavedChanges: boolean;
   status: ChapterEditorStatus;
@@ -202,8 +273,85 @@ export function shouldAutoSaveChapter(input: {
     input.hasUnsavedChanges &&
     input.status !== "saving" &&
     input.status !== "drafting" &&
+    input.status !== "conflict" &&
+    input.status !== "offline" &&
     input.title.trim().length > 0
   );
+}
+
+export function getAutosaveDelayMs(contentLength: number): number {
+  if (contentLength >= 50_000) return 8_000;
+  if (contentLength >= 25_000) return 6_000;
+  if (contentLength >= 10_000) return 4_500;
+  return 3_000;
+}
+
+export function countNonWhitespaceCharacters(content: string): number {
+  let count = 0;
+  for (let index = 0; index < content.length; index += 1) {
+    const char = content.charCodeAt(index);
+    if (char !== 9 && char !== 10 && char !== 11 && char !== 12 && char !== 13 && char !== 32) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+export function buildOfflineChapterDraftKey(novelId: string, chapterIndex: number): string {
+  return `ai-novel:offline-chapter:${novelId}:${chapterIndex}`;
+}
+
+export function buildOfflineChapterDraft(input: {
+  novelId: string;
+  chapterIndex: number;
+  chapterId?: string;
+  title: string;
+  content: string;
+  status: ChapterStatus;
+  version: number;
+  savedAt?: string;
+}): OfflineChapterDraft {
+  return {
+    novelId: input.novelId,
+    chapterIndex: input.chapterIndex,
+    chapterId: input.chapterId,
+    title: input.title,
+    content: input.content,
+    status: input.status,
+    version: input.version,
+    savedAt: input.savedAt ?? new Date().toISOString(),
+  };
+}
+
+export function parseOfflineChapterDraft(value: string | null): OfflineChapterDraft | null {
+  if (!value) return null;
+  try {
+    const raw = JSON.parse(value) as Partial<OfflineChapterDraft>;
+    if (
+      typeof raw.novelId !== "string" ||
+      typeof raw.chapterIndex !== "number" ||
+      typeof raw.title !== "string" ||
+      typeof raw.content !== "string" ||
+      (raw.status !== "draft" && raw.status !== "done") ||
+      typeof raw.version !== "number" ||
+      typeof raw.savedAt !== "string"
+    ) {
+      return null;
+    }
+
+    return {
+      novelId: raw.novelId,
+      chapterIndex: raw.chapterIndex,
+      chapterId: typeof raw.chapterId === "string" ? raw.chapterId : undefined,
+      title: raw.title,
+      content: raw.content,
+      status: raw.status,
+      version: raw.version,
+      savedAt: raw.savedAt,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function getChapterContentLimitState(
@@ -357,6 +505,30 @@ export function buildCandidateRevisionRequest(
   };
 }
 
+export function buildLocalRevisionRequest(
+  input: LocalRevisionRequestInput,
+): JsonRequest<"POST", {
+  operation: ChapterRevisionOperation;
+  chapter_index: number;
+  title: string;
+  selected_text: string;
+  before_context: string;
+  after_context: string;
+}> {
+  return {
+    url: `/api/novels/${input.novelId}/chapters/draft/revise`,
+    method: "POST",
+    payload: {
+      operation: input.operation,
+      chapter_index: input.selectedIndex,
+      title: input.title,
+      selected_text: input.selectedText,
+      before_context: input.beforeContext,
+      after_context: input.afterContext,
+    },
+  };
+}
+
 export function buildConsistencyRequest(novelId: string): JsonRequest<"POST"> {
   return {
     url: `/api/novels/${novelId}/consistency`,
@@ -406,6 +578,29 @@ export function buildBeatSheetRequest(input: {
   };
 }
 
+export interface EditorSelection {
+  selectionStart: number;
+  selectionEnd: number;
+  selectedText: string;
+}
+
+export function normalizeEditorSelection(
+  content: string,
+  start: number | null | undefined,
+  end: number | null | undefined,
+): EditorSelection | null {
+  if (typeof start !== "number" || !Number.isFinite(start)) return null;
+  const max = content.length;
+  const rawEnd = typeof end === "number" && Number.isFinite(end) ? end : start;
+  const selectionStart = Math.max(0, Math.min(Math.min(start, rawEnd), max));
+  const selectionEnd = Math.max(0, Math.min(Math.max(start, rawEnd), max));
+  return {
+    selectionStart,
+    selectionEnd,
+    selectedText: content.slice(selectionStart, selectionEnd),
+  };
+}
+
 /**
  * Compose the next chapter body when the user accepts an AI candidate.
  * `discard` is handled by the caller (no content change), so this helper
@@ -415,9 +610,17 @@ export function applyAcceptMode(
   currentContent: string,
   candidateContent: string,
   mode: Exclude<CandidateMode, "discard">,
-  cursorPos: number | null,
+  cursorPos: number | null | EditorSelection,
 ): string {
   if (mode === "replace") return candidateContent;
+  if (mode === "replace_selection") {
+    const selection = typeof cursorPos === "object" ? cursorPos : null;
+    if (!selection || selection.selectionEnd <= selection.selectionStart) return currentContent;
+    const max = currentContent.length;
+    const start = Math.max(0, Math.min(selection.selectionStart, max));
+    const end = Math.max(start, Math.min(selection.selectionEnd, max));
+    return `${currentContent.slice(0, start)}${candidateContent}${currentContent.slice(end)}`;
+  }
   if (mode === "append") {
     return currentContent
       ? `${currentContent.replace(/\s+$/, "")}\n\n${candidateContent}`
@@ -425,7 +628,9 @@ export function applyAcceptMode(
   }
   // insert at cursor — clamp to [0, currentContent.length].
   const max = currentContent.length;
-  const raw = cursorPos ?? max;
+  const raw = typeof cursorPos === "number"
+    ? cursorPos
+    : cursorPos?.selectionStart ?? max;
   const pos = Math.max(0, Math.min(raw, max));
   return `${currentContent.slice(0, pos)}${candidateContent}${currentContent.slice(pos)}`;
 }
@@ -433,6 +638,7 @@ export function applyAcceptMode(
 export function candidateAcceptedMessage(mode: Exclude<CandidateMode, "discard">): string {
   if (mode === "replace") return "候选稿已替换正文";
   if (mode === "append") return "候选稿已追加到末尾";
+  if (mode === "replace_selection") return "候选稿已替换选区";
   return "候选稿已插入光标处";
 }
 
@@ -465,6 +671,7 @@ export function applyDraftSseEvent(
       status?: unknown;
       error?: unknown;
       memories?: unknown;
+      explanation?: unknown;
     };
     return {
       ...state,
@@ -473,14 +680,33 @@ export function applyDraftSseEvent(
       retrievedMemories: Array.isArray(data.memories)
         ? data.memories.filter(isRetrievedMemory)
         : state.retrievedMemories,
+      retrievalExplanation: isRetrievalExplanation(data.explanation)
+        ? data.explanation
+        : state.retrievalExplanation,
     };
   }
 
   if (event.event === "error") {
-    const data = event.data as { message?: unknown };
+    const data = event.data as {
+      code?: unknown;
+      message?: unknown;
+      retryable?: unknown;
+      sessionId?: unknown;
+    };
+    const code = typeof data.code === "string" ? data.code : undefined;
+    const message =
+      typeof data.message === "string"
+        ? data.message
+        : code
+          ? `章节起草失败：${code}`
+          : "章节起草失败";
     return {
       ...state,
-      streamError: typeof data.message === "string" ? data.message : "章节起草失败",
+      streamError: message,
+      streamErrorCode: code,
+      streamErrorRetryable:
+        typeof data.retryable === "boolean" ? data.retryable : state.streamErrorRetryable,
+      sessionId: typeof data.sessionId === "string" ? data.sessionId : state.sessionId,
     };
   }
 
@@ -543,14 +769,48 @@ export function applyDraftSseEvent(
 
 function isRetrievedMemory(
   value: unknown,
-): value is { source: string; reason: string; score: number; text: string } {
+): value is RetrievedMemoryPreview {
   if (!value || typeof value !== "object") return false;
-  const item = value as { source?: unknown; reason?: unknown; score?: unknown; text?: unknown };
+  const item = value as { id?: unknown; source?: unknown; reason?: unknown; score?: unknown; text?: unknown; explanation?: unknown };
   return (
+    (item.id === undefined || typeof item.id === "string") &&
     typeof item.source === "string" &&
     typeof item.reason === "string" &&
     typeof item.score === "number" &&
-    typeof item.text === "string"
+    typeof item.text === "string" &&
+    (item.explanation === undefined || isRetrievedMemoryExplanation(item.explanation))
+  );
+}
+
+function isRetrievedMemoryExplanation(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const item = value as {
+    chunkType?: unknown;
+    similarity?: unknown;
+    chapterDistance?: unknown;
+    timeDecay?: unknown;
+    importance?: unknown;
+    matchedKeywords?: unknown;
+  };
+  return (
+    (item.chunkType === undefined || typeof item.chunkType === "string") &&
+    (item.similarity === undefined || typeof item.similarity === "number") &&
+    (item.chapterDistance === undefined || typeof item.chapterDistance === "number") &&
+    (item.timeDecay === undefined || typeof item.timeDecay === "number") &&
+    (item.importance === undefined || typeof item.importance === "number") &&
+    (item.matchedKeywords === undefined ||
+      (Array.isArray(item.matchedKeywords) && item.matchedKeywords.every((keyword) => typeof keyword === "string")))
+  );
+}
+
+function isRetrievalExplanation(value: unknown): value is RetrievalExplanationPreview {
+  if (!value || typeof value !== "object") return false;
+  const item = value as { queryTexts?: unknown; keywordFilters?: unknown };
+  return (
+    Array.isArray(item.queryTexts) &&
+    item.queryTexts.every((query) => typeof query === "string") &&
+    Array.isArray(item.keywordFilters) &&
+    item.keywordFilters.every((keyword) => typeof keyword === "string")
   );
 }
 

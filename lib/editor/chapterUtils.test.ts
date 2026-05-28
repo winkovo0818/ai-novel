@@ -8,6 +8,13 @@ import {
   mergeChapterIntoList,
   patchChapterInList,
   hasUnsavedChapterChanges,
+  buildOfflineChapterDraft,
+  buildOfflineChapterDraftKey,
+  countNonWhitespaceCharacters,
+  getAutosaveDelayMs,
+  markChapterEditorDirty,
+  parseOfflineChapterDraft,
+  resolveSettledChapterStatus,
   shouldAutoSaveChapter,
   buildBeatSheetRequest,
   buildCandidateCriticRequest,
@@ -15,6 +22,7 @@ import {
   buildConsistencyRequest,
   buildDeleteChapterRequest,
   buildPersistChapterRequest,
+  buildLocalRevisionRequest,
   buildResumableDraftRequest,
   buildStateDiffRequest,
   buildTargetWordsRequest,
@@ -24,6 +32,7 @@ import {
   candidateAcceptedMessage,
   getChapterContentLimitState,
   hasStateDiffChanges,
+  normalizeEditorSelection,
   normalizeResumableDraftPayload,
   resumableDraftLoadedMessage,
 } from "./chapterUtils";
@@ -156,33 +165,30 @@ describe("shouldAutoSaveChapter", () => {
   it("requires unsaved changes and a non-empty title", () => {
     expect(shouldAutoSaveChapter({
       hasUnsavedChanges: false,
-      status: "idle",
+      status: "dirty",
       title: "T",
     })).toBe(false);
     expect(shouldAutoSaveChapter({
       hasUnsavedChanges: true,
-      status: "idle",
+      status: "dirty",
       title: "   ",
     })).toBe(false);
   });
 
-  it("does not autosave while saving or drafting", () => {
-    expect(shouldAutoSaveChapter({
-      hasUnsavedChanges: true,
-      status: "saving",
-      title: "T",
-    })).toBe(false);
-    expect(shouldAutoSaveChapter({
-      hasUnsavedChanges: true,
-      status: "drafting",
-      title: "T",
-    })).toBe(false);
+  it("does not autosave while busy, conflicted, or offline", () => {
+    for (const status of ["saving", "drafting", "conflict", "offline"] as const) {
+      expect(shouldAutoSaveChapter({
+        hasUnsavedChanges: true,
+        status,
+        title: "T",
+      })).toBe(false);
+    }
   });
 
-  it("allows autosave for dirty idle/saved/error states", () => {
+  it("allows autosave for dirty/saved/error states", () => {
     expect(shouldAutoSaveChapter({
       hasUnsavedChanges: true,
-      status: "idle",
+      status: "dirty",
       title: "T",
     })).toBe(true);
     expect(shouldAutoSaveChapter({
@@ -195,6 +201,71 @@ describe("shouldAutoSaveChapter", () => {
       status: "error",
       title: "T",
     })).toBe(true);
+  });
+});
+
+describe("chapter editor status helpers", () => {
+  it("marks settled states dirty after local edits", () => {
+    expect(markChapterEditorDirty("clean")).toBe("dirty");
+    expect(markChapterEditorDirty("saved")).toBe("dirty");
+    expect(markChapterEditorDirty("error")).toBe("dirty");
+  });
+
+  it("preserves busy and blocked states when local edits arrive", () => {
+    for (const status of ["saving", "drafting", "conflict", "offline"] as const) {
+      expect(markChapterEditorDirty(status)).toBe(status);
+    }
+  });
+
+  it("settles back to clean or dirty without hiding blocked states", () => {
+    expect(resolveSettledChapterStatus({ hasUnsavedChanges: false, status: "saved" })).toBe("clean");
+    expect(resolveSettledChapterStatus({ hasUnsavedChanges: true, status: "saved" })).toBe("dirty");
+    expect(resolveSettledChapterStatus({ hasUnsavedChanges: true, status: "conflict" })).toBe("conflict");
+    expect(resolveSettledChapterStatus({ hasUnsavedChanges: true, status: "offline" })).toBe("offline");
+  });
+});
+
+describe("offline chapter draft helpers", () => {
+  it("builds a stable localStorage key per novel chapter", () => {
+    expect(buildOfflineChapterDraftKey("novel-1", 12)).toBe("ai-novel:offline-chapter:novel-1:12");
+  });
+
+  it("serializes and parses a valid offline draft snapshot", () => {
+    const draft = buildOfflineChapterDraft({
+      novelId: "novel-1",
+      chapterIndex: 1,
+      chapterId: "chapter-1",
+      title: "第一章",
+      content: "离线正文",
+      status: "draft",
+      version: 3,
+      savedAt: "2026-05-27T00:00:00.000Z",
+    });
+
+    expect(parseOfflineChapterDraft(JSON.stringify(draft))).toEqual(draft);
+  });
+
+  it("rejects malformed offline drafts", () => {
+    expect(parseOfflineChapterDraft(null)).toBeNull();
+    expect(parseOfflineChapterDraft("{bad json")).toBeNull();
+    expect(parseOfflineChapterDraft(JSON.stringify({ title: "missing fields" }))).toBeNull();
+  });
+});
+
+describe("long chapter performance helpers", () => {
+  it("counts non-whitespace characters without regex allocation", () => {
+    expect(countNonWhitespaceCharacters("一 二\n三\t四")).toBe(4);
+  });
+
+  it("backs off autosave debounce as chapter length grows", () => {
+    expect(getAutosaveDelayMs(9_999)).toBe(3_000);
+    expect(getAutosaveDelayMs(10_000)).toBe(4_500);
+    expect(getAutosaveDelayMs(25_000)).toBe(6_000);
+    expect(getAutosaveDelayMs(50_000)).toBe(8_000);
+  });
+
+  it("handles a 50k-character chapter for editor statistics", () => {
+    expect(countNonWhitespaceCharacters("x".repeat(50_000))).toBe(50_000);
   });
 });
 
@@ -408,6 +479,77 @@ describe("buildDraftChapterRequest", () => {
   });
 });
 
+describe("buildLocalRevisionRequest", () => {
+  it("maps editor selection context into the revise API contract", () => {
+    expect(
+      buildLocalRevisionRequest({
+        novelId: "n-1",
+        selectedIndex: 3,
+        title: "旧雨",
+        operation: "polish",
+        selectedText: "需要润色的句子",
+        beforeContext: "前文",
+        afterContext: "后文",
+      }),
+    ).toEqual({
+      url: "/api/novels/n-1/chapters/draft/revise",
+      method: "POST",
+      payload: {
+        operation: "polish",
+        chapter_index: 3,
+        title: "旧雨",
+        selected_text: "需要润色的句子",
+        before_context: "前文",
+        after_context: "后文",
+      },
+    });
+  });
+
+  it("supports the humanize local revision operation", () => {
+    expect(
+      buildLocalRevisionRequest({
+        novelId: "n-1",
+        selectedIndex: 3,
+        title: "旧雨",
+        operation: "humanize",
+        selectedText: "这一刻，真正的考验才刚刚开始。",
+        beforeContext: "前文",
+        afterContext: "后文",
+      }).payload.operation,
+    ).toBe("humanize");
+  });
+});
+
+describe("normalizeEditorSelection", () => {
+  it("captures collapsed cursor selection with empty selectedText", () => {
+    expect(normalizeEditorSelection("hello", 2, 2)).toEqual({
+      selectionStart: 2,
+      selectionEnd: 2,
+      selectedText: "",
+    });
+  });
+
+  it("captures selected text and normalizes reverse selection", () => {
+    expect(normalizeEditorSelection("hello world", 8, 2)).toEqual({
+      selectionStart: 2,
+      selectionEnd: 8,
+      selectedText: "llo wo",
+    });
+  });
+
+  it("clamps out-of-range selection to the content bounds", () => {
+    expect(normalizeEditorSelection("abc", -10, 99)).toEqual({
+      selectionStart: 0,
+      selectionEnd: 3,
+      selectedText: "abc",
+    });
+  });
+
+  it("returns null when no cursor position is available", () => {
+    expect(normalizeEditorSelection("abc", null, null)).toBeNull();
+  });
+});
+
 describe("applyAcceptMode", () => {
   it("replace overwrites the whole body", () => {
     expect(applyAcceptMode("old", "new", "replace", null)).toBe("new");
@@ -436,6 +578,30 @@ describe("applyAcceptMode", () => {
   it("insert clamps a negative cursor to zero", () => {
     expect(applyAcceptMode("abc", "X", "insert", -5)).toBe("Xabc");
   });
+
+  it("insert accepts an editor selection object and uses selectionStart", () => {
+    expect(
+      applyAcceptMode("hello world", "<NEW>", "insert", {
+        selectionStart: 5,
+        selectionEnd: 10,
+        selectedText: " worl",
+      }),
+    ).toBe("hello<NEW> world");
+  });
+
+  it("replace_selection only replaces the selected range", () => {
+    expect(
+      applyAcceptMode("hello world", "there", "replace_selection", {
+        selectionStart: 6,
+        selectionEnd: 11,
+        selectedText: "world",
+      }),
+    ).toBe("hello there");
+  });
+
+  it("replace_selection with no range keeps the original body", () => {
+    expect(applyAcceptMode("abc", "X", "replace_selection", null)).toBe("abc");
+  });
 });
 
 describe("candidateAcceptedMessage", () => {
@@ -443,6 +609,7 @@ describe("candidateAcceptedMessage", () => {
     expect(candidateAcceptedMessage("replace")).toBe("候选稿已替换正文");
     expect(candidateAcceptedMessage("append")).toBe("候选稿已追加到末尾");
     expect(candidateAcceptedMessage("insert")).toBe("候选稿已插入光标处");
+    expect(candidateAcceptedMessage("replace_selection")).toBe("候选稿已替换选区");
   });
 });
 
@@ -479,16 +646,53 @@ describe("applyDraftSseEvent", () => {
       data: {
         status: "success",
         error: "ignored when present",
+        explanation: {
+          queryTexts: ["主线 query"],
+          keywordFilters: ["沈言"],
+        },
         memories: [
-          { source: "chapter:1", reason: "近似", score: 0.9, text: "片段" },
+          {
+            id: "chunk-1",
+            source: "chapter:1",
+            reason: "近似",
+            score: 0.9,
+            text: "片段",
+            explanation: {
+              chunkType: "plot_thread",
+              similarity: 0.9,
+              chapterDistance: 2,
+              timeDecay: 0.83,
+              importance: 1.5,
+              matchedKeywords: ["沈言"],
+            },
+          },
           { source: "bad", reason: "bad", score: "0.1", text: "bad" },
+          { source: "bad2", reason: "bad", score: 0.1, text: "bad", explanation: { matchedKeywords: [1] } },
         ],
       },
     });
     expect(state.retrievalStatus).toBe("success");
     expect(state.retrievalError).toBe("ignored when present");
+    expect(state.retrievalExplanation).toEqual({
+      queryTexts: ["主线 query"],
+      keywordFilters: ["沈言"],
+    });
     expect(state.retrievedMemories).toEqual([
-      { source: "chapter:1", reason: "近似", score: 0.9, text: "片段" },
+      {
+        id: "chunk-1",
+        source: "chapter:1",
+        reason: "近似",
+        score: 0.9,
+        text: "片段",
+        explanation: {
+          chunkType: "plot_thread",
+          similarity: 0.9,
+          chapterDistance: 2,
+          timeDecay: 0.83,
+          importance: 1.5,
+          matchedKeywords: ["沈言"],
+        },
+      },
     ]);
   });
 
@@ -497,6 +701,34 @@ describe("applyDraftSseEvent", () => {
       event: "error",
       data: {},
     }).streamError).toBe("章节起草失败");
+  });
+
+  it("preserves error code, retryability, and session id from SSE errors", () => {
+    const state = applyDraftSseEvent({ generated: "partial", done: false }, {
+      event: "error",
+      data: {
+        code: "LLM_TIMEOUT",
+        message: "模型响应超时",
+        retryable: true,
+        sessionId: "ds-timeout",
+      },
+    });
+
+    expect(state.streamError).toBe("模型响应超时");
+    expect(state.streamErrorCode).toBe("LLM_TIMEOUT");
+    expect(state.streamErrorRetryable).toBe(true);
+    expect(state.sessionId).toBe("ds-timeout");
+    expect(state.generated).toBe("partial");
+  });
+
+  it("uses the error code in the fallback message when SSE error has no message", () => {
+    const state = applyDraftSseEvent({ generated: "", done: false }, {
+      event: "error",
+      data: { code: "INTERNAL", retryable: false },
+    });
+
+    expect(state.streamError).toBe("章节起草失败：INTERNAL");
+    expect(state.streamErrorRetryable).toBe(false);
   });
 
   it("marks done and carries retrieval_status forward", () => {

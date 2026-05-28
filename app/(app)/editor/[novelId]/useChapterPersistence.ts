@@ -3,19 +3,22 @@
 import { useCallback, useEffect } from "react";
 
 import {
+  buildOfflineChapterDraft,
+  buildOfflineChapterDraftKey,
   buildPersistChapterRequest,
   buildStateDiffRequest,
   buildTargetWordsRequest,
   getChapterContentLimitState,
+  getAutosaveDelayMs,
   hasStateDiffChanges,
   mergeChapterIntoList,
   shouldAutoSaveChapter,
 } from "@/lib/editor/chapterUtils";
+import type { ChapterEditorStatus } from "@/lib/editor/chapterUtils";
 import type { StateDiff } from "@/lib/validation/schemas";
 import type { ChapterDraftView } from "./EditorClient";
 
 type ChapterStatus = "draft" | "done";
-type EditorStatus = "idle" | "saving" | "saved" | "drafting" | "error";
 type SaveSource = "autosave" | "manual" | "ai";
 
 interface ChapterPersistenceState {
@@ -29,7 +32,8 @@ interface ChapterPersistenceState {
   chapterVersion: number;
   targetWords: number | null;
   hasUnsavedChanges: boolean;
-  status: EditorStatus;
+  status: ChapterEditorStatus;
+  online: boolean;
 }
 
 interface ChapterPersistenceSetters {
@@ -39,7 +43,7 @@ interface ChapterPersistenceSetters {
   setSavedStatus(value: ChapterStatus): void;
   setTargetWordsState(value: number | null): void;
   setLastSavedAt(value: string | undefined): void;
-  setStatus(value: EditorStatus): void;
+  setStatus(value: ChapterEditorStatus): void;
   setMessage(value: string | undefined): void;
   setChapterVersion(value: number): void;
   setConflictChapter(value: ChapterDraftView | null): void;
@@ -70,6 +74,7 @@ export function useChapterPersistence({
     targetWords,
     hasUnsavedChanges,
     status,
+    online,
   } = state;
   const {
     setChapterId,
@@ -94,6 +99,7 @@ export function useChapterPersistence({
       nextTitle = chapterTitle,
       nextStatus = chapterStatus,
       source: SaveSource = "autosave",
+      expectedVersion = chapterVersion,
     ) => {
       const limit = getChapterContentLimitState(nextContent);
       if (limit.level === "over") {
@@ -108,7 +114,7 @@ export function useChapterPersistence({
         content: nextContent,
         status: nextStatus,
         source,
-        expectedVersion: chapterVersion,
+        expectedVersion,
       });
       const response = await fetch(request.url, {
         method: request.method,
@@ -176,6 +182,34 @@ export function useChapterPersistence({
   );
 
   useEffect(() => {
+    if (!online) {
+      if (hasUnsavedChanges && status !== "offline") {
+        setStatus("offline");
+        setMessage("网络已断开，恢复连接后再保存");
+      }
+      if (hasUnsavedChanges && typeof window !== "undefined") {
+        const draft = buildOfflineChapterDraft({
+          novelId,
+          chapterIndex: selectedIndex,
+          chapterId,
+          title: chapterTitle,
+          content,
+          status: chapterStatus,
+          version: chapterVersion,
+        });
+        window.localStorage.setItem(
+          buildOfflineChapterDraftKey(novelId, selectedIndex),
+          JSON.stringify(draft),
+        );
+      }
+      return;
+    }
+
+    if (status === "offline") {
+      setMessage(hasUnsavedChanges ? "网络已恢复，请处理本地草稿后同步" : undefined);
+      return;
+    }
+
     if (!shouldAutoSaveChapter({ hasUnsavedChanges, status, title: chapterTitle })) return;
 
     const timeout = window.setTimeout(async () => {
@@ -186,18 +220,23 @@ export function useChapterPersistence({
         setStatus("saved");
         setMessage("已自动保存");
       } catch (err) {
-        setStatus("error");
+        setStatus(err instanceof Error && err.name === "ChapterVersionConflict" ? "conflict" : "error");
         setMessage(err instanceof Error ? err.message : "自动保存失败");
       }
-    }, 3_000);
+    }, getAutosaveDelayMs(content.length));
 
     return () => window.clearTimeout(timeout);
   }, [
+    chapterId,
     chapterStatus,
     chapterTitle,
+    chapterVersion,
     content,
     hasUnsavedChanges,
+    novelId,
+    online,
     persistChapter,
+    selectedIndex,
     setMessage,
     setStatus,
     status,
@@ -224,7 +263,7 @@ export function useChapterPersistence({
         if (typeof json.data.version === "number") setChapterVersion(json.data.version);
         if (json.data.updated_at) setLastSavedAt(json.data.updated_at);
       } catch (err) {
-        setStatus("error");
+        setStatus(err instanceof Error && err.message.includes("另一处修改") ? "conflict" : "error");
         setMessage(err instanceof Error ? err.message : "目标字数保存失败");
       }
     },
@@ -242,6 +281,12 @@ export function useChapterPersistence({
   );
 
   const saveChapter = useCallback(async () => {
+    if (!online) {
+      setStatus("offline");
+      setMessage("网络已断开，恢复连接后再保存");
+      return;
+    }
+
     setStatus("saving");
     setMessage(undefined);
 
@@ -250,10 +295,10 @@ export function useChapterPersistence({
       setStatus("saved");
       setMessage("草稿已保存");
     } catch (err) {
-      setStatus("error");
+      setStatus(err instanceof Error && err.name === "ChapterVersionConflict" ? "conflict" : "error");
       setMessage(err instanceof Error ? err.message : "保存失败");
     }
-  }, [chapterStatus, chapterTitle, content, persistChapter, setMessage, setStatus]);
+  }, [chapterStatus, chapterTitle, content, online, persistChapter, setMessage, setStatus]);
 
   return {
     persistChapter,
