@@ -2,13 +2,9 @@ import { jsonError, jsonOk } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
-import { enqueueJob, runPendingJobsForNovel, type JobType } from "@/lib/jobs/queue";
-import { errorMessage, logError } from "@/lib/observability/logger";
+import { enqueueJob, type JobType } from "@/lib/jobs/queue";
 import { getRequiredUserId } from "@/lib/auth/session";
 import { z } from "zod";
-
-// Side-effect import: registers job handlers on first load.
-import "@/lib/jobs/handlers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,9 +42,8 @@ async function authorize(novelId: string) {
 }
 
 /**
- * POST /api/novels/:id/jobs — enqueue a batch of background jobs and
- * trigger an inline drain. Drain runs fire-and-forget; if it crashes
- * the rows are still in the queue and will surface via GET.
+ * POST /api/novels/:id/jobs — enqueue a batch of background jobs.
+ * The worker process consumes these rows; this request only persists intent.
  */
 export async function POST(request: Request, context: RouteContext) {
   const { id } = await context.params;
@@ -71,16 +66,7 @@ export async function POST(request: Request, context: RouteContext) {
     created.push({ id: job.id, type: job.type, status: job.status });
   }
 
-  // Drain best-effort. We don't await it because the caller doesn't need
-  // to block on memory work — failures stay visible via GET /jobs.
-  void runPendingJobsForNovel(id).catch((err) => {
-    logError("jobs.drain_failed", {
-      novel_id: id,
-      error: errorMessage(err),
-    });
-  });
-
-  return jsonOk({ enqueued: created });
+  return jsonOk({ enqueued: created, queued: created.length });
 }
 
 /**

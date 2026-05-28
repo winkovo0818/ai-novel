@@ -2,7 +2,7 @@ import { jsonError } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { isRateLimited } from "@/lib/auth/rateLimit";
-import { checkQuota } from "@/lib/llm/usage";
+import { checkQuota, estimateLlmMessagesCostCny, quotaExceededResponse } from "@/lib/llm/usage";
 import { chatCompletionWithRetry } from "@/lib/llm/client";
 import { buildStateDiffPrompt } from "@/lib/llm/prompts/stateDiff";
 import { BibleDraftSchema, StateDiffSchema } from "@/lib/validation/schemas";
@@ -42,11 +42,6 @@ export async function POST(_request: Request, context: RouteContext) {
     return jsonError("RATE_LIMITED", "Too many requests, please try again later", false, 429);
   }
 
-  const quota = await checkQuota(userId);
-  if (!quota.allowed) {
-    return jsonError("QUOTA_EXCEEDED", quota.reason ?? "Usage quota exceeded", false, 429);
-  }
-
   if (!chapter.novel.bible) {
     return jsonError("BIBLE_NOT_FOUND", "Novel Bible not found", false, 404);
   }
@@ -59,6 +54,20 @@ export async function POST(_request: Request, context: RouteContext) {
   if (!chapter.content.trim()) {
     return jsonError("EMPTY_CONTENT", "Chapter has no content to analyze", false, 400);
   }
+  const messages = buildStateDiffPrompt({
+    bible: bible.data,
+    storyState: bible.data.story_state,
+    chapterIndex: chapter.chapter_index,
+    chapterTitle: chapter.title,
+    chapterContent: chapter.content,
+  });
+
+  const quota = await checkQuota(userId, {
+    estimatedCostCny: estimateLlmMessagesCostCny(messages, 4096),
+  });
+  if (!quota.allowed) {
+    return quotaExceededResponse(quota);
+  }
 
   try {
     const result = await chatCompletionWithRetry(
@@ -67,13 +76,7 @@ export async function POST(_request: Request, context: RouteContext) {
         agent: "state_updater",
         userId,
         novelId: chapter.novel_id,
-        messages: buildStateDiffPrompt({
-          bible: bible.data,
-          storyState: bible.data.story_state,
-          chapterIndex: chapter.chapter_index,
-          chapterTitle: chapter.title,
-          chapterContent: chapter.content,
-        }),
+        messages,
         temperature: 0,
         responseFormat: "json_object",
         timeoutMs: 90_000,

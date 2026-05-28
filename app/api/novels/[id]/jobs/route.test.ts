@@ -3,10 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const findUnique = vi.fn();
 const findMany = vi.fn();
 const create = vi.fn();
-const updateMany = vi.fn();
-const update = vi.fn();
-const findUniqueJob = vi.fn();
-const count = vi.fn();
 const getRequiredUserId = vi.fn();
 
 vi.mock("@/lib/db", () => ({
@@ -15,10 +11,6 @@ vi.mock("@/lib/db", () => ({
     backgroundJob: {
       findMany,
       create,
-      updateMany,
-      update,
-      findUnique: findUniqueJob,
-      count,
     },
   },
 }));
@@ -27,15 +19,9 @@ vi.mock("@/lib/auth/session", () => ({
   getRequiredUserId,
 }));
 
-// Side-effect import has to be quiet in tests.
-vi.mock("@/lib/jobs/handlers", () => ({}));
-
 beforeEach(() => {
   vi.clearAllMocks();
-  // Default: drained queue so background drain calls find nothing.
   findMany.mockResolvedValue([]);
-  updateMany.mockResolvedValue({ count: 0 });
-  count.mockResolvedValue(0);
 });
 
 describe("POST /api/novels/[id]/jobs", () => {
@@ -116,8 +102,10 @@ describe("POST /api/novels/[id]/jobs", () => {
 
     expect(res.status).toBe(200);
     expect(json.data.enqueued).toHaveLength(2);
+    expect(json.data.queued).toBe(2);
     expect(json.data.enqueued[0].id).toBe("j-1");
     expect(create).toHaveBeenCalledTimes(2);
+    expect(findMany).not.toHaveBeenCalled();
     expect(create).toHaveBeenNthCalledWith(1, {
       data: {
         novel_id: "n-1",

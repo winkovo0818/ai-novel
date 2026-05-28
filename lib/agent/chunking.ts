@@ -69,6 +69,16 @@ function classifyChunk(text: string): ChunkType {
   return "scene";
 }
 
+function estimateChunkImportance(chunk: Chunk): number {
+  const text = chunk.text;
+  let score = 1;
+  if (chunk.chunk_type === "plot_thread") score += 0.35;
+  if (chunk.chunk_type === "character_fact" || chunk.chunk_type === "world_rule") score += 0.2;
+  if (/伏笔|线索|秘密|真相|死亡|背叛|约定|誓言|命运/.test(text)) score += 0.25;
+  if (text.length > 500) score += 0.1;
+  return Math.min(2, Number(score.toFixed(2)));
+}
+
 function splitByParagraphs(content: string): IndexedParagraph[] {
   return content
     .split(/\n{2,}/)
@@ -169,14 +179,16 @@ export async function indexChapter(
     const embeddingStr = `[${embedding.join(",")}]`;
     try {
       await prisma.$executeRawUnsafe(
-        `INSERT INTO "MemoryChunk" (id, novel_id, chapter_id, chunk_type, text, embedding, metadata)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5::vector, $6)`,
+        `INSERT INTO "MemoryChunk" (id, novel_id, chapter_id, chunk_type, text, embedding, metadata, importance, source_kind)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5::vector, $6, $7, $8)`,
         novelId,
         chapterId,
         chunk.chunk_type as string,
         chunk.text,
         embeddingStr,
         chunk.metadata,
+        estimateChunkImportance(chunk),
+        "chapter",
       );
     } catch (err) {
       throw new MemoryChunkIndexError("insert", chunk, i, chunks.length, err);

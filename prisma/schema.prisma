@@ -255,18 +255,48 @@ model MemoryChunk {
   id           String   @id @default(uuid())
   novel_id     String
   novel        Novel    @relation(fields: [novel_id], references: [id], onDelete: Cascade)
+  feedback     MemoryFeedback[]
   chapter_id   String?
   chunk_type   String   @default("scene")
   text         String
   embedding    Unsupported("vector(1024)")?
   content_hash String?
+  /// Lightweight ranking/debug metadata. `importance` is heuristic for now
+  /// and can later absorb user feedback; `source_kind` distinguishes chapter
+  /// chunks from future summary/bible/user-note sources; `last_used_at` is
+  /// updated when retrieval returns a chunk to the writer.
+  importance   Float    @default(1.0)
+  source_kind  String   @default("chapter")
+  last_used_at DateTime?
   metadata     Json?
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
   @@index([novel_id])
   @@index([novel_id, chunk_type])
+  @@index([novel_id, source_kind])
+  @@index([novel_id, last_used_at])
   @@index([chapter_id])
+}
+
+model MemoryFeedback {
+  id              String   @id @default(uuid())
+  novel_id        String
+  memory_chunk_id String
+  user_id         String
+  /// helpful | irrelevant
+  rating          String
+  reason          String?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  memory_chunk MemoryChunk @relation(fields: [memory_chunk_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, memory_chunk_id])
+  @@index([novel_id, rating])
+  @@index([memory_chunk_id, rating])
+  @@index([user_id, novel_id])
+  @@index([created_at])
 }
 
 model LlmUsage {

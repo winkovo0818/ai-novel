@@ -63,17 +63,34 @@ export type OutlineAgentOutput = BeatSheet;
 
 export type RetrievalStatus = "success" | "empty" | "error";
 
+export interface RetrievalExplanation {
+  queryTexts: string[];
+  keywordFilters: string[];
+}
+
+export interface RetrievedMemoryExplanation {
+  chunkType?: string;
+  similarity?: number;
+  chapterDistance?: number;
+  timeDecay?: number;
+  importance?: number;
+  matchedKeywords?: string[];
+}
+
 export interface RetrievedMemory {
+  id?: string;
   source: string;
   text: string;
   reason: string;
   score: number;
+  explanation?: RetrievedMemoryExplanation;
 }
 
 export interface RetrievalResult {
   status: RetrievalStatus;
   memories: RetrievedMemory[];
   errorMessage?: string;
+  explanation?: RetrievalExplanation;
 }
 
 export interface RetrievalAgentInput {
@@ -84,6 +101,110 @@ export interface RetrievalAgentInput {
 }
 
 export type RetrievalAgentOutput = RetrievalResult;
+
+// ───────────────────────────────────────────────
+// Memory Library Preview
+// ───────────────────────────────────────────────
+
+export type MemoryLibraryChunkType =
+  | "scene"
+  | "dialogue"
+  | "character_fact"
+  | "world_rule"
+  | "plot_thread"
+  | "summary";
+
+export type MemoryLibraryFilterType =
+  | "all"
+  | "chapter_summary"
+  | "volume_summary"
+  | "novel_summary"
+  | "memory_chunk"
+  | MemoryLibraryChunkType;
+
+export type MemoryFreshness = "fresh" | "stale" | "missing";
+
+export interface MemoryLibraryPagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+export interface MemoryLibraryChapterFreshness {
+  chapterId: string;
+  chapterIndex: number;
+  title: string;
+  status: string;
+  updatedAt: string;
+  summaryFreshness: MemoryFreshness;
+  indexFreshness: MemoryFreshness;
+  memoryChunkCount: number;
+  summaryUpdatedAt?: string;
+}
+
+export interface MemoryLibraryChapterSummary {
+  id: string;
+  chapterId: string;
+  chapterIndex: number;
+  title: string;
+  summary: string;
+  updatedAt: string;
+  freshness: MemoryFreshness;
+}
+
+export interface MemoryLibraryVolumeSummary {
+  id: string;
+  volumeIndex: number;
+  summary: string;
+  coveredChapters: string[];
+  updatedAt: string;
+}
+
+export interface MemoryLibraryNovelSummary {
+  id: string;
+  summary: string;
+  updatedAt: string;
+}
+
+export interface MemoryLibraryChunk {
+  id: string;
+  chapterId?: string;
+  chapterIndex?: number;
+  chapterTitle?: string;
+  type: MemoryLibraryChunkType | string;
+  sourceKind: string;
+  importance: number;
+  lastUsedAt?: string;
+  text: string;
+  metadata?: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MemoryLibraryPreview {
+  novelId: string;
+  filters: {
+    chapterIndex?: number;
+    type: MemoryLibraryFilterType;
+  };
+  freshness: {
+    chapters: MemoryLibraryChapterFreshness[];
+    staleSummaryCount: number;
+    staleIndexCount: number;
+    missingSummaryCount: number;
+    missingIndexCount: number;
+  };
+  chapterSummaries: MemoryLibraryChapterSummary[];
+  volumeSummaries: MemoryLibraryVolumeSummary[];
+  novelSummary: MemoryLibraryNovelSummary | null;
+  memoryChunks: {
+    items: MemoryLibraryChunk[];
+    pagination: MemoryLibraryPagination;
+  };
+}
 
 // ───────────────────────────────────────────────
 // Writer Agent

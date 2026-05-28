@@ -1,0 +1,81 @@
+{
+  "generatedAt": "2026-05-27T15:06:00.474Z",
+  "cases": [
+    {
+      "id": "xuanhuan-sword-soul",
+      "description": "当前章追问剑魂来源时，应召回剑魂认主规则和几认识沈言父亲的前文。",
+      "expected": [
+        "m-sword-rule",
+        "m-mentor-father"
+      ],
+      "top3": [
+        "m-mentor-father",
+        "m-sword-rule",
+        "m-sect-market"
+      ],
+      "top5": [
+        "m-mentor-father",
+        "m-sword-rule",
+        "m-sect-market",
+        "m-kitchen-rain",
+        "m-antagonist-plan"
+      ],
+      "recallAt3": 1,
+      "recallAt5": 1,
+      "missedAt5": []
+    },
+    {
+      "id": "urban-memory-case",
+      "description": "法医追查失忆治疗档案时，应召回白塔医院、顾沉舟和失忆前接触受害者。",
+      "expected": [
+        "m-white-tower",
+        "m-gu-memory"
+      ],
+      "top3": [
+        "m-white-tower",
+        "m-port-video",
+        "m-gu-memory"
+      ],
+      "top5": [
+        "m-white-tower",
+        "m-port-video",
+        "m-gu-memory",
+        "m-autopsy",
+        "m-police-food"
+      ],
+      "recallAt3": 1,
+      "recallAt5": 1,
+      "missedAt5": []
+    },
+    {
+      "id": "scifi-blackbox",
+      "description": "AI 拒令与黑箱协议相关时，应召回通信延迟、黑箱协议和冷却系统约束。",
+      "expected": [
+        "m-blackbox",
+        "m-cooling",
+        "m-delay"
+      ],
+      "top3": [
+        "m-cooling",
+        "m-blackbox",
+        "m-canteen"
+      ],
+      "top5": [
+        "m-cooling",
+        "m-blackbox",
+        "m-canteen",
+        "m-delay",
+        "m-captain-arm"
+      ],
+      "recallAt3": 0.6666666666666666,
+      "recallAt5": 1,
+      "missedAt5": []
+    }
+  ],
+  "summary": {
+    "cases": 3,
+    "recallAt3": 0.8888888888888888,
+    "recallAt5": 1,
+    "missedAt5": []
+  }
+}

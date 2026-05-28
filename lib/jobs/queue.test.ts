@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const create = vi.fn();
 const findUnique = vi.fn();
 const findMany = vi.fn();
+const findFirst = vi.fn();
+const count = vi.fn();
 const updateMany = vi.fn();
 const update = vi.fn();
 
@@ -12,6 +14,8 @@ vi.mock("@/lib/db", () => ({
       create,
       findUnique,
       findMany,
+      findFirst,
+      count,
       updateMany,
       update,
     },
@@ -20,6 +24,7 @@ vi.mock("@/lib/db", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  count.mockResolvedValue(0);
 });
 
 describe("enqueueJob", () => {
@@ -125,6 +130,72 @@ describe("runJob", () => {
     });
   });
 
+  it("uses per-type max attempts when deciding whether to retry", async () => {
+    const { registerHandler, runJob } = await import("./queue");
+    registerHandler("refresh_summaries", async () => {
+      throw new Error("refresh failed");
+    });
+
+    updateMany.mockResolvedValue({ count: 1 });
+    findUnique.mockResolvedValue({
+      id: "job-refresh",
+      type: "refresh_summaries",
+      payload: { novel_id: "n-1" },
+      attempts: 1,
+    });
+    update.mockResolvedValue({});
+
+    const status = await runJob("job-refresh");
+
+    expect(status).toBe("failed");
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "job-refresh" },
+      data: expect.objectContaining({
+        status: "failed",
+        attempts: 2,
+        last_error: "refresh failed",
+      }),
+    });
+  });
+
+  it("marks a timed-out handler as pending and increments attempts", async () => {
+    vi.useFakeTimers();
+    const prev = process.env.JOB_INDEX_TIMEOUT_MS;
+    process.env.JOB_INDEX_TIMEOUT_MS = "25";
+    try {
+      vi.resetModules();
+      const { registerHandler, runJob } = await import("./queue");
+      registerHandler("index_chapter", () => new Promise(() => undefined));
+
+      updateMany.mockResolvedValue({ count: 1 });
+      findUnique.mockResolvedValue({
+        id: "job-timeout",
+        type: "index_chapter",
+        payload: { novel_id: "n-1", chapter_id: "c-1" },
+        attempts: 0,
+      });
+      update.mockResolvedValue({});
+
+      const statusPromise = runJob("job-timeout");
+      await vi.advanceTimersByTimeAsync(25);
+
+      await expect(statusPromise).resolves.toBe("pending");
+      expect(update).toHaveBeenCalledWith({
+        where: { id: "job-timeout" },
+        data: expect.objectContaining({
+          status: "pending",
+          attempts: 1,
+          last_error: 'Job "index_chapter" timed out after 25ms',
+        }),
+      });
+    } finally {
+      vi.useRealTimers();
+      if (prev === undefined) delete process.env.JOB_INDEX_TIMEOUT_MS;
+      else process.env.JOB_INDEX_TIMEOUT_MS = prev;
+      vi.resetModules();
+    }
+  });
+
   it("does not double-process a job another runner already claimed", async () => {
     const { runJob } = await import("./queue");
     updateMany.mockResolvedValue({ count: 0 });
@@ -157,6 +228,199 @@ describe("runJob", () => {
         last_error: expect.stringContaining("No handler"),
       }),
     });
+  });
+});
+
+describe("claimNextJob", () => {
+  it("claims the oldest pending job globally by default", async () => {
+    const { claimNextJob } = await import("./queue");
+    const createdAt = new Date("2026-05-27T00:00:00.000Z");
+    const job = {
+      id: "job-1",
+      novel_id: "n-1",
+      type: "summarize_chapter",
+      payload: { chapter_id: "c-1" },
+      status: "pending",
+      attempts: 0,
+      last_error: null,
+      created_at: createdAt,
+      updated_at: createdAt,
+      started_at: null,
+      finished_at: null,
+    };
+    findFirst.mockResolvedValue(job);
+    updateMany.mockResolvedValue({ count: 1 });
+
+    const claimed = await claimNextJob();
+
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { status: { in: ["pending"] } },
+      orderBy: { created_at: "asc" },
+    });
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: "job-1", status: { in: ["pending"] } },
+      data: {
+        status: "running",
+        started_at: expect.any(Date),
+        finished_at: null,
+      },
+    });
+    expect(claimed).toMatchObject({
+      id: "job-1",
+      status: "running",
+      finished_at: null,
+    });
+    expect(claimed?.started_at).toBeInstanceOf(Date);
+  });
+
+  it("supports filtering by novel, type, and retryable status", async () => {
+    const { claimNextJob } = await import("./queue");
+    findFirst.mockResolvedValue(null);
+
+    const claimed = await claimNextJob({
+      novelId: "n-2",
+      type: ["index_chapter", "refresh_summaries"],
+      status: ["pending", "failed"],
+    });
+
+    expect(claimed).toBeNull();
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        status: { in: ["pending", "failed"] },
+        novel_id: "n-2",
+        type: { in: ["index_chapter", "refresh_summaries"] },
+      },
+      orderBy: { created_at: "asc" },
+    });
+  });
+
+  it("does not claim a job when the requested type is at its concurrency limit", async () => {
+    const prev = process.env.JOB_REFRESH_MAX_CONCURRENT;
+    process.env.JOB_REFRESH_MAX_CONCURRENT = "1";
+    try {
+      vi.resetModules();
+      const { claimNextJob } = await import("./queue");
+      count.mockResolvedValue(1);
+
+      const claimed = await claimNextJob({ type: "refresh_summaries" });
+
+      expect(claimed).toBeNull();
+      expect(count).toHaveBeenCalledWith({
+        where: { type: "refresh_summaries", status: "running" },
+      });
+      expect(findFirst).not.toHaveBeenCalled();
+    } finally {
+      if (prev === undefined) delete process.env.JOB_REFRESH_MAX_CONCURRENT;
+      else process.env.JOB_REFRESH_MAX_CONCURRENT = prev;
+      vi.resetModules();
+    }
+  });
+
+  it("skips saturated types when claiming any job", async () => {
+    const prev = process.env.JOB_REFRESH_MAX_CONCURRENT;
+    process.env.JOB_REFRESH_MAX_CONCURRENT = "1";
+    try {
+      vi.resetModules();
+      const { claimNextJob } = await import("./queue");
+      count
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(1);
+      findFirst.mockResolvedValue(null);
+
+      await claimNextJob();
+
+      expect(findFirst).toHaveBeenCalledWith({
+        where: {
+          status: { in: ["pending"] },
+          type: { notIn: ["refresh_summaries"] },
+        },
+        orderBy: { created_at: "asc" },
+      });
+    } finally {
+      if (prev === undefined) delete process.env.JOB_REFRESH_MAX_CONCURRENT;
+      else process.env.JOB_REFRESH_MAX_CONCURRENT = prev;
+      vi.resetModules();
+    }
+  });
+
+  it("retries when another worker claimed the same candidate first", async () => {
+    const { claimNextJob } = await import("./queue");
+    const createdAt = new Date("2026-05-27T00:00:00.000Z");
+    const first = {
+      id: "job-1",
+      novel_id: "n-1",
+      type: "summarize_chapter",
+      payload: {},
+      status: "pending",
+      attempts: 0,
+      last_error: null,
+      created_at: createdAt,
+      updated_at: createdAt,
+      started_at: null,
+      finished_at: null,
+    };
+    const second = { ...first, id: "job-2" };
+    findFirst.mockResolvedValueOnce(first).mockResolvedValueOnce(second);
+    updateMany.mockResolvedValueOnce({ count: 0 }).mockResolvedValueOnce({ count: 1 });
+
+    const claimed = await claimNextJob({ novelId: "n-1" });
+
+    expect(updateMany).toHaveBeenCalledTimes(2);
+    expect(updateMany.mock.calls[0][0].where).toEqual({
+      id: "job-1",
+      status: { in: ["pending"] },
+    });
+    expect(updateMany.mock.calls[1][0].where).toEqual({
+      id: "job-2",
+      status: { in: ["pending"] },
+    });
+    expect(claimed?.id).toBe("job-2");
+  });
+});
+
+describe("runNextJob", () => {
+  it("claims and runs one matching job", async () => {
+    const { registerHandler, runNextJob } = await import("./queue");
+    const handler = vi.fn().mockResolvedValue(undefined);
+    registerHandler("refresh_summaries", handler);
+
+    const createdAt = new Date("2026-05-27T00:00:00.000Z");
+    findFirst.mockResolvedValue({
+      id: "job-3",
+      novel_id: "n-1",
+      type: "refresh_summaries",
+      payload: { novel_id: "n-1" },
+      status: "pending",
+      attempts: 0,
+      last_error: null,
+      created_at: createdAt,
+      updated_at: createdAt,
+      started_at: null,
+      finished_at: null,
+    });
+    updateMany.mockResolvedValue({ count: 1 });
+    update.mockResolvedValue({});
+
+    const status = await runNextJob({ novelId: "n-1", type: "refresh_summaries" });
+
+    expect(status).toBe("done");
+    expect(handler).toHaveBeenCalledWith({ novel_id: "n-1" });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "job-3" },
+      data: expect.objectContaining({
+        status: "done",
+        attempts: { increment: 1 },
+      }),
+    });
+  });
+
+  it("returns null when there is no matching job", async () => {
+    const { runNextJob } = await import("./queue");
+    findFirst.mockResolvedValue(null);
+
+    await expect(runNextJob({ novelId: "n-404" })).resolves.toBeNull();
+    expect(update).not.toHaveBeenCalled();
   });
 });
 

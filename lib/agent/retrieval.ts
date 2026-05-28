@@ -8,7 +8,8 @@
 //   3. Keyword pre-filter as tiebreaker when hybrid quality matters.
 
 import { prisma } from "@/lib/db";
-import { createEmbedding, createEmbeddings } from "@/lib/llm/embeddings";
+import { createEmbeddings } from "@/lib/llm/embeddings";
+import { getLlmMockScenario, isLlmMockEnabled } from "@/lib/llm/mock";
 import type { BibleDraft } from "@/lib/validation/schemas";
 import type { RetrievalResult } from "@/lib/agent/contracts";
 import { errorMessage, logError } from "@/lib/observability/logger";
@@ -16,11 +17,15 @@ import { errorMessage, logError } from "@/lib/observability/logger";
 export type { RetrievalStatus } from "@/lib/agent/contracts";
 
 interface ScoredChunk {
+  id: string;
   source: string;
   text: string;
   reason: string;
   score: number;
   chapterIndex: number;
+  importance: number;
+  chunkType: string;
+  matchedKeywords: string[];
 }
 
 function buildQueryKeywords(bible: BibleDraft, chapterIndex: number): string[] {
@@ -56,6 +61,11 @@ function timeDecay(distance: number): number {
   return 1 / (1 + 0.1 * distance);
 }
 
+function matchingKeywords(text: string, keywords: string[]): string[] {
+  const lower = text.toLowerCase();
+  return keywords.filter((keyword) => lower.includes(keyword.toLowerCase()));
+}
+
 /**
  * Run a single vector-similarity search and return scored chunks with
  * their chapter_index attached (via LEFT JOIN).
@@ -72,11 +82,12 @@ async function singleSearch(
       text: string;
       chunk_type: string;
       chapter_id: string | null;
+      importance: number | null;
       similarity: number;
       chapter_index: number | null;
     }>
   >`
-    SELECT mc.id, mc.text, mc.chunk_type, mc.chapter_id,
+    SELECT mc.id, mc.text, mc.chunk_type, mc.chapter_id, mc.importance,
       1 - (mc.embedding <=> ${embeddingStr}::vector) AS similarity,
       cd.chapter_index
     FROM "MemoryChunk" mc
@@ -87,12 +98,25 @@ async function singleSearch(
   `;
 
   return rows.map((row) => ({
+    id: row.id,
     source: row.chapter_id ? "chapter:" + row.chapter_id : "novel",
     text: row.text,
     reason: "\u7c7b\u578b\uff1a" + row.chunk_type + "\uff0c\u76f8\u4f3c\u5ea6\uff1a" + (row.similarity * 100).toFixed(1) + "%",
     score: row.similarity,
     chapterIndex: row.chapter_index ?? 0,
+    importance: row.importance ?? 1,
+    chunkType: row.chunk_type,
+    matchedKeywords: [],
   }));
+}
+
+async function markRetrievedChunksUsed(chunkIds: string[]): Promise<void> {
+  const ids = [...new Set(chunkIds)].filter(Boolean);
+  if (ids.length === 0) return;
+  await prisma.memoryChunk.updateMany({
+    where: { id: { in: ids } },
+    data: { last_used_at: new Date() },
+  });
 }
 
 export async function retrieveMemories(
@@ -101,6 +125,16 @@ export async function retrieveMemories(
   chapterIndex: number,
   topK = 5,
 ): Promise<RetrievalResult> {
+  if (isLlmMockEnabled() && getLlmMockScenario() === "retrieval-error") {
+    const message = "Mock retrieval failure requested by LLM_MOCK_SCENARIO.";
+    logError("retrieval.failed", {
+      novel_id: novelId,
+      chapter_index: chapterIndex,
+      error: message,
+    });
+    return { status: "error", memories: [], errorMessage: message };
+  }
+
   try {
     const protagonist = bible.characters.find((c) => c.role === "protagonist");
     const allChapters = [
@@ -134,12 +168,13 @@ export async function retrieveMemories(
     if (themeText) queryTexts.push(themeText);
 
     if (queryTexts.length === 0) {
-      return { status: "empty", memories: [] };
+      return { status: "empty", memories: [], explanation: { queryTexts: [], keywordFilters: [] } };
     }
 
     // --- 2. Batch-embed all queries in one API call ---
     const embeddings = await createEmbeddings(queryTexts);
     const keywords = buildQueryKeywords(bible, chapterIndex);
+    const retrievalExplanation = { queryTexts, keywordFilters: keywords };
     const candidateLimit = Math.max(topK * 3, 15);
 
     // --- 3. Run searches in parallel, then merge ---
@@ -155,6 +190,9 @@ export async function retrieveMemories(
         const existing = merged.get(key);
         if (existing) {
           existing.score += hit.score;
+          existing.matchedKeywords = [
+            ...new Set([...existing.matchedKeywords, ...matchingKeywords(hit.text, keywords)]),
+          ];
           if (
             Math.abs(hit.chapterIndex - chapterIndex) <
             Math.abs(existing.chapterIndex - chapterIndex)
@@ -162,7 +200,7 @@ export async function retrieveMemories(
             existing.chapterIndex = hit.chapterIndex;
           }
         } else {
-          merged.set(key, { ...hit });
+          merged.set(key, { ...hit, matchedKeywords: matchingKeywords(hit.text, keywords) });
         }
       }
     }
@@ -170,7 +208,7 @@ export async function retrieveMemories(
     let scored = [...merged.values()];
 
     if (scored.length === 0) {
-      return { status: "empty", memories: [] };
+      return { status: "empty", memories: [], explanation: retrievalExplanation };
     }
 
     // --- 4. Optional keyword pre-filter ---
@@ -187,10 +225,19 @@ export async function retrieveMemories(
       const distance = Math.abs(row.chapterIndex - chapterIndex);
       const decay = timeDecay(distance);
       return {
+        id: row.id,
         source: row.source,
         text: row.text,
         reason: row.reason + "\uff0c\u8ddd\u79bb\uff1a" + distance + " \u7ae0\uff0c\u8870\u51cf\uff1a" + (decay * 100).toFixed(0) + "%",
-        score: row.score * decay,
+        score: row.score * decay * row.importance,
+        explanation: {
+          chunkType: row.chunkType,
+          similarity: row.score,
+          chapterDistance: distance,
+          timeDecay: decay,
+          importance: row.importance,
+          matchedKeywords: row.matchedKeywords,
+        },
       };
     });
 
@@ -199,10 +246,23 @@ export async function retrieveMemories(
       .slice(0, topK);
 
     if (results.length === 0) {
-      return { status: "empty", memories: [] };
+      return { status: "empty", memories: [], explanation: retrievalExplanation };
     }
 
-    return { status: "success", memories: results };
+    await markRetrievedChunksUsed(results.map((row) => row.id));
+
+    return {
+      status: "success",
+      memories: results.map((row) => ({
+        id: row.id,
+        source: row.source,
+        text: row.text,
+        reason: row.reason,
+        score: row.score,
+        explanation: row.explanation,
+      })),
+      explanation: retrievalExplanation,
+    };
   } catch (err) {
     const message = errorMessage(err);
     logError("retrieval.failed", {

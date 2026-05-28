@@ -1,11 +1,7 @@
 import { jsonError, jsonOk } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
-import { enqueueJob, runPendingJobsForNovel } from "@/lib/jobs/queue";
-import { errorMessage, logError } from "@/lib/observability/logger";
+import { enqueueJob } from "@/lib/jobs/queue";
 import { routeGuard } from "@/lib/auth/routeGuard";
-
-// Side-effect import: registers job handlers on first load.
-import "@/lib/jobs/handlers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,6 +60,7 @@ export async function POST(_request: Request, context: RouteContext) {
     chunkCounts.filter((c) => c._count._all > 0).map((c) => c.chapter_id),
   );
 
+  const enqueued = [];
   let summarizeQueued = 0;
   let indexQueued = 0;
   for (const chapter of chapters) {
@@ -74,41 +71,34 @@ export async function POST(_request: Request, context: RouteContext) {
     const needsSummarize = chapter.summary_dirty || !chapter.summary;
     const needsIndex = chapter.index_dirty || !chaptersWithChunks.has(chapter.id);
     if (needsSummarize) {
-      await enqueueJob({
+      const job = await enqueueJob({
         type: "summarize_chapter",
         payload: { chapter_id: chapter.id },
         novelId: id,
       });
+      enqueued.push({ id: job.id, type: job.type, status: job.status });
       summarizeQueued += 1;
     }
     if (needsIndex) {
-      await enqueueJob({
+      const job = await enqueueJob({
         type: "index_chapter",
         payload: { novel_id: id, chapter_id: chapter.id },
         novelId: id,
       });
+      enqueued.push({ id: job.id, type: job.type, status: job.status });
       indexQueued += 1;
     }
   }
 
   let summariesQueued = 0;
   if (summarizeQueued > 0) {
-    await enqueueJob({
+    const job = await enqueueJob({
       type: "refresh_summaries",
       payload: { novel_id: id },
       novelId: id,
     });
+    enqueued.push({ id: job.id, type: job.type, status: job.status });
     summariesQueued = 1;
-  }
-
-  // Drain best-effort, same pattern as POST /jobs.
-  if (summarizeQueued + indexQueued + summariesQueued > 0) {
-    void runPendingJobsForNovel(id).catch((err) => {
-      logError("jobs.refresh_dirty_drain_failed", {
-        novel_id: id,
-        error: errorMessage(err),
-      });
-    });
   }
 
   return jsonOk({
@@ -116,5 +106,6 @@ export async function POST(_request: Request, context: RouteContext) {
     index_queued: indexQueued,
     summaries_queued: summariesQueued,
     chapters_scanned: chapters.length,
+    enqueued,
   });
 }

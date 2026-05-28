@@ -23,6 +23,8 @@
     "eval:ai": "tsx scripts/eval-ai-quality.ts",
     "eval:novel-quality": "tsx scripts/eval-novel-quality.ts",
     "eval:novel-quality:matrix": "tsx scripts/eval-novel-quality-matrix.ts",
+    "eval:retrieval": "tsx scripts/eval-retrieval.ts",
+    "jobs:worker": "dotenv -e .env -- tsx scripts/jobs-worker.ts",
     "smoke:onboarding": "dotenv -e .env -- tsx scripts/onboarding-api-smoke.ts",
     "prompt:bible": "tsx scripts/test-bible-prompt.ts",
     "postinstall": "prisma generate"

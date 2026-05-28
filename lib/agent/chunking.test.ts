@@ -117,5 +117,16 @@ describe("indexChapter", () => {
 
     expect(createEmbeddings).toHaveBeenCalledTimes(1);
     expect(createEmbedding).not.toHaveBeenCalled();
+    expect(executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining("importance, source_kind"),
+      "n-1",
+      "c-1",
+      expect.any(String),
+      expect.any(String),
+      expect.any(String),
+      expect.any(Object),
+      expect.any(Number),
+      "chapter",
+    );
   });
 });

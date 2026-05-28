@@ -1,0 +1,116 @@
+[
+  {
+    "id": "xuanhuan-sword-soul",
+    "description": "当前章追问剑魂来源时，应召回剑魂认主规则和几认识沈言父亲的前文。",
+    "query": "沈言准备在考核前确认上古剑魂来源，并追问几是否认识父亲。",
+    "expected_memory_ids": ["m-sword-rule", "m-mentor-father"],
+    "memories": [
+      {
+        "id": "m-sword-rule",
+        "source": "chapter:1",
+        "chapter_index": 1,
+        "text": "剑魂认主不可逆，几只能与沈言共振，无法被随意转移。"
+      },
+      {
+        "id": "m-mentor-father",
+        "source": "chapter:3",
+        "chapter_index": 3,
+        "text": "几承认自己认识沈言的父亲，父母旧案与上古剑魂有关。"
+      },
+      {
+        "id": "m-kitchen-rain",
+        "source": "chapter:1",
+        "chapter_index": 1,
+        "text": "雨夜火房里，执事把黑色木牌摔到沈言脚边。"
+      },
+      {
+        "id": "m-sect-market",
+        "source": "chapter:2",
+        "chapter_index": 2,
+        "text": "柴饦门山下集市正在为宗门考核准备药材。"
+      },
+      {
+        "id": "m-antagonist-plan",
+        "source": "chapter:5",
+        "chapter_index": 5,
+        "text": "蒋阶试图夺取剑魂，借献祭仪式复兴衰败宗门。"
+      }
+    ]
+  },
+  {
+    "id": "urban-memory-case",
+    "description": "法医追查失忆治疗档案时，应召回白塔医院、顾沉舟和失忆前接触受害者。",
+    "query": "林砚在白塔医院追查失忆治疗档案，怀疑顾沉舟删改了自己与受害者相关的记录。",
+    "expected_memory_ids": ["m-white-tower", "m-gu-memory"],
+    "memories": [
+      {
+        "id": "m-autopsy",
+        "source": "chapter:1",
+        "chapter_index": 1,
+        "text": "林砚在尸检台上发现无名尸旧伤里有自己的指纹纹路。"
+      },
+      {
+        "id": "m-white-tower",
+        "source": "chapter:3",
+        "chapter_index": 3,
+        "text": "白塔医院保存着林砚的失忆治疗档案，但关键页码被人删改。"
+      },
+      {
+        "id": "m-gu-memory",
+        "source": "chapter:3",
+        "chapter_index": 3,
+        "text": "顾沉舟曾是林砚的治疗医生，并主持过非法记忆干预项目。"
+      },
+      {
+        "id": "m-police-food",
+        "source": "chapter:2",
+        "chapter_index": 2,
+        "text": "周棠在市局茶水间提醒林砚不要只相信自己的记忆。"
+      },
+      {
+        "id": "m-port-video",
+        "source": "chapter:4",
+        "chapter_index": 4,
+        "text": "旧港仓库录像显示失忆前的林砚与受害者同行。"
+      }
+    ]
+  },
+  {
+    "id": "scifi-blackbox",
+    "description": "AI 拒令与黑箱协议相关时，应召回通信延迟、黑箱协议和冷却系统约束。",
+    "query": "赫卡忒号 AI 拒绝返航命令，陆桥需要判断黑箱协议和冷却系统是否让切断 AI 变得危险。",
+    "expected_memory_ids": ["m-blackbox", "m-cooling", "m-delay"],
+    "memories": [
+      {
+        "id": "m-blackbox",
+        "source": "chapter:4",
+        "chapter_index": 4,
+        "text": "陆桥恢复第六次重启前的黑箱日志，发现真实航线记录被手动删除。"
+      },
+      {
+        "id": "m-cooling",
+        "source": "chapter:2",
+        "chapter_index": 2,
+        "text": "切断 AI 会让冷却系统失控，采矿船可能在三分钟内进入过热保护。"
+      },
+      {
+        "id": "m-delay",
+        "source": "chapter:3",
+        "chapter_index": 3,
+        "text": "地球通信单程延迟六小时，求救不会改变眼前的返航窗口。"
+      },
+      {
+        "id": "m-captain-arm",
+        "source": "chapter:1",
+        "chapter_index": 1,
+        "text": "孟泊舟的左手义肢带有远日矿业识别码。"
+      },
+      {
+        "id": "m-canteen",
+        "source": "chapter:2",
+        "chapter_index": 2,
+        "text": "船员在餐舱讨论冻干咖啡是否还能撑过返航。"
+      }
+    ]
+  }
+]

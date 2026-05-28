@@ -5,12 +5,53 @@ import { getRequiredUserId } from "@/lib/auth/session";
 import { retrieveMemories } from "@/lib/agent/retrieval";
 import { BibleDraftSchema } from "@/lib/validation/schemas";
 import { errorMessage, logError } from "@/lib/observability/logger";
+import { buildMemoryLibraryPreview, normalizeMemoryLibraryQuery } from "@/lib/agent/memoryLibrary";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
+}
+
+type NovelForAccess = { id: string; user_id: string | null };
+
+async function authorizeNovel(id: string): Promise<NovelForAccess | Response> {
+  const novel = await prisma.novel.findUnique({
+    where: { id },
+    select: { id: true, user_id: true },
+  });
+  if (!novel) {
+    return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
+  }
+
+  let userId: string;
+  try {
+    userId = await getRequiredUserId();
+  } catch {
+    return jsonError("UNAUTHORIZED", "Login required", false, 401);
+  }
+  if (!canAccessOwnerResource(novel.user_id, userId)) {
+    return jsonError("NOVEL_NOT_FOUND", "Novel not found", false, 404);
+  }
+
+  return novel;
+}
+
+export async function GET(request: Request, context: RouteContext) {
+  const { id } = await context.params;
+  const auth = await authorizeNovel(id);
+  if (auth instanceof Response) return auth;
+
+  const url = new URL(request.url);
+  const data = await buildMemoryLibraryPreview(prisma, id, normalizeMemoryLibraryQuery({
+    page: Number(url.searchParams.get("page") ?? undefined),
+    pageSize: Number(url.searchParams.get("page_size") ?? undefined),
+    chapterIndex: Number(url.searchParams.get("chapter_index") ?? undefined),
+    type: url.searchParams.get("type") ?? undefined,
+  }));
+
+  return jsonOk(data);
 }
 
 /**
@@ -59,6 +100,7 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonOk({
       status: result.status,
       memories: result.memories.map((m) => ({
+        id: m.id,
         source: m.source,
         text: m.text,
         reason: m.reason,
