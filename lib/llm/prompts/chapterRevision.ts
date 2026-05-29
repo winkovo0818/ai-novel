@@ -40,6 +40,18 @@ export function buildChapterRevisionPrompt(input: BuildChapterRevisionPromptInpu
     return `${index + 1}. [${issue.severity}/${issue.type}] ${wrap(issue.description, "critic_issue")}${suggestion}`;
   }).join("\n");
 
+  // Countable issue types need concrete mechanics, otherwise the model "acknowledges"
+  // the note without measurably changing the prose. Mirror the critic's signals.
+  const issueTypes = new Set(issues.map((issue) => issue.type));
+  const typeGuidance: string[] = [];
+  if (issueTypes.has("prose_quality")) {
+    typeGuidance.push('- 修 prose_quality：打散句首重复（改写相邻段落的起始结构，别再用同一主语+动词开头）、拆掉三连排比/列举（改写成带动作或细节的句子，不要"一个…一种…一道…"）、删聊天机器人套话（"如果你愿意""可以认为""值得注意的是"等）。保留剧情事实与信息量。');
+  }
+  if (issueTypes.has("logic_chain")) {
+    typeGuidance.push("- 修 logic_chain：为堆叠的事件补上动机与因果连接（为什么做 → 遇到什么阻碍 → 怎么行动 → 得到什么结果），让主链可读；只能用已确立的设定，不得新增与 Bible 冲突的因果。");
+  }
+  const typeGuidanceText = typeGuidance.length > 0 ? `\n\n针对性修订指引（按命中的问题类型）：\n${typeGuidance.join("\n")}` : "";
+
   return [
     {
       role: "system",
@@ -56,7 +68,7 @@ ${HUMAN_STYLE_DIRECTIVE}
 - 不得违反 Story Bible、世界规则、人物动机和前文摘要。
 - 修订必须彻底：修复一个问题时不要引入新矛盾，也不要留下原问题换个说法的残留。
 - 修订时同样要符合"人工痕迹要求"——审校意见的"语言生硬"类问题往往就是 AI 痕迹问题。
-- 避免裸露、色情、违反中国法律的内容。`,
+- 避免裸露、色情、违反中国法律的内容。${typeGuidanceText}`,
     },
     {
       role: "user",

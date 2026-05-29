@@ -18,6 +18,7 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("@/lib/llm/client", () => ({
   chatCompletion,
+  chatCompletionWithRetry: chatCompletion,
 }));
 
 vi.mock("@/lib/agent/chunking", () => ({
@@ -75,6 +76,7 @@ describe("summarize_chapter handler", () => {
         route: "/jobs/summarize_chapter",
         temperature: 0,
       }),
+      1,
     );
     // M3.1 contract: clear summary_dirty alongside the upsert so the
     // chapter management page badge flips off the moment the row lands.

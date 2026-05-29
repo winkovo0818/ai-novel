@@ -112,5 +112,52 @@
         "text": "船员在餐舱讨论冻干咖啡是否还能撑过返航。"
       }
     ]
+  },
+  {
+    "id": "urban-signoff-feedback",
+    "description": "读者反馈场景：两个高词重叠但被标无关的签名流程块应被过滤，真正揭示补签漏洞的块靠 helpful 反馈进入 top3。",
+    "query": "林砚怀疑停尸房双人签名制度被钻空子补签，想确认签名记录是否被人改过。",
+    "expected_memory_ids": ["m-signoff-loophole", "m-second-sign"],
+    "memories": [
+      {
+        "id": "m-signoff-noise-1",
+        "source": "chapter:2",
+        "chapter_index": 2,
+        "text": "林砚在停尸房整理双人签名制度的打印件，顺手补签了自己的考勤记录，确认没有漏签。",
+        "feedback": { "irrelevant": 2 }
+      },
+      {
+        "id": "m-signoff-noise-2",
+        "source": "chapter:2",
+        "chapter_index": 2,
+        "text": "停尸房的签名制度手册里记录了补签流程，林砚确认过双人签名的格式要求。",
+        "feedback": { "irrelevant": 3 }
+      },
+      {
+        "id": "m-signoff-loophole",
+        "source": "chapter:5",
+        "chapter_index": 5,
+        "text": "规章允许事后补签，这让内鬼可以在双人签名缺一时钻空子。",
+        "feedback": { "helpful": 3 }
+      },
+      {
+        "id": "m-second-sign",
+        "source": "chapter:5",
+        "chapter_index": 5,
+        "text": "那份尸检报告出现了不可能的第二个签名，时间晚于林砚离开现场。"
+      },
+      {
+        "id": "m-coffee-break",
+        "source": "chapter:2",
+        "chapter_index": 2,
+        "text": "周棠在茶水间提醒林砚先吃饭，咖啡机又坏了。"
+      },
+      {
+        "id": "m-night-rain",
+        "source": "chapter:1",
+        "chapter_index": 1,
+        "text": "窗外的雨下了一整夜，走廊的灯忽明忽暗。"
+      }
+    ]
   }
 ]

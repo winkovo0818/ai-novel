@@ -12,15 +12,15 @@
 |-----------------------------|-------------------------------------------------------------------------------------------------------------|
 | `npm run typecheck`         | ✅ 通过                                                                                                        |
 | `npm run lint` (`eslint .`) | ✅ 通过                                                                                                        |
-| `npm run test` (Vitest)     | ✅ 通过，**86 files / 689 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
+| `npm run test` (Vitest)     | ✅ 通过，**115 files / 888 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
 | `npm run build`             | ✅ 通过                                                            |
 | `tests/e2e/` (Playwright)   | ✅ 8 tests（onboarding / editor-failure / editor-candidate × 4 / version-restore / beat-to-draft），P0-1 后按钮文案对齐 M1.3 候选稿模式                                          |
 | coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines/statements 68 · functions 93 · branches 83，基线 70.04 / 94.24 / 85.50）                                                                                  |
-| 代码规模                     | 46 个 API route · 22 个 page.tsx · 24 条 Prisma migration · 20 个 Prisma model                                                                  |
+| 代码规模                     | 57 个 API route · 27 个 page.tsx · 29 条 Prisma migration · 23 个 Prisma model                                                                  |
 
 `.github/workflows/ci.yml` 现有两个 job：`verify`（lint/typecheck/test/build）+ `e2e`（pgvector postgres + LLM_MOCK + playwright + 失败上传 trace）。
 
-> 累计 migration（24 条），关键的近期 5 条：
+> 累计 migration（29 条），关键的近期 5 条：
 > - `20260511010000_add_embedding_models` — `EmbeddingModel` 表 + `(provider, model)` 唯一约束（Phase B）
 > - `20260511020000_add_chapter_dirty_flags` — `ChapterDraft.summary_dirty / index_dirty` + 双索引 + 历史数据 backfill（M3.1，2026-05-11 晚）
 > - `20260512000000_add_draft_sessions` — `DraftSession` 表（UX3 SSE 续传，2026-05-12）

@@ -5,11 +5,17 @@ const ROOT = process.cwd();
 const FIXTURE_PATH = path.join(ROOT, "scripts", "fixtures", "retrieval-cases.json");
 const REPORT_DIR = path.join(ROOT, "docs", "evals");
 
+interface RetrievalFeedbackFixture {
+  helpful?: number;
+  irrelevant?: number;
+}
+
 interface RetrievalMemoryFixture {
   id: string;
   source: string;
   chapter_index: number;
   text: string;
+  feedback?: RetrievalFeedbackFixture;
 }
 
 interface RetrievalCaseFixture {
@@ -26,8 +32,11 @@ interface RetrievalCaseResult {
   expected: string[];
   top3: string[];
   top5: string[];
+  top3NoFeedback: string[];
+  feedbackChangedTop3: boolean;
   recallAt3: number;
   recallAt5: number;
+  recallAt3NoFeedback: number;
   missedAt5: string[];
 }
 
@@ -38,6 +47,8 @@ interface RetrievalReport {
     cases: number;
     recallAt3: number;
     recallAt5: number;
+    recallAt3NoFeedback: number;
+    feedbackImpactedCases: number;
     missedAt5: string[];
   };
 }
@@ -64,18 +75,43 @@ function scoreMemory(queryTokens: string[], memory: RetrievalMemoryFixture): num
   return overlap + phraseBonus + sourceBonus;
 }
 
-function evaluateCase(input: RetrievalCaseFixture): RetrievalCaseResult {
-  const queryTokens = tokenize(input.query);
-  const ranked = input.memories
-    .map((memory) => ({ memory, score: scoreMemory(queryTokens, memory) }))
+// Mirrors lib/agent/retrieval.ts feedbackFactor + irrelevant filter so this
+// offline eval reflects the same ranking signal production applies.
+const IRRELEVANT_FILTER_THRESHOLD = 2;
+
+function feedbackFactor(feedback: RetrievalFeedbackFixture | undefined): number {
+  if (!feedback) return 1;
+  const raw = 1 + 0.1 * (feedback.helpful ?? 0) - 0.3 * (feedback.irrelevant ?? 0);
+  return Math.max(0.1, Math.min(2, raw));
+}
+
+function rankMemories(queryTokens: string[], memories: RetrievalMemoryFixture[], useFeedback: boolean): string[] {
+  const pool = useFeedback
+    ? memories.filter((memory) => (memory.feedback?.irrelevant ?? 0) < IRRELEVANT_FILTER_THRESHOLD)
+    : memories;
+  return pool
+    .map((memory) => ({
+      memory,
+      score: scoreMemory(queryTokens, memory) * (useFeedback ? feedbackFactor(memory.feedback) : 1),
+    }))
     .sort((a, b) => b.score - a.score || a.memory.chapter_index - b.memory.chapter_index)
     .map((item) => item.memory.id);
+}
+
+function recallAt(expected: string[], top: string[]): number {
+  if (expected.length === 0) return 1;
+  return expected.filter((id) => top.includes(id)).length / expected.length;
+}
+
+function evaluateCase(input: RetrievalCaseFixture): RetrievalCaseResult {
+  const queryTokens = tokenize(input.query);
+  const ranked = rankMemories(queryTokens, input.memories, true);
+  const rankedNoFeedback = rankMemories(queryTokens, input.memories, false);
 
   const top3 = ranked.slice(0, 3);
   const top5 = ranked.slice(0, 5);
+  const top3NoFeedback = rankedNoFeedback.slice(0, 3);
   const expected = input.expected_memory_ids;
-  const hitAt3 = expected.filter((id) => top3.includes(id));
-  const hitAt5 = expected.filter((id) => top5.includes(id));
 
   return {
     id: input.id,
@@ -83,8 +119,11 @@ function evaluateCase(input: RetrievalCaseFixture): RetrievalCaseResult {
     expected,
     top3,
     top5,
-    recallAt3: expected.length === 0 ? 1 : hitAt3.length / expected.length,
-    recallAt5: expected.length === 0 ? 1 : hitAt5.length / expected.length,
+    top3NoFeedback,
+    feedbackChangedTop3: top3.join(",") !== top3NoFeedback.join(","),
+    recallAt3: recallAt(expected, top3),
+    recallAt5: recallAt(expected, top5),
+    recallAt3NoFeedback: recallAt(expected, top3NoFeedback),
     missedAt5: expected.filter((id) => !top5.includes(id)),
   };
 }
@@ -100,17 +139,21 @@ function renderMarkdown(report: RetrievalReport): string {
     "",
     `- 生成时间：${report.generatedAt}`,
     `- Cases：${report.summary.cases}`,
-    `- Recall@3：${report.summary.recallAt3.toFixed(3)}`,
+    `- Recall@3（有反馈）：${report.summary.recallAt3.toFixed(3)}`,
+    `- Recall@3（无反馈）：${report.summary.recallAt3NoFeedback.toFixed(3)}`,
     `- Recall@5：${report.summary.recallAt5.toFixed(3)}`,
+    `- 反馈改变 top3 的 case 数：${report.summary.feedbackImpactedCases}`,
     `- Missed@5：${report.summary.missedAt5.length ? report.summary.missedAt5.join(", ") : "无"}`,
     "",
-    "| Case | Recall@3 | Recall@5 | Top3 | Missed@5 |",
-    "|---|---:|---:|---|---|",
+    "| Case | Recall@3 | Recall@3(无反馈) | Recall@5 | 反馈改变top3 | Top3 | Missed@5 |",
+    "|---|---:|---:|---:|:---:|---|---|",
     ...report.cases.map((item) =>
       [
         `| ${item.id}`,
         item.recallAt3.toFixed(3),
+        item.recallAt3NoFeedback.toFixed(3),
         item.recallAt5.toFixed(3),
+        item.feedbackChangedTop3 ? "是" : "否",
         item.top3.join(", "),
         item.missedAt5.length ? item.missedAt5.join(", ") : "无",
       ].join(" | ") + " |",
@@ -132,6 +175,8 @@ async function main() {
       cases: results.length,
       recallAt3: average(results.map((item) => item.recallAt3)),
       recallAt5: average(results.map((item) => item.recallAt5)),
+      recallAt3NoFeedback: average(results.map((item) => item.recallAt3NoFeedback)),
+      feedbackImpactedCases: results.filter((item) => item.feedbackChangedTop3).length,
       missedAt5: results.flatMap((item) => item.missedAt5.map((id) => `${item.id}:${id}`)),
     },
   };
@@ -142,7 +187,9 @@ async function main() {
     fs.writeFile(path.join(REPORT_DIR, "retrieval-latest.md"), `${renderMarkdown(report)}\n`, "utf-8"),
   ]);
 
-  console.log(`[eval:retrieval] recall@3=${report.summary.recallAt3.toFixed(3)} recall@5=${report.summary.recallAt5.toFixed(3)}`);
+  console.log(
+    `[eval:retrieval] recall@3=${report.summary.recallAt3.toFixed(3)} (no-feedback ${report.summary.recallAt3NoFeedback.toFixed(3)}) recall@5=${report.summary.recallAt5.toFixed(3)} · feedback-impacted ${report.summary.feedbackImpactedCases}/${report.summary.cases}`,
+  );
   console.log("[eval:retrieval] wrote docs/evals/retrieval-latest.md and docs/evals/retrieval-latest.json");
 
   if (report.summary.recallAt5 < 1) process.exit(1);

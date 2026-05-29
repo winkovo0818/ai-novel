@@ -44,7 +44,7 @@ function buildStoryStateSection(context: ChapterContext): string {
   return lines.join("\n");
 }
 
-function buildContinuityTargetSection(context: ChapterContext): string {
+function buildContinuityTargetSection(context: ChapterContext, isMystery: boolean): string {
   const lastSummary = context.previousSummaries.at(-1);
   const state = context.storyState;
   const latestTimelineEvent = state?.timeline?.at(-1);
@@ -57,15 +57,31 @@ function buildContinuityTargetSection(context: ChapterContext): string {
     .map((character) => `${wrap(character.name, "character_name")}：${wrap(character.current_goal ?? "", "story_state")}`)
     .slice(0, 3);
 
+  const actionLine = isMystery
+    ? "- 调查/试探链：先想清\"目标 -> 阻碍 -> 调查/试探 -> 新线索或新疑点\"；正文里至少两处自然的\"为什么这样查 / 这条线索意味着什么 / 还有哪条路被堵了\"的因果句，避免主角凭直觉跳到结论。"
+    : "- 行动链：先想清\"目标 -> 阻碍 -> 行动 -> 结果\"；正文里至少留下两处自然的因果/转折/代价句，让读者知道角色为什么这样做、付出了什么或换来了什么。";
+
+  const hookLine = isMystery
+    ? "- 悬疑因果钩示例（只学写法，不要照抄）：她没有立刻翻开档案。如果林砚还能看到这份档案，说明删档的人不怕他读到——危险的从来不是这一页，而是被故意留下的那一页。"
+    : "- 因果钩示例（只学写法，不要照抄）：他没有扔掉木牌。扔掉太干净，孙奉会知道他已经看懂了。";
+
+  const resultLine = isMystery
+    ? "- 本章悬疑结果：结尾前必须落到一个可记录的认知变化：新线索、新疑点、被推翻的假设、被排除的嫌疑人、新的误导/伏笔确认 之一；不要一次揭穿核心谜底。"
+    : "- 本章结果：结尾前必须产生一个可记录状态变化：新线索、关系变化、位置变化、道具归属、敌人反应、伤势/能力变化或世界规则确认。";
+
   const lines = [
     "本章隐形计划（只在内部使用，不要输出提纲）：",
     `- 上一章结果：${lastSummary ? wrap(lastSummary.summary, "previous_summary") : latestTimelineEvent ? wrap(latestTimelineEvent.event, "story_state") : "无前章；用第一章场面建立主角处境和即时压力。"}`,
     `- 当前目标：${currentGoals && currentGoals.length > 0 ? currentGoals.join("；") : "从主角动机和章节大纲中推出一个当场目标。"}`,
     `- 当前阻碍：${activeThreads && activeThreads.length > 0 ? activeThreads.join("；") : "用章节大纲、反派压力或世界规则制造阻碍。"}`,
-    "- 行动链：先想清“目标 -> 阻碍 -> 行动 -> 结果”；正文里至少留下两处自然的因果/转折/代价句，让读者知道角色为什么这样做、付出了什么或换来了什么。",
-    "- 因果钩示例（只学写法，不要照抄）：他没有扔掉木牌。扔掉太干净，孙奉会知道他已经看懂了。",
-    "- 本章结果：结尾前必须产生一个可记录状态变化：新线索、关系变化、位置变化、道具归属、敌人反应、伤势/能力变化或世界规则确认。",
+    actionLine,
+    hookLine,
+    resultLine,
   ];
+
+  if (isMystery) {
+    lines.push("- 信息分层：在内部明确区分\"已知 / 未知 / 误导\"三类信息；正文里读者要能感觉到主角的判断属于哪一类，不要写成全知。");
+  }
 
   return lines.join("\n");
 }
@@ -77,8 +93,9 @@ export function buildChapterPrompt(input: ChapterPromptInput): ChatMessage[] {
   const chapterIndex = context.outline.chapterIndex;
   const previousContext = context.previousSummaries.map((s) => wrap(s.summary, "previous_summary")).join("\n\n");
 
+  const isMystery = generationPolicy?.isMystery ?? false;
   const storyStateSection = buildStoryStateSection(context);
-  const continuityTargetSection = buildContinuityTargetSection(context);
+  const continuityTargetSection = buildContinuityTargetSection(context, isMystery);
 
   const tieredSummarySection: string[] = [];
   if (context.novelSummary) {
@@ -106,6 +123,12 @@ export function buildChapterPrompt(input: ChapterPromptInput): ChatMessage[] {
     audienceDirective: "",
     povDirective: `保持 ${profile.pov} 视角`,
     targetWordCount: profile.chapter_word_count,
+    temperature: 0.8,
+    topP: 0.95,
+    frequencyPenalty: 0.5,
+    presencePenalty: 0.3,
+    genreDirective: "",
+    isMystery: false,
   };
 
   const styleDirectives = [
@@ -114,6 +137,7 @@ export function buildChapterPrompt(input: ChapterPromptInput): ChatMessage[] {
     policy.paceDirective,
     policy.freedomDirective,
     policy.audienceDirective,
+    policy.genreDirective,
   ].filter(Boolean);
 
   return [

@@ -1,11 +1,20 @@
 import type { BibleDraft } from "@/lib/validation/schemas";
 import { collectAiWritingTraceHits, type AiWritingTraceHit } from "@/lib/llm/prompts/humanStyle";
+import type { CleanupHit } from "@/lib/llm/writerOutputCleanup";
 
 export interface QualityChapterInput {
   chapterIndex: number;
   title: string;
   content: string;
   outlineSummary?: string;
+  /**
+   * AI-signature cleanup rule hits on the *raw* writer output (before
+   * {@link cleanupWriterOutput} scrubbed it). The scored `content` is already
+   * clean, so this is the only window into how much AI residue the model
+   * emitted at the source. Optional: only real-generation eval paths populate
+   * it; fixture fallbacks omit it so the CI baseline stays stable.
+   */
+  rawCleanupHits?: CleanupHit[];
 }
 
 export interface MetricResult {
@@ -45,6 +54,8 @@ export interface NovelQualityReport {
   riskFlags: string[];
   recommendations: string[];
   aiTraceHits: AiWritingTraceHit[];
+  /** Aggregated AI-signature cleanup hits on raw writer output (empty unless the eval path supplied them). */
+  rawCleanupHits: CleanupHit[];
 }
 
 interface NovelQualityInput {
@@ -143,6 +154,19 @@ const DIALOGUE_RE = /[“"][^”"]{1,80}[”"]/g;
 const DASH_TRACE_RE = /[—–]|--/g;
 const AI_VOCAB_TRACE_RE = /极其|几乎|仿佛|似乎|宛如|犹如|隐约|依稀|轻轻|缓缓|慢慢|悄悄|不约而同|不由得|与此同时|不知不觉|不禁|霎时|刹那|一时间/g;
 
+function aggregateAiSignatureHits(chapters: QualityChapterInput[]): CleanupHit[] {
+  const byId = new Map<string, CleanupHit>();
+  for (const chapter of chapters) {
+    for (const hit of chapter.rawCleanupHits ?? []) {
+      if (hit.category !== "ai_signature") continue;
+      const existing = byId.get(hit.id);
+      if (existing) existing.count += hit.count;
+      else byId.set(hit.id, { ...hit });
+    }
+  }
+  return [...byId.values()].sort((a, b) => b.count - a.count);
+}
+
 export function evaluateNovelQuality(input: NovelQualityInput): NovelQualityReport {
   const chapters = input.chapters
     .filter((chapter) => chapter.content.trim())
@@ -185,6 +209,7 @@ export function evaluateNovelQuality(input: NovelQualityInput): NovelQualityRepo
     riskFlags,
     recommendations,
     aiTraceHits,
+    rawCleanupHits: aggregateAiSignatureHits(chapters),
   };
 }
 
@@ -510,6 +535,27 @@ function evaluateAiVoice(chapters: QualityChapterInput[], aiTraceHits: AiWriting
     const penalty = Math.min(2, Math.ceil(repetitiveStarts / 4));
     score -= penalty;
     warnings.push(`句首重复模式 ${repetitiveStarts} 次，扣 ${penalty} 分。`);
+  }
+
+  // Raw-output cleanup pressure: how many AI-signature rules the writer tripped
+  // *before* cleanup masked them. A high pre-cleanup hit rate means the prompt
+  // (not the regex band-aid) is what needs fixing. Only scored when the eval
+  // path supplied raw counts; fixture fallbacks omit it (keeps CI baseline stable).
+  const rawChapters = chapters.filter((chapter) => Array.isArray(chapter.rawCleanupHits));
+  if (rawChapters.length > 0) {
+    const totalRawHits = rawChapters.reduce(
+      (sum, chapter) =>
+        sum + (chapter.rawCleanupHits ?? []).filter((hit) => hit.category === "ai_signature").reduce((s, h) => s + h.count, 0),
+      0,
+    );
+    const avgRawHits = totalRawHits / rawChapters.length;
+    if (avgRawHits < 5) {
+      findings.push(`清洗前 AI 签名规则平均每章命中 ${avgRawHits.toFixed(1)} 条（< 5），写手原始输出较干净。`);
+    } else {
+      const penalty = Math.min(2, Math.floor(avgRawHits / 5));
+      score -= penalty;
+      warnings.push(`清洗前 AI 签名规则平均每章命中 ${avgRawHits.toFixed(1)} 条（≥ 5），原始输出 AI 味偏重，扣 ${penalty} 分；应从提示侧治理而非依赖清洗。`);
+    }
   }
 
   return metric("ai_voice", "AI 味控制", Math.max(0, score), 10, findings, warnings);

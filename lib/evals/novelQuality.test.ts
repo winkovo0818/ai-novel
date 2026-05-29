@@ -219,4 +219,49 @@ describe("evaluateNovelQuality", () => {
     expect(aiVoice?.warnings.some((warning) => warning.includes("破折号"))).toBe(true);
     expect(aiVoice?.warnings.some((warning) => warning.includes("AI 高频词"))).toBe(true);
   });
+
+  it("deducts AI voice score and aggregates raw cleanup hits when raw output was AI-heavy", () => {
+    const report = evaluateNovelQuality({
+      generatedAt: "2026-05-28T00:00:00.000Z",
+      fixtureId: "cleanup",
+      bible,
+      chapters: [1, 2, 3].map((index) => ({
+        chapterIndex: index,
+        title: `第${index}章`,
+        outlineSummary: outlineSummary(index),
+        content: "沈言握紧黑牌，裂井里传来声音。他必须去后山，因为符光亮了，所以他动身了。",
+        rawCleanupHits: [
+          { id: "vocab_slowly", label: "AI 副词（慢慢）", category: "ai_signature", count: 4 },
+          { id: "dash_overuse", label: "旁白破折号", category: "ai_signature", count: 3 },
+          { id: "ws_newline", label: "多余空行", category: "hygiene", count: 9 },
+        ],
+      })),
+    });
+    const aiVoice = report.metrics.find((metric) => metric.key === "ai_voice");
+
+    // 7 ai_signature hits/chapter (4 + 3); hygiene (9) is ignored.
+    expect(aiVoice?.warnings.some((w) => w.includes("清洗前 AI 签名规则平均每章命中 7.0 条"))).toBe(true);
+    // Aggregated across 3 chapters, ai_signature only, sorted by count desc.
+    expect(report.rawCleanupHits.map((h) => h.id)).toEqual(["vocab_slowly", "dash_overuse"]);
+    expect(report.rawCleanupHits.find((h) => h.id === "vocab_slowly")?.count).toBe(12);
+  });
+
+  it("omits the cleanup deduction when raw cleanup hits are not provided", () => {
+    const report = evaluateNovelQuality({
+      generatedAt: "2026-05-28T00:00:00.000Z",
+      fixtureId: "cleanup-absent",
+      bible,
+      chapters: [1, 2, 3].map((index) => ({
+        chapterIndex: index,
+        title: `第${index}章`,
+        outlineSummary: outlineSummary(index),
+        content: "沈言握紧黑牌，裂井里传来声音。他必须去后山，因为符光亮了，所以他动身了。",
+      })),
+    });
+    const aiVoice = report.metrics.find((metric) => metric.key === "ai_voice");
+
+    expect(aiVoice?.warnings.some((w) => w.includes("清洗前 AI 签名"))).toBe(false);
+    expect(aiVoice?.findings.some((f) => f.includes("清洗前 AI 签名"))).toBe(false);
+    expect(report.rawCleanupHits).toEqual([]);
+  });
 });

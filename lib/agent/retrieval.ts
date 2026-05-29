@@ -119,6 +119,66 @@ async function markRetrievedChunksUsed(chunkIds: string[]): Promise<void> {
   });
 }
 
+interface FeedbackCounts {
+  helpful: number;
+  irrelevant: number;
+}
+
+/**
+ * Reader feedback is OFF only when explicitly disabled. Default-on means a
+ * user who marks a chunk "irrelevant" sees it demoted/removed on the next
+ * retrieval without flipping a flag. Set RETRIEVAL_USE_FEEDBACK=0 to fall
+ * back to pure vector+decay ranking (used to A/B the effect).
+ */
+function isRetrievalFeedbackEnabled(): boolean {
+  const raw = process.env.RETRIEVAL_USE_FEEDBACK?.trim().toLowerCase();
+  return raw !== "0" && raw !== "false";
+}
+
+// Chunks marked irrelevant this many times are dropped from candidates
+// entirely rather than just demoted — the reader has said "stop showing me
+// this" more than once.
+const IRRELEVANT_FILTER_THRESHOLD = 2;
+
+/**
+ * Aggregate helpful / irrelevant counts per chunk across the novel's feedback
+ * rows. Scoped implicitly by the candidate ids (already novel-scoped from the
+ * vector search). Best-effort: a feedback query failure degrades to "no
+ * feedback" instead of breaking retrieval.
+ */
+async function fetchFeedbackCounts(chunkIds: string[]): Promise<Map<string, FeedbackCounts>> {
+  const counts = new Map<string, FeedbackCounts>();
+  const ids = [...new Set(chunkIds)].filter(Boolean);
+  if (ids.length === 0) return counts;
+  try {
+    const grouped = await prisma.memoryFeedback.groupBy({
+      by: ["memory_chunk_id", "rating"],
+      where: { memory_chunk_id: { in: ids } },
+      _count: { _all: true },
+    });
+    for (const row of grouped) {
+      const entry = counts.get(row.memory_chunk_id) ?? { helpful: 0, irrelevant: 0 };
+      if (row.rating === "helpful") entry.helpful = row._count._all;
+      else if (row.rating === "irrelevant") entry.irrelevant = row._count._all;
+      counts.set(row.memory_chunk_id, entry);
+    }
+  } catch (err) {
+    logError("retrieval.feedback_lookup_failed", { error: errorMessage(err) });
+  }
+  return counts;
+}
+
+/**
+ * Per-chunk multiplier applied after vector × decay × importance. Each helpful
+ * mark adds 0.1, each irrelevant subtracts 0.3, clamped to [0.1, 2.0] so a
+ * single signal nudges ranking without letting feedback dominate similarity.
+ */
+function feedbackFactor(counts: FeedbackCounts | undefined): number {
+  if (!counts) return 1;
+  const raw = 1 + 0.1 * counts.helpful - 0.3 * counts.irrelevant;
+  return Math.max(0.1, Math.min(2, raw));
+}
+
 export async function retrieveMemories(
   novelId: string,
   bible: BibleDraft,
@@ -220,16 +280,33 @@ export async function retrieveMemories(
       if (filtered.length > 0) scored = filtered;
     }
 
+    // --- 4.5 Reader-feedback filter + ranking signal ---
+    const feedbackEnabled = isRetrievalFeedbackEnabled();
+    const feedbackById = feedbackEnabled
+      ? await fetchFeedbackCounts(scored.map((row) => row.id))
+      : new Map<string, FeedbackCounts>();
+    if (feedbackEnabled && feedbackById.size > 0) {
+      const kept = scored.filter(
+        (row) => (feedbackById.get(row.id)?.irrelevant ?? 0) < IRRELEVANT_FILTER_THRESHOLD,
+      );
+      if (kept.length > 0) scored = kept;
+    }
+
     // --- 5. Time-decay re-ranking ---
     const decayed = scored.map((row) => {
       const distance = Math.abs(row.chapterIndex - chapterIndex);
       const decay = timeDecay(distance);
+      const fb = feedbackById.get(row.id);
+      const fbFactor = feedbackFactor(fb);
+      const fbReason = fb && (fb.helpful > 0 || fb.irrelevant > 0)
+        ? "\uff0c\u53cd\u9988\uff1a\u6709\u7528 " + fb.helpful + " / \u65e0\u5173 " + fb.irrelevant
+        : "";
       return {
         id: row.id,
         source: row.source,
         text: row.text,
-        reason: row.reason + "\uff0c\u8ddd\u79bb\uff1a" + distance + " \u7ae0\uff0c\u8870\u51cf\uff1a" + (decay * 100).toFixed(0) + "%",
-        score: row.score * decay * row.importance,
+        reason: row.reason + "\uff0c\u8ddd\u79bb\uff1a" + distance + " \u7ae0\uff0c\u8870\u51cf\uff1a" + (decay * 100).toFixed(0) + "%" + fbReason,
+        score: row.score * decay * row.importance * fbFactor,
         explanation: {
           chunkType: row.chunkType,
           similarity: row.score,
@@ -237,6 +314,9 @@ export async function retrieveMemories(
           timeDecay: decay,
           importance: row.importance,
           matchedKeywords: row.matchedKeywords,
+          feedbackHelpful: fb?.helpful ?? 0,
+          feedbackIrrelevant: fb?.irrelevant ?? 0,
+          feedbackFactor: fbFactor,
         },
       };
     });

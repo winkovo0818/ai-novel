@@ -1,0 +1,360 @@
+{
+  "generatedAt": "2026-05-29T00:25:58.734Z",
+  "fixtureIds": [
+    "urban-suspense"
+  ],
+  "models": [
+    "mimo-v2.5-pro"
+  ],
+  "chapterCount": 3,
+  "revisionRounds": 1,
+  "mode": "real_llm",
+  "summary": {
+    "caseCount": 1,
+    "averageDraftScore": 91.4,
+    "averageRevisedScore": 91.4,
+    "averageDelta": 0,
+    "bestCase": "都市悬疑/mimo-v2.5-pro",
+    "weakestCase": "都市悬疑/mimo-v2.5-pro",
+    "improvedCases": 0
+  },
+  "cases": [
+    {
+      "fixtureId": "urban-suspense",
+      "title": "旧伤纹",
+      "genre": "都市悬疑",
+      "model": "mimo-v2.5-pro",
+      "mode": "real_llm",
+      "chapterCount": 3,
+      "revisionRounds": 1,
+      "changedChapters": 0,
+      "criticIssues": 0,
+      "draftReport": {
+        "generatedAt": "2026-05-29T00:24:42.896Z",
+        "fixtureId": "urban-suspense",
+        "title": "旧伤纹",
+        "chapterCount": 3,
+        "totalChars": 11495,
+        "overallScore": 64,
+        "maxScore": 70,
+        "level": "excellent",
+        "metrics": [
+          {
+            "key": "continuity",
+            "label": "连续性",
+            "score": 8,
+            "max": 10,
+            "findings": [
+              "连续章节数 3，足够观察承接。",
+              "多数章节会复用前章关键人物、地点或线索。",
+              "章节正文多数能落到对应大纲关键词。",
+              "章节之间重复度可控，最高相似度 6%。"
+            ],
+            "warnings": [
+              "后续章节缺少明确承接桥，建议增加上一章结果对本章行动的影响。"
+            ]
+          },
+          {
+            "key": "logic",
+            "label": "因果逻辑",
+            "score": 9,
+            "max": 10,
+            "findings": [
+              "因果/转折提示密度 0.12，有基本提示，但仍需靠具体选择句补强。",
+              "未命中明显的无动机跳转风险词。",
+              "多数章节保留了可读的因果钩（3/3）。",
+              "多数章节能读出“目标 -> 行动 -> 结果”链条（3/3）。",
+              "结尾没有大量依赖模板化悬念句。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "character_consistency",
+            "label": "人物一致性",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "主角「林砚」在连续样本中稳定出现。",
+              "主角目标/动机关键词能在正文中回响。",
+              "反派或压力源「顾沉舟」已进入样本。",
+              "未发现明显违背主角核心动机的表层信号。",
+              "核心角色覆盖 3/3。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "plot_progress",
+            "label": "剧情推进",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "剧情动作/发现类词出现 13 次，推进感较明确。",
+              "多数章节有可记录的结果或状态变化（3/3）。",
+              "主线关键词覆盖 103/540。",
+              "章节开头没有明显复制模板。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "world_rules",
+            "label": "世界规则",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "正文能触及世界规则或规则关键词。",
+              "地点/势力覆盖 2/6。",
+              "未命中常见世界规则硬冲突信号。",
+              "样本包含可追踪的设定物件或稳定舞台。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "ai_voice",
+            "label": "AI 味控制",
+            "score": 7,
+            "max": 10,
+            "findings": [
+              "破折号 0 次，处于可控范围。",
+              "AI 高频词 0 次，处于可控范围。",
+              "短句比例 33%，有一定句式错落。",
+              "段落长度变异系数 0.61，段落节奏不算机械。"
+            ],
+            "warnings": [
+              "humanizer 规则命中 9 次（三连排比 8 次；过度委婉 1 次），扣 1 分。",
+              "句首重复模式 15 次，扣 2 分。"
+            ]
+          },
+          {
+            "key": "prose_readability",
+            "label": "正文可读性",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "平均句长 14.2，可读性正常。",
+              "对白 131 处，人物互动不全靠旁白。",
+              "有足够具体物象支撑画面。",
+              "标点密度正常。",
+              "摘要腔词汇不过量。"
+            ],
+            "warnings": []
+          }
+        ],
+        "chapterSummaries": [
+          {
+            "chapterIndex": 1,
+            "title": "尸检台",
+            "chars": 4895,
+            "sentenceCount": 318,
+            "dialogueCount": 35,
+            "excerpt": "夜里的法医中心没什么人。我刷开权限门，冷光从天花板泼下来，照得不锈钢台面发青。消毒水的气味钻进鼻腔，混着底下那层更沉的、铁锈和旧血混出来的味。 值班表上今晚该我。屏幕显示送来一具无名尸，编号74，男性，初步判断死亡四十八到七十二小时，体表有钝器伤和一处旧伤。 我换了隔离服，戴上两"
+          },
+          {
+            "chapterIndex": 2,
+            "title": "停职令",
+            "chars": 3256,
+            "sentenceCount": 192,
+            "dialogueCount": 34,
+            "excerpt": "手机在口袋里震第二次时，我正把最后一份数据拷进加密U盘。 屏幕亮起，是市局的内部通知。我看了两行，指节扣在金属台面上，发出很闷的一声响。停职。配合调查。即日起回避74号无名尸相关案件。理由写得漂亮，程序正义，避免干扰。底下附了两个签名，政工处，还有分管副局长的电子章。 昨晚的尸检"
+          },
+          {
+            "chapterIndex": 3,
+            "title": "白塔档案",
+            "chars": 3344,
+            "sentenceCount": 222,
+            "dialogueCount": 62,
+            "excerpt": "白塔医院的消毒水味道和法医中心的不一样。这里掺着更重的药水味，还有一种懒散的、属于活人的汗气。我在自动门前站了十秒，刷了三次门禁卡，红灯一直亮。 袖口上还沾着昨晚的消毒水痕迹。U盘贴在后腰，被皮带扣硌着，每走一步都顶一下。停职通知的电子章还在我手机里存着，那种冷光屏幕特有的蓝，映"
+          }
+        ],
+        "riskFlags": [],
+        "recommendations": [
+          "继续减少模板化结尾和抽象情绪词，增加短句、打断式对白和具体身体/物件动作。"
+        ],
+        "aiTraceHits": [
+          {
+            "id": "rule_of_three",
+            "category": "language",
+            "label": "三连排比",
+            "count": 8,
+            "examples": [
+              "，我把每一处伤痕的位置、形态、尺寸都口述录入",
+              "，每一根线的起点、终点、分叉点",
+              "。指纹、虹膜、DNA都在库里比过了"
+            ]
+          },
+          {
+            "id": "excessive_hedging",
+            "category": "filler",
+            "label": "过度委婉",
+            "count": 1,
+            "examples": [
+              "可能的致伤机制。如果可能"
+            ]
+          }
+        ]
+      },
+      "revisedReport": {
+        "generatedAt": "2026-05-29T00:25:58.733Z",
+        "fixtureId": "urban-suspense",
+        "title": "旧伤纹",
+        "chapterCount": 3,
+        "totalChars": 11495,
+        "overallScore": 64,
+        "maxScore": 70,
+        "level": "excellent",
+        "metrics": [
+          {
+            "key": "continuity",
+            "label": "连续性",
+            "score": 8,
+            "max": 10,
+            "findings": [
+              "连续章节数 3，足够观察承接。",
+              "多数章节会复用前章关键人物、地点或线索。",
+              "章节正文多数能落到对应大纲关键词。",
+              "章节之间重复度可控，最高相似度 6%。"
+            ],
+            "warnings": [
+              "后续章节缺少明确承接桥，建议增加上一章结果对本章行动的影响。"
+            ]
+          },
+          {
+            "key": "logic",
+            "label": "因果逻辑",
+            "score": 9,
+            "max": 10,
+            "findings": [
+              "因果/转折提示密度 0.12，有基本提示，但仍需靠具体选择句补强。",
+              "未命中明显的无动机跳转风险词。",
+              "多数章节保留了可读的因果钩（3/3）。",
+              "多数章节能读出“目标 -> 行动 -> 结果”链条（3/3）。",
+              "结尾没有大量依赖模板化悬念句。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "character_consistency",
+            "label": "人物一致性",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "主角「林砚」在连续样本中稳定出现。",
+              "主角目标/动机关键词能在正文中回响。",
+              "反派或压力源「顾沉舟」已进入样本。",
+              "未发现明显违背主角核心动机的表层信号。",
+              "核心角色覆盖 4/4。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "plot_progress",
+            "label": "剧情推进",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "剧情动作/发现类词出现 13 次，推进感较明确。",
+              "多数章节有可记录的结果或状态变化（3/3）。",
+              "主线关键词覆盖 103/540。",
+              "章节开头没有明显复制模板。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "world_rules",
+            "label": "世界规则",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "正文能触及世界规则或规则关键词。",
+              "地点/势力覆盖 2/8。",
+              "未命中常见世界规则硬冲突信号。",
+              "样本包含可追踪的设定物件或稳定舞台。"
+            ],
+            "warnings": []
+          },
+          {
+            "key": "ai_voice",
+            "label": "AI 味控制",
+            "score": 7,
+            "max": 10,
+            "findings": [
+              "破折号 0 次，处于可控范围。",
+              "AI 高频词 0 次，处于可控范围。",
+              "短句比例 33%，有一定句式错落。",
+              "段落长度变异系数 0.61，段落节奏不算机械。"
+            ],
+            "warnings": [
+              "humanizer 规则命中 9 次（三连排比 8 次；过度委婉 1 次），扣 1 分。",
+              "句首重复模式 15 次，扣 2 分。"
+            ]
+          },
+          {
+            "key": "prose_readability",
+            "label": "正文可读性",
+            "score": 10,
+            "max": 10,
+            "findings": [
+              "平均句长 14.2，可读性正常。",
+              "对白 131 处，人物互动不全靠旁白。",
+              "有足够具体物象支撑画面。",
+              "标点密度正常。",
+              "摘要腔词汇不过量。"
+            ],
+            "warnings": []
+          }
+        ],
+        "chapterSummaries": [
+          {
+            "chapterIndex": 1,
+            "title": "尸检台",
+            "chars": 4895,
+            "sentenceCount": 318,
+            "dialogueCount": 35,
+            "excerpt": "夜里的法医中心没什么人。我刷开权限门，冷光从天花板泼下来，照得不锈钢台面发青。消毒水的气味钻进鼻腔，混着底下那层更沉的、铁锈和旧血混出来的味。 值班表上今晚该我。屏幕显示送来一具无名尸，编号74，男性，初步判断死亡四十八到七十二小时，体表有钝器伤和一处旧伤。 我换了隔离服，戴上两"
+          },
+          {
+            "chapterIndex": 2,
+            "title": "停职令",
+            "chars": 3256,
+            "sentenceCount": 192,
+            "dialogueCount": 34,
+            "excerpt": "手机在口袋里震第二次时，我正把最后一份数据拷进加密U盘。 屏幕亮起，是市局的内部通知。我看了两行，指节扣在金属台面上，发出很闷的一声响。停职。配合调查。即日起回避74号无名尸相关案件。理由写得漂亮，程序正义，避免干扰。底下附了两个签名，政工处，还有分管副局长的电子章。 昨晚的尸检"
+          },
+          {
+            "chapterIndex": 3,
+            "title": "白塔档案",
+            "chars": 3344,
+            "sentenceCount": 222,
+            "dialogueCount": 62,
+            "excerpt": "白塔医院的消毒水味道和法医中心的不一样。这里掺着更重的药水味，还有一种懒散的、属于活人的汗气。我在自动门前站了十秒，刷了三次门禁卡，红灯一直亮。 袖口上还沾着昨晚的消毒水痕迹。U盘贴在后腰，被皮带扣硌着，每走一步都顶一下。停职通知的电子章还在我手机里存着，那种冷光屏幕特有的蓝，映"
+          }
+        ],
+        "riskFlags": [],
+        "recommendations": [
+          "继续减少模板化结尾和抽象情绪词，增加短句、打断式对白和具体身体/物件动作。"
+        ],
+        "aiTraceHits": [
+          {
+            "id": "rule_of_three",
+            "category": "language",
+            "label": "三连排比",
+            "count": 8,
+            "examples": [
+              "，我把每一处伤痕的位置、形态、尺寸都口述录入",
+              "，每一根线的起点、终点、分叉点",
+              "。指纹、虹膜、DNA都在库里比过了"
+            ]
+          },
+          {
+            "id": "excessive_hedging",
+            "category": "filler",
+            "label": "过度委婉",
+            "count": 1,
+            "examples": [
+              "可能的致伤机制。如果可能"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

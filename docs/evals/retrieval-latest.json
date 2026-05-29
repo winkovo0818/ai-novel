@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-27T15:06:00.474Z",
+  "generatedAt": "2026-05-29T14:23:57.598Z",
   "cases": [
     {
       "id": "xuanhuan-sword-soul",
@@ -20,8 +20,15 @@
         "m-kitchen-rain",
         "m-antagonist-plan"
       ],
+      "top3NoFeedback": [
+        "m-mentor-father",
+        "m-sword-rule",
+        "m-sect-market"
+      ],
+      "feedbackChangedTop3": false,
       "recallAt3": 1,
       "recallAt5": 1,
+      "recallAt3NoFeedback": 1,
       "missedAt5": []
     },
     {
@@ -43,8 +50,15 @@
         "m-autopsy",
         "m-police-food"
       ],
+      "top3NoFeedback": [
+        "m-white-tower",
+        "m-port-video",
+        "m-gu-memory"
+      ],
+      "feedbackChangedTop3": false,
       "recallAt3": 1,
       "recallAt5": 1,
+      "recallAt3NoFeedback": 1,
       "missedAt5": []
     },
     {
@@ -67,15 +81,53 @@
         "m-delay",
         "m-captain-arm"
       ],
+      "top3NoFeedback": [
+        "m-cooling",
+        "m-blackbox",
+        "m-canteen"
+      ],
+      "feedbackChangedTop3": false,
       "recallAt3": 0.6666666666666666,
       "recallAt5": 1,
+      "recallAt3NoFeedback": 0.6666666666666666,
+      "missedAt5": []
+    },
+    {
+      "id": "urban-signoff-feedback",
+      "description": "读者反馈场景：两个高词重叠但被标无关的签名流程块应被过滤，真正揭示补签漏洞的块靠 helpful 反馈进入 top3。",
+      "expected": [
+        "m-signoff-loophole",
+        "m-second-sign"
+      ],
+      "top3": [
+        "m-signoff-loophole",
+        "m-second-sign",
+        "m-coffee-break"
+      ],
+      "top5": [
+        "m-signoff-loophole",
+        "m-second-sign",
+        "m-coffee-break",
+        "m-night-rain"
+      ],
+      "top3NoFeedback": [
+        "m-signoff-noise-1",
+        "m-signoff-noise-2",
+        "m-signoff-loophole"
+      ],
+      "feedbackChangedTop3": true,
+      "recallAt3": 1,
+      "recallAt5": 1,
+      "recallAt3NoFeedback": 0.5,
       "missedAt5": []
     }
   ],
   "summary": {
-    "cases": 3,
-    "recallAt3": 0.8888888888888888,
+    "cases": 4,
+    "recallAt3": 0.9166666666666666,
     "recallAt5": 1,
+    "recallAt3NoFeedback": 0.7916666666666666,
+    "feedbackImpactedCases": 1,
     "missedAt5": []
   }
 }

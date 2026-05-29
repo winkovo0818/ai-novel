@@ -18,6 +18,8 @@
 
 ## 最近更新
 
+- **2026-05-29 (Sprint Day 2-10 · AI 质量可控可迭代收官)** — 10 天冲刺完成（详见 `docs/SPRINT_AI_QUALITY_2026-05-29.md`）。Day 2-4：critic 检查维度 5→7（加 `logic_chain` / `prose_quality`），chapter prompt 加悬疑分支，`generationPolicy` 暴露 topP/penalty 并对悬疑子题材 bump，真实 LLM 验证 urban-suspense 修订后 91.4/100。Day 5：玄幻 12 章长篇基线 67/70，`scripts/eval-novel-quality.ts` 加滑动窗口轨迹 + `analyzeDecay`（排除冷启动 partial 窗口、区分回撤回升 vs 真衰减），确认无明显衰减，归档 `docs/evals/long-form-baseline-2026-05-29.md`。Day 6-7：`MemoryFeedback` 真接入 `lib/agent/retrieval.ts`（feedbackFactor 乘数 + irrelevant≥2 过滤 + `RETRIEVAL_USE_FEEDBACK` flag），retrieval 单测 +3、eval-retrieval feedback 对照 case，实测 recall@3 0.5→1.0。Day 8-9：新增 `scripts/eval-critic-revise.ts`，critic 提示拆「主观克制 / 客观必报」两套尺度 + revise 针对性机制，critic recall 33%→100%、revise 命中 100%，归档 `docs/evals/critic-revise-hit-rate.md`。Day 10：`lib/llm/writerOutputCleanup.ts` 规则集化 + `cleanupWriterOutputWithReport`，`lib/evals/novelQuality.ts` 清洗前 AI 签名命中 ≥5 扣分，matrix / long-form 报告加「清洗前 AI 签名命中」表（仅真实生成有数据，fixture_fallback baseline 不变）。Vitest 888 → **907 tests / 115 files**；lint 0 error；`npm run verify` 通过；`eval:check` 87.5→87.5。
+- **2026-05-29 (Sprint Day 1 · eval baseline 入 CI verify)** — 新增 `lib/evals/novelQualityBaseline.ts` + 8 单元测试；`scripts/eval-novel-quality-matrix.ts` 加 `--baseline` / `--tolerance`；冻结 `docs/evals/baselines/novel-quality-matrix-fixture-fallback-2026-05-29.json` 作 baseline（fixture_fallback，4 cases，avg 87.5/100）；`package.json` 加 `eval:check` 并入 `verify` 链路；`.github/workflows/ci.yml` verify job 新增 Eval quality baseline check step；顺手修 `lib/jobs/handlers.test.ts` mock 失效（`chatCompletion` → `chatCompletionWithRetry` + retry 参数断言）；顺手补 STATUS.md / HEALTH.md 数字漂移。Vitest 117 files / 888 tests 全绿；docs:check 13/13 通过。
 - **2026-05-28 (P6-12 备份检查与恢复演练模板)** — 新增 `npm run backup:check` / `scripts/backup-check.ts`，上线前可验证数据库连接、关键表数量、最近写入和备份成功时间；`.env.example` 增加 `BACKUP_LAST_SUCCESS_AT` 与检查阈值说明；本文档新增数据备份与恢复演练模板。新增 4 条 backup-check 单测，定向 lint/typecheck 通过；本地未应用最新 migration 时会按预期拦截关键表缺失。
 - **2026-05-15 (本地 smoke 通过)** — `scripts/onboarding-api-smoke.ts` 跟随当前章节乐观锁契约更新：章节 PATCH 带 `expected_version`，负向章节创建用 `chapter_index=0` 断言 `INVALID_INPUT`。本地 `npm run smoke:onboarding` 已通过，覆盖 onboarding session、logline、questions、Bible SSE、finalize、章节创建、章节起草 SSE、章节 PATCH 持久化、novel 回读、第二章起草和非法章节拒绝。
 - **2026-05-14 (内容审核 review queue + TTL)** — 新增 `/admin/moderation` 人工复核队列，`GET/PATCH /api/admin/moderation-audits` 支持按 review 状态筛选与确认/误杀/忽略；`ModerationAudit` 增加 review 状态、复核人、复核时间和备注，`collectMetrics()` 增加 `ai_novel_moderation_review_queue{review_status}`；新增 `GET /api/cron/moderation-audits/cleanup` + `vercel.json` 每日 03:20 UTC 清理超过 90 天 audit 行，`MODERATION_AUDIT_RETENTION_MS` 可调。新增 14 条 review/TTL/metrics 回归测试，Vitest 666 → 680 tests；API route 39 → 42，page.tsx 21 → 22。
@@ -71,15 +73,15 @@
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
 | `npm run lint` | ✅ 通过（零 warning） | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **86 files / 689 tests** 全绿,约 12s | 本轮 +9 Auth.js/password tests |
+| `npm run test` | ✅ **115 files / 888 tests** 全绿,约 3s | Day 1 接入 eval baseline 后所有 mock 同步 |
 | `npm run build` | ✅ 通过 | |
 | Playwright E2E | ✅ 8 tests（onboarding / editor-failure / editor-candidate × 4 / version-restore / beat-to-draft）全绿；P0-1 后按钮文案对齐 M1.3 候选稿模式 | 本轮全量 `npx playwright test` 已通过 |
 | `npm run smoke:onboarding` | ✅ 通过 | 2026-05-15 本地生产服务 + `LLM_MOCK=1` |
 | `npm run backup:check` | 待生产配置后运行 | 需设置 `BACKUP_LAST_SUCCESS_AT` 或 `BACKUP_CHECK_LAST_SUCCESS_AT` |
 | Coverage（v8） | ✅ lines/statements 68 · functions 93 · branches 83 阈值入 CI；基线 70.04/94.24/85.50 | summaries / handlers / chapterStatus 100% |
-| Prisma migrations | 24 条 | 含 `20260515010000_add_authjs_tables`；部署前需 `prisma migrate deploy` |
+| Prisma migrations | 29 条 | 含 `20260515010000_add_authjs_tables`；部署前需 `prisma migrate deploy` |
 
-**规模**：业务源码 17,500+ LoC（136 ts/tsx）；测试 7,600+ LoC（86 个 .test.ts）；46 个 API route + 22 个 page.tsx；20 个 Prisma model。
+**规模**：业务源码 17,500+ LoC（136 ts/tsx）；测试 7,600+ LoC（115 个 .test.ts）；57 个 API route + 27 个 page.tsx；23 个 Prisma model。
 
 ---
 
@@ -129,7 +131,7 @@
 
 - [x] **rateLimit Redis 适配器** ✅ Upstash REST 落地（2026-05-12），fail-open 异常路径 + 接口转 async + normalizeRouteKey bug 顺手修复
 - [x] **`/api/healthz` 合并探针** ✅ DB + pgvector + Auth.js config 三维（2026-05-12/15），200/503 + 子系统级 code 分类
-- [x] **`useChapterEditor.ts`（307 行，hook + 交互覆盖起步）** ✅ 已压到 310 行以内 — 纯函数、持久化 / 版本 / 候选稿 / state-diff / beat-sheet / actions / selection / core state 均已拆出，并补关键路径轻量 hook 测试与 EditorClient 交互布线测试；后续如需更高信心再切 jsdom + RTL
+- [x] **`useChapterEditor.ts`（378 行，hook + 交互覆盖起步）** ✅ 已拆分到 380 行以内 — 纯函数、持久化 / 版本 / 候选稿 / state-diff / beat-sheet / actions / selection / core state 均已拆出，并补关键路径轻量 hook 测试与 EditorClient 交互布线测试；后续如需更高信心再切 jsdom + RTL
 - [x] **`lib/agent/summaries.ts`** ✅ 100% 覆盖（2026-05-11 深夜）
 - [x] **`lib/jobs/handlers.ts`** ✅ 100% 覆盖（2026-05-11 深夜）
 - [x] **`lib/agent/chapterStatus.ts`** ✅ 100% 覆盖（2026-05-12）— buildChapterStatus + getChapterStatusesForNovel 都已覆盖；2026-05-13 补 dirty/job 优先级组合快照

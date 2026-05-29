@@ -5,6 +5,7 @@ import { isRateLimited } from "@/lib/auth/rateLimit";
 import { checkQuota, estimateLlmMessagesCostCny, quotaExceededResponse } from "@/lib/llm/usage";
 import { chatCompletionWithRetry } from "@/lib/llm/client";
 import { buildCriticPrompt } from "@/lib/llm/prompts/critic";
+import { getGenerationPolicy } from "@/lib/llm/generationPolicy";
 import { buildChapterContext } from "@/lib/agent/chapterContext";
 import { retrieveMemories } from "@/lib/agent/retrieval";
 import { BibleDraftSchema, NovelProfileSchema } from "@/lib/validation/schemas";
@@ -98,6 +99,7 @@ export async function POST(request: Request, context: RouteContext) {
     chapterContent: body.content,
     chapterIndex: body.chapter_index,
     isRevision: body.is_revision === true,
+    isMystery: getGenerationPolicy(profile.data).isMystery,
   });
 
   const quota = await checkQuota(userId, {

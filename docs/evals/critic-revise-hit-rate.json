@@ -1,0 +1,111 @@
+{
+  "generatedAt": "2026-05-29T14:58:14.071Z",
+  "mode": "real_llm",
+  "results": [
+    {
+      "fixtureId": "urban-suspense",
+      "chapterIndex": 2,
+      "title": "停职令",
+      "expectedIssueTypes": [
+        "prose_quality"
+      ],
+      "reportedIssueTypes": [
+        "logic_chain",
+        "prose_quality"
+      ],
+      "criticCaughtExpected": [
+        "prose_quality"
+      ],
+      "criticMissedExpected": [],
+      "revised": true,
+      "charsBefore": 131,
+      "charsAfter": 2870,
+      "aiTraceBefore": 7,
+      "aiTraceAfter": 4,
+      "causalBefore": 0,
+      "causalAfter": 10,
+      "issues": [
+        {
+          "type": "logic_chain",
+          "severity": "major",
+          "description": "整章由并列短句堆叠，几乎无因果/转折连接词（因为/所以/于是/为了/导致…），读不出主角的动机与结果链。章节仅呈现了检查动作的罗列和结果的并列陈述，缺乏明确的'目标 → 阻碍 → 行动 → 结果'逻辑链，结尾也未带来可记录的状态变化。",
+          "verifiable": true,
+          "addressed": true,
+          "signal": "因果连接词 0 -> 10"
+        },
+        {
+          "type": "prose_quality",
+          "severity": "major",
+          "description": "多类信号叠加。1. 句首重复：'他检查了...'在相邻句中出现三次。2. 三连排比：'这构成了一个问题，这构成了一种压力，这构成了一道无法回避的墙。'一句内并列三项。3. 聊天机器人式套话：'如果你愿意，可以认为...'出现两次。",
+          "verifiable": true,
+          "addressed": true,
+          "signal": "AI 痕迹 7 -> 4"
+        }
+      ]
+    },
+    {
+      "fixtureId": "urban-suspense",
+      "chapterIndex": 3,
+      "title": "白塔档案",
+      "expectedIssueTypes": [
+        "logic_chain"
+      ],
+      "reportedIssueTypes": [
+        "logic_chain"
+      ],
+      "criticCaughtExpected": [
+        "logic_chain"
+      ],
+      "criticMissedExpected": [],
+      "revised": true,
+      "charsBefore": 68,
+      "charsAfter": 2288,
+      "aiTraceBefore": 0,
+      "aiTraceAfter": 9,
+      "causalBefore": 0,
+      "causalAfter": 5,
+      "issues": [
+        {
+          "type": "logic_chain",
+          "severity": "major",
+          "description": "本章几乎完全由并列事件短句堆叠，缺乏因果/转折连接词。'来到医院→看了档案→档案被删改→离开→顾沉舟出现→回到车里→知道凶手→发动引擎'，这些事件之间没有'因为/所以/于是/为了/导致'等逻辑连接，读不出主角的动机链：他为什么去白塔医院？档案被删改如何导致他'知道凶手是谁'？顾沉舟出现与他知道凶手之间是什么因果关系？整章无法读出明确的'目标→阻碍→行动→结果'主链。",
+          "verifiable": true,
+          "addressed": true,
+          "signal": "因果连接词 0 -> 5"
+        }
+      ]
+    },
+    {
+      "fixtureId": "xuanhuan-seed",
+      "chapterIndex": 2,
+      "title": "黑牌入手",
+      "expectedIssueTypes": [
+        "world_rule"
+      ],
+      "reportedIssueTypes": [
+        "world_rule"
+      ],
+      "criticCaughtExpected": [
+        "world_rule"
+      ],
+      "criticMissedExpected": [],
+      "revised": true,
+      "charsBefore": 110,
+      "charsAfter": 260,
+      "aiTraceBefore": 0,
+      "aiTraceAfter": 0,
+      "causalBefore": 0,
+      "causalAfter": 0,
+      "issues": [
+        {
+          "type": "world_rule",
+          "severity": "critical",
+          "description": "世界规则明确规定'剑魂认主不可逆'。草稿中，沈言将剑魂转给师兄，师兄'毫无障碍'地接收，然后又轻松要回，这直接且明确地违反了该核心规则。",
+          "verifiable": false,
+          "addressed": false,
+          "signal": "语义类问题，离线无法自动验证（仅记录是否发生改写）"
+        }
+      ]
+    }
+  ]
+}

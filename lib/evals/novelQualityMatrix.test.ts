@@ -28,6 +28,7 @@ function makeReport(score: number, aiVoice = 8): NovelQualityReport {
     aiTraceHits: aiVoice < 7
       ? [{ id: "dash_overuse", category: "style", label: "破折号痕迹", count: 5, examples: ["—"] }]
       : [],
+    rawCleanupHits: [],
   };
 }
 

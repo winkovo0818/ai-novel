@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-29T15:22:30.041Z",
+  "generatedAt": "2026-05-28T18:06:07.920Z",
   "fixtureIds": [
     "xuanhuan-seed",
     "urban-suspense",
@@ -33,7 +33,7 @@
       "changedChapters": 3,
       "criticIssues": 0,
       "draftReport": {
-        "generatedAt": "2026-05-29T15:22:30.025Z",
+        "generatedAt": "2026-05-28T18:06:07.909Z",
         "fixtureId": "xuanhuan-seed",
         "title": "逆魂纪",
         "chapterCount": 3,
@@ -184,11 +184,10 @@
               "不是空穴，而是"
             ]
           }
-        ],
-        "rawCleanupHits": []
+        ]
       },
       "revisedReport": {
-        "generatedAt": "2026-05-29T15:22:30.029Z",
+        "generatedAt": "2026-05-28T18:06:07.912Z",
         "fixtureId": "xuanhuan-seed",
         "title": "逆魂纪",
         "chapterCount": 3,
@@ -329,8 +328,7 @@
         "recommendations": [
           "当前样本偏短；要评估商业可读性，应至少连续生成 5 章、每章 2000 字以上。"
         ],
-        "aiTraceHits": [],
-        "rawCleanupHits": []
+        "aiTraceHits": []
       }
     },
     {
@@ -344,7 +342,7 @@
       "changedChapters": 3,
       "criticIssues": 0,
       "draftReport": {
-        "generatedAt": "2026-05-29T15:22:30.031Z",
+        "generatedAt": "2026-05-28T18:06:07.913Z",
         "fixtureId": "urban-suspense",
         "title": "旧伤纹",
         "chapterCount": 3,
@@ -497,11 +495,10 @@
               "不是空穴，而是"
             ]
           }
-        ],
-        "rawCleanupHits": []
+        ]
       },
       "revisedReport": {
-        "generatedAt": "2026-05-29T15:22:30.033Z",
+        "generatedAt": "2026-05-28T18:06:07.914Z",
         "fixtureId": "urban-suspense",
         "title": "旧伤纹",
         "chapterCount": 3,
@@ -645,8 +642,7 @@
           "生成下一章前强制注入“上一章结果、本章开场承接、本章必须改变的状态”三项。",
           "当前样本偏短；要评估商业可读性，应至少连续生成 5 章、每章 2000 字以上。"
         ],
-        "aiTraceHits": [],
-        "rawCleanupHits": []
+        "aiTraceHits": []
       }
     },
     {
@@ -660,7 +656,7 @@
       "changedChapters": 3,
       "criticIssues": 0,
       "draftReport": {
-        "generatedAt": "2026-05-29T15:22:30.035Z",
+        "generatedAt": "2026-05-28T18:06:07.916Z",
         "fixtureId": "scifi-hard",
         "title": "第七启",
         "chapterCount": 3,
@@ -815,11 +811,10 @@
               "不是空穴，而是"
             ]
           }
-        ],
-        "rawCleanupHits": []
+        ]
       },
       "revisedReport": {
-        "generatedAt": "2026-05-29T15:22:30.037Z",
+        "generatedAt": "2026-05-28T18:06:07.917Z",
         "fixtureId": "scifi-hard",
         "title": "第七启",
         "chapterCount": 3,
@@ -965,8 +960,7 @@
           "每章保存一个可验证状态变化：新线索、关系变化、位置变化、道具归属或敌人反应。",
           "当前样本偏短；要评估商业可读性，应至少连续生成 5 章、每章 2000 字以上。"
         ],
-        "aiTraceHits": [],
-        "rawCleanupHits": []
+        "aiTraceHits": []
       }
     },
     {
@@ -980,7 +974,7 @@
       "changedChapters": 3,
       "criticIssues": 0,
       "draftReport": {
-        "generatedAt": "2026-05-29T15:22:30.039Z",
+        "generatedAt": "2026-05-28T18:06:07.918Z",
         "fixtureId": "history-conservative",
         "title": "副奏录",
         "chapterCount": 3,
@@ -1135,11 +1129,10 @@
               "不是空穴，而是"
             ]
           }
-        ],
-        "rawCleanupHits": []
+        ]
       },
       "revisedReport": {
-        "generatedAt": "2026-05-29T15:22:30.041Z",
+        "generatedAt": "2026-05-28T18:06:07.920Z",
         "fixtureId": "history-conservative",
         "title": "副奏录",
         "chapterCount": 3,
@@ -1285,8 +1278,7 @@
           "生成下一章前强制注入“上一章结果、本章开场承接、本章必须改变的状态”三项。",
           "当前样本偏短；要评估商业可读性，应至少连续生成 5 章、每章 2000 字以上。"
         ],
-        "aiTraceHits": [],
-        "rawCleanupHits": []
+        "aiTraceHits": []
       }
     }
   ]

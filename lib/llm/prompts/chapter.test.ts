@@ -364,6 +364,57 @@ describe("buildChapterPrompt", () => {
     expect(userContent).not.toContain("本章节拍");
   });
 
+  it("uses the default investigative framing when generationPolicy.isMystery is false", () => {
+    const messages = buildChapterPrompt({
+      context: makeContext({
+        outline: { chapterIndex: 2, title: "第2章", summary: "继续冒险" },
+        previousSummaries: [{ chapterIndex: 1, title: "第1章", summary: "摘要1" }],
+      }),
+      profile,
+    });
+    const userContent = messages[1]?.content ?? "";
+    expect(userContent).toContain("行动链");
+    expect(userContent).not.toContain("调查/试探链");
+    expect(userContent).not.toContain("信息分层");
+    expect(userContent).not.toContain("本章悬疑结果");
+  });
+
+  it("swaps to investigative framing and adds information-tier rule when isMystery is true", () => {
+    const messages = buildChapterPrompt({
+      context: makeContext({
+        outline: { chapterIndex: 2, title: "白塔档案", summary: "林砚追到白塔医院。" },
+        previousSummaries: [{ chapterIndex: 1, title: "尸检台", summary: "林砚发现自己指纹。" }],
+      }),
+      profile: { ...profile, genre_sub: "都市悬疑" },
+      generationPolicy: {
+        temperature: 0.85,
+        topP: 0.95,
+        frequencyPenalty: 0.6,
+        presencePenalty: 0.35,
+        targetWordCount: 3000,
+        freedomDirective: "",
+        toneDirective: "",
+        paceDirective: "",
+        audienceDirective: "",
+        povDirective: "",
+        genreDirective: "悬疑/推理题材：本章引入的线索必须能在后续章节被回收。",
+        isMystery: true,
+      },
+    });
+    const userContent = messages[1]?.content ?? "";
+    const systemContent = messages[0]?.content ?? "";
+
+    expect(userContent).toContain("调查/试探链");
+    expect(userContent).toContain("本章悬疑结果");
+    expect(userContent).toContain("信息分层");
+    expect(userContent).toContain("已知 / 未知 / 误导");
+    expect(userContent).not.toContain("- 行动链");
+
+    // genreDirective lands in the style directives list of the system message.
+    expect(systemContent).toContain("悬疑/推理题材");
+    expect(systemContent).toContain("线索必须能在后续章节被回收");
+  });
+
   describe("prompt-injection isolation", () => {
     it("includes the data-vs-instruction preamble in the system message", () => {
       const messages = buildChapterPrompt({ context: makeContext(), profile });

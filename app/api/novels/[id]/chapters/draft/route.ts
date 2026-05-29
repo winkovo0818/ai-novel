@@ -260,10 +260,12 @@ export async function POST(request: Request, context: RouteContext) {
             // "favorite token" rails so 朱雀-class detectors see flatter unigram
             // distributions. presence > frequency keeps grammar intact while
             // forcing vocabulary variety; top_p 0.95 trims the long tail so we
-            // don't drift into incoherence at these penalties.
-            topP: 0.95,
-            frequencyPenalty: 0.5,
-            presencePenalty: 0.3,
+            // don't drift into incoherence at these penalties. Mystery /
+            // suspense sub-genres get a slight extra bump via the policy so
+            // repeated clue / motif phrasing gets pushed further down sample.
+            topP: policy.topP,
+            frequencyPenalty: policy.frequencyPenalty,
+            presencePenalty: policy.presencePenalty,
             timeoutMs: 120_000,
             signal: abortController.signal,
           },

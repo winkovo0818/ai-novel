@@ -67,6 +67,32 @@ describe("buildChapterRevisionPrompt", () => {
     expect(user.content).toContain("林燃路过训练室");
     expect(user.content).toContain("冲突必须可追溯");
   });
+
+  it("injects type-specific mechanics for prose_quality and logic_chain issues", () => {
+    const [system] = buildChapterRevisionPrompt({
+      context,
+      chapterContent: "他检查了。他检查了。他检查了。",
+      issues: [
+        { type: "prose_quality", severity: "major", description: "句首重复 + 三连排比密集。" },
+        { type: "logic_chain", severity: "major", description: "事件堆叠无因果。" },
+      ],
+    });
+
+    expect(system.content).toContain("针对性修订指引");
+    expect(system.content).toContain("修 prose_quality");
+    expect(system.content).toContain("打散句首重复");
+    expect(system.content).toContain("修 logic_chain");
+    expect(system.content).toContain("补上动机与因果连接");
+  });
+
+  it("omits type-specific guidance when no countable issue types are present", () => {
+    const [system] = buildChapterRevisionPrompt({
+      context,
+      chapterContent: "正文。",
+      issues: [{ type: "timeline", severity: "major", description: "顺序矛盾。" }],
+    });
+    expect(system.content).not.toContain("针对性修订指引");
+  });
 });
 
 describe("buildLocalChapterRevisionPrompt", () => {

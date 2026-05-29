@@ -50,14 +50,26 @@ describe("buildCriticPrompt", () => {
     expect(prompt[1].role).toBe("user");
   });
 
-  it("declares the five check dimensions and three severity levels", () => {
+  it("declares the seven check dimensions and three severity levels", () => {
     const [system] = buildCriticPrompt({ context: baseContext, chapterContent: "x", chapterIndex: 1 });
-    for (const dim of ["角色行为", "世界规则", "线索推进", "时间线", "基调"]) {
+    for (const dim of ["角色行为", "世界规则", "线索推进", "时间线", "基调", "逻辑链", "文笔质量"]) {
       expect(system.content).toContain(dim);
     }
     for (const sev of ["critical", "major", "minor"]) {
       expect(system.content).toContain(sev);
     }
+    // The output schema must list the new type strings or revise route can't route them.
+    expect(system.content).toContain("logic_chain");
+    expect(system.content).toContain("prose_quality");
+  });
+
+  it("instructs the critic to always report countable prose_quality / logic_chain signals", () => {
+    const [system] = buildCriticPrompt({ context: baseContext, chapterContent: "x", chapterIndex: 1 });
+    // Day 9: critic recall on prose/logic was 33% because the conservative
+    // "report less" rule applied to everything. These must now fire on hit.
+    expect(system.content).toContain("可计数客观类");
+    expect(system.content).toContain("数得出信号就必须报");
+    expect(system.content).toContain("不依赖跨章上下文");
   });
 
   it("renders bible meta, protagonist, world rules, and prior summaries", () => {
@@ -109,5 +121,30 @@ describe("buildCriticPrompt", () => {
   it("omits the runtime state section when storyState is absent", () => {
     const [, user] = buildCriticPrompt({ context: baseContext, chapterContent: "x", chapterIndex: 1 });
     expect(user.content).not.toContain("当前运行时状态");
+  });
+
+  it("does not emit the mystery-specific checklist by default", () => {
+    const [system] = buildCriticPrompt({ context: baseContext, chapterContent: "x", chapterIndex: 1 });
+    expect(system.content).not.toContain("悬疑 / 推理 / 侦探题材专属");
+    expect(system.content).not.toContain("线索回收");
+    expect(system.content).not.toContain("信息分类");
+  });
+
+  it("emits mystery-specific checklist when isMystery is true", () => {
+    const [system] = buildCriticPrompt({ context: baseContext, chapterContent: "x", chapterIndex: 1, isMystery: true });
+    expect(system.content).toContain("悬疑 / 推理 / 侦探题材专属");
+    expect(system.content).toContain("线索回收");
+    expect(system.content).toContain("误导节奏");
+    expect(system.content).toContain("信息分类");
+  });
+
+  it("emits the revision-mode desensitization clause when isRevision is true", () => {
+    const [system] = buildCriticPrompt({
+      context: baseContext,
+      chapterContent: "x",
+      chapterIndex: 1,
+      isRevision: true,
+    });
+    expect(system.content).toContain("本章节已经按审校意见修订过一次");
   });
 });

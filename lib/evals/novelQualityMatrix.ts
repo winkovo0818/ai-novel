@@ -130,6 +130,16 @@ export function renderNovelQualityMatrixMarkdown(report: NovelQualityMatrixRepor
       `| ${item.genre} | ${item.model} | ${topTrace(item.draftReport)} | ${topTrace(item.revisedReport)} |`,
     ),
     "",
+    "## 清洗前 AI 签名命中（原始输出 Top）",
+    "",
+    "> Writer 原始输出在 `cleanupWriterOutput` 清洗**前**触发的 AI 签名规则。命中越多 = 提示侧 AI 味越重；仅真实生成有数据，fixture fallback 为空。",
+    "",
+    "| 题材 | 模型 | 草稿原始命中 Top |",
+    "|---|---|---|",
+    ...report.cases.map((item) =>
+      `| ${item.genre} | ${item.model} | ${topCleanup(item.draftReport)} |`,
+    ),
+    "",
     "## 说明",
     "",
     "- 草稿分表示 Writer 直接生成后的质量；修订后分表示经过配置轮数 Critic/Reviser 或本地清洗后的质量。",
@@ -158,6 +168,13 @@ function topTrace(report: NovelQualityReport): string {
     .slice(0, 3)
     .map((hit) => `${hit.label} ${hit.count}`)
     .join("；") || "无";
+}
+
+function topCleanup(report: NovelQualityReport): string {
+  const total = report.rawCleanupHits.reduce((sum, hit) => sum + hit.count, 0);
+  if (total === 0) return "无";
+  const top = report.rawCleanupHits.slice(0, 3).map((hit) => `${hit.label} ${hit.count}`).join("；");
+  return `${top}（合计 ${total}）`;
 }
 
 function modeLabel(mode: NovelQualityMatrixReport["mode"]): string {

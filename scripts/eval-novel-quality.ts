@@ -6,7 +6,7 @@ import { buildChapterContext, type ChapterDraftView } from "@/lib/agent/chapterC
 import { chatCompletionWithRetry, streamChatCompletionWithRetry } from "@/lib/llm/client";
 import { getGenerationPolicy } from "@/lib/llm/generationPolicy";
 import { buildChapterPrompt } from "@/lib/llm/prompts/chapter";
-import { cleanupWriterOutput } from "@/lib/llm/writerOutputCleanup";
+import { cleanupWriterOutput, cleanupWriterOutputWithReport, type CleanupHit } from "@/lib/llm/writerOutputCleanup";
 import { buildStateDiffPrompt } from "@/lib/llm/prompts/stateDiff";
 import { evaluateNovelQuality, type NovelQualityReport, type QualityChapterInput } from "@/lib/evals/novelQuality";
 import { applyStateDiff } from "@/lib/validation/stateDiffMerge";
@@ -16,9 +16,27 @@ loadEnv({ path: ".env" });
 loadEnv();
 
 const ROOT = process.cwd();
-const FIXTURE_FILE = path.join(ROOT, "scripts", "fixtures", "eval-novels", "xuanhuan-seed.json");
 const REPORT_DIR = path.join(ROOT, "docs", "evals");
-const SAMPLE_CHAPTERS = 4;
+const FIXTURE_DIR = path.join(ROOT, "scripts", "fixtures", "eval-novels");
+const DEFAULT_SAMPLE_CHAPTERS = 4;
+// Sliding window used to trace per-chapter quality decay. 3 gives continuity /
+// logic metrics enough context to mean something while still localizing the
+// drop to a chapter range.
+const TRAJECTORY_WINDOW = 3;
+// A sliding-window score drawdown (from the running peak) of this many points is
+// the bar for calling something a decay inflection rather than chapter-to-chapter noise.
+const DECAY_DROP_THRESHOLD = 5;
+
+function readFixtureId(): string {
+  const raw = process.env.EVAL_NOVEL_QUALITY_FIXTURE?.trim();
+  return raw && raw.length > 0 ? raw : "xuanhuan-seed";
+}
+
+function readChapterCount(): number {
+  const parsed = Number(process.env.EVAL_NOVEL_QUALITY_CHAPTERS);
+  if (!Number.isInteger(parsed)) return DEFAULT_SAMPLE_CHAPTERS;
+  return Math.max(1, Math.min(20, parsed));
+}
 
 interface NovelFixture {
   id: string;
@@ -31,6 +49,7 @@ interface GeneratedChapter extends QualityChapterInput {
   model: string;
   tookMs: number;
   source: "llm" | "fixture";
+  rawCleanupHits?: CleanupHit[];
 }
 
 interface NovelQualityRunReport extends NovelQualityReport {
@@ -39,10 +58,30 @@ interface NovelQualityRunReport extends NovelQualityReport {
   confidence: "high" | "medium" | "low";
   evaluationNotes: string[];
   generatedChapters: GeneratedChapter[];
+  trajectory: TrajectoryPoint[];
+  decay: DecayAnalysis;
+}
+
+interface TrajectoryPoint {
+  endChapter: number;
+  windowStart: number;
+  windowSize: number;
+  scorePct: number;
+}
+
+interface DecayAnalysis {
+  hasDecay: boolean;
+  peakChapter: number;
+  peakScorePct: number;
+  troughChapter: number;
+  troughScorePct: number;
+  maxDropPct: number;
+  inflectionChapter: number | null;
+  note: string;
 }
 
 async function readFixture(): Promise<NovelFixture> {
-  const raw = JSON.parse(await fs.readFile(FIXTURE_FILE, "utf-8")) as NovelFixture;
+  const raw = JSON.parse(await fs.readFile(path.join(FIXTURE_DIR, `${readFixtureId()}.json`), "utf-8")) as NovelFixture;
   return {
     ...raw,
     profile: NovelProfileSchema.parse(raw.profile),
@@ -74,6 +113,7 @@ async function readLatestGeneratedChapters(): Promise<GeneratedChapter[]> {
       title: chapter.title,
       outlineSummary: chapter.outlineSummary,
       content: cleanupWriterOutput(chapter.content),
+      rawCleanupHits: Array.isArray(chapter.rawCleanupHits) ? chapter.rawCleanupHits : undefined,
       model: typeof chapter.model === "string" ? chapter.model : "latest-report",
       tookMs: typeof chapter.tookMs === "number" ? chapter.tookMs : 0,
       source: chapter.source === "fixture" ? "fixture" : "llm",
@@ -115,9 +155,9 @@ async function generateChapter(input: {
         },
       }),
       temperature: policy.temperature,
-      topP: 0.95,
-      frequencyPenalty: 0.5,
-      presencePenalty: 0.3,
+      topP: policy.topP,
+      frequencyPenalty: policy.frequencyPenalty,
+      presencePenalty: policy.presencePenalty,
       timeoutMs: 180_000,
     },
     {
@@ -128,11 +168,13 @@ async function generateChapter(input: {
     0,
   );
   const outline = input.bible.outline.volume_1.chapters.find((chapter) => chapter.index === input.chapterIndex);
+  const cleanup = cleanupWriterOutputWithReport(stripCodeFence(content || result.content));
   return {
     chapterIndex: input.chapterIndex,
     title: outline?.title ?? `第 ${input.chapterIndex} 章`,
     outlineSummary: outline?.summary,
-    content: cleanupWriterOutput(stripCodeFence(content || result.content)),
+    content: cleanup.text,
+    rawCleanupHits: cleanup.hits,
     model: result.model,
     tookMs: result.tookMs,
     source: "llm",
@@ -157,15 +199,25 @@ async function updateBibleWithChapter(bible: BibleDraft, chapter: GeneratedChapt
     },
     0,
   );
-  const diff = StateDiffSchema.parse(JSON.parse(result.content));
-  return applyStateDiff(bible, diff, chapter.chapterIndex);
+  try {
+    const diff = StateDiffSchema.parse(JSON.parse(sanitizeJsonContent(result.content)));
+    return applyStateDiff(bible, diff, chapter.chapterIndex);
+  } catch (err) {
+    // State diff feeds continuity context for later chapters but is not what
+    // the quality eval scores. Malformed JSON (Chinese quotes / truncation)
+    // shouldn't abort a 12-chapter long-form run — keep the prior bible and
+    // press on so the chapter trajectory still gets recorded.
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[eval:novel-quality] state-diff parse failed for chapter ${chapter.chapterIndex}, keeping prior bible: ${message}`);
+    return bible;
+  }
 }
 
-async function generateSeries(fixture: NovelFixture): Promise<{ bible: BibleDraft; chapters: GeneratedChapter[] }> {
+async function generateSeries(fixture: NovelFixture, chapterCount: number): Promise<{ bible: BibleDraft; chapters: GeneratedChapter[] }> {
   let bible = fixture.bible;
   const chapters: GeneratedChapter[] = [];
 
-  for (let chapterIndex = 1; chapterIndex <= SAMPLE_CHAPTERS; chapterIndex += 1) {
+  for (let chapterIndex = 1; chapterIndex <= chapterCount; chapterIndex += 1) {
     const chapter = await generateChapter({
       fixture,
       bible,
@@ -174,9 +226,19 @@ async function generateSeries(fixture: NovelFixture): Promise<{ bible: BibleDraf
     });
     chapters.push(chapter);
     bible = await updateBibleWithChapter(bible, chapter);
+    console.log(`[eval:novel-quality] chapter ${chapterIndex}/${chapterCount} done (${chapter.content.length} chars)`);
   }
 
   return { bible, chapters };
+}
+
+function sanitizeJsonContent(raw: string): string {
+  return raw
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .trim();
 }
 
 function fallbackSeries(fixture: NovelFixture): GeneratedChapter[] {
@@ -247,6 +309,98 @@ function summarizeForContext(content: string): string {
   return content.replace(/\s+/g, " ").trim().slice(0, 240);
 }
 
+/**
+ * Traces per-chapter quality by re-scoring a sliding window of chapters ending
+ * at each position. Pure + local (no LLM), so it's cheap to run on every
+ * generated series. The window gives continuity / logic metrics enough context
+ * to be meaningful while still localizing a drop to a chapter range.
+ */
+function buildQualityTrajectory(fixtureId: string, bible: BibleDraft, chapters: GeneratedChapter[]): TrajectoryPoint[] {
+  const points: TrajectoryPoint[] = [];
+  for (let end = 1; end <= chapters.length; end += 1) {
+    const start = Math.max(1, end - TRAJECTORY_WINDOW + 1);
+    const windowChapters = chapters.filter((c) => c.chapterIndex >= start && c.chapterIndex <= end);
+    if (windowChapters.length === 0) continue;
+    const windowReport = evaluateNovelQuality({ fixtureId, bible, chapters: windowChapters });
+    points.push({
+      endChapter: end,
+      windowStart: start,
+      windowSize: windowChapters.length,
+      scorePct: Math.round((windowReport.overallScore / windowReport.maxScore) * 1000) / 10,
+    });
+  }
+  return points;
+}
+
+function analyzeDecay(trajectory: TrajectoryPoint[]): DecayAnalysis {
+  if (trajectory.length === 0) {
+    return {
+      hasDecay: false,
+      peakChapter: 0,
+      peakScorePct: 0,
+      troughChapter: 0,
+      troughScorePct: 0,
+      maxDropPct: 0,
+      inflectionChapter: null,
+      note: "无章节可分析。",
+    };
+  }
+
+  // Cold-start windows (fewer than TRAJECTORY_WINDOW chapters) score artificially
+  // low / volatile because cross-chapter metrics (continuity, causality) have
+  // little to chew on. Exclude them so warm-up wobble isn't mistaken for decay.
+  // Fall back to the full trajectory only when the run is shorter than one window.
+  const mature = trajectory.filter((point) => point.windowSize >= TRAJECTORY_WINDOW);
+  const series = mature.length > 0 ? mature : trajectory;
+
+  const peak = series.reduce((best, p) => (p.scorePct > best.scorePct ? p : best), series[0]);
+  const trough = series.reduce((worst, p) => (p.scorePct < worst.scorePct ? p : worst), series[0]);
+
+  // Inflection = first chapter (after the running peak) where the window score
+  // drops 5+ points below the peak seen so far. This catches a sustained dip,
+  // not single-chapter noise.
+  let runningPeak = series[0].scorePct;
+  let inflectionChapter: number | null = null;
+  let maxDrop = 0;
+  for (const point of series) {
+    if (point.scorePct > runningPeak) runningPeak = point.scorePct;
+    const drop = runningPeak - point.scorePct;
+    if (drop > maxDrop) maxDrop = drop;
+    if (inflectionChapter === null && drop >= DECAY_DROP_THRESHOLD) {
+      inflectionChapter = point.endChapter;
+    }
+  }
+
+  const endChapter = series[series.length - 1].endChapter;
+  const endScorePct = series[series.length - 1].scorePct;
+  const roundedMaxDrop = Math.round(maxDrop * 10) / 10;
+  // A drawdown that climbs back within threshold of the peak by the final window
+  // is noise (warm-up wobble / one weak chapter), not sustained decay. Only an
+  // un-recovered drop counts as real long-form quality decay.
+  const recovered = inflectionChapter !== null && endScorePct >= peak.scorePct - DECAY_DROP_THRESHOLD;
+  const hasDecay = inflectionChapter !== null && !recovered;
+
+  let note: string;
+  if (inflectionChapter === null) {
+    note = `连续 ${series.length} 个成熟窗口未见衰减拐点：窗口分数在 ${trough.scorePct}%~${peak.scorePct}% 区间波动，最大回撤仅 ${roundedMaxDrop} 分。`;
+  } else if (recovered) {
+    note = `无持续性衰减：第 ${inflectionChapter} 章窗口出现 ${roundedMaxDrop} 分回撤（峰值第 ${peak.endChapter} 章 ${peak.scorePct}% → 谷值第 ${trough.endChapter} 章 ${trough.scorePct}%），但随后回升至第 ${endChapter} 章 ${endScorePct}%，属正常波动。`;
+  } else {
+    note = `质量自第 ${peak.endChapter} 章峰值 ${peak.scorePct}% 起，于第 ${inflectionChapter} 章跌破阈值且未回升，谷值第 ${trough.endChapter} 章 ${trough.scorePct}%，最大回撤 ${roundedMaxDrop} 分。`;
+  }
+
+  return {
+    hasDecay,
+    peakChapter: peak.endChapter,
+    peakScorePct: peak.scorePct,
+    troughChapter: trough.endChapter,
+    troughScorePct: trough.scorePct,
+    maxDropPct: roundedMaxDrop,
+    inflectionChapter,
+    note,
+  };
+}
+
 function stripCodeFence(content: string): string {
   return content
     .replace(/^```(?:\w+)?\s*/u, "")
@@ -255,6 +409,9 @@ function stripCodeFence(content: string): string {
 
 function renderMarkdown(report: NovelQualityRunReport): string {
   const ratio = `${report.overallScore}/${report.maxScore}`;
+  const cleanupAiHits = report.rawCleanupHits;
+  const cleanupChapters = report.generatedChapters.filter((chapter) => Array.isArray(chapter.rawCleanupHits)).length;
+  const cleanupAiTotal = cleanupAiHits.reduce((sum, hit) => sum + hit.count, 0);
   const lines = [
     "# 连续小说质量测评报告",
     "",
@@ -290,6 +447,18 @@ function renderMarkdown(report: NovelQualityRunReport): string {
       ),
     ] : []),
     "",
+    "## 清洗前 AI 签名命中（原始输出，按规则）",
+    "",
+    cleanupChapters > 0
+      ? `> 统计写手原始输出在 \`cleanupWriterOutput\` 清洗**前**触发的 AI 签名规则。命中越多 = 提示侧 AI 味越重（而非清洗兜底的功劳）。本轮 ${cleanupChapters} 章，AI 签名命中合计 ${cleanupAiTotal} 次，平均每章 ${(cleanupAiTotal / cleanupChapters).toFixed(1)} 次。`
+      : "本轮无原始输出统计（reuse 旧报告或 fixture 模式未记录清洗前命中）。",
+    ...(cleanupChapters > 0 && cleanupAiHits.length > 0 ? [
+      "",
+      "| 规则 | 命中次数 | 平均每章 |",
+      "|---|---:|---:|",
+      ...cleanupAiHits.map((hit) => `| ${hit.label} | ${hit.count} | ${(hit.count / cleanupChapters).toFixed(1)} |`),
+    ] : cleanupChapters > 0 ? ["", "写手原始输出未触发任何 AI 签名清洗规则，提示侧已较干净。"] : []),
+    "",
     "## 章节样本",
     "",
     "| 章节 | 字数 | 句子 | 对白 | 摘要 |",
@@ -297,6 +466,21 @@ function renderMarkdown(report: NovelQualityRunReport): string {
     ...report.chapterSummaries.map((chapter) =>
       `| 第 ${chapter.chapterIndex} 章《${chapter.title}》 | ${chapter.chars} | ${chapter.sentenceCount} | ${chapter.dialogueCount} | ${chapter.excerpt} |`,
     ),
+    "",
+    "## 质量轨迹（滑动窗口）",
+    "",
+    `- 衰减判定：${report.decay.note}`,
+    `- 峰值：第 ${report.decay.peakChapter} 章 ${report.decay.peakScorePct}%`,
+    `- 谷值：第 ${report.decay.troughChapter} 章 ${report.decay.troughScorePct}%`,
+    `- 拐点：${report.decay.inflectionChapter !== null ? `第 ${report.decay.inflectionChapter} 章` : "无"}`,
+    "",
+    "| 窗口结束章 | 窗口范围 | 窗口分数% | 走势 |",
+    "|---:|---|---:|---|",
+    ...report.trajectory.map((point, i) => {
+      const prev = report.trajectory[i - 1];
+      const arrow = !prev ? "·" : point.scorePct > prev.scorePct ? "↑" : point.scorePct < prev.scorePct ? "↓" : "=";
+      return `| 第 ${point.endChapter} 章 | ${point.windowStart}-${point.endChapter} | ${point.scorePct} | ${arrow} ${bar(point.scorePct)} |`;
+    }),
     "",
     "## 风险",
     "",
@@ -384,8 +568,14 @@ function safeFileName(value: string): string {
     .slice(0, 48);
 }
 
+function bar(scorePct: number): string {
+  const filled = Math.round(scorePct / 10);
+  return "█".repeat(Math.max(0, Math.min(10, filled)));
+}
+
 async function main() {
   const fixture = await readFixture();
+  const chapterCount = readChapterCount();
   let mode: NovelQualityRunReport["mode"] = shouldUseRealLlm() ? "real_llm" : "fixture_fallback";
   let model = "not-run";
   let chapters: GeneratedChapter[];
@@ -397,7 +587,7 @@ async function main() {
       mode = chapters.some((chapter) => chapter.source === "llm") ? "real_llm" : "fixture_fallback";
       model = chapters[0]?.model ?? "latest-report";
     } else if (shouldUseRealLlm()) {
-      const generated = await generateSeries(fixture);
+      const generated = await generateSeries(fixture, chapterCount);
       bible = generated.bible;
       chapters = generated.chapters;
       model = chapters[0]?.model ?? "unknown";
@@ -418,6 +608,8 @@ async function main() {
     bible,
     chapters,
   });
+  const trajectory = buildQualityTrajectory(fixture.id, bible, chapters);
+  const decay = analyzeDecay(trajectory);
   const report: NovelQualityRunReport = {
     ...baseReport,
     mode,
@@ -425,10 +617,13 @@ async function main() {
     confidence: mode === "real_llm" ? "medium" : "low",
     evaluationNotes: buildEvaluationNotes(baseReport, mode),
     generatedChapters: chapters,
+    trajectory,
+    decay,
   };
 
   await writeReports(report);
-  console.log(`[eval:novel-quality] ${report.overallScore}/${report.maxScore} (${levelLabel(report.level)})`);
+  console.log(`[eval:novel-quality] ${report.overallScore}/${report.maxScore} (${levelLabel(report.level)}) · ${chapters.length} chapters`);
+  console.log(`[eval:novel-quality] decay: ${decay.note}`);
   console.log("[eval:novel-quality] wrote docs/evals/novel-quality-latest.md and docs/evals/novel-quality-latest.json");
 }
 

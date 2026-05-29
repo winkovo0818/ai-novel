@@ -230,7 +230,7 @@ export interface CriticAgentInput {
 }
 
 export interface CriticIssue {
-  type: "character" | "world_rule" | "plot_thread" | "timeline" | "tone";
+  type: "character" | "world_rule" | "plot_thread" | "timeline" | "tone" | "logic_chain" | "prose_quality";
   severity: "critical" | "major" | "minor";
   description: string;
   suggestion?: string;

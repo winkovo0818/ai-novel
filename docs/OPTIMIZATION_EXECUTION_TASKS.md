@@ -47,6 +47,8 @@
 
 ### 当前执行状态（2026-05-29）
 
+> **AI 质量可控可迭代 2 周冲刺（10/10 天完成）**：评估护栏 + 短板攻关的完整记录见 `docs/SPRINT_AI_QUALITY_2026-05-29.md`。要点：`eval:check` 入 CI verify（回退自动 fail，baseline `docs/evals/baselines/novel-quality-matrix-fixture-fallback-2026-05-29.json`）；都市悬疑修订后 91.4/100；玄幻 12 章长篇无明显衰减（`docs/evals/long-form-baseline-2026-05-29.md`）；`MemoryFeedback` 真接入 retrieval；critic recall 33%→100% / revise 命中 100%（`docs/evals/critic-revise-hit-rate.md`）；`writerOutputCleanup` 规则集化 + 清洗前 AI 签名命中可追踪。延伸了 P1-09 / P1-13 的评估能力。
+
 | 任务 | 状态 | 本轮说明 | 验证 |
 |---|---|---|---|
 | P0-01 | 已覆盖 | 现有 `tests/e2e/onboarding.spec.ts` 已覆盖主线 onboarding -> editor smoke，本轮未改。 | 未单独运行 Playwright |

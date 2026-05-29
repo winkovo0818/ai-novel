@@ -37,6 +37,9 @@ jobs:
       - name: Docs drift guard
         run: npm run docs:check
 
+      - name: Eval quality baseline check
+        run: npm run eval:check
+
       - name: Build
         run: npm run build
         env:

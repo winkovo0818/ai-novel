@@ -2,12 +2,19 @@ import type { NovelProfile } from "@/lib/validation/schemas";
 
 export interface GenerationPolicy {
   temperature: number;
+  topP: number;
+  frequencyPenalty: number;
+  presencePenalty: number;
   targetWordCount: number;
   freedomDirective: string;
   toneDirective: string;
   paceDirective: string;
   audienceDirective: string;
   povDirective: string;
+  /** Non-empty only for mystery / suspense / detective sub-genres. */
+  genreDirective: string;
+  /** Suspense/mystery flag downstream prompts use to swap framing. */
+  isMystery: boolean;
 }
 
 // Baseline temperatures raised by +0.1 across the board (was 0.7-0.85) so the
@@ -46,20 +53,55 @@ const POV_MAP: Record<NovelProfile["pov"], string> = {
   omniscient: "使用全知视角叙事，可在不同角色间切换。",
 };
 
+// Baseline sampling penalties — match production /chapters/draft route so the
+// matrix eval reflects production behaviour. Suspense / mystery bumps the
+// vocab-variety knobs because P1-14 traced the score drop to repeated clue /
+// motif phrasing the previous defaults didn't suppress.
+const DEFAULT_TOP_P = 0.95;
+const DEFAULT_FREQUENCY_PENALTY = 0.5;
+const DEFAULT_PRESENCE_PENALTY = 0.3;
+
+const MYSTERY_KEYWORDS = ["悬疑", "推理", "侦探"];
+
+function isMysteryProfile(profile: NovelProfile): boolean {
+  const sub = profile.genre_sub ?? "";
+  return MYSTERY_KEYWORDS.some((kw) => sub.includes(kw));
+}
+
 export function getGenerationPolicy(profile: NovelProfile): GenerationPolicy {
   const toneInfo = TONE_MAP[profile.tone];
   const paceInfo = PACE_MAP[profile.pace];
   const freedomInfo = FREEDOM_MAP[profile.ai_freedom];
+  const mystery = isMysteryProfile(profile);
 
-  const temperature = Math.max(0.3, Math.min(1.2, toneInfo.temperature + paceInfo.temperatureDelta + freedomInfo.temperatureDelta));
+  // Suspense temperature trim avoids the model improvising new clues that
+  // contradict prior beats — same reason we bump frequency/presence penalty
+  // so identical clue / motif phrasings get pushed further down the sample.
+  const mysteryTempDelta = mystery ? -0.05 : 0;
+  const temperature = Math.max(
+    0.3,
+    Math.min(1.2, toneInfo.temperature + paceInfo.temperatureDelta + freedomInfo.temperatureDelta + mysteryTempDelta),
+  );
+
+  const frequencyPenalty = mystery ? DEFAULT_FREQUENCY_PENALTY + 0.1 : DEFAULT_FREQUENCY_PENALTY;
+  const presencePenalty = mystery ? DEFAULT_PRESENCE_PENALTY + 0.05 : DEFAULT_PRESENCE_PENALTY;
+
+  const genreDirective = mystery
+    ? "悬疑/推理题材：本章引入的线索必须能在后续章节被回收，且不要一次揭示真相；用'目标 → 阻碍 → 调查/试探 → 新线索或新疑点'的节奏推进，并明确区分'已知 / 未知 / 误导'三类信息。"
+    : "";
 
   return {
     temperature: Math.round(temperature * 100) / 100,
+    topP: DEFAULT_TOP_P,
+    frequencyPenalty: Math.round(frequencyPenalty * 100) / 100,
+    presencePenalty: Math.round(presencePenalty * 100) / 100,
     targetWordCount: profile.chapter_word_count,
     freedomDirective: freedomInfo.directive,
     toneDirective: toneInfo.directive,
     paceDirective: paceInfo.directive,
     audienceDirective: AUDIENCE_MAP[profile.audience],
     povDirective: POV_MAP[profile.pov],
+    genreDirective,
+    isMystery: mystery,
   };
 }

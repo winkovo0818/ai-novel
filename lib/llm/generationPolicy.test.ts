@@ -84,4 +84,35 @@ describe("getGenerationPolicy", () => {
     const policy = getGenerationPolicy(makeProfile({ chapter_word_count: 5000 }));
     expect(policy.targetWordCount).toBe(5000);
   });
+
+  it("exposes default sampling penalties matching production /chapters/draft", () => {
+    const policy = getGenerationPolicy(makeProfile());
+    expect(policy.topP).toBe(0.95);
+    expect(policy.frequencyPenalty).toBe(0.5);
+    expect(policy.presencePenalty).toBe(0.3);
+    expect(policy.isMystery).toBe(false);
+    expect(policy.genreDirective).toBe("");
+  });
+
+  it("flags mystery sub-genres and bumps vocab-variety penalties", () => {
+    const suspense = getGenerationPolicy(makeProfile({ genre_sub: "都市悬疑" }));
+    expect(suspense.isMystery).toBe(true);
+    expect(suspense.frequencyPenalty).toBeCloseTo(0.6, 2);
+    expect(suspense.presencePenalty).toBeCloseTo(0.35, 2);
+    expect(suspense.genreDirective).toContain("悬疑");
+    // Mystery temp trim: 0.85 (cool) + 0.05 (fast) + 0 (mid) - 0.05 (mystery) = 0.85
+    expect(suspense.temperature).toBeCloseTo(0.85, 2);
+
+    const detective = getGenerationPolicy(makeProfile({ genre_sub: "本格推理" }));
+    expect(detective.isMystery).toBe(true);
+
+    const sleuth = getGenerationPolicy(makeProfile({ genre_sub: "硬汉侦探" }));
+    expect(sleuth.isMystery).toBe(true);
+  });
+
+  it("does not flag non-mystery genres", () => {
+    expect(getGenerationPolicy(makeProfile({ genre_sub: "玄幻" })).isMystery).toBe(false);
+    expect(getGenerationPolicy(makeProfile({ genre_sub: "硬科幻" })).isMystery).toBe(false);
+    expect(getGenerationPolicy(makeProfile({ genre_sub: "历史权谋" })).isMystery).toBe(false);
+  });
 });

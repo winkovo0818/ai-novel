@@ -9,9 +9,10 @@ import { buildChapterPrompt } from "@/lib/llm/prompts/chapter";
 import { buildChapterRevisionPrompt } from "@/lib/llm/prompts/chapterRevision";
 import { buildCriticPrompt, type CriticResult } from "@/lib/llm/prompts/critic";
 import { buildStateDiffPrompt } from "@/lib/llm/prompts/stateDiff";
-import { cleanupWriterOutput } from "@/lib/llm/writerOutputCleanup";
+import { cleanupWriterOutput, cleanupWriterOutputWithReport } from "@/lib/llm/writerOutputCleanup";
 import { evaluateNovelQuality, type NovelQualityReport, type QualityChapterInput } from "@/lib/evals/novelQuality";
-import { buildNovelQualityMatrixReport, renderNovelQualityMatrixMarkdown, type NovelQualityMatrixCase } from "@/lib/evals/novelQualityMatrix";
+import { buildNovelQualityMatrixReport, renderNovelQualityMatrixMarkdown, type NovelQualityMatrixCase, type NovelQualityMatrixReport } from "@/lib/evals/novelQualityMatrix";
+import { compareAgainstBaseline, renderComparisonReport } from "@/lib/evals/novelQualityBaseline";
 import { applyStateDiff } from "@/lib/validation/stateDiffMerge";
 import { BibleDraftSchema, NovelProfileSchema, StateDiffSchema, type BibleDraft, type NovelProfile } from "@/lib/validation/schemas";
 
@@ -43,7 +44,11 @@ interface MatrixConfig {
   chapterCount: number;
   revisionRounds: number;
   useRealLlm: boolean;
+  baselinePath: string | null;
+  tolerance: number;
 }
+
+const DEFAULT_TOLERANCE_POINTS = 5;
 
 async function main() {
   const config = readConfig();
@@ -74,18 +79,72 @@ async function main() {
 
   console.log(`[eval:novel-quality:matrix] ${report.summary.averageRevisedScore}/100 avg revised (${report.summary.caseCount} cases)`);
   console.log("[eval:novel-quality:matrix] wrote docs/evals/novel-quality-matrix-latest.md and docs/evals/novel-quality-matrix-latest.json");
+
+  if (config.baselinePath) {
+    await runBaselineCheck(report, config.baselinePath, config.tolerance);
+  }
+}
+
+async function runBaselineCheck(current: NovelQualityMatrixReport, baselinePath: string, tolerance: number): Promise<void> {
+  const absolute = path.isAbsolute(baselinePath) ? baselinePath : path.join(ROOT, baselinePath);
+  let baselineRaw: string;
+  try {
+    baselineRaw = await fs.readFile(absolute, "utf-8");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[eval:novel-quality:matrix] baseline not readable at ${absolute}: ${message}`);
+    process.exit(1);
+  }
+  const baseline = JSON.parse(baselineRaw) as NovelQualityMatrixReport;
+  const comparison = compareAgainstBaseline(current, baseline, tolerance);
+  console.log("");
+  console.log(renderComparisonReport(comparison));
+  if (!comparison.passed) {
+    process.exit(1);
+  }
 }
 
 function readConfig(): MatrixConfig {
   const fixtureRaw = process.env.EVAL_NOVEL_MATRIX_FIXTURES?.trim();
   const modelRaw = process.env.EVAL_NOVEL_MATRIX_MODELS?.trim();
+  const args = parseCliArgs(process.argv.slice(2));
+  const baselineEnv = process.env.EVAL_NOVEL_MATRIX_BASELINE?.trim();
+  const toleranceEnv = process.env.EVAL_NOVEL_MATRIX_TOLERANCE?.trim();
   return {
     fixtureIds: fixtureRaw === "all" || !fixtureRaw ? DEFAULT_FIXTURES : splitCsv(fixtureRaw),
     models: modelRaw ? splitCsv(modelRaw) : DEFAULT_MODELS,
     chapterCount: clampInt(process.env.EVAL_NOVEL_MATRIX_CHAPTERS, 2, 8, 3),
     revisionRounds: clampInt(process.env.EVAL_NOVEL_MATRIX_REVISION_ROUNDS, 0, 2, 1),
     useRealLlm: process.env.EVAL_NOVEL_MATRIX_REAL === "1" || process.env.EVAL_NOVEL_MATRIX_REAL === "true",
+    baselinePath: args.baseline ?? baselineEnv ?? null,
+    tolerance: parseTolerance(args.tolerance ?? toleranceEnv),
   };
+}
+
+function parseCliArgs(argv: string[]): { baseline?: string; tolerance?: string } {
+  const result: { baseline?: string; tolerance?: string } = {};
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "--baseline") {
+      result.baseline = argv[i + 1];
+      i += 1;
+    } else if (arg.startsWith("--baseline=")) {
+      result.baseline = arg.slice("--baseline=".length);
+    } else if (arg === "--tolerance") {
+      result.tolerance = argv[i + 1];
+      i += 1;
+    } else if (arg.startsWith("--tolerance=")) {
+      result.tolerance = arg.slice("--tolerance=".length);
+    }
+  }
+  return result;
+}
+
+function parseTolerance(raw: string | undefined): number {
+  if (!raw) return DEFAULT_TOLERANCE_POINTS;
+  const num = Number(raw);
+  if (!Number.isFinite(num) || num < 0) return DEFAULT_TOLERANCE_POINTS;
+  return num;
 }
 
 async function readFixture(id: string): Promise<NovelFixture> {
@@ -167,9 +226,9 @@ async function generateChapter(
         },
       }),
       temperature: policy.temperature,
-      topP: 0.95,
-      frequencyPenalty: 0.5,
-      presencePenalty: 0.3,
+      topP: policy.topP,
+      frequencyPenalty: policy.frequencyPenalty,
+      presencePenalty: policy.presencePenalty,
       timeoutMs: 180_000,
     },
     {
@@ -180,11 +239,13 @@ async function generateChapter(
     0,
   );
   const outline = bible.outline.volume_1.chapters.find((chapter) => chapter.index === chapterIndex);
+  const cleanup = cleanupWriterOutputWithReport(content || result.content);
   return {
     chapterIndex,
     title: outline?.title ?? `第 ${chapterIndex} 章`,
     outlineSummary: outline?.summary,
-    content: cleanupWriterOutput(content || result.content),
+    content: cleanup.text,
+    rawCleanupHits: cleanup.hits,
     model: result.model,
     tookMs: result.tookMs,
     source: "llm",
@@ -203,6 +264,7 @@ async function reviseSeries(
   let changedChapters = 0;
   let criticIssues = 0;
   const revised: GeneratedChapter[] = [];
+  const isMystery = getGenerationPolicy(fixture.profile).isMystery;
 
   for (const chapter of chapters) {
     let current = chapter;
@@ -210,7 +272,7 @@ async function reviseSeries(
       const context = buildChapterContext(currentBible, toChapterViews(revised), current.chapterIndex, {
         retrievalStatus: "empty",
       });
-      const critic = useRealLlm ? await runCritic(context, current, model, round > 0) : fallbackCritic(current);
+      const critic = useRealLlm ? await runCritic(context, current, model, round > 0, isMystery) : fallbackCritic(current);
       criticIssues += critic.issues.length;
       if (critic.consistent && critic.issues.length === 0) {
         const cleaned = cleanupWriterOutput(current.content);
@@ -240,6 +302,7 @@ async function runCritic(
   chapter: GeneratedChapter,
   model: string,
   isRevision: boolean,
+  isMystery: boolean,
 ): Promise<CriticResult> {
   const result = await chatCompletionWithRetry(
     {
@@ -251,6 +314,7 @@ async function runCritic(
         chapterContent: chapter.content,
         chapterIndex: chapter.chapterIndex,
         isRevision,
+        isMystery,
       }),
       responseFormat: "json_object",
       temperature: 0,
@@ -258,7 +322,7 @@ async function runCritic(
     },
     0,
   );
-  return normalizeCriticResult(JSON.parse(result.content) as Partial<CriticResult>);
+  return normalizeCriticResult(JSON.parse(sanitizeJsonContent(result.content)) as Partial<CriticResult>);
 }
 
 async function runRevision(
@@ -304,8 +368,35 @@ async function updateBibleWithChapter(bible: BibleDraft, chapter: GeneratedChapt
     },
     0,
   );
-  const diff = StateDiffSchema.parse(JSON.parse(result.content));
-  return applyStateDiff(bible, diff, chapter.chapterIndex);
+  try {
+    const diff = StateDiffSchema.parse(JSON.parse(sanitizeJsonContent(result.content)));
+    return applyStateDiff(bible, diff, chapter.chapterIndex);
+  } catch (err) {
+    // State diff is non-essential for the eval — the matrix scores chapter
+    // content quality, not the resulting bible mutation. When the model
+    // returns malformed JSON (Chinese quotes, mid-string control chars,
+    // truncated objects) we just keep the previous bible so the run can
+    // finish and the chapters can still be scored.
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[eval:novel-quality:matrix] state-diff parse failed for chapter ${chapter.chapterIndex}, keeping prior bible: ${message}`);
+    return bible;
+  }
+}
+
+/**
+ * Strips Markdown fences and converts Chinese full-width quotes that some
+ * models leak into JSON output back into standard ASCII double quotes. Safe
+ * because the state diff payload never legitimately contains those quote
+ * characters as data — they only appear when the model falls back to a
+ * conversational quoting style mid-JSON.
+ */
+function sanitizeJsonContent(raw: string): string {
+  return raw
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .trim();
 }
 
 function fallbackSeries(fixture: NovelFixture, model: string, chapterCount: number): GeneratedChapter[] {
