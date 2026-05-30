@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { prisma } from "../lib/db";
 import {
+  JOB_TYPES,
   runNextJob,
   sweepStaleRunningJobs,
   type ClaimNextJobOptions,
@@ -133,7 +134,7 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 function isJobType(value: string): value is JobType {
-  return value === "summarize_chapter" || value === "index_chapter" || value === "refresh_summaries";
+  return (JOB_TYPES as readonly string[]).includes(value);
 }
 
 function isDirectRun(): boolean {

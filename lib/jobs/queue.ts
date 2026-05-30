@@ -2,8 +2,8 @@ import { prisma } from "@/lib/db";
 import type { BackgroundJob } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 
-export type JobType = "summarize_chapter" | "index_chapter" | "refresh_summaries";
-const JOB_TYPES: readonly JobType[] = ["summarize_chapter", "index_chapter", "refresh_summaries"] as const;
+export type JobType = "summarize_chapter" | "index_chapter" | "refresh_summaries" | "generate_chapter";
+export const JOB_TYPES: readonly JobType[] = ["summarize_chapter", "index_chapter", "refresh_summaries", "generate_chapter"] as const;
 
 export type JobStatus = "pending" | "running" | "done" | "failed";
 
@@ -79,6 +79,19 @@ const JOB_TYPE_CONFIG: Record<JobType, JobTypeConfig> = {
     timeoutMs: numberFromEnv("JOB_REFRESH_TIMEOUT_MS", 180_000),
     maxAttempts: numberFromEnv("JOB_REFRESH_MAX_ATTEMPTS", 2),
     maxConcurrent: numberFromEnv("JOB_REFRESH_MAX_CONCURRENT", 1),
+  },
+  // Auto-pilot: one job writes one whole chapter (draft → critic → revise →
+  // persist), so its budget dwarfs the post-processing jobs. Serial
+  // (maxConcurrent 1) so chapters generate one at a time — avoids two chapters
+  // racing to write the same Bible, and eases LLM rate limits. The budget must
+  // exceed draft + rounds×(critic + revise): too small and a slow model both
+  // times out AND leaves a zombie handler (withTimeout races but can't cancel
+  // the in-flight call) that re-persists the chapter and burns ~2-3x tokens.
+  // 20min covers the worst case (240s draft + 2×(120s critic + 240s revise)).
+  generate_chapter: {
+    timeoutMs: numberFromEnv("JOB_GENERATE_CHAPTER_TIMEOUT_MS", 1_200_000),
+    maxAttempts: numberFromEnv("JOB_GENERATE_CHAPTER_MAX_ATTEMPTS", 2),
+    maxConcurrent: numberFromEnv("JOB_GENERATE_CHAPTER_MAX_CONCURRENT", 1),
   },
 };
 

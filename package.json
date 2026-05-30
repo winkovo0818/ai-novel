@@ -28,6 +28,7 @@
     "eval:critic-revise": "tsx scripts/eval-critic-revise.ts",
     "eval:check": "tsx scripts/eval-novel-quality-matrix.ts --baseline docs/evals/baselines/novel-quality-matrix-fixture-fallback-2026-05-29.json --tolerance 5",
     "jobs:worker": "dotenv -e .env -- tsx scripts/jobs-worker.ts",
+    "auto:generate": "dotenv -e .env -- tsx scripts/auto-generate.ts",
     "smoke:onboarding": "dotenv -e .env -- tsx scripts/onboarding-api-smoke.ts",
     "prompt:bible": "tsx scripts/test-bible-prompt.ts",
     "postinstall": "prisma generate"

@@ -4,6 +4,7 @@ import { buildSummarizePrompt } from "@/lib/llm/prompts/summarize";
 import { indexChapter } from "@/lib/agent/chunking";
 import { refreshSummaries } from "@/lib/agent/summaries";
 import { registerHandler } from "./queue";
+import { handleGenerateChapter } from "./generateChapterHandler";
 
 interface SummarizeChapterPayload {
   chapter_id: string;
@@ -86,6 +87,8 @@ export function registerJobHandlers(): void {
     if (!isRefreshPayload(payload)) throw new Error("Invalid refresh_summaries payload");
     await refreshSummaries(payload.novel_id);
   });
+
+  registerHandler("generate_chapter", handleGenerateChapter);
 }
 
 // Auto-register on module import so route handlers and queue runners

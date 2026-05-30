@@ -8,11 +8,13 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/jobs/queue", () => ({
+  JOB_TYPES: ["summarize_chapter", "index_chapter", "refresh_summaries", "generate_chapter"],
   runNextJob: mocks.runNextJob,
   sweepStaleRunningJobs: mocks.sweepStaleRunningJobs,
 }));
 
 vi.mock("../lib/jobs/queue", () => ({
+  JOB_TYPES: ["summarize_chapter", "index_chapter", "refresh_summaries", "generate_chapter"],
   runNextJob: mocks.runNextJob,
   sweepStaleRunningJobs: mocks.sweepStaleRunningJobs,
 }));

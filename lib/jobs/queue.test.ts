@@ -45,6 +45,21 @@ describe("enqueueJob", () => {
   });
 });
 
+describe("getJobTypeConfig", () => {
+  it("gives generate_chapter a long, serial budget (auto-pilot whole-chapter job)", async () => {
+    const { getJobTypeConfig } = await import("./queue");
+    const config = getJobTypeConfig("generate_chapter");
+    expect(config.timeoutMs).toBe(1_200_000);
+    expect(config.maxAttempts).toBe(2);
+    expect(config.maxConcurrent).toBe(1);
+  });
+
+  it("falls back to the default config for unknown job types", async () => {
+    const { getJobTypeConfig } = await import("./queue");
+    expect(getJobTypeConfig("not_a_real_job")).toEqual({ timeoutMs: 120_000, maxAttempts: 3, maxConcurrent: 2 });
+  });
+});
+
 describe("runJob", () => {
   it("marks the job done when the handler resolves", async () => {
     const { registerHandler, runJob } = await import("./queue");
