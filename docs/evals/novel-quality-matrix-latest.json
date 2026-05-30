@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-29T15:22:30.041Z",
+  "generatedAt": "2026-05-30T06:05:09.507Z",
   "fixtureIds": [
     "xuanhuan-seed",
     "urban-suspense",
@@ -33,7 +33,7 @@
       "changedChapters": 3,
       "criticIssues": 0,
       "draftReport": {
-        "generatedAt": "2026-05-29T15:22:30.025Z",
+        "generatedAt": "2026-05-30T06:05:09.496Z",
         "fixtureId": "xuanhuan-seed",
         "title": "逆魂纪",
         "chapterCount": 3,
@@ -188,7 +188,7 @@
         "rawCleanupHits": []
       },
       "revisedReport": {
-        "generatedAt": "2026-05-29T15:22:30.029Z",
+        "generatedAt": "2026-05-30T06:05:09.499Z",
         "fixtureId": "xuanhuan-seed",
         "title": "逆魂纪",
         "chapterCount": 3,
@@ -344,7 +344,7 @@
       "changedChapters": 3,
       "criticIssues": 0,
       "draftReport": {
-        "generatedAt": "2026-05-29T15:22:30.031Z",
+        "generatedAt": "2026-05-30T06:05:09.501Z",
         "fixtureId": "urban-suspense",
         "title": "旧伤纹",
         "chapterCount": 3,
@@ -501,7 +501,7 @@
         "rawCleanupHits": []
       },
       "revisedReport": {
-        "generatedAt": "2026-05-29T15:22:30.033Z",
+        "generatedAt": "2026-05-30T06:05:09.502Z",
         "fixtureId": "urban-suspense",
         "title": "旧伤纹",
         "chapterCount": 3,
@@ -660,7 +660,7 @@
       "changedChapters": 3,
       "criticIssues": 0,
       "draftReport": {
-        "generatedAt": "2026-05-29T15:22:30.035Z",
+        "generatedAt": "2026-05-30T06:05:09.504Z",
         "fixtureId": "scifi-hard",
         "title": "第七启",
         "chapterCount": 3,
@@ -819,7 +819,7 @@
         "rawCleanupHits": []
       },
       "revisedReport": {
-        "generatedAt": "2026-05-29T15:22:30.037Z",
+        "generatedAt": "2026-05-30T06:05:09.505Z",
         "fixtureId": "scifi-hard",
         "title": "第七启",
         "chapterCount": 3,
@@ -980,7 +980,7 @@
       "changedChapters": 3,
       "criticIssues": 0,
       "draftReport": {
-        "generatedAt": "2026-05-29T15:22:30.039Z",
+        "generatedAt": "2026-05-30T06:05:09.506Z",
         "fixtureId": "history-conservative",
         "title": "副奏录",
         "chapterCount": 3,
@@ -1139,7 +1139,7 @@
         "rawCleanupHits": []
       },
       "revisedReport": {
-        "generatedAt": "2026-05-29T15:22:30.041Z",
+        "generatedAt": "2026-05-30T06:05:09.507Z",
         "fixtureId": "history-conservative",
         "title": "副奏录",
         "chapterCount": 3,
