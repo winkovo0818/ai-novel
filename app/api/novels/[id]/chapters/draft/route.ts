@@ -10,9 +10,7 @@ import { StreamSegmenter } from "@/lib/agent/streamSegmenter";
 import { streamChatCompletionWithRetry } from "@/lib/llm/client";
 import { buildChapterPrompt } from "@/lib/llm/prompts/chapter";
 import { cleanupWriterOutputSegment } from "@/lib/llm/writerOutputCleanup";
-import { buildChapterContext } from "@/lib/agent/chapterContext";
-import { retrieveMemories, type RetrievalStatus } from "@/lib/agent/retrieval";
-import type { RetrievalResult } from "@/lib/agent/contracts";
+import { assembleChapterContext } from "@/lib/agent/chapterContextAssembly";
 import {
   completeDraftSession,
   createDraftBufferFlusher,
@@ -26,7 +24,6 @@ import {
   BibleDraftSchema,
   GenerateChapterDraftRequestSchema,
   NovelProfileSchema,
-  getVolumes,
 } from "@/lib/validation/schemas";
 import { getRequiredUserId } from "@/lib/auth/session";
 
@@ -35,23 +32,9 @@ export const dynamic = "force-dynamic";
 
 const ROUTE = "/api/novels/:id/chapters/draft";
 const encoder = new TextEncoder();
-const RETRIEVAL_STATUSES = new Set<RetrievalStatus>(["success", "empty", "error"]);
 
 interface RouteContext {
   params: Promise<{ id: string }>;
-}
-
-function normalizeRetrievalResult(result: Partial<RetrievalResult> | null | undefined): RetrievalResult {
-  const status = typeof result?.status === "string" && RETRIEVAL_STATUSES.has(result.status as RetrievalStatus)
-    ? result.status as RetrievalStatus
-    : "empty";
-  const memories = Array.isArray(result?.memories) ? result.memories : [];
-  return {
-    status,
-    memories,
-    errorMessage: typeof result?.errorMessage === "string" ? result.errorMessage : undefined,
-    explanation: result?.explanation,
-  };
 }
 
 export async function POST(request: Request, context: RouteContext) {
@@ -121,30 +104,16 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("INVALID_INPUT", "Novel Bible or profile is invalid", false, 400);
   }
 
-  // Determine which volume the current chapter belongs to
-  const volumes = getVolumes(bible.data);
-  let currentVolumeIndex = 0;
-  let chaptersSeen = 0;
-  for (let i = 0; i < volumes.length; i++) {
-    chaptersSeen += volumes[i].chapters.length;
-    if (input.chapter_index <= chaptersSeen) {
-      currentVolumeIndex = i;
-      break;
-    }
-  }
-
-  const volumeSummary = novel.volume_summaries.find(
-    (vs) => vs.volume_index === currentVolumeIndex,
-  )?.summary;
-
-  // Retrieve relevant memories (RAG v2) — propagate status to prompt
-  let retrievedMemories: Array<{ source: string; text: string; reason: string }> = [];
-  let retrievalStatus: RetrievalStatus = "empty";
-  const retrievalResult = normalizeRetrievalResult(
-    await retrieveMemories(id, bible.data, input.chapter_index, 5),
-  );
-  retrievedMemories = retrievalResult.memories;
-  retrievalStatus = retrievalResult.status;
+  const { context: chapterContext, retrieval: retrievalResult } = await assembleChapterContext({
+    novelId: id,
+    bible: bible.data,
+    chapters: novel.chapters,
+    chapterIndex: input.chapter_index,
+    novelSummary: novel.novel_summary?.summary,
+    volumeSummaries: novel.volume_summaries,
+    beatSheet: input.beat_sheet,
+  });
+  const retrievalStatus = retrievalResult.status;
 
   // M3.4 retrieval visibility: short, UI-friendly view of what RAG fed in.
   // Truncate body so SSE payload stays small even with 5 chunks of summaries.
@@ -164,14 +133,6 @@ export async function POST(request: Request, context: RouteContext) {
         : m.text,
     })),
   };
-
-  const chapterContext = buildChapterContext(bible.data, novel.chapters, input.chapter_index, {
-    novelSummary: novel.novel_summary?.summary,
-    volumeSummary,
-    retrievedMemories,
-    retrievalStatus,
-    beatSheet: input.beat_sheet,
-  });
 
   const policy = getGenerationPolicy(profile.data);
   const messages = buildChapterPrompt({

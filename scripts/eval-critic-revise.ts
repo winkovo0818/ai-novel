@@ -4,6 +4,7 @@ import { config as loadEnv } from "dotenv";
 
 import { buildChapterContext, type ChapterDraftView } from "@/lib/agent/chapterContext";
 import { chatCompletionWithRetry } from "@/lib/llm/client";
+import { parseFirstJsonObject, stripCodeFence } from "@/lib/llm/extractJson";
 import { buildCriticPrompt, type CriticResult } from "@/lib/llm/prompts/critic";
 import { buildChapterRevisionPrompt } from "@/lib/llm/prompts/chapterRevision";
 import { getGenerationPolicy } from "@/lib/llm/generationPolicy";
@@ -131,48 +132,10 @@ function shouldUseRealLlm(): boolean {
   return !mock && Boolean(process.env.DEEPSEEK_API_KEY);
 }
 
-function stripCodeFence(raw: string): string {
-  return raw
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/```\s*$/i, "")
-    .trim();
-}
-
-// Models sometimes emit the JSON object followed by trailing commentary ("Here is
-// the analysis...{...}\n\nNote: ..."). JSON.parse chokes on that trailing text, so
-// slice out the first balanced top-level object (string-aware) before parsing.
-function extractFirstJsonObject(text: string): string {
-  const start = text.indexOf("{");
-  if (start === -1) return text;
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  for (let i = start; i < text.length; i += 1) {
-    const ch = text[i];
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (ch === "\\") escaped = true;
-      else if (ch === '"') inString = false;
-      continue;
-    }
-    if (ch === '"') inString = true;
-    else if (ch === "{") depth += 1;
-    else if (ch === "}") {
-      depth -= 1;
-      if (depth === 0) return text.slice(start, i + 1);
-    }
-  }
-  return text.slice(start);
-}
-
 function parseCriticResult(raw: string): Partial<CriticResult> {
-  const body = extractFirstJsonObject(stripCodeFence(raw));
-  try {
-    return JSON.parse(body) as Partial<CriticResult>;
-  } catch {
-    // Fallback for models that delimit JSON strings with full-width quotes.
-    return JSON.parse(body.replace(/[“”]/g, '"').replace(/[‘’]/g, "'")) as Partial<CriticResult>;
-  }
+  // Shared parser (lib/llm/extractJson) so this eval and the live chapterPipeline
+  // never drift on how critic JSON is pulled out of noisy model output.
+  return parseFirstJsonObject<Partial<CriticResult>>(raw) ?? {};
 }
 
 function aiTraceTotal(text: string): number {
