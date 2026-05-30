@@ -59,6 +59,36 @@ model Novel {
   @@unique([session_id])
 }
 
+/// Auto-pilot run tracker: one row per "generate the whole novel unattended"
+/// job chain. Holds run-level state the self-chaining generate_chapter jobs
+/// read/update between chapters (progress, cost, pause/cancel, quality gate).
+model NovelGenerationRun {
+  id              String    @id @default(uuid())
+  novel_id        String
+  user_id         String
+  /// planning | running | paused | needs_review | completed | failed | cancelled
+  status          String    @default("planning")
+  total_chapters  Int
+  current_chapter Int       @default(0)
+  /// Max self-revision passes per chapter when the critic flags blocking issues.
+  revision_rounds Int       @default(2)
+  /// Percent quality floor (0-100); below it the chapter fails the gate.
+  quality_floor   Float     @default(85)
+  /// none | per_volume | on_fail — when the run pauses for human review.
+  checkpoint_mode String    @default("on_fail")
+  cost_cny_spent  Float     @default(0)
+  /// Optional hard cost cap; the run pauses when spend exceeds it.
+  cost_cap_cny    Float?
+  /// Free-form run config: { model, target_words, ... }.
+  config          Json
+  last_error      String?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  @@index([novel_id])
+  @@index([status])
+}
+
 model BibleDraft {
   id         String   @id @default(uuid())
   novel_id   String   @unique
