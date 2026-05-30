@@ -18,6 +18,7 @@
 
 ## 最近更新
 
+- **2026-05-30 (全自动整本生成 M3 · 质量门 + needs_review + 成本兜底)** — 续上次中断：`lib/jobs/generateChapterHandler.ts` 自链收尾从纯链 `chainNextChapter` 升级为 `finalizeRun`，接入 T12 质量门（末 3 章滑窗 `evaluateChapterGate`，折百阈值 + 维度硬门 `ai_voice≥6` / `logic≥7`，冷启动 <3 章跳过；未达标且 `checkpoint_mode≠none`→`markNeedsReview` 止链，`none` 仅记录续跑）与 T13 成本兜底（`cost_cny_spent>cost_cap_cny`→`pause` 可 resume；输出 `moderateContent` 命中→`markNeedsReview` 且不落违规正文）。`.env.example` 补 `JOB_GENERATE_CHAPTER_*` 与「`JOBS_WORKER_TYPES` 须含 `generate_chapter`」说明。handler 测试 10→14 例、qualityGate 6 例；Vitest 937 → **947 tests / 122 files** 全绿，typecheck + 改动文件 lint 干净。详见 `docs/IMPL_AUTO_NOVEL_GENERATION_M1-M3.md`。
 - **2026-05-29 (Sprint Day 2-10 · AI 质量可控可迭代收官)** — 10 天冲刺完成（详见 `docs/SPRINT_AI_QUALITY_2026-05-29.md`）。Day 2-4：critic 检查维度 5→7（加 `logic_chain` / `prose_quality`），chapter prompt 加悬疑分支，`generationPolicy` 暴露 topP/penalty 并对悬疑子题材 bump，真实 LLM 验证 urban-suspense 修订后 91.4/100。Day 5：玄幻 12 章长篇基线 67/70，`scripts/eval-novel-quality.ts` 加滑动窗口轨迹 + `analyzeDecay`（排除冷启动 partial 窗口、区分回撤回升 vs 真衰减），确认无明显衰减，归档 `docs/evals/long-form-baseline-2026-05-29.md`。Day 6-7：`MemoryFeedback` 真接入 `lib/agent/retrieval.ts`（feedbackFactor 乘数 + irrelevant≥2 过滤 + `RETRIEVAL_USE_FEEDBACK` flag），retrieval 单测 +3、eval-retrieval feedback 对照 case，实测 recall@3 0.5→1.0。Day 8-9：新增 `scripts/eval-critic-revise.ts`，critic 提示拆「主观克制 / 客观必报」两套尺度 + revise 针对性机制，critic recall 33%→100%、revise 命中 100%，归档 `docs/evals/critic-revise-hit-rate.md`。Day 10：`lib/llm/writerOutputCleanup.ts` 规则集化 + `cleanupWriterOutputWithReport`，`lib/evals/novelQuality.ts` 清洗前 AI 签名命中 ≥5 扣分，matrix / long-form 报告加「清洗前 AI 签名命中」表（仅真实生成有数据，fixture_fallback baseline 不变）。Vitest 888 → **907 tests / 115 files**；lint 0 error；`npm run verify` 通过；`eval:check` 87.5→87.5。
 - **2026-05-29 (Sprint Day 1 · eval baseline 入 CI verify)** — 新增 `lib/evals/novelQualityBaseline.ts` + 8 单元测试；`scripts/eval-novel-quality-matrix.ts` 加 `--baseline` / `--tolerance`；冻结 `docs/evals/baselines/novel-quality-matrix-fixture-fallback-2026-05-29.json` 作 baseline（fixture_fallback，4 cases，avg 87.5/100）；`package.json` 加 `eval:check` 并入 `verify` 链路；`.github/workflows/ci.yml` verify job 新增 Eval quality baseline check step；顺手修 `lib/jobs/handlers.test.ts` mock 失效（`chatCompletion` → `chatCompletionWithRetry` + retry 参数断言）；顺手补 STATUS.md / HEALTH.md 数字漂移。Vitest 117 files / 888 tests 全绿；docs:check 13/13 通过。
 - **2026-05-28 (P6-12 备份检查与恢复演练模板)** — 新增 `npm run backup:check` / `scripts/backup-check.ts`，上线前可验证数据库连接、关键表数量、最近写入和备份成功时间；`.env.example` 增加 `BACKUP_LAST_SUCCESS_AT` 与检查阈值说明；本文档新增数据备份与恢复演练模板。新增 4 条 backup-check 单测，定向 lint/typecheck 通过；本地未应用最新 migration 时会按预期拦截关键表缺失。
@@ -73,15 +74,15 @@
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
 | `npm run lint` | ✅ 通过（零 warning） | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **115 files / 888 tests** 全绿,约 3s | Day 1 接入 eval baseline 后所有 mock 同步 |
+| `npm run test` | ✅ **120 files / 947 tests** 全绿,约 3s | M3 finalizeRun + qualityGate 测试并入 |
 | `npm run build` | ✅ 通过 | |
 | Playwright E2E | ✅ 8 tests（onboarding / editor-failure / editor-candidate × 4 / version-restore / beat-to-draft）全绿；P0-1 后按钮文案对齐 M1.3 候选稿模式 | 本轮全量 `npx playwright test` 已通过 |
 | `npm run smoke:onboarding` | ✅ 通过 | 2026-05-15 本地生产服务 + `LLM_MOCK=1` |
 | `npm run backup:check` | 待生产配置后运行 | 需设置 `BACKUP_LAST_SUCCESS_AT` 或 `BACKUP_CHECK_LAST_SUCCESS_AT` |
 | Coverage（v8） | ✅ lines/statements 68 · functions 93 · branches 83 阈值入 CI；基线 70.04/94.24/85.50 | summaries / handlers / chapterStatus 100% |
-| Prisma migrations | 29 条 | 含 `20260515010000_add_authjs_tables`；部署前需 `prisma migrate deploy` |
+| Prisma migrations | 30 条 | 含 `20260515010000_add_authjs_tables`；部署前需 `prisma migrate deploy` |
 
-**规模**：业务源码 17,500+ LoC（136 ts/tsx）；测试 7,600+ LoC（115 个 .test.ts）；57 个 API route + 27 个 page.tsx；23 个 Prisma model。
+**规模**：业务源码 17,500+ LoC（136 ts/tsx）；测试 7,700+ LoC（120 个 .test.ts）；57 个 API route + 27 个 page.tsx；24 个 Prisma model。
 
 ---
 
