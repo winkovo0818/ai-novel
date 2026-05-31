@@ -121,7 +121,7 @@
 ### 4.1 结局指令 `/ending` 的工作原理
 
 1. 用户输入 `/ending 沈言最终放弃复仇，选择守护柴门`
-2. 写入 `progress.json` 的 `narrative_directives.ending` 字段
+2. 写入 `notes.json` 的 `ending` 字段
 3. `generator.ts` 在每次构建 chapter prompt 时，检查是否有 `ending` 设定
 4. 如果有，在 prompt 末尾追加：
 
@@ -135,7 +135,7 @@
 
 ### 4.2 笔记指令 `/note` 的工作原理
 
-每一条 `/note` 写入 `progress.json` 的 `narrative_directives.notes[]` 数组。所有后续章节的 prompt 自动附带：
+每一条 `/note` 写入 `notes.json` 的 `notes[]` 数组。所有后续章节的 prompt 自动附带：
 
 ```
 [作者笔记]

@@ -17,9 +17,9 @@ $ npm run auto:new -- --theme "玄幻" --logline "少年觉醒上古剑魂" --ch
 
   大纲规划中...                           0.003 元
 
-  ┌ 目录 ───────────────────────────────┐
-  │ ● 全部  ○ 大纲  ○ 角色  ○ 用量  ○ 日志 │
-  └────────────────────────────────────┘
+  ┌ 面板 ──────────────────────────────────┐
+  │ [1] 全部  [2] 大纲  [3] 角色  [4] 用量  │
+  └────────────────────────────────────────┘
 
   ████████████░░░░░░░░  12/40 章 (30%)
   当前: 第 12 章《外宗来使》
@@ -34,7 +34,7 @@ $ npm run auto:new -- --theme "玄幻" --logline "少年觉醒上古剑魂" --ch
   已花费 ¥0.34  ·  模型 mimo-v2.5-pro  ·  耗时 12m 34s
   ─────────────────────────────────────────
 
-  按键: p 暂停  c 取消  1-4 切换面板  Ctrl+K 指令  q 退出
+  p 暂停  c 取消  1-4 切换面板  Ctrl+K 指令  q 退出(自动保存)
 ```
 
 > **运行时指令**：`Ctrl+K` 打开指令面板，支持 `/ending`（设定结局）、`/rewrite`（重写本章）、`/skip`（跳过章节）、`/note`（注入叙事笔记）、`/character add`（添加角色）、`/model`（切换模型）、`/floor`（调质量阈值）等。详见 `docs/DESIGN_CLI_COMMANDS.md`。
@@ -122,17 +122,18 @@ $ npm run auto:new -- --theme "玄幻" --logline "少年觉醒上古剑魂" --ch
 
 ```
 ./output/逆魂纪/
-├── novel.json              # { title, theme, logline, created_at, status }
-├── bible.json              # { characters, world, story_state }
-├── outline.json            # [{ index, title, summary }] — 大纲
-├── progress.json           # { current, total, cost, status } — 实时进度
-├── quality.json            # [{ chapter, score, dimensions }] — 质量轨迹
-├── usage.json              # [{ chapter, draftCost, criticCost, ... }] — 用量明细
+├── novel.json              # { title, theme, logline, created_at }
+├── bible.json              # { meta, characters, world }
+├── outline.json            # [{ index, title, summary }]
+├── progress.json           # { total, current, status, cost, cost_cap, model, started_at, last_chapter_at }
+├── quality.json            # [{ chapter, score, dimensions }]
+├── usage.json              # [{ chapter, title, draft_cost, critic_cost, revise_cost, state_diff_cost, total_cost }]
+├── notes.json              # { ending?, plots: [], notes: [] } — 用户叙事指令
 ├── chapters/
 │   ├── 01-雨夜火房.md
-│   ├── 02-黑牌入手.md
 │   └── ...
-└── .run.lock               # 防止同目录并发跑
+├── exports/                # 完成后自动导出
+└── .run.lock
 ```
 
 **为什么跳过 DB？**
@@ -191,22 +192,35 @@ cli-config.toml ──→ LLM 配置
 
 ```toml
 [llm]
-provider = "deepseek"           # deepseek | openai | custom
-model = "deepseek-chat"         # 或 mimo-v2.5-pro 等
+provider = "deepseek"
+model = "deepseek-chat"
 base_url = "https://api.deepseek.com/v1"
-api_key = "sk-xxxxxxxxxxxxxxxx"
+api_key = "sk-xxx"
 max_tokens = 4096
 temperature = 0.8
+
+# 可选：额外模型，/model switch 切换
+[llm.extra.reasoner]
+provider = "deepseek"
+model = "deepseek-reasoner"
+base_url = "https://api.deepseek.com/v1"
+api_key = "sk-xxx"
+
+[llm.extra.fast]
+provider = "custom"
+model = "mimo-v2.5-pro"
+base_url = "https://api.mimo.cn/v1"
+api_key = "sk-yyy"
 
 [generation]
 default_chapters = 40
 quality_floor = 85
 revision_rounds = 2
 cost_cap_cny = 5.0
-target_words_per_chapter = 3000   # 可选
+target_words_per_chapter = 3000
 
 [output]
-export_dir = "./output"           # 完成后自动导出 markdown
+export_dir = "./output"
 auto_export = true
 ```
 
@@ -280,17 +294,25 @@ auto_export = true
 ## 五、命令速查
 
 ```bash
-# 全新小说
-npm run auto:new -- --theme "玄幻" --logline "少年觉醒上古剑魂" --chapters 40
+# 首页（项目列表，无参数）
+npm run auto:new
 
-# 简写
+# 全新小说
 npm run auto:new -- -t 玄幻 -l "少年觉醒上古剑魂" -c 40
 
-# 续写已有项目（从断点继续）
+# 继续最近未完成项目
+npm run auto:new -- --continue
+
+# 续写指定项目
 npm run auto:new -- --resume ./output/逆魂纪
+
+# 重建项目索引（换机器后）
+npm run auto:new -- --scan
 
 # 首次运行：引导创建 cli-config.toml
 npm run auto:new -- --setup
 ```
 
-**输出位置**：默认 `./output/<书名>/`，可通过 `cli-config.toml` 的 `output.export_dir` 修改。完成后直接打开文件夹阅读，或 zip 分享。
+**参数优先级**：CLI 参数 > `cli-config.toml` > 默认值。`-m` 覆盖 toml 中的模型选择。
+
+**输出位置**：默认 `./output/<书名>/`，可通过 `cli-config.toml` 的 `output.export_dir` 修改。
