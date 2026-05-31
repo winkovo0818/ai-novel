@@ -27,14 +27,17 @@ function makeBible(chapterCount = 8) {
         })),
       },
     },
-  };
+    first_chapter_beats: [],
+  } as import("@/lib/validation/schemas").BibleDraft;
 }
 
 function makeChapters(count: number) {
   return Array.from({ length: count }, (_, i) => ({
+    id: `ch-${i + 1}`,
     chapter_index: i + 1,
     title: `第${i + 1}章`,
     content: `正文${i + 1}`.repeat(10),
+    status: "done",
     summary: { summary: `章节${i + 1}回顾`.repeat(2) },
   }));
 }

@@ -81,7 +81,7 @@ const apiRoutes = relFiles.filter((p) => p.startsWith("app/api/") && p.endsWith(
 const pages = relFiles.filter((p) => p.startsWith("app/") && p.endsWith("/page.tsx")).length;
 const migrations = relFiles.filter((p) => p.startsWith("prisma/migrations/") && p.endsWith("/migration.sql")).length;
 const testFiles = relFiles.filter(
-  (p) => (p.startsWith("app/") || p.startsWith("lib/") || p.startsWith("scripts/")) && p.endsWith(".test.ts"),
+  (p) => p.endsWith(".test.ts"),
 ).length;
 const editorLines = lineCount(resolve(REPO_ROOT, "app/(app)/editor/[novelId]/useChapterEditor.ts"));
 const schemaText = readDoc("prisma/schema.prisma");
