@@ -92,6 +92,10 @@ vi.mock("./history/HistoryClient", () => ({
   HistoryClient: (props: Record<string, unknown>) => elements.marker("HistoryClient", props),
 }));
 
+vi.mock("./_components/AutoGeneratePanel", () => ({
+  default: (props: Record<string, unknown>) => elements.marker("AutoGeneratePanel", props),
+}));
+
 import NovelDetailPage from "./page";
 import ExportCenterPage from "./export/page";
 import GenerationHistoryPage from "./history/page";
