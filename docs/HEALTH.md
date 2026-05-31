@@ -74,7 +74,7 @@
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
 | `npm run lint` | ✅ 通过（零 warning） | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **120 files / 947 tests** 全绿,约 3s | M3 finalizeRun + qualityGate 测试并入 |
+| `npm run test` | ✅ **118 files / 965 tests** 全绿,约 3s | auto-generate API 测试并入，清理残留 copy 文件 |
 | `npm run build` | ✅ 通过 | |
 | Playwright E2E | ✅ 8 tests（onboarding / editor-failure / editor-candidate × 4 / version-restore / beat-to-draft）全绿；P0-1 后按钮文案对齐 M1.3 候选稿模式 | 本轮全量 `npx playwright test` 已通过 |
 | `npm run smoke:onboarding` | ✅ 通过 | 2026-05-15 本地生产服务 + `LLM_MOCK=1` |
@@ -82,7 +82,7 @@
 | Coverage（v8） | ✅ lines/statements 68 · functions 93 · branches 83 阈值入 CI；基线 70.04/94.24/85.50 | summaries / handlers / chapterStatus 100% |
 | Prisma migrations | 30 条 | 含 `20260515010000_add_authjs_tables`；部署前需 `prisma migrate deploy` |
 
-**规模**：业务源码 17,500+ LoC（136 ts/tsx）；测试 7,700+ LoC（120 个 .test.ts）；57 个 API route + 27 个 page.tsx；24 个 Prisma model。
+**规模**：业务源码 17,500+ LoC（136 ts/tsx）；测试 7,700+ LoC（118 个 .test.ts）；59 个 API route + 27 个 page.tsx；24 个 Prisma model。
 
 ---
 

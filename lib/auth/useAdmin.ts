@@ -24,6 +24,7 @@ async function fetchMe(): Promise<MeData | null> {
       }
       return null;
     } catch {
+      // Network error or API unavailable — non-critical, UI degrades gracefully.
       return null;
     } finally {
       fetchPromise = null;

@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
+import { errorMessage, logWarn } from "@/lib/observability/logger";
 
 /**
  * Result of an admin check. We split UNAUTHORIZED vs FORBIDDEN so callers
@@ -41,7 +42,8 @@ async function hasAdminRoleInDb(userId: string): Promise<boolean> {
       select: { user_id: true },
     });
     return row !== null;
-  } catch {
+  } catch (err) {
+    logWarn("admin.db_check_failed", { reason: errorMessage(err) });
     // Schema not migrated yet, or DB unreachable — fall back to env. The env
     // allowlist is the documented escape hatch (D-02), so we should NEVER
     // hard-fail here.

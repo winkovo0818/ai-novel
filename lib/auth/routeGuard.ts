@@ -50,6 +50,8 @@ export async function routeGuard(opts: {
   try {
     userId = await getRequiredUserId();
   } catch {
+    // getRequiredUserId throws when no valid session exists — this is normal
+    // unauthenticated traffic, not an operational error.
     return { response: jsonError("UNAUTHORIZED", "Login required", false, 401) };
   }
 

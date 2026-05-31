@@ -12,7 +12,7 @@
 
 import { prisma } from "@/lib/db";
 import { decryptApiKey } from "@/lib/llm/encryption";
-import { logInfo, logError } from "@/lib/observability/logger";
+import { errorMessage, logInfo, logError, logWarn } from "@/lib/observability/logger";
 import { logUsage } from "@/lib/llm/usage";
 
 const EXPECTED_DIM = 1024;
@@ -37,7 +37,8 @@ async function resolveConfig(): Promise<ResolvedEmbeddingConfig> {
         source: "db",
       };
     }
-  } catch {
+  } catch (err) {
+    logWarn("embedding.config_db_fallback", { reason: errorMessage(err) });
     // DB unreachable / table missing — fall through to env. The env
     // fallback is the documented escape hatch (B-D-04), never hard-fail here.
   }

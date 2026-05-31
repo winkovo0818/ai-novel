@@ -116,7 +116,6 @@ export function RelationshipGraph({ characters, hoveredName, onHover }: Relation
           const { start, end } = insetSegment(from, to, NODE_RADIUS + 8);
           const isActive =
             hoveredName === edge.fromName || hoveredName === edge.toName;
-          const isBothActive = hoveredName === edge.fromName && hoveredName !== null; // direction highlight
           const stroke = isActive ? "#6366f1" : "#e5e7eb";
           const opacity = hoveredName && !isActive ? 0.1 : 0.8;
           

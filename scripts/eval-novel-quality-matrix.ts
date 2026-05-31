@@ -411,7 +411,7 @@ function fallbackSeries(fixture: NovelFixture, model: string, chapterCount: numb
   }));
 }
 
-function fallbackChapterContent(fixture: NovelFixture, chapterIndex: number, title: string, summary: string): string {
+function fallbackChapterContent(fixture: NovelFixture, _chapterIndex: number, title: string, summary: string): string {
   const protagonist = fixture.bible.characters.find((character) => character.role === "protagonist")?.name ?? "主角";
   const antagonist = fixture.bible.characters.find((character) => character.role === "antagonist")?.name ?? "对手";
   const place = fixture.bible.world.geography[0] ?? fixture.bible.world.factions[0]?.name ?? "旧地";

@@ -16,13 +16,12 @@ import {
 } from "./mock";
 import { decryptApiKey } from "./encryption";
 import { logUsage } from "./usage";
-import { logInfo } from "@/lib/observability/logger";
+import { errorMessage, logInfo, logWarn } from "@/lib/observability/logger";
 import {
   anthropicHeaders,
   anthropicMessagesUrl,
   buildAnthropicBody,
   isAnthropicConfig,
-  splitAnthropicMessages,
   type AnthropicResponse,
   type AnthropicStreamChunk,
   type ResolvedModelConfig,
@@ -250,7 +249,8 @@ async function resolveModelConfig(opts: { model?: string }): Promise<ResolvedMod
         provider: row.provider,
       };
     }
-  } catch {
+  } catch (err) {
+    logWarn("llm.config_db_fallback", { reason: errorMessage(err) });
     // Fall through to env-based config.
   }
   return {

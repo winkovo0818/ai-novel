@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useRef, useCallback } from "react";
+import { useState, useCallback } from "react";
 
 import type { BibleDraft, Volume } from "@/lib/validation/schemas";
 import { getVolumes } from "@/lib/validation/schemas";
@@ -21,7 +21,6 @@ export function OutlineEditor({ novelId, bible: initialBible, draftedIndexes }: 
   const volumes = getVolumes(bible);
   const draftedSet = new Set(draftedIndexes);
 
-  const [reordering, setReordering] = useState(false);
   const [dragVolumeIdx, setDragVolumeIdx] = useState<number | null>(null);
   const [dragFromIdx, setDragFromIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);

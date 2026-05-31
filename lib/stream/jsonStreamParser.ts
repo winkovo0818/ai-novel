@@ -1,5 +1,7 @@
 import { parse, Allow } from "partial-json";
 
+import { errorMessage, logWarn } from "@/lib/observability/logger";
+
 import {
   BeatSchema,
   BibleDraftSchema,
@@ -49,7 +51,9 @@ export function tryParseBibleDraft(buffer: string): BibleDraft | null {
     const parsed = JSON.parse(trimmed);
     const result = BibleDraftSchema.safeParse(parsed);
     return result.success ? result.data : null;
-  } catch {
+  } catch (err) {
+    // Streaming JSON may be incomplete — expected, not an error.
+    logWarn("stream.bible_parse_failed", { reason: errorMessage(err) });
     return null;
   }
 }
@@ -63,7 +67,8 @@ export function tryParsePartialBibleDraft(buffer: string): Partial<BibleDraft> |
     return typeof parsed === "object" && parsed !== null
       ? (parsed as Partial<BibleDraft>)
       : null;
-  } catch {
+  } catch (err) {
+    logWarn("stream.partial_bible_parse_failed", { reason: errorMessage(err) });
     return null;
   }
 }

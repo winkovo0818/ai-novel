@@ -30,12 +30,6 @@ interface RunData {
   last_error: string | null;
 }
 
-interface ApiResponse {
-  active: false;
-}
-
-type PollResult = RunData | ApiResponse;
-
 interface StartConfig {
   total_chapters: number;
   quality_floor: number;

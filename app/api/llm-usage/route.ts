@@ -1,4 +1,4 @@
-import { jsonError, jsonOk } from "@/lib/http/json";
+import { jsonOk } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { adminGuardResponse } from "@/lib/auth/admin";
 
