@@ -142,6 +142,7 @@ export interface LocalRevisionRequestInput {
   selectedText: string;
   beforeContext: string;
   afterContext: string;
+  instruction?: string;
 }
 
 export interface DraftCandidate {
@@ -519,7 +520,9 @@ export function buildLocalRevisionRequest(
     url: `/api/novels/${input.novelId}/chapters/draft/revise`,
     method: "POST",
     payload: {
-      operation: input.operation,
+      ...(input.instruction
+        ? { operation: 'custom' as ChapterRevisionOperation, instruction: input.instruction }
+        : { operation: input.operation }),
       chapter_index: input.selectedIndex,
       title: input.title,
       selected_text: input.selectedText,

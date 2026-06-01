@@ -21,6 +21,7 @@ export interface BuildLocalChapterRevisionPromptInput {
 }
 
 const LOCAL_OPERATION_INSTRUCTIONS: Record<ChapterRevisionOperation, string> = {
+  custom: '', // placeholder — custom instruction uses buildInstructionRevisionPrompt instead
   polish: "润色选中段落：改善节奏、句式和质感，保留原意、信息量和人物行动。",
   humanize: "去 AI 味：识别并改掉模式化续写痕迹，让选中段落更像真实作者写出的小说片段；保留剧情事实、人物动作、信息量和前后文衔接。",
   expand: "扩写选中段落：补足动作、心理、环境或因果，使段落更饱满，但不要改变剧情结果。",
@@ -134,6 +135,61 @@ ${HUMAN_STYLE_DIRECTIVE}
 操作：${operation}
 操作说明：${instruction}
 ${operation === "humanize" ? `\n${HUMANIZE_OPERATION_GUIDE}\n` : ""}
+
+章节大纲：
+${context.outline.summary ? wrap(context.outline.summary, "outline_summary") : "本章未预设大纲，请基于前后文推进。"}
+
+主角：
+- 姓名：${wrapOr(protagonist?.name, "character_name", "主角")}
+- 性格：${wrapOr(protagonist?.personality, "character_personality", "待定")}
+- 动机：${wrapOr(protagonist?.motivation, "character_motivation", "待定")}
+
+世界规则：
+${bible.world.rules.map((rule) => `- ${wrap(rule, "world_rule")}`).join("\n")}
+
+选区前文：
+${beforeContext.trim() ? wrap(beforeContext, "chapter_content") : "无"}
+
+待改写选区：
+${wrap(selectedText, "chapter_content")}
+
+选区后文：
+${afterContext.trim() ? wrap(afterContext, "chapter_content") : "无"}
+
+现在只输出改写后的局部正文。`,
+    },
+  ];
+}
+
+export function buildInstructionRevisionPrompt(input: Omit<BuildLocalChapterRevisionPromptInput, 'operation'> & { instruction: string }): ChatMessage[] {
+  const { context, instruction, selectedText, beforeContext, afterContext, title } = input;
+  const bible = context.bible;
+  const protagonist = bible.characters.find((c) => c.role === "protagonist");
+
+  return [
+    {
+      role: "system",
+      content: `你是中文长篇小说局部改写助手。你的任务是按用户的具体指令处理选中的正文片段。
+
+${PROMPT_SAFETY_PREAMBLE}
+
+${HUMAN_STYLE_DIRECTIVE}
+
+硬规则：
+- 只返回改写后的局部正文，不要 Markdown 标题，不要解释，不要输出前后文。
+- 严格按照用户指令执行，不要自作主张扩展修改范围。
+- 改写必须能无缝替换原选区，和前后文自然衔接。
+- 不得改变已确立的 Story Bible、世界规则、人物动机和时间线。
+- 不得擅自扩展到整章重写；不要续写选区之后的新剧情。
+- 避免裸露、色情、违反中国法律的内容。`,
+    },
+    {
+      role: "user",
+      content: `小说标题：${wrap(bible.meta.suggested_title, "outline_title")}
+章节：第 ${context.outline.chapterIndex} 章《${wrap(title || context.outline.title, "chapter_title")}》
+
+用户指令：
+${instruction}
 
 章节大纲：
 ${context.outline.summary ? wrap(context.outline.summary, "outline_summary") : "本章未预设大纲，请基于前后文推进。"}

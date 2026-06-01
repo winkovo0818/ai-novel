@@ -331,6 +331,78 @@ export function useChapterDrafting({
     setMessage,
     setStatus,
   ]);
+  const reviseSelectionWithInstruction = useCallback(async (instruction: string) => {
+    const selection = selectionRef.current;
+    if (!selection?.selectedText.trim()) {
+      setLocalRevisionError("请先在正文中选中文本");
+      setMessage("请先在正文中选中文本");
+      return;
+    }
+    if (localRevisionLoading) return;
+
+    const beforeContext = content.slice(
+      Math.max(0, selection.selectionStart - LOCAL_REVISION_CONTEXT_CHARS),
+      selection.selectionStart,
+    );
+    const afterContext = content.slice(
+      selection.selectionEnd,
+      Math.min(content.length, selection.selectionEnd + LOCAL_REVISION_CONTEXT_CHARS),
+    );
+
+    setLocalRevisionLoading(true);
+    setLocalRevisionError(undefined);
+    setCandidateCriticError(undefined);
+    setCandidateCriticResult(undefined);
+    setCandidateRevisionLoading(false);
+    setStatus("drafting");
+    setMessage("AI 正在按指令改写…");
+
+    try {
+      const request = buildLocalRevisionRequest({
+        novelId,
+        selectedIndex,
+        title: chapterTitle,
+        operation: "custom",
+        instruction,
+        selectedText: selection.selectedText,
+        beforeContext,
+        afterContext,
+      });
+      const response = await fetch(request.url, {
+        method: request.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request.payload),
+      });
+      const json = await response.json();
+      if (!json.ok) throw new Error(json.error?.message ?? "改写失败");
+      const revised = String(json.data?.content ?? "");
+      if (!revised.trim()) throw new Error("AI 未返回改写正文");
+
+      setCandidateContent(revised);
+      setCandidateOpen(true);
+      setCandidateStreaming(false);
+      setCandidateCriticLoading(false);
+      setStatus(resolveSettledChapterStatus({ hasUnsavedChanges, status: "clean" }));
+      setMessage("改写候选稿就绪");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "改写失败";
+      setLocalRevisionError(message);
+      setStatus("error");
+      setMessage(message);
+    } finally {
+      setLocalRevisionLoading(false);
+    }
+  }, [
+    chapterTitle,
+    content,
+    hasUnsavedChanges,
+    localRevisionLoading,
+    novelId,
+    selectedIndex,
+    setMessage,
+    setStatus,
+  ]);
+
 
   // P1-6: retry the last failed critic against the currently selected
   // chapter's content. On success, clear the persistent failure badge and
@@ -591,6 +663,7 @@ export function useChapterDrafting({
     reviseCandidate,
     feedbackRevise,
     reviseSelection,
+    reviseSelectionWithInstruction,
     setEditorSelection,
     acceptCandidate,
     localRevisionLoading,

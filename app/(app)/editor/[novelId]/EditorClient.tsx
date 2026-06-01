@@ -523,10 +523,12 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
             selectedOutline={editor.selectedOutline}
             selectedChapterIndex={editor.selectedIndex}
             chapterTitle={editor.chapterTitle}
+            content={editor.content}
             editorSelection={editorSelection}
             onReviseSelection={editor.reviseSelection}
             localRevisionLoading={editor.localRevisionLoading}
             localRevisionError={editor.localRevisionError}
+            onReviseWithInstruction={editor.reviseSelectionWithInstruction}
             onDraftWithMemories={editor.draftChapterWithMemories}
             onDraftChapter={editor.draftChapter}
             onRunConsistency={editor.runConsistency}

@@ -96,6 +96,7 @@ export const GenerateChapterDraftRequestSchema = z.object({
 });
 
 export const ChapterRevisionOperationSchema = z.enum([
+  "custom",
   "polish",
   "humanize",
   "expand",
@@ -123,6 +124,15 @@ export const ReviseDraftRequestSchema = z.union([
   }),
   z.object({
     operation: ChapterRevisionOperationSchema,
+    chapter_index: z.number().int().min(1),
+    title: z.string().min(1).max(120),
+    selected_text: z.string().trim().min(1).max(CHAPTER_REVISION_SELECTED_TEXT_MAX_CHARS),
+    before_context: z.string().max(CHAPTER_REVISION_CONTEXT_MAX_CHARS).default(""),
+    after_context: z.string().max(CHAPTER_REVISION_CONTEXT_MAX_CHARS).default(""),
+  }),
+  z.object({
+    operation: z.literal("custom"),
+    instruction: z.string().trim().min(1).max(500),
     chapter_index: z.number().int().min(1),
     title: z.string().min(1).max(120),
     selected_text: z.string().trim().min(1).max(CHAPTER_REVISION_SELECTED_TEXT_MAX_CHARS),

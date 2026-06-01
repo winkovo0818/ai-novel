@@ -9,6 +9,7 @@ import { buildChapterContext } from "@/lib/agent/chapterContext";
 import {
   buildChapterRevisionPrompt,
   buildLocalChapterRevisionPrompt,
+  buildInstructionRevisionPrompt,
 } from "@/lib/llm/prompts/chapterRevision";
 import {
   BibleDraftSchema,
@@ -77,7 +78,19 @@ export async function POST(request: Request, context: RouteContext) {
 
   const input = parsed.data;
   const chapterContext = buildChapterContext(bible.data, novel.chapters, input.chapter_index);
-  const messages = isCriticRevisionInput(input)
+
+  const isInstructionRevision = 'instruction' in input && (input as any).operation === 'custom';
+
+  const messages = isInstructionRevision
+    ? buildInstructionRevisionPrompt({
+        context: chapterContext,
+        instruction: (input as any).instruction as string,
+        selectedText: (input as any).selected_text as string,
+        beforeContext: (input as any).before_context as string,
+        afterContext: (input as any).after_context as string,
+        title: (input as any).title as string,
+      })
+    : isCriticRevisionInput(input)
     ? buildChapterRevisionPrompt({
         context: chapterContext,
         chapterContent: input.content,
