@@ -46,8 +46,14 @@ export interface BuildChapterContextOptions {
 
 function formatPreviousChapter(index: number, title: string, content: string): string {
   const normalized = content.replace(/\s+/g, " ").trim();
-  const excerpt = normalized.length > 900 ? `${normalized.slice(0, 900)}...` : normalized;
-  return `第 ${index} 章《${title}》：${excerpt}`;
+  if (normalized.length <= 900) {
+    return `第 ${index} 章《${title}》：${normalized}`;
+  }
+  // 超长则取「开头 + 结尾」拼接——承接最关心上一章的「结果」（结尾）而非「开场」，
+  // 故结尾占比更大；旧的「只取前 900 字」会丢掉章末的关键转折，导致连续性断裂。
+  const head = normalized.slice(0, 300);
+  const tail = normalized.slice(-600);
+  return `第 ${index} 章《${title}》：${head}……（中略）……${tail}`;
 }
 
 /** Maximum recent chapter summaries to inject directly. Older context comes from volume/novel summaries. */

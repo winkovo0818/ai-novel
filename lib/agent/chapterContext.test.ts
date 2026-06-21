@@ -52,6 +52,17 @@ describe("buildChapterContext", () => {
     expect(context.previousSummaries[0].summary).toContain("第1章正文内容");
   });
 
+  it("falls back to head+tail excerpt for long chapters (keeps the ending result)", () => {
+    // 总长 1500 字：开场 1000 + 结尾 500。旧的「只取前 900 字」会丢掉章末承接结果。
+    const longContent = "开场内容。".repeat(200) + "结尾结果。".repeat(100);
+    const chapters = [makeChapter(1, { summary: null, content: longContent })];
+    const context = buildChapterContext(bible, chapters, 2);
+    const summary = context.previousSummaries[0].summary;
+    expect(summary).toContain("开场内容");
+    expect(summary).toContain("结尾结果");
+    expect(summary).toContain("中略");
+  });
+
   it("only includes chapters before target index", () => {
     const chapters = [
       makeChapter(1),
