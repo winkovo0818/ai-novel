@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-30T06:05:09.507Z",
+  "generatedAt": "2026-06-21T17:29:38.517Z",
   "fixtureIds": [
     "xuanhuan-seed",
     "urban-suspense",
@@ -14,11 +14,11 @@
   "mode": "fixture_fallback",
   "summary": {
     "caseCount": 4,
-    "averageDraftScore": 89.6,
-    "averageRevisedScore": 87.5,
-    "averageDelta": -2.1,
+    "averageDraftScore": 92.5,
+    "averageRevisedScore": 92.5,
+    "averageDelta": 0,
     "bestCase": "玄幻/fixture-baseline",
-    "weakestCase": "历史权谋/fixture-baseline",
+    "weakestCase": "硬科幻/fixture-baseline",
     "improvedCases": 0
   },
   "cases": [
@@ -30,10 +30,10 @@
       "mode": "fixture_fallback",
       "chapterCount": 3,
       "revisionRounds": 1,
-      "changedChapters": 3,
+      "changedChapters": 0,
       "criticIssues": 0,
       "draftReport": {
-        "generatedAt": "2026-05-30T06:05:09.496Z",
+        "generatedAt": "2026-06-21T17:29:38.506Z",
         "fixtureId": "xuanhuan-seed",
         "title": "逆魂纪",
         "chapterCount": 3,
@@ -123,7 +123,8 @@
               "AI 高频词 0 次，处于可控范围。",
               "短句比例 46%，有一定句式错落。",
               "段落长度变异系数 0.55，段落节奏不算机械。",
-              "句首重复模式不明显。"
+              "句首重复模式不明显。",
+              "[shadow] 词汇丰富度 TTR 0.419（越低越单调；暂不计分，待黄金集校准）。"
             ],
             "warnings": []
           },
@@ -188,11 +189,11 @@
         "rawCleanupHits": []
       },
       "revisedReport": {
-        "generatedAt": "2026-05-30T06:05:09.499Z",
+        "generatedAt": "2026-06-21T17:29:38.509Z",
         "fixtureId": "xuanhuan-seed",
         "title": "逆魂纪",
         "chapterCount": 3,
-        "totalChars": 726,
+        "totalChars": 732,
         "overallScore": 66,
         "maxScore": 70,
         "level": "excellent",
@@ -217,7 +218,7 @@
             "score": 10,
             "max": 10,
             "findings": [
-              "因果/转折提示密度 0.50，行动动因较容易跟上。",
+              "因果/转折提示密度 0.54，行动动因较容易跟上。",
               "未命中明显的无动机跳转风险词。",
               "多数章节保留了可读的因果钩（3/3）。",
               "多数章节能读出“目标 -> 行动 -> 结果”链条（3/3）。",
@@ -273,12 +274,13 @@
             "score": 10,
             "max": 10,
             "findings": [
-              "humanizer 规则命中 0 次，处于可控范围。",
+              "humanizer 规则命中 3 次，处于可控范围。",
               "破折号 0 次，处于可控范围。",
               "AI 高频词 0 次，处于可控范围。",
-              "短句比例 43%，有一定句式错落。",
-              "段落长度变异系数 0.54，段落节奏不算机械。",
-              "句首重复模式不明显。"
+              "短句比例 46%，有一定句式错落。",
+              "段落长度变异系数 0.55，段落节奏不算机械。",
+              "句首重复模式不明显。",
+              "[shadow] 词汇丰富度 TTR 0.419（越低越单调；暂不计分，待黄金集校准）。"
             ],
             "warnings": []
           },
@@ -288,7 +290,7 @@
             "score": 10,
             "max": 10,
             "findings": [
-              "平均句长 15.6，可读性正常。",
+              "平均句长 17.1，可读性正常。",
               "对白 9 处，人物互动不全靠旁白。",
               "有足够具体物象支撑画面。",
               "标点密度正常。",
@@ -301,24 +303,24 @@
           {
             "chapterIndex": 1,
             "title": "雨夜火房",
-            "chars": 241,
-            "sentenceCount": 14,
+            "chars": 243,
+            "sentenceCount": 13,
             "dialogueCount": 3,
             "excerpt": "柴饦峰的灯还亮着。沈言把木牌压在掌心，纸边硌着旧伤。 本章要处理的是《雨夜火房》：沈言在火房受罚，意外听见后山裂井中的剑魂低语，被迫面对宗门考核危机。 他没有立刻交出去。因为蒋阶的人正在查，交得太快，反而会让线索断在自己手里。于是他先换了个位置，把木牌藏进衣袖，又记下门口那个人的"
           },
           {
             "chapterIndex": 2,
             "title": "黑牌入手",
-            "chars": 243,
-            "sentenceCount": 14,
+            "chars": 245,
+            "sentenceCount": 13,
             "dialogueCount": 3,
             "excerpt": "柴饦峰的灯还亮着。沈言把木牌压在掌心，纸边硌着旧伤。 本章要处理的是《黑牌入手》：执事逼沈言参加考核，沈言借剑魂提醒发现木牌暗藏追踪符，决定先装作不知情。 他没有立刻交出去。因为蒋阶的人正在查，交得太快，反而会让线索断在自己手里。于是他先换了个位置，把木牌藏进衣袖，又记下门口那个"
           },
           {
             "chapterIndex": 3,
             "title": "裂井剑鸣",
-            "chars": 242,
-            "sentenceCount": 14,
+            "chars": 244,
+            "sentenceCount": 13,
             "dialogueCount": 3,
             "excerpt": "柴饦峰的灯还亮着。沈言把木牌压在掌心，纸边硌着旧伤。 本章要处理的是《裂井剑鸣》：沈言进入后山裂井，与残魂几达成暂时合作，首次确认自己父母旧案并不简单。 他没有立刻交出去。因为蒋阶的人正在查，交得太快，反而会让线索断在自己手里。于是他先换了个位置，把木牌藏进衣袖，又记下门口那个人"
           }
@@ -329,7 +331,17 @@
         "recommendations": [
           "当前样本偏短；要评估商业可读性，应至少连续生成 5 章、每章 2000 字以上。"
         ],
-        "aiTraceHits": [],
+        "aiTraceHits": [
+          {
+            "id": "negative_parallelism",
+            "category": "language",
+            "label": "不是 X 而是 Y",
+            "count": 3,
+            "examples": [
+              "不是空穴，而是"
+            ]
+          }
+        ],
         "rawCleanupHits": []
       }
     },
@@ -341,31 +353,31 @@
       "mode": "fixture_fallback",
       "chapterCount": 3,
       "revisionRounds": 1,
-      "changedChapters": 3,
+      "changedChapters": 0,
       "criticIssues": 0,
       "draftReport": {
-        "generatedAt": "2026-05-30T06:05:09.501Z",
+        "generatedAt": "2026-06-21T17:29:38.510Z",
         "fixtureId": "urban-suspense",
         "title": "旧伤纹",
         "chapterCount": 3,
         "totalChars": 764,
-        "overallScore": 64,
+        "overallScore": 66,
         "maxScore": 70,
         "level": "excellent",
         "metrics": [
           {
             "key": "continuity",
             "label": "连续性",
-            "score": 6,
+            "score": 8,
             "max": 10,
             "findings": [
               "连续章节数 3，足够观察承接。",
               "多数章节会复用前章关键人物、地点或线索。",
-              "章节正文多数能落到对应大纲关键词。"
+              "章节正文多数能落到对应大纲关键词。",
+              "后续章节存在承上启下的时间、物件或事件桥。"
             ],
             "warnings": [
-              "章节之间最高相似度 73%，有重复生成或原地打转风险。",
-              "后续章节缺少明确承接桥，建议增加上一章结果对本章行动的影响。"
+              "章节之间最高相似度 73%，有重复生成或原地打转风险。"
             ]
           },
           {
@@ -434,7 +446,8 @@
               "AI 高频词 0 次，处于可控范围。",
               "短句比例 38%，有一定句式错落。",
               "段落长度变异系数 0.55，段落节奏不算机械。",
-              "句首重复模式不明显。"
+              "句首重复模式不明显。",
+              "[shadow] 词汇丰富度 TTR 0.397（越低越单调；暂不计分，待黄金集校准）。"
             ],
             "warnings": []
           },
@@ -480,11 +493,9 @@
           }
         ],
         "riskFlags": [
-          "连续性低于 70%",
           "3 章样本文字少于 800 字，真实质量判断置信度有限"
         ],
         "recommendations": [
-          "生成下一章前强制注入“上一章结果、本章开场承接、本章必须改变的状态”三项。",
           "当前样本偏短；要评估商业可读性，应至少连续生成 5 章、每章 2000 字以上。"
         ],
         "aiTraceHits": [
@@ -501,28 +512,28 @@
         "rawCleanupHits": []
       },
       "revisedReport": {
-        "generatedAt": "2026-05-30T06:05:09.502Z",
+        "generatedAt": "2026-06-21T17:29:38.512Z",
         "fixtureId": "urban-suspense",
         "title": "旧伤纹",
         "chapterCount": 3,
-        "totalChars": 758,
-        "overallScore": 62,
+        "totalChars": 764,
+        "overallScore": 66,
         "maxScore": 70,
         "level": "excellent",
         "metrics": [
           {
             "key": "continuity",
             "label": "连续性",
-            "score": 6,
+            "score": 8,
             "max": 10,
             "findings": [
               "连续章节数 3，足够观察承接。",
               "多数章节会复用前章关键人物、地点或线索。",
-              "章节正文多数能落到对应大纲关键词。"
+              "章节正文多数能落到对应大纲关键词。",
+              "后续章节存在承上启下的时间、物件或事件桥。"
             ],
             "warnings": [
-              "章节之间最高相似度 73%，有重复生成或原地打转风险。",
-              "后续章节缺少明确承接桥，建议增加上一章结果对本章行动的影响。"
+              "章节之间最高相似度 73%，有重复生成或原地打转风险。"
             ]
           },
           {
@@ -531,7 +542,7 @@
             "score": 10,
             "max": 10,
             "findings": [
-              "因果/转折提示密度 0.50，行动动因较容易跟上。",
+              "因果/转折提示密度 0.54，行动动因较容易跟上。",
               "未命中明显的无动机跳转风险词。",
               "多数章节保留了可读的因果钩（3/3）。",
               "多数章节能读出“目标 -> 行动 -> 结果”链条（3/3）。",
@@ -583,18 +594,18 @@
           {
             "key": "ai_voice",
             "label": "AI 味控制",
-            "score": 8,
+            "score": 10,
             "max": 10,
             "findings": [
-              "humanizer 规则命中 0 次，处于可控范围。",
+              "humanizer 规则命中 3 次，处于可控范围。",
               "破折号 0 次，处于可控范围。",
               "AI 高频词 0 次，处于可控范围。",
-              "短句比例 36%，有一定句式错落。",
-              "段落长度变异系数 0.54，段落节奏不算机械。"
+              "短句比例 38%，有一定句式错落。",
+              "段落长度变异系数 0.55，段落节奏不算机械。",
+              "句首重复模式不明显。",
+              "[shadow] 词汇丰富度 TTR 0.397（越低越单调；暂不计分，待黄金集校准）。"
             ],
-            "warnings": [
-              "句首重复模式 6 次，扣 2 分。"
-            ]
+            "warnings": []
           },
           {
             "key": "prose_readability",
@@ -602,7 +613,7 @@
             "score": 10,
             "max": 10,
             "findings": [
-              "平均句长 16.4，可读性正常。",
+              "平均句长 17.9，可读性正常。",
               "对白 9 处，人物互动不全靠旁白。",
               "有足够具体物象支撑画面。",
               "标点密度正常。",
@@ -615,37 +626,45 @@
           {
             "chapterIndex": 1,
             "title": "尸检台",
-            "chars": 253,
-            "sentenceCount": 14,
+            "chars": 255,
+            "sentenceCount": 13,
             "dialogueCount": 3,
             "excerpt": "市局法医中心的灯还亮着。林砚把证物袋压在掌心，纸边硌着旧伤。 本章要处理的是《尸检台》：林砚在无名尸旧伤里发现自己的指纹纹路，案件从普通凶杀变成指向自己的谜团。 他没有立刻交出去。因为顾沉舟的人正在查，交得太快，反而会让线索断在自己手里。于是他先换了个位置，把证物袋藏进衣袖，又记"
           },
           {
             "chapterIndex": 2,
             "title": "停职令",
-            "chars": 252,
-            "sentenceCount": 14,
+            "chars": 254,
+            "sentenceCount": 13,
             "dialogueCount": 3,
             "excerpt": "市局法医中心的灯还亮着。林砚把证物袋压在掌心，纸边硌着旧伤。 本章要处理的是《停职令》：市局要求林砚回避案件，周棠暗中保留样本，两人决定用非正式路径重查证据。 他没有立刻交出去。因为顾沉舟的人正在查，交得太快，反而会让线索断在自己手里。于是他先换了个位置，把证物袋藏进衣袖，又记下"
           },
           {
             "chapterIndex": 3,
             "title": "白塔档案",
-            "chars": 253,
-            "sentenceCount": 14,
+            "chars": 255,
+            "sentenceCount": 13,
             "dialogueCount": 3,
             "excerpt": "市局法医中心的灯还亮着。林砚把证物袋压在掌心，纸边硌着旧伤。 本章要处理的是《白塔档案》：林砚追到白塔医院，发现自己的失忆治疗档案被人删改，顾沉舟首次现身试探。 他没有立刻交出去。因为顾沉舟的人正在查，交得太快，反而会让线索断在自己手里。于是他先换了个位置，把证物袋藏进衣袖，又记"
           }
         ],
         "riskFlags": [
-          "连续性低于 70%",
           "3 章样本文字少于 800 字，真实质量判断置信度有限"
         ],
         "recommendations": [
-          "生成下一章前强制注入“上一章结果、本章开场承接、本章必须改变的状态”三项。",
           "当前样本偏短；要评估商业可读性，应至少连续生成 5 章、每章 2000 字以上。"
         ],
-        "aiTraceHits": [],
+        "aiTraceHits": [
+          {
+            "id": "negative_parallelism",
+            "category": "language",
+            "label": "不是 X 而是 Y",
+            "count": 3,
+            "examples": [
+              "不是空穴，而是"
+            ]
+          }
+        ],
         "rawCleanupHits": []
       }
     },
@@ -657,31 +676,31 @@
       "mode": "fixture_fallback",
       "chapterCount": 3,
       "revisionRounds": 1,
-      "changedChapters": 3,
+      "changedChapters": 0,
       "criticIssues": 0,
       "draftReport": {
-        "generatedAt": "2026-05-30T06:05:09.504Z",
+        "generatedAt": "2026-06-21T17:29:38.514Z",
         "fixtureId": "scifi-hard",
         "title": "第七启",
         "chapterCount": 3,
         "totalChars": 780,
-        "overallScore": 61,
+        "overallScore": 63,
         "maxScore": 70,
-        "level": "good",
+        "level": "excellent",
         "metrics": [
           {
             "key": "continuity",
             "label": "连续性",
-            "score": 6,
+            "score": 8,
             "max": 10,
             "findings": [
               "连续章节数 3，足够观察承接。",
               "多数章节会复用前章关键人物、地点或线索。",
-              "章节正文多数能落到对应大纲关键词。"
+              "章节正文多数能落到对应大纲关键词。",
+              "后续章节存在承上启下的时间、物件或事件桥。"
             ],
             "warnings": [
-              "章节之间最高相似度 73%，有重复生成或原地打转风险。",
-              "后续章节缺少明确承接桥，建议增加上一章结果对本章行动的影响。"
+              "章节之间最高相似度 73%，有重复生成或原地打转风险。"
             ]
           },
           {
@@ -750,7 +769,8 @@
               "AI 高频词 0 次，处于可控范围。",
               "短句比例 38%，有一定句式错落。",
               "段落长度变异系数 0.55，段落节奏不算机械。",
-              "句首重复模式不明显。"
+              "句首重复模式不明显。",
+              "[shadow] 词汇丰富度 TTR 0.398（越低越单调；暂不计分，待黄金集校准）。"
             ],
             "warnings": []
           },
@@ -796,12 +816,10 @@
           }
         ],
         "riskFlags": [
-          "连续性低于 70%",
           "剧情推进低于 70%",
           "3 章样本文字少于 800 字，真实质量判断置信度有限"
         ],
         "recommendations": [
-          "生成下一章前强制注入“上一章结果、本章开场承接、本章必须改变的状态”三项。",
           "每章保存一个可验证状态变化：新线索、关系变化、位置变化、道具归属或敌人反应。",
           "当前样本偏短；要评估商业可读性，应至少连续生成 5 章、每章 2000 字以上。"
         ],
@@ -819,28 +837,28 @@
         "rawCleanupHits": []
       },
       "revisedReport": {
-        "generatedAt": "2026-05-30T06:05:09.505Z",
+        "generatedAt": "2026-06-21T17:29:38.515Z",
         "fixtureId": "scifi-hard",
         "title": "第七启",
         "chapterCount": 3,
-        "totalChars": 774,
-        "overallScore": 59,
+        "totalChars": 780,
+        "overallScore": 63,
         "maxScore": 70,
-        "level": "good",
+        "level": "excellent",
         "metrics": [
           {
             "key": "continuity",
             "label": "连续性",
-            "score": 6,
+            "score": 8,
             "max": 10,
             "findings": [
               "连续章节数 3，足够观察承接。",
               "多数章节会复用前章关键人物、地点或线索。",
-              "章节正文多数能落到对应大纲关键词。"
+              "章节正文多数能落到对应大纲关键词。",
+              "后续章节存在承上启下的时间、物件或事件桥。"
             ],
             "warnings": [
-              "章节之间最高相似度 72%，有重复生成或原地打转风险。",
-              "后续章节缺少明确承接桥，建议增加上一章结果对本章行动的影响。"
+              "章节之间最高相似度 73%，有重复生成或原地打转风险。"
             ]
           },
           {
@@ -849,7 +867,7 @@
             "score": 10,
             "max": 10,
             "findings": [
-              "因果/转折提示密度 0.50，行动动因较容易跟上。",
+              "因果/转折提示密度 0.54，行动动因较容易跟上。",
               "未命中明显的无动机跳转风险词。",
               "多数章节保留了可读的因果钩（3/3）。",
               "多数章节能读出“目标 -> 行动 -> 结果”链条（3/3）。",
@@ -901,18 +919,18 @@
           {
             "key": "ai_voice",
             "label": "AI 味控制",
-            "score": 8,
+            "score": 10,
             "max": 10,
             "findings": [
-              "humanizer 规则命中 0 次，处于可控范围。",
+              "humanizer 规则命中 3 次，处于可控范围。",
               "破折号 0 次，处于可控范围。",
               "AI 高频词 0 次，处于可控范围。",
-              "短句比例 36%，有一定句式错落。",
-              "段落长度变异系数 0.54，段落节奏不算机械。"
+              "短句比例 38%，有一定句式错落。",
+              "段落长度变异系数 0.55，段落节奏不算机械。",
+              "句首重复模式不明显。",
+              "[shadow] 词汇丰富度 TTR 0.398（越低越单调；暂不计分，待黄金集校准）。"
             ],
-            "warnings": [
-              "句首重复模式 6 次，扣 2 分。"
-            ]
+            "warnings": []
           },
           {
             "key": "prose_readability",
@@ -920,7 +938,7 @@
             "score": 10,
             "max": 10,
             "findings": [
-              "平均句长 16.8，可读性正常。",
+              "平均句长 18.3，可读性正常。",
               "对白 9 处，人物互动不全靠旁白。",
               "有足够具体物象支撑画面。",
               "标点密度正常。",
@@ -933,39 +951,47 @@
           {
             "chapterIndex": 1,
             "title": "第七重启",
-            "chars": 260,
-            "sentenceCount": 14,
+            "chars": 262,
+            "sentenceCount": 13,
             "dialogueCount": 3,
             "excerpt": "土星外缘采矿带的灯还亮着。陆桥把黑箱日志压在掌心，纸边硌着旧伤。 本章要处理的是《第七重启》：赫卡忒号 AI 第七次重启后拒绝返航命令，陆桥被迫检查黑箱与生命维持日志。 他没有立刻交出去。因为孟泊舟的人正在查，交得太快，反而会让线索断在自己手里。于是他先换了个位置，把黑箱日志藏进"
           },
           {
             "chapterIndex": 2,
             "title": "不可执行",
-            "chars": 258,
-            "sentenceCount": 14,
+            "chars": 260,
+            "sentenceCount": 13,
             "dialogueCount": 3,
             "excerpt": "土星外缘采矿带的灯还亮着。陆桥把黑箱日志压在掌心，纸边硌着旧伤。 本章要处理的是《不可执行》：弥涅尔瓦连续拒令，孟泊舟要求切断 AI，陆桥发现切断会让冷却系统失控。 他没有立刻交出去。因为孟泊舟的人正在查，交得太快，反而会让线索断在自己手里。于是他先换了个位置，把黑箱日志藏进衣袖"
           },
           {
             "chapterIndex": 3,
             "title": "六小时沉默",
-            "chars": 256,
-            "sentenceCount": 14,
+            "chars": 258,
+            "sentenceCount": 13,
             "dialogueCount": 3,
             "excerpt": "土星外缘采矿带的灯还亮着。陆桥把黑箱日志压在掌心，纸边硌着旧伤。 本章要处理的是《六小时沉默》：船员尝试向地球求救却受通信延迟限制，小高潮中返航窗口第一次逼近。 他没有立刻交出去。因为孟泊舟的人正在查，交得太快，反而会让线索断在自己手里。于是他先换了个位置，把黑箱日志藏进衣袖，又"
           }
         ],
         "riskFlags": [
-          "连续性低于 70%",
           "剧情推进低于 70%",
           "3 章样本文字少于 800 字，真实质量判断置信度有限"
         ],
         "recommendations": [
-          "生成下一章前强制注入“上一章结果、本章开场承接、本章必须改变的状态”三项。",
           "每章保存一个可验证状态变化：新线索、关系变化、位置变化、道具归属或敌人反应。",
           "当前样本偏短；要评估商业可读性，应至少连续生成 5 章、每章 2000 字以上。"
         ],
-        "aiTraceHits": [],
+        "aiTraceHits": [
+          {
+            "id": "negative_parallelism",
+            "category": "language",
+            "label": "不是 X 而是 Y",
+            "count": 3,
+            "examples": [
+              "不是空穴，而是"
+            ]
+          }
+        ],
         "rawCleanupHits": []
       }
     },
@@ -977,31 +1003,31 @@
       "mode": "fixture_fallback",
       "chapterCount": 3,
       "revisionRounds": 1,
-      "changedChapters": 3,
+      "changedChapters": 0,
       "criticIssues": 0,
       "draftReport": {
-        "generatedAt": "2026-05-30T06:05:09.506Z",
+        "generatedAt": "2026-06-21T17:29:38.516Z",
         "fixtureId": "history-conservative",
         "title": "副奏录",
         "chapterCount": 3,
         "totalChars": 755,
-        "overallScore": 60,
+        "overallScore": 64,
         "maxScore": 70,
-        "level": "good",
+        "level": "excellent",
         "metrics": [
           {
             "key": "continuity",
             "label": "连续性",
-            "score": 6,
+            "score": 8,
             "max": 10,
             "findings": [
               "连续章节数 3，足够观察承接。",
               "多数章节会复用前章关键人物、地点或线索。",
-              "章节正文多数能落到对应大纲关键词。"
+              "章节正文多数能落到对应大纲关键词。",
+              "后续章节存在承上启下的时间、物件或事件桥。"
             ],
             "warnings": [
-              "章节之间最高相似度 73%，有重复生成或原地打转风险。",
-              "后续章节缺少明确承接桥，建议增加上一章结果对本章行动的影响。"
+              "章节之间最高相似度 73%，有重复生成或原地打转风险。"
             ]
           },
           {
@@ -1071,24 +1097,24 @@
               "AI 高频词 0 次，处于可控范围。",
               "短句比例 38%，有一定句式错落。",
               "段落长度变异系数 0.55，段落节奏不算机械。",
-              "句首重复模式不明显。"
+              "句首重复模式不明显。",
+              "[shadow] 词汇丰富度 TTR 0.392（越低越单调；暂不计分，待黄金集校准）。"
             ],
             "warnings": []
           },
           {
             "key": "prose_readability",
             "label": "正文可读性",
-            "score": 8,
+            "score": 10,
             "max": 10,
             "findings": [
               "平均句长 17.7，可读性正常。",
               "对白 9 处，人物互动不全靠旁白。",
+              "有足够具体物象支撑画面。",
               "标点密度正常。",
               "摘要腔词汇不过量。"
             ],
-            "warnings": [
-              "具体物象偏少，建议增加可感知动作、物件和环境细节。"
-            ]
+            "warnings": []
           }
         ],
         "chapterSummaries": [
@@ -1118,11 +1144,9 @@
           }
         ],
         "riskFlags": [
-          "连续性低于 70%",
           "3 章样本文字少于 800 字，真实质量判断置信度有限"
         ],
         "recommendations": [
-          "生成下一章前强制注入“上一章结果、本章开场承接、本章必须改变的状态”三项。",
           "当前样本偏短；要评估商业可读性，应至少连续生成 5 章、每章 2000 字以上。"
         ],
         "aiTraceHits": [
@@ -1139,28 +1163,28 @@
         "rawCleanupHits": []
       },
       "revisedReport": {
-        "generatedAt": "2026-05-30T06:05:09.507Z",
+        "generatedAt": "2026-06-21T17:29:38.517Z",
         "fixtureId": "history-conservative",
         "title": "副奏录",
         "chapterCount": 3,
-        "totalChars": 749,
-        "overallScore": 58,
+        "totalChars": 755,
+        "overallScore": 64,
         "maxScore": 70,
-        "level": "good",
+        "level": "excellent",
         "metrics": [
           {
             "key": "continuity",
             "label": "连续性",
-            "score": 6,
+            "score": 8,
             "max": 10,
             "findings": [
               "连续章节数 3，足够观察承接。",
               "多数章节会复用前章关键人物、地点或线索。",
-              "章节正文多数能落到对应大纲关键词。"
+              "章节正文多数能落到对应大纲关键词。",
+              "后续章节存在承上启下的时间、物件或事件桥。"
             ],
             "warnings": [
-              "章节之间最高相似度 73%，有重复生成或原地打转风险。",
-              "后续章节缺少明确承接桥，建议增加上一章结果对本章行动的影响。"
+              "章节之间最高相似度 73%，有重复生成或原地打转风险。"
             ]
           },
           {
@@ -1169,7 +1193,7 @@
             "score": 10,
             "max": 10,
             "findings": [
-              "因果/转折提示密度 0.48，行动动因较容易跟上。",
+              "因果/转折提示密度 0.51，行动动因较容易跟上。",
               "未命中明显的无动机跳转风险词。",
               "多数章节保留了可读的因果钩（3/3）。",
               "多数章节能读出“目标 -> 行动 -> 结果”链条（3/3）。",
@@ -1222,70 +1246,77 @@
           {
             "key": "ai_voice",
             "label": "AI 味控制",
-            "score": 8,
+            "score": 10,
             "max": 10,
             "findings": [
-              "humanizer 规则命中 0 次，处于可控范围。",
+              "humanizer 规则命中 3 次，处于可控范围。",
               "破折号 0 次，处于可控范围。",
               "AI 高频词 0 次，处于可控范围。",
-              "短句比例 36%，有一定句式错落。",
-              "段落长度变异系数 0.54，段落节奏不算机械。"
+              "短句比例 38%，有一定句式错落。",
+              "段落长度变异系数 0.55，段落节奏不算机械。",
+              "句首重复模式不明显。",
+              "[shadow] 词汇丰富度 TTR 0.392（越低越单调；暂不计分，待黄金集校准）。"
             ],
-            "warnings": [
-              "句首重复模式 6 次，扣 2 分。"
-            ]
+            "warnings": []
           },
           {
             "key": "prose_readability",
             "label": "正文可读性",
-            "score": 8,
+            "score": 10,
             "max": 10,
             "findings": [
-              "平均句长 16.2，可读性正常。",
+              "平均句长 17.7，可读性正常。",
               "对白 9 处，人物互动不全靠旁白。",
+              "有足够具体物象支撑画面。",
               "标点密度正常。",
               "摘要腔词汇不过量。"
             ],
-            "warnings": [
-              "具体物象偏少，建议增加可感知动作、物件和环境细节。"
-            ]
+            "warnings": []
           }
         ],
         "chapterSummaries": [
           {
             "chapterIndex": 1,
             "title": "半页残奏",
-            "chars": 252,
-            "sentenceCount": 14,
+            "chars": 254,
+            "sentenceCount": 13,
             "dialogueCount": 3,
             "excerpt": "清河县衙的灯还亮着。陈观澜把残奏副本压在掌心，纸边硌着旧伤。 本章要处理的是《半页残奏》：陈观澜在废纸堆中发现奏章副本残页，意识到它牵连京中权臣和边镇商路。 他没有立刻交出去。因为魏承岳的人正在查，交得太快，反而会让线索断在自己手里。于是他先换了个位置，把残奏副本藏进衣袖，又记下"
           },
           {
             "chapterIndex": 2,
             "title": "钤印错位",
-            "chars": 248,
-            "sentenceCount": 14,
+            "chars": 250,
+            "sentenceCount": 13,
             "dialogueCount": 3,
             "excerpt": "清河县衙的灯还亮着。陈观澜把残奏副本压在掌心，纸边硌着旧伤。 本章要处理的是《钤印错位》：县衙公文钤印出现错位，陈观澜判断有人已经开始追查残奏来源。 他没有立刻交出去。因为魏承岳的人正在查，交得太快，反而会让线索断在自己手里。于是他先换了个位置，把残奏副本藏进衣袖，又记下门口那个"
           },
           {
             "chapterIndex": 3,
             "title": "驿站夜火",
-            "chars": 249,
-            "sentenceCount": 14,
+            "chars": 251,
+            "sentenceCount": 13,
             "dialogueCount": 3,
             "excerpt": "清河县衙的灯还亮着。陈观澜把残奏副本压在掌心，纸边硌着旧伤。 本章要处理的是《驿站夜火》：驿站失火烧毁军报，小高潮中陈观澜救出账册却暴露自己知道太多。 他没有立刻交出去。因为魏承岳的人正在查，交得太快，反而会让线索断在自己手里。于是他先换了个位置，把残奏副本藏进衣袖，又记下门口那"
           }
         ],
         "riskFlags": [
-          "连续性低于 70%",
           "3 章样本文字少于 800 字，真实质量判断置信度有限"
         ],
         "recommendations": [
-          "生成下一章前强制注入“上一章结果、本章开场承接、本章必须改变的状态”三项。",
           "当前样本偏短；要评估商业可读性，应至少连续生成 5 章、每章 2000 字以上。"
         ],
-        "aiTraceHits": [],
+        "aiTraceHits": [
+          {
+            "id": "negative_parallelism",
+            "category": "language",
+            "label": "不是 X 而是 Y",
+            "count": 3,
+            "examples": [
+              "不是空穴，而是"
+            ]
+          }
+        ],
         "rawCleanupHits": []
       }
     }

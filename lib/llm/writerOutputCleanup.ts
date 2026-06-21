@@ -22,6 +22,12 @@ interface CleanupRule {
   category: CleanupCategory;
   pattern: RegExp;
   replacement: string;
+  /**
+   * 上下文感知替换（优先于 pattern）。用于规则必须区分引号内外等场景，
+   * 例如 dash_overuse 只清洗旁白破折号、保留对白中被打断的破折号。
+   * 返回改写后的文本与命中次数。
+   */
+  customApply?: (text: string) => { text: string; count: number };
 }
 
 export interface CleanupHit {
@@ -54,8 +60,8 @@ const CLEANUP_RULES: CleanupRule[] = [
   { id: "bold_markdown", label: "Markdown 粗体", category: "format", pattern: /\*\*([^*\n]+)\*\*/g, replacement: "$1" },
   { id: "heading", label: "Markdown 标题", category: "format", pattern: /^\s{0,3}#{1,6}\s*/gm, replacement: "" },
   { id: "list_marker", label: "列表符号", category: "format", pattern: /^\s*[-*]\s+(?=\S)/gm, replacement: "" },
-  { id: "dash_overuse", label: "旁白破折号", category: "format", pattern: /[—–]+|--+/g, replacement: "。" },
-  { id: "signposting", label: "教程路标", category: "format", pattern: /接下来(?:我们)?|下面是|以下是|让我们/g, replacement: "" },
+  { id: "dash_overuse", label: "旁白破折号", category: "format", pattern: /[—–]+|--+/g, replacement: "。", customApply: stripNarrationDashes },
+  { id: "signposting", label: "教程路标", category: "format", pattern: /^\s*(接下来(?:我们)?|下面是|以下是|让我们)/gm, replacement: "" },
   { id: "hearsay", label: "模糊归因（据说）", category: "vocab", pattern: /据说/g, replacement: "门里人说" },
   { id: "this_moment", label: "套话（这一刻）", category: "vocab", pattern: /这一刻/g, replacement: "这时" },
   { id: "vocab_slowly", label: "AI 副词（慢慢）", category: "vocab", pattern: /慢慢地?/g, replacement: "" },
@@ -82,11 +88,50 @@ const CLEANUP_RULES: CleanupRule[] = [
   { id: "ws_trailing", label: "行尾空白", category: "hygiene", pattern: /[ \t]+\n/g, replacement: "\n" },
 ];
 
+/**
+ * 只清洗引号（" " 「 」 『 』）外（旁白）的破折号；对白中被打断的破折号
+ * （"等一——"）承载语义，必须保留。旁白破折号（AI 滥用的 —）替换为句号。
+ */
+function stripNarrationDashes(text: string): { text: string; count: number } {
+  let out = "";
+  let count = 0;
+  let inQuote = false;
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    // 引号状态：用码点比较避免字面引号混淆。英文 " 翻转；中文 “ ” 「 」 『 』 按开闭配对
+    const code = text.charCodeAt(i);
+    if (code === 0x22) { inQuote = !inQuote; out += ch; i += 1; continue; }                                          // "
+    if (!inQuote && (code === 0x201c || code === 0x300c || code === 0x300e)) { inQuote = true; out += ch; i += 1; continue; }  // “ 「 『
+    if (inQuote && (code === 0x201d || code === 0x300d || code === 0x300f)) { inQuote = false; out += ch; i += 1; continue; }  // ” 」 』
+    // 旁白破折号序列（— – 或连续 --）→ 句号
+    if (!inQuote && (ch === '—' || ch === '–')) {
+      while (i < text.length && (text[i] === '—' || text[i] === '–')) i += 1;
+      out += '。'; count += 1; continue;
+    }
+    if (!inQuote && ch === '-' && text[i + 1] === '-') {
+      while (i < text.length && text[i] === '-') i += 1;
+      out += '。'; count += 1; continue;
+    }
+    out += ch; i += 1;
+  }
+  return { text: out, count };
+}
+
 function applyRules(text: string, options: CleanupOptions = {}): CleanupResult {
   const applyVocab = options.applyVocab ?? false;
   let cleaned = text;
   const hits: CleanupHit[] = [];
   for (const rule of CLEANUP_RULES) {
+    // customApply 用于需要上下文感知的规则（如 dash_overuse 区分对白/旁白）
+    if (rule.customApply) {
+      const applied = rule.customApply(cleaned);
+      if (applied.count > 0) {
+        hits.push({ id: rule.id, label: rule.label, category: rule.category, count: applied.count });
+        cleaned = applied.text;
+      }
+      continue;
+    }
     const matchCount = (cleaned.match(rule.pattern) ?? []).length;
     if (matchCount === 0) continue;
     // Vocab rules are context-blind global replacements — record the hit so the

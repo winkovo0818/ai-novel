@@ -203,7 +203,7 @@ describe("applyStateDiff", () => {
     expect(next.world.rules).toContain("在城镇内禁止施展魔法");
   });
 
-  it("adds items as geography entries with prefix", () => {
+  it("adds items to story_state.items without polluting world.geography", () => {
     const diff: StateDiff = {
       character_updates: [],
       timeline_events: [],
@@ -214,7 +214,8 @@ describe("applyStateDiff", () => {
     };
 
     const next = applyStateDiff(baseBible, diff, 1);
-    expect(next.world.geography).toContain("[物品] 星辰剑");
+    // 物品只进 story_state.items，不应混进地点列表（world.geography）
+    expect(next.world.geography).not.toContain("[物品] 星辰剑");
     expect(next.story_state?.items).toContainEqual({
       name: "星辰剑",
       status: "传说中的神剑",

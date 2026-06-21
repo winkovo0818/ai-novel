@@ -334,17 +334,6 @@ export function applyStateDiff(
           },
         };
       }
-    } else if (entity.type === "item") {
-      const itemText = `[物品] ${entity.name}`;
-      if (!nextBible.world.geography.includes(itemText) && nextBible.world.geography.length < 10) {
-        nextBible = {
-          ...nextBible,
-          world: {
-            ...nextBible.world,
-            geography: [...nextBible.world.geography, itemText],
-          },
-        };
-      }
     }
   }
 

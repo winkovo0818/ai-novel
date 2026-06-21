@@ -11,7 +11,7 @@ import { buildStateDiffPrompt } from "@/lib/llm/prompts/stateDiff";
 import { moderateContent } from "@/lib/moderation/moderate";
 import { logInfo, logWarn } from "@/lib/observability/logger";
 import { applyStateDiff, validateStateDiff } from "@/lib/validation/stateDiffMerge";
-import { BibleDraftSchema, NovelProfileSchema, StateDiffSchema, type BibleDraft } from "@/lib/validation/schemas";
+import { BibleDraftSchema, NovelProfileSchema, StateDiffSchema, getAllChapters, type BibleDraft } from "@/lib/validation/schemas";
 import { enqueueJob } from "./queue";
 
 const STATE_DIFF_TIMEOUT_MS = 90_000;
@@ -234,7 +234,7 @@ async function finalizeRun(
   // 挂起人工复核并止链；none 模式只记录、继续跑（见 qualityGate 的冷启动/硬门说明）。
   // critic 的最终判定（result.criticIssues）作为第三类硬门并入：启发式分达标但 critic
   // 标记 critical 的章节会被拦下，零额外 LLM 成本（critic 已在 pipeline 跑过）。
-  const gate = evaluateChapterGate(buildQualityWindow(priorChapters, chapterIndex, result), bible, {
+  const gate = evaluateChapterGate(buildQualityWindow(priorChapters, chapterIndex, result, bible), bible, {
     qualityFloor: run.quality_floor,
     criticIssues: result.criticIssues,
   });
@@ -280,10 +280,25 @@ function buildQualityWindow(
   priorChapters: Array<{ chapter_index: number; title: string | null; content: string }>,
   chapterIndex: number,
   result: ChapterPipelineResult,
+  bible: BibleDraft,
 ): QualityChapterInput[] {
+  // outlineSummary 让 continuity 维度的「大纲关键词重合」子项能正常计分；
+  // rawCleanupHits 让 ai_voice 维度感知模型原始输出的 AI 痕迹（清洗前）。
+  const outlineByIndex = new Map(getAllChapters(bible).map((c) => [c.index, c.summary ?? ""]));
   const window: QualityChapterInput[] = priorChapters
     .filter((c) => c.chapter_index < chapterIndex)
-    .map((c) => ({ chapterIndex: c.chapter_index, title: c.title ?? "", content: c.content }));
-  window.push({ chapterIndex, title: result.title, content: result.content });
+    .map((c) => ({
+      chapterIndex: c.chapter_index,
+      title: c.title ?? "",
+      content: c.content,
+      outlineSummary: outlineByIndex.get(c.chapter_index),
+    }));
+  window.push({
+    chapterIndex,
+    title: result.title,
+    content: result.content,
+    outlineSummary: outlineByIndex.get(chapterIndex),
+    rawCleanupHits: result.rawCleanupHits,
+  });
   return window.slice(-3);
 }
