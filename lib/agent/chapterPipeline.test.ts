@@ -98,6 +98,30 @@ describe("runChapterPipeline", () => {
     expect(chatCompletionWithRetry).toHaveBeenCalledTimes(5); // writer + 2×(critic+revise)
   });
 
+  it("rolls back to the cleanest draft when revise degrades AI voice and critic never clears", async () => {
+    const { runChapterPipeline } = await import("./chapterPipeline");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    chatCompletionWithRetry.mockImplementation(async (opts: { agent?: string; route: string }) => {
+      if (opts.agent === "critic") {
+        return mockResult(JSON.stringify({ consistent: false, issues: [{ type: "world_rule", severity: "critical", description: "违背剑魂认主不可逆" }] }));
+      }
+      if (opts.route.endsWith("/revise")) {
+        // revise 为修逻辑引入大量 AI 腔词汇，AI 签名远高于初稿
+        return mockResult("他仿佛仿佛仿佛仿佛看见了什么，似乎似乎似乎明白了什么。");
+      }
+      // 初稿干净，无 AI 腔词汇
+      return mockResult("沈言蹲在灶前，火光在脸上跳动，木柴噼啪作响。");
+    });
+
+    const result = await runChapterPipeline({ ...baseInput, revisionRounds: 2 });
+
+    expect(result.revisedRounds).toBe(2);
+    // critic 始终未通过且 revise 让文风变差 → 回退到 AI 签名最低的初稿，而非越改越差的末版
+    expect(result.content).toContain("沈言蹲在灶前");
+    expect(result.content).not.toContain("仿佛");
+    warnSpy.mockRestore();
+  });
+
   it("retries once on unparseable critic JSON and proceeds when the retry parses", async () => {
     const { runChapterPipeline } = await import("./chapterPipeline");
     const criticQueue = [

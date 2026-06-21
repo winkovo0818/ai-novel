@@ -7,11 +7,14 @@ import { getGenerationPolicy } from "@/lib/llm/generationPolicy";
 import { buildChapterPrompt } from "@/lib/llm/prompts/chapter";
 import { buildChapterRevisionPrompt } from "@/lib/llm/prompts/chapterRevision";
 import { buildCriticPrompt, type CriticResult } from "@/lib/llm/prompts/critic";
-import { cleanupWriterOutputWithReport, type CleanupHit } from "@/lib/llm/writerOutputCleanup";
+import { cleanupWriterOutputWithReport, aiSignatureHitTotal, type CleanupHit } from "@/lib/llm/writerOutputCleanup";
 import { logWarn } from "@/lib/observability/logger";
 import type { BibleDraft, NovelProfile } from "@/lib/validation/schemas";
 
 const ROUTE_BASE = "/agent/chapter-pipeline";
+
+/** revise 若让 AI 签名命中数比循环中最优版多出此阈值，回退到最优版（防越改越差）。 */
+const REVISION_DEGRADE_THRESHOLD = 3;
 const DEFAULT_REVISION_ROUNDS = 2;
 // Cap writer output so one chapter stays inside the generate_chapter job timeout.
 const MAX_TARGET_WORDS = 3000;
@@ -141,6 +144,10 @@ export async function runChapterPipeline(input: RunChapterPipelineInput): Promis
   const draftCleanup = cleanupWriterOutputWithReport(stripCodeFence(draft.content));
   const rawCleanupHits = draftCleanup.hits;
   let text = draftCleanup.text;
+  // 跟踪循环中 AI 签名最低的版本，防止 revise 为修逻辑而引入新 AI 腔（越改越差）。
+  let bestText = text;
+  let bestAiHits = aiSignatureHitTotal(text);
+  let passedClean = false;
   let criticIssues: CriticIssue[] = [];
   let revisedRounds = 0;
 
@@ -190,7 +197,10 @@ export async function runChapterPipeline(input: RunChapterPipelineInput): Promis
     }
 
     criticIssues = critic.issues;
-    if (critic.consistent || !hasBlockingIssue(critic.issues)) break;
+    if (critic.consistent || !hasBlockingIssue(critic.issues)) {
+      passedClean = true;
+      break;
+    }
 
     const revised = await chatCompletionWithRetry({
       route: `${ROUTE_BASE}/revise`,
@@ -202,7 +212,27 @@ export async function runChapterPipeline(input: RunChapterPipelineInput): Promis
     });
     accrue(revised);
     text = cleanupWriterOutputWithReport(stripCodeFence(revised.content)).text;
+    const revisedAiHits = aiSignatureHitTotal(text);
+    if (revisedAiHits < bestAiHits) {
+      bestText = text;
+      bestAiHits = revisedAiHits;
+    }
     revisedRounds += 1;
+  }
+
+  // 若 critic 未通过（轮次耗尽）且最后版 AI 签名显著高于循环中最优版，
+  // 回退到最优版——critic 不通过已被质量门标记，至少不要让文风也退化。
+  if (!passedClean) {
+    const finalAiHits = aiSignatureHitTotal(text);
+    if (finalAiHits > bestAiHits + REVISION_DEGRADE_THRESHOLD) {
+      logWarn("chapter_pipeline.revision_degraded", {
+        novel_id: input.novelId,
+        chapter_index: input.chapterIndex,
+        best_ai_hits: bestAiHits,
+        final_ai_hits: finalAiHits,
+      });
+      text = bestText;
+    }
   }
 
   return {
