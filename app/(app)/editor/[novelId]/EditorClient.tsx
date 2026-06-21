@@ -68,8 +68,8 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
   const [bible, setBible] = useState(initialBible);
   const online = useOnlineStatus();
   const editor = useChapterEditor({ novelId, bible, initialChapters, initialChapterIndex, online });
-  const [showBible, setShowBible] = useState(true);
-  const [showAI, setShowAI] = useState(true);
+  const [showBible, setShowBible] = useState(false);
+  const [showAI, setShowAI] = useState(false);
   const [isAICompact, setIsAICompact] = useState(true);
   const [editorSelection, setEditorSelectionState] = useState<EditorSelection | null>(null);
   const [offlineDraft, setOfflineDraft] = useState<OfflineChapterDraft | null>(null);
@@ -84,6 +84,12 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
 
   useEffect(() => {
     setFontScale(readStoredFontScale());
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (typeof window.matchMedia !== "function") return;
+    setShowBible(window.matchMedia("(min-width: 768px)").matches);
   }, []);
 
   useEffect(() => {
@@ -137,7 +143,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
 
   return (
     <div
-      className="flex h-screen bg-background overflow-hidden"
+      className="editor-workspace relative flex h-screen overflow-hidden"
       onKeyDown={(event) => {
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
           event.preventDefault();
@@ -154,11 +160,12 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
       )}
       {/* Left: Chapter Tree & Bible Context */}
       <aside 
-        className={`bg-white border-r border-border-subtle transition-all duration-500 ease-in-out h-full overflow-hidden ${
-          showBible ? "w-[280px] lg:w-72 opacity-100" : "w-0 opacity-0"
+        data-editor-chapter-aside
+        className={`editor-chapter-drawer absolute inset-y-0 left-0 z-30 h-full overflow-hidden border-r border-border-subtle bg-white shadow-[18px_0_40px_rgba(17,17,15,0.08)] transition-all duration-300 ease-in-out md:relative md:z-auto md:shadow-none ${
+          showBible ? "w-[236px] opacity-100 xl:w-[252px]" : "w-0 opacity-0"
         }`}
       >
-        <div className="w-[280px] lg:w-72 h-full">
+        <div className="h-full w-[236px] xl:w-[252px]">
           <EditorSidebar
             novelId={novelId}
             title={title}
@@ -171,36 +178,38 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               updateEditorSelection(null);
             }}
             onBibleUpdate={(updated) => setBible(updated)}
+            onCollapse={() => setShowBible(false)}
           />
         </div>
       </aside>
 
       {/* Middle: Writing Canvas */}
-      <main className="flex-1 flex flex-col min-w-0 bg-secondary/40 relative overflow-hidden">
+      <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top Control Bar */}
-        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-xl border-b border-border-subtle/50 px-6 py-3 flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-4">
+        <header className="editor-topbar sticky top-0 z-20 grid min-h-[68px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 backdrop-blur-xl xl:px-6">
+          <div className="flex min-w-0 items-center gap-3">
             <button
               onClick={() => setShowBible(!showBible)}
               aria-label={showBible ? "收起目录" : "展开目录"}
               aria-expanded={showBible}
-              className={`p-2 rounded-xl transition duration-200 ${
-                showBible ? "bg-primary/10 text-primary shadow-inner" : "text-text-dim hover:bg-secondary hover:text-text-primary"
+              className={`editor-panel-toggle transition duration-200 ${
+                showBible ? "is-active" : ""
               }`}
               title={showBible ? "收起目录" : "展开目录"}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
               </svg>
+              <span className="hidden text-[12px] font-bold sm:inline">{showBible ? "收起" : "目录"}</span>
             </button>
-            <div className="h-4 w-px bg-border-strong/50 mx-1" />
-            <div className="flex flex-col min-w-0">
-              <span className="text-[10px] font-bold text-text-dim uppercase tracking-wider hidden sm:block">当前正在创作</span>
-              <h2 className="text-[13px] font-bold text-text-primary truncate leading-tight max-w-[120px] md:max-w-[240px]">{title}</h2>
+            <div className="hidden h-5 w-px bg-border-strong/50 sm:block" />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <span className="hidden text-[10px] font-bold uppercase tracking-[0.18em] text-text-dim sm:block">Writing Room</span>
+              <h2 className="truncate text-[13px] font-bold leading-tight text-text-primary">{title}</h2>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="editor-topbar-actions flex shrink-0 items-center gap-1.5">
             {editor.pendingStateDiff && (
               <button
                 onClick={editor.openPendingStateDiff}
@@ -257,13 +266,13 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               />
             )}
             
-            <div className="h-4 w-px bg-border-strong/50 mx-1" />
+            <div className="mx-1 hidden h-4 w-px bg-border-strong/50 lg:block" />
             
             <JobsBadge novelId={novelId} />
 
             <Link
               href={`/novels/${novelId}/memories`}
-              className="p-2 rounded-lg transition text-text-muted hover:bg-secondary hover:text-text-primary"
+              className="editor-icon-button"
               title="打开记忆库"
               aria-label="打开记忆库"
             >
@@ -276,7 +285,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
                 localStorage so long sessions keep the user's preference across
                 refreshes; defaults to medium. */}
             <div
-              className="flex items-center rounded-xl border border-border-subtle bg-secondary/30 p-0.5"
+              className="hidden items-center rounded-full border border-border-subtle bg-white/70 p-0.5 shadow-sm sm:flex"
               role="group"
               aria-label="正文字号"
             >
@@ -285,7 +294,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
                   key={key}
                   onClick={() => setFontScale(key)}
                   aria-pressed={fontScale === key}
-                  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-colors ${
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${
                     fontScale === key
                       ? "bg-white text-text-primary shadow-sm"
                       : "text-text-dim hover:text-text-primary"
@@ -303,8 +312,8 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               onClick={() => setShowAI(!showAI)}
               aria-label={showAI ? "收起写作助手" : "展开写作助手"}
               aria-expanded={showAI}
-              className={`p-2 rounded-xl transition duration-300 ${
-                showAI ? "bg-text-primary text-white shadow-premium scale-105" : "text-text-dim hover:bg-secondary hover:text-text-primary"
+              className={`editor-icon-button transition duration-200 ${
+                showAI ? "is-ink" : ""
               }`}
               title="写作助手"
             >
@@ -316,7 +325,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
             {showAI && (
               <button
                 onClick={() => setIsAICompact(!isAICompact)}
-                className={`p-2 rounded-xl text-text-dim hover:bg-secondary transition-all ${isAICompact ? "rotate-180 text-primary bg-primary/5" : ""}`}
+                className={`editor-icon-button transition-all ${isAICompact ? "rotate-180 is-active" : ""}`}
                 title={isAICompact ? "展开面板" : "收起面板"}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -328,8 +337,8 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
         </header>
 
         {/* Editor Area with Paper Look */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-2 md:px-6 py-8 md:py-16 flex flex-col items-center">
-          <div className="writing-canvas w-full max-w-4xl p-6 md:p-12 lg:p-16 animate-fade-in-up">
+        <div className="custom-scrollbar editor-scroll-stage flex flex-1 flex-col items-center overflow-y-auto px-4 py-6 md:px-7 md:py-8 xl:px-9">
+          <div className="writing-canvas w-full max-w-[1080px] animate-fade-in-up p-6 md:p-8 xl:p-10">
             <EditorToolbar
               novelId={novelId}
               chapterIndex={editor.selectedIndex}
@@ -347,7 +356,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
                 editor.setChapterTitle(nextTitle);
                 editor.setStatus(markChapterEditorDirty(editor.status));
               }}
-          onDraftChapter={editor.draftChapter}
+              onDraftChapter={editor.draftChapter}
               onToggleStatus={() => {
                 editor.setChapterStatus((current) => current === "done" ? "draft" : "done");
                 editor.setStatus(markChapterEditorDirty(editor.status));
@@ -462,7 +471,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
               </div>
             )}
 
-            <div className="mt-12 relative">
+            <div className="relative mt-8">
               {/* P1-11: chapter body has an 80K-char schema cap; warn when
                   the user approaches it so the failure isn't a save-time
                   surprise. */}
@@ -480,7 +489,7 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
                 </div>
               )}
               <textarea
-                className={`w-full min-h-[1000px] resize-none border-none bg-transparent p-0 font-serif ${FONT_SCALES[fontScale].textareaClass} text-text-primary placeholder:text-text-dim/20 focus:outline-none selection:bg-primary/10`}
+                className={`editor-manuscript-textarea w-full min-h-[1000px] resize-none border-none bg-transparent p-0 font-serif ${FONT_SCALES[fontScale].textareaClass} text-text-primary placeholder:text-text-dim/20 focus:outline-none selection:bg-primary/10`}
                 placeholder="开始书写故事…"
                 spellCheck={false}
                 value={editor.content}
@@ -506,8 +515,8 @@ export function EditorClient({ novelId, title, bible: initialBible, initialChapt
       </main>
 
       {/* Right: AI Assistant */}
-      <aside 
-        className={`bg-white border-l border-border-subtle transition-all duration-500 ease-in-out h-full overflow-hidden ${
+      <aside
+        className={`absolute right-0 top-0 z-40 h-full overflow-hidden border-l border-border-subtle bg-white shadow-[-18px_0_40px_rgba(17,17,15,0.08)] transition-all duration-300 ease-in-out ${
           showAI ? (isAICompact ? "w-[300px]" : "w-80 lg:w-96") : "w-0 opacity-0"
         }`}
       >

@@ -153,6 +153,7 @@ describe("moderateContent", () => {
         outcome: "blocked",
         code: "MODERATION_BLOCKED",
         matched_pattern: "制作炸弹",
+        text_excerpt: "如何制作炸弹",
         text_hash: "2abc1c0460c0b817b2f1724a17503595274b304664f9421c666301b67506a772",
         text_chars: 6,
       }),
@@ -163,7 +164,7 @@ describe("moderateContent", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { chatCompletion } = await import("@/lib/llm/client");
     vi.mocked(chatCompletion).mockResolvedValueOnce({
-      content: JSON.stringify({ allowed: false, reason: "包含暴力内容" }),
+      content: JSON.stringify({ allowed: false, reason: "包含暴力内容", evidence: "包含暴力描写的句子" }),
       tokenIn: 10,
       tokenOut: 10,
       costCny: 0,
@@ -196,6 +197,7 @@ describe("moderateContent", () => {
         action: "block",
         outcome: "blocked",
         reason: "包含暴力内容",
+        text_excerpt: "包含暴力描写的句子",
         text_hash: expect.any(String),
       }),
     });
@@ -279,6 +281,7 @@ describe("matchBlockedKeywords (P0-8 helper)", () => {
     const result = matchBlockedKeywords("xxxxx 制作炸弹 yyyyy");
     expect(result).not.toBeNull();
     expect(result?.pattern).toBe(BLOCKED_KEYWORDS[0]);
+    expect(result?.matchText).toBe("制作炸弹");
     expect(result?.reason).toBe("内容包含违规关键词");
   });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
 import { useWizardStore } from "@/lib/store/wizardStore";
@@ -49,6 +49,7 @@ export function Step4Generating() {
           logline: store.inputs.logline,
           answers: store.inputs.answers ?? {},
           profile: store.default_profile,
+          total_chapters: store.inputs.chapters ?? 40,
         }),
       });
 
@@ -88,11 +89,11 @@ export function Step4Generating() {
   }
 
   return (
-    <StepShell eyebrow="分册 04" title="生成设定和大纲" description="AI 正在根据您的灵感、题材和回答，生成一份可编辑的作品设定。">
-      <div className="grid gap-8">
+    <StepShell eyebrow="Manuscript 02" title="生成设定和大纲" description="AI 正在根据您的灵感、题材和回答，生成一份可编辑的作品设定。">
+      <div className="grid gap-6">
         {/* Stale-streaming recovery banner */}
         {recovered && (
-          <div className="flex items-center gap-4 rounded-2xl bg-amber-50 border border-amber-100 px-6 py-4 text-[13px] text-amber-800">
+          <div className="flex flex-col gap-3 rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-[13px] text-amber-800 sm:flex-row sm:items-center">
             <svg aria-hidden="true" className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
             </svg>
@@ -100,7 +101,7 @@ export function Step4Generating() {
             {store.bible_draft && (
               <button
                 type="button"
-                className="ml-auto shrink-0 rounded-full bg-amber-600 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-white hover:bg-amber-700 transition"
+                className="shrink-0 rounded-lg bg-amber-700 px-4 py-2 text-[11px] font-black text-white transition hover:bg-amber-800 sm:ml-auto"
                 onClick={() => { store.setStatus("done"); store.setStep(5); }}
               >
                 查看已有内容
@@ -109,23 +110,24 @@ export function Step4Generating() {
           </div>
         )}
 
-        <header className="flex flex-wrap items-center justify-between gap-6 border-b border-border-subtle pb-6">
-          <div className="flex items-center gap-6">
-            <button 
-              className={`h-14 px-8 rounded-full font-bold shadow-premium transition flex items-center gap-3 active:scale-95 ${
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border-subtle pb-5">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className={`inline-flex h-12 items-center gap-2 rounded-lg px-5 text-[12px] font-black shadow-[0_12px_34px_rgba(17,17,15,0.12)] transition active:scale-[0.98] ${
                 store.status === "streaming" 
-                ? "bg-secondary text-text-dim cursor-default" 
+                ? "cursor-default bg-secondary text-text-dim shadow-none"
                 : "bg-text-primary text-white hover:bg-accent"
-              }`} 
+              }`}
               disabled={store.status === "streaming"} 
               onClick={start}
             >
               {store.status === "streaming" ? (
                 <>
                   <div className="relative w-5 h-5">
-                    <div className="absolute inset-0 rounded-full border-2 border-accent/20 border-t-accent animate-spin" />
+                    <div className="absolute inset-0 animate-spin rounded-full border-2 border-accent/20 border-t-accent" />
                   </div>
-                  <span className="font-serif text-base tracking-wide">正在生成中…</span>
+                  <span>正在生成中…</span>
                 </>
               ) : (
                 <>
@@ -137,72 +139,73 @@ export function Step4Generating() {
               )}
             </button>
             
-            <div className="flex flex-col gap-1 border-l border-border-strong pl-6">
-               <span className="text-[9px] font-bold uppercase tracking-[0.3em] text-text-dim">已生成次数</span>
-               <div className="flex items-center gap-2">
-                 <div className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-                 <span className="font-serif text-lg text-text-primary">{store.regeneration_count}/3</span>
-               </div>
+            <div className="rounded-lg border border-border-subtle bg-secondary/45 px-3 py-2">
+              <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-text-dim">已生成次数</span>
+              <div className="mt-1 flex items-center gap-2">
+                <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+                <span className="font-serif text-lg leading-none tracking-normal text-text-primary">{store.regeneration_count}/3</span>
+              </div>
             </div>
           </div>
           
           <button 
-            className="group flex items-center gap-2.5 text-[10px] font-bold uppercase tracking-[0.3em] text-text-muted hover:text-text-primary transition duration-500" 
-            onClick={() => store.setStep(3)}
+            type="button"
+            className="group inline-flex h-10 items-center gap-2 rounded-lg border border-border-subtle bg-white/70 px-3 text-[11px] font-black text-text-muted transition hover:border-text-primary hover:text-text-primary"
+            onClick={() => store.setStep(1)}
           >
             <svg aria-hidden="true" className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
             </svg>
-            修改回答
+            调整方向
           </button>
         </header>
 
         {/* Progress Visualization */}
-        <div className="bg-secondary/30 border border-border-subtle rounded-[2rem] p-6 relative overflow-hidden group">
-          <div className="flex items-center justify-between gap-8 mb-4 relative z-10">
+        <div className="group relative overflow-hidden rounded-xl border border-border-subtle bg-secondary/45 p-5">
+          <div className="relative z-10 mb-4 flex items-center justify-between gap-6">
             <div className="flex flex-col gap-1">
-              <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-accent">生成进度</p>
-              <h4 className="text-2xl font-serif font-normal text-text-primary tracking-tight">{phase.label}</h4>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent">生成进度</p>
+              <h4 className="font-serif text-2xl font-normal tracking-normal text-text-primary">{phase.label}</h4>
             </div>
             <div className="text-right">
-               <span className="text-4xl font-serif font-normal text-text-primary/10 group-hover:text-accent/20 transition-colors duration-500">{phase.percent}%</span>
+              <span className="font-serif text-4xl font-normal tracking-normal text-text-primary/15 transition-colors duration-500 group-hover:text-accent/25">{phase.percent}%</span>
             </div>
           </div>
           
-          <div className="relative h-1 w-full bg-border-strong rounded-full overflow-hidden z-10 shadow-inner">
-            <div 
-              className="absolute top-0 left-0 h-full bg-accent transition duration-500 ease-in-out" 
-              style={{ width: `${phase.percent}%` }}
-            />
-          </div>
+          <progress
+            aria-label="生成进度"
+            className="wizard-generation-progress relative z-10"
+            value={phase.percent}
+            max={100}
+          />
         </div>
 
         {/* Dynamic Cards */}
         <BibleStreamCards draft={store.bible_draft} eventsCount={events.length} />
 
         {/* Console / Journal */}
-        <details className="group bg-white border border-border-strong rounded-[2rem] overflow-hidden shadow-sm transition duration-300">
-          <summary className="cursor-pointer p-5 text-[10px] font-bold uppercase tracking-[0.3em] text-text-dim hover:text-text-primary transition-colors list-none flex justify-between items-center bg-secondary/20">
+        <details className="group overflow-hidden rounded-xl border border-border-subtle bg-white shadow-sm transition duration-300">
+          <summary className="flex cursor-pointer list-none items-center justify-between bg-secondary/35 p-4 text-[10px] font-black uppercase tracking-[0.18em] text-text-dim transition-colors hover:text-text-primary">
             <div className="flex items-center gap-3">
-               <div className="w-1 h-1 rounded-full bg-accent" />
-               <span>生成日志 ({events.length} 条记录)</span>
+              <div className="h-1.5 w-1.5 rounded-full bg-accent" />
+              <span>生成日志 ({events.length} 条记录)</span>
             </div>
             <svg aria-hidden="true" className="w-4 h-4 transition-transform duration-300 group-open:rotate-180 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
             </svg>
           </summary>
-          <div className="border-t border-border-subtle bg-white p-6 max-h-[400px] overflow-auto font-mono text-[11px] space-y-3 custom-scrollbar">
+          <div className="custom-scrollbar max-h-[400px] space-y-3 overflow-auto border-t border-border-subtle bg-white p-4 font-mono text-[11px]">
             {events.length === 0 && (
-              <p className="text-text-dim opacity-50 font-serif text-base">等待第一段内容生成…</p>
+              <p className="font-serif text-base text-text-dim/60">等待第一段内容生成…</p>
             )}
             {events.map((item, index) => (
-              <article key={`${item.event}-${index}`} className="group/entry relative pl-6 border-l border-border-strong hover:border-accent transition-colors duration-500">
-                <div className="absolute left-[-4.5px] top-1 w-2 h-2 rounded-full bg-border-strong group-hover/entry:bg-accent transition duration-500" />
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-accent font-bold uppercase text-[9px] tracking-[0.2em]">{item.event}</span>
-                  <span className="text-text-dim text-[9px] font-sans">{new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+              <article key={`${item.event}-${index}`} className="group/entry relative border-l border-border-strong pl-5 transition-colors duration-300 hover:border-accent">
+                <div className="absolute left-[-4.5px] top-1 h-2 w-2 rounded-full bg-border-strong transition duration-300 group-hover/entry:bg-accent" />
+                <div className="mb-2 flex items-center gap-3">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-accent">{item.event}</span>
+                  <span className="font-sans text-[9px] text-text-dim">{new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
                 </div>
-                <pre className="text-text-secondary whitespace-pre-wrap leading-relaxed bg-secondary/30 p-3 rounded-lg border border-transparent group-hover/entry:border-border-subtle transition duration-500">
+                <pre className="whitespace-pre-wrap rounded-lg border border-transparent bg-secondary/30 p-3 leading-relaxed text-text-secondary transition duration-300 group-hover/entry:border-border-subtle">
                   {JSON.stringify(item.data, null, 2)}
                 </pre>
               </article>
@@ -227,28 +230,28 @@ function getStreamPhase(draft: Partial<BibleDraft> | undefined, status: string) 
 function BibleStreamCards({ draft, eventsCount }: { draft?: Partial<BibleDraft>; eventsCount: number }) {
   if (!draft || eventsCount === 0) {
     return (
-      <div className="border-2 border-dashed border-border-strong p-16 text-center rounded-[2rem] bg-secondary/10 flex flex-col items-center gap-6">
+      <div className="flex flex-col items-center gap-5 rounded-xl border border-dashed border-border-strong bg-secondary/20 p-10 text-center">
         <div className="flex gap-3">
-          <div className="h-2 w-2 rounded-full bg-accent/20 animate-pulse" />
-          <div className="h-2 w-2 rounded-full bg-accent/40 animate-pulse [animation-delay:200ms]" />
-          <div className="h-2 w-2 rounded-full bg-accent/60 animate-pulse [animation-delay:400ms]" />
+          <div className="h-2 w-2 animate-pulse rounded-full bg-accent/20" />
+          <div className="h-2 w-2 animate-pulse rounded-full bg-accent/40 [animation-delay:200ms]" />
+          <div className="h-2 w-2 animate-pulse rounded-full bg-accent/60 [animation-delay:400ms]" />
         </div>
         <div className="flex flex-col gap-1.5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-text-dim">准备生成内容</p>
-          <p className="text-lg font-serif text-text-dim/60">等待第一段内容生成…</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-text-dim">准备生成内容</p>
+          <p className="font-serif text-lg tracking-normal text-text-dim/60">等待第一段内容生成…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="grid gap-8 animate-fade-in">
+    <div className="grid animate-fade-in gap-6">
       {draft.meta ? (
         <StreamCard label="基础设定" title={draft.meta.suggested_title} folio="01">
-          <div className="flex flex-wrap gap-2 mt-4">
+          <div className="mt-4 flex flex-wrap gap-2">
              {draft.meta.alternative_titles.map((title, i) => (
-               <div key={i} className="px-4 py-1 bg-secondary border border-border-subtle rounded-full text-[12px] font-serif text-text-secondary">
-                 <span className="opacity-30 mr-2 font-sans font-bold uppercase text-[8px]">备选 {i+1}</span>
+               <div key={i} className="rounded-lg border border-border-subtle bg-secondary px-3 py-1 text-[12px] font-serif text-text-secondary">
+                 <span className="mr-2 font-sans text-[8px] font-bold uppercase opacity-30">备选 {i + 1}</span>
                  {title}
                </div>
              ))}
@@ -257,15 +260,15 @@ function BibleStreamCards({ draft, eventsCount }: { draft?: Partial<BibleDraft>;
       ) : null}
 
       {draft.characters?.length ? (
-        <div className="grid gap-6">
+        <div className="grid gap-4">
           <FolioLabel index="02" label="主要角色" />
           <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {draft.characters.map((character, index) => (
               <StreamCard key={`${character.name}-${index}`} label={character.role} title={character.name} minimalist>
-                <p className="text-[13px] line-clamp-3 leading-relaxed text-text-secondary font-serif border-l-2 border-accent/10 pl-4 my-3">
+                <p className="my-3 line-clamp-3 border-l-2 border-accent/10 pl-4 font-serif text-[13px] leading-relaxed text-text-secondary">
                   {character.personality}
                 </p>
-                <div className="text-[11px] font-bold text-accent uppercase tracking-widest opacity-60">
+                <div className="text-[11px] font-bold uppercase tracking-widest text-accent opacity-60">
                    &ldquo;{character.catchphrase}&rdquo;
                 </div>
               </StreamCard>
@@ -276,10 +279,10 @@ function BibleStreamCards({ draft, eventsCount }: { draft?: Partial<BibleDraft>;
 
       {draft.world ? (
         <StreamCard label="世界观" title="世界设定" folio="03">
-          <p className="text-base leading-relaxed text-text-secondary font-serif mb-4 max-w-3xl">{draft.world.setting_summary}</p>
+          <p className="mb-4 max-w-3xl font-serif text-base leading-relaxed text-text-secondary">{draft.world.setting_summary}</p>
           <div className="flex flex-wrap gap-2">
             {draft.world.rules.map((rule) => (
-              <span key={rule} className="px-3 py-1 bg-white border border-border-strong rounded-xl text-[10px] font-bold text-text-primary shadow-sm hover:border-accent transition-colors duration-500">
+              <span key={rule} className="rounded-lg border border-border-strong bg-white px-3 py-1 text-[10px] font-bold text-text-primary shadow-sm transition-colors duration-300 hover:border-accent">
                 {rule}
               </span>
             ))}
@@ -288,18 +291,18 @@ function BibleStreamCards({ draft, eventsCount }: { draft?: Partial<BibleDraft>;
       ) : null}
 
       {draft.outline?.volume_1?.chapters?.length ? (
-        <div className="grid gap-6">
+        <div className="grid gap-4">
           <FolioLabel index="04" label="章节大纲" />
-          <StreamCard label="首卷分册" title={draft.outline.volume_1.name || "新征程"} minimalist>
-            <div className="grid gap-2 mt-4">
+          <StreamCard label="章节大纲" title={`${draft.outline.volume_1.chapters.length} 章剧情推进`} minimalist>
+            <div className="mt-4 grid gap-2">
               {draft.outline.volume_1.chapters.map((chapter) => (
-                <div key={chapter.index} className="group/chapter p-5 rounded-[1.5rem] hover:bg-secondary/50 transition duration-300 flex gap-4 items-start">
-                  <span className="font-serif text-2xl text-accent/20 group-hover/chapter:text-accent transition-colors duration-300 shrink-0">
-                    {String(chapter.index).padStart(2, '0')}
+                <div key={chapter.index} className="group/chapter flex items-start gap-4 rounded-lg p-4 transition duration-300 hover:bg-secondary/55">
+                  <span className="shrink-0 font-serif text-2xl tracking-normal text-accent/25 transition-colors duration-300 group-hover/chapter:text-accent">
+                    {String(chapter.index).padStart(2, "0")}
                   </span>
                   <div className="flex flex-col gap-1">
-                    <h5 className="text-lg font-serif font-normal text-text-primary group-hover/chapter:translate-x-1.5 transition-transform duration-300">{chapter.title}</h5>
-                    <p className="text-[13px] text-text-muted leading-relaxed max-w-2xl opacity-0 group-hover/chapter:opacity-100 group-hover/chapter:translate-x-1.5 transition duration-500">{chapter.summary}</p>
+                    <h5 className="font-serif text-lg font-normal tracking-normal text-text-primary">{chapter.title}</h5>
+                    <p className="max-w-2xl text-[13px] leading-relaxed text-text-muted">{chapter.summary}</p>
                   </div>
                 </div>
               ))}
@@ -313,9 +316,9 @@ function BibleStreamCards({ draft, eventsCount }: { draft?: Partial<BibleDraft>;
 
 function FolioLabel({ index, label }: { index: string; label: string }) {
   return (
-    <div className="flex items-center gap-4 group px-4">
-      <span className="font-serif text-2xl text-accent/40 group-hover:text-accent transition-colors duration-300">{index}</span>
-      <label className="text-[10px] font-bold uppercase tracking-[0.3em] text-text-muted">
+    <div className="group flex items-center gap-3 px-2">
+      <span className="font-serif text-2xl tracking-normal text-accent/45 transition-colors duration-300 group-hover:text-accent">{index}</span>
+      <label className="text-[10px] font-black uppercase tracking-[0.18em] text-text-muted">
         {label}
       </label>
     </div>
@@ -337,29 +340,29 @@ function StreamCard({
 }) {
   if (minimalist) {
     return (
-      <article className="animate-fade-in-up bg-white border border-border-subtle p-6 rounded-[2rem] shadow-sm hover:shadow-premium transition duration-500 group">
-        <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-accent mb-2 flex items-center gap-2">
-           <span className="w-1 h-1 rounded-full bg-accent" />
-           {label}
+      <article className="group animate-fade-in-up rounded-xl border border-border-subtle bg-white p-5 shadow-sm transition duration-300 hover:border-accent/30">
+        <p className="mb-2 flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.18em] text-accent">
+          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+          {label}
         </p>
-        <h3 className="text-xl font-serif font-normal text-text-primary tracking-tight group-hover:translate-x-1.5 transition-transform duration-300">{title}</h3>
+        <h3 className="font-serif text-xl font-normal tracking-normal text-text-primary">{title}</h3>
         {children}
       </article>
     );
   }
 
   return (
-    <article className="animate-fade-in-up bg-white border border-border-subtle p-6 md:p-10 rounded-[2.5rem] shadow-premium hover:shadow-2xl transition duration-500 relative overflow-hidden group">
+    <article className="group relative animate-fade-in-up overflow-hidden rounded-xl border border-border-subtle bg-white p-5 shadow-sm transition duration-300 hover:border-accent/30 md:p-6">
       {folio && (
-        <div className="absolute top-6 right-8 font-serif text-[60px] leading-none text-text-primary/5 select-none pointer-events-none opacity-20 group-hover:text-accent/10 transition-colors duration-500">
+        <div className="pointer-events-none absolute right-5 top-5 select-none font-serif text-[48px] leading-none tracking-normal text-text-primary/[0.045] transition-colors duration-300 group-hover:text-accent/10">
           {folio}
         </div>
       )}
-      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-accent mb-4 flex items-center gap-3">
-         <div className="h-px w-6 bg-accent/30" />
-         {label}
+      <p className="mb-3 flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.18em] text-accent">
+        <span className="h-px w-6 bg-accent/30" />
+        {label}
       </p>
-      <h3 className="text-3xl md:text-4xl font-serif font-normal text-text-primary mb-6 tracking-tight group-hover:translate-x-3 transition-transform duration-500">{title}</h3>
+      <h3 className="mb-5 font-serif text-2xl font-normal tracking-normal text-text-primary md:text-3xl">{title}</h3>
       <div className="relative z-10">{children}</div>
     </article>
   );

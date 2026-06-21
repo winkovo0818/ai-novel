@@ -6,6 +6,14 @@ const checkQuota = vi.fn();
 const usageFindMany = vi.fn();
 const usageGroupBy = vi.fn();
 
+/** Trend 窗口从"今天"起滚动 14 天，故用相对日期；写死的固定日期会随时间落出窗口，使测试脆弱。 */
+const trendDate = (daysAgo: number): Date => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - daysAgo);
+  d.setUTCHours(8, 0, 0, 0);
+  return d;
+};
+
 vi.mock("@/lib/auth/session", () => ({
   getRequiredUserId,
 }));
@@ -71,7 +79,7 @@ beforeEach(() => {
         token_out: 200,
         cost_cny: 0.001,
         took_ms: 1200,
-        created_at: new Date("2026-05-28T08:00:00.000Z"),
+        created_at: trendDate(0),
       },
     ])
     .mockResolvedValueOnce([
@@ -80,14 +88,14 @@ beforeEach(() => {
         token_in: 100,
         token_out: 200,
         cost_cny: 0.001,
-        created_at: new Date("2026-05-28T08:00:00.000Z"),
+        created_at: trendDate(0),
       },
       {
         status: "err",
         token_in: 10,
         token_out: 0,
         cost_cny: 0,
-        created_at: new Date("2026-05-27T08:00:00.000Z"),
+        created_at: trendDate(1),
       },
     ]);
   usageGroupBy.mockResolvedValue([
@@ -121,7 +129,7 @@ describe("GET /api/usage", () => {
     expect(json.data.records[0]).toEqual(expect.objectContaining({
       id: "usage-1",
       agent: "writer",
-      created_at: "2026-05-28T08:00:00.000Z",
+      created_at: trendDate(0).toISOString(),
     }));
     expect(json.data.trend).toHaveLength(14);
     expect(json.data.trend.some((item: { calls: number; failures: number }) => item.calls === 1 && item.failures === 1)).toBe(true);

@@ -1,0 +1,18 @@
+{
+  "sampleId": "urban-suspense-ch1-3",
+  "window": [1, 2, 3],
+  "humanScores": {
+    "continuity": 8,
+    "logic": 8,
+    "character_consistency": 8,
+    "plot_progress": 7,
+    "world_rules": 7,
+    "ai_voice": 8,
+    "prose_readability": 8,
+    "overall": 8
+  },
+  "annotator": "SEED-PLACEHOLDER",
+  "annotatedAt": "2026-06-05",
+  "status": "seed",
+  "notes": "占位示意分，非真人评审。正式标注时：逐维度按 0-10 给分，overall 是综合体感（你作为读者愿不愿意读下去），annotator 填真实标注者标识，status 改为 annotated。"
+}

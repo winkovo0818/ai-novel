@@ -1,5 +1,5 @@
 import { buildBiblePrompt } from "@/lib/llm/prompts/bible";
-import { streamChatCompletionWithRetry } from "@/lib/llm/client";
+import { chatCompletionWithRetry, streamChatCompletionWithRetry } from "@/lib/llm/client";
 import { prisma } from "@/lib/db";
 import { authorizeOnboardingSession } from "@/lib/auth/onboardingAccess";
 import { isRateLimited } from "@/lib/auth/rateLimit";
@@ -13,6 +13,7 @@ import {
   tryParsePartialBibleDraft,
 } from "@/lib/stream/jsonStreamParser";
 import { BibleStreamRequestSchema, type BibleDraft } from "@/lib/validation/schemas";
+import { logWarn } from "@/lib/observability/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -108,7 +109,14 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
-  const messages = buildBiblePrompt(input);
+  const messages = buildBiblePrompt({
+    ...input,
+    profile: {
+      ...input.profile,
+      chapter_word_count: input.profile.chapter_word_count ?? 3000,
+    },
+    totalChapters: input.total_chapters ?? 40,
+  });
   const quota = await checkQuota(userId, {
     estimatedCostCny: estimateLlmMessagesCostCny(messages, 8192),
   });
@@ -173,7 +181,7 @@ export async function POST(request: Request, context: RouteContext) {
           },
         );
 
-        const draft = tryParseBibleDraft(result.content);
+        const draft = tryParseBibleDraft(result.content, input.total_chapters ?? 40);
         if (!draft) {
           const fallback = createFallbackBibleDraft(input.logline);
           for (const event of collectBibleEvents(fallback, cursor)) {
@@ -226,6 +234,28 @@ export async function POST(request: Request, context: RouteContext) {
           return;
         }
 
+        // 章数不足时用 LLM 续写补充，不用空洞占位（避免污染后续写作质量）。
+        const minChapters = input.total_chapters ?? 40;
+        const actualCount = draft.outline.volume_1.chapters.length;
+
+        if (actualCount < minChapters) {
+          const supplemented = await supplementChapters(draft, minChapters, userId);
+          if (!supplemented) {
+            // 续写也失败，不保存不完整的 Bible，让用户重试
+            send(
+              sseEncode("error", {
+                code: "LLM_CHAPTER_SHORTFALL",
+                message: `AI 只生成了 ${actualCount} 章大纲（需要 ≥${minChapters} 章），请重新生成`,
+                retryable: true,
+                regeneration_count: updatedSession.regeneration_count,
+              }),
+            );
+            return;
+          }
+          // 续写成功，用补充后的 draft 替换
+          Object.assign(draft, supplemented);
+        }
+
         for (const event of collectBibleEvents(draft, cursor)) {
           send(sseEncode(event.event, event.data));
           emitted = true;
@@ -272,6 +302,101 @@ export async function POST(request: Request, context: RouteContext) {
       "X-Accel-Buffering": "no",
     },
   });
+}
+
+/**
+ * 当模型生成章数少于目标时，调用非流式 LLM 续写缺失章节。
+ * 返回 null 表示续写也失败，调用方应返回可重试错误。
+ */
+async function supplementChapters(
+  draft: BibleDraft,
+  minChapters: number,
+  userId: string,
+): Promise<BibleDraft | null> {
+  const existingCount = draft.outline.volume_1.chapters.length;
+  const needed = minChapters - existingCount;
+
+  const lastChapters = draft.outline.volume_1.chapters.slice(-3);
+  const lastSummary = lastChapters
+    .map((c) => `第${c.index}章「${c.title}」：${c.summary}`)
+    .join("\n");
+
+  const supplementPrompt: import("@/lib/llm/client").ChatMessage[] = [
+    {
+      role: "system",
+      content: `你是一位网文大纲架构师。用户正在生成一部小说的首卷大纲，但前一次生成只写了 ${existingCount} 章，还需要补充 ${needed} 章以上才能达到 ${minChapters} 章。
+请续写后续章节，确保：
+1. 与已有剧情自然衔接
+2. 每章都有独立的核心事件与转折
+3. 逐步推向首卷高潮
+4. 预留为后续卷册铺垫的伏笔
+
+输出格式：纯 JSON 数组，每个元素包含 index / title / summary，严格如下：
+[{"index":${existingCount + 1},"title":"章名","summary":"20-80 字章节梗概"}]`,
+    },
+    {
+      role: "user",
+      content: `作品名：${draft.meta.suggested_title}
+世界观：${draft.world.setting_summary}
+已有的最后几章大纲：
+${lastSummary}
+
+请续写从第 ${existingCount + 1} 章开始、至少 ${needed} 章的大纲。直接输出 JSON 数组，不要包裹在代码块中。`,
+    },
+  ];
+
+  try {
+    const result = await chatCompletionWithRetry({
+      route: ROUTE,
+      agent: "outline_supplement",
+      userId,
+      messages: supplementPrompt,
+      temperature: 0.7,
+      timeoutMs: 60_000,
+    });
+
+    const trimmed = result.content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+    const parsed = JSON.parse(trimmed);
+
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      logWarn("bible.supplement_parse_empty", { raw: trimmed.slice(0, 200) });
+      return null;
+    }
+
+    const newChapters = parsed
+      .filter((c: unknown) => typeof c === "object" && c !== null)
+      .map((c: object, i: number) => {
+        const rec = c as Record<string, unknown>;
+        return {
+          index: existingCount + i + 1,
+          title: typeof rec.title === "string" && rec.title.trim() ? rec.title.trim() : `第${existingCount + i + 1}章`,
+          summary: typeof rec.summary === "string" && rec.summary.trim().length >= 20
+            ? rec.summary.trim()
+            : "剧情继续推进，主要角色面临新的困境与选择，矛盾逐步升级。",
+        };
+      });
+
+    if (newChapters.length < needed) {
+      logWarn("bible.supplement_insufficient", {
+        needed,
+        got: newChapters.length,
+      });
+      return null;
+    }
+
+    draft.outline.volume_1.chapters.push(...newChapters);
+    draft.outline.volume_1.chapter_count_estimate = Math.max(
+      draft.outline.volume_1.chapter_count_estimate,
+      draft.outline.volume_1.chapters.length,
+    );
+
+    return draft;
+  } catch (err) {
+    logWarn("bible.supplement_failed", {
+      reason: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
 }
 
 function createFallbackBibleDraft(logline: string): BibleDraft {

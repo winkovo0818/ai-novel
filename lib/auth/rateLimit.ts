@@ -22,6 +22,7 @@
  * shape is only there for parity with the network-bound implementation.
  */
 
+import { isE2eBypassEnabled } from "@/lib/auth/e2eBypass";
 import { errorMessage, logError, logWarn } from "@/lib/observability/logger";
 
 const WINDOW_MS = 60_000;
@@ -210,7 +211,7 @@ export function resolveLimitForRoute(route: string): number {
 }
 
 function createRateLimiter(): RateLimiter {
-  if (process.env.E2E_AUTH_BYPASS === "1" && process.env.E2E_DISABLE_RATE_LIMIT === "1") {
+  if (isE2eBypassEnabled() && process.env.E2E_DISABLE_RATE_LIMIT === "1") {
     return new AllowAllRateLimiter();
   }
 

@@ -162,6 +162,12 @@ export default async function NovelDetailPage({ params }: PageProps) {
               icon="chapters"
             />
             <NavCard
+              href={`/novels/${novel.id}/quality`}
+              title="写作质量"
+              description="7 维评分趋势与风险标记"
+              icon="memory"
+            />
+            <NavCard
               href={`/novels/${novel.id}/export`}
               title="导出中心"
               description="markdown · txt · docx · epub"

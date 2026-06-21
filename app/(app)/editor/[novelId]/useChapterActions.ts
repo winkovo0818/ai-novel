@@ -3,6 +3,10 @@
 import { useCallback, useState } from "react";
 
 import {
+  humanizeError,
+} from "@/lib/http/errorMessages";
+
+import {
   buildConsistencyRequest,
   buildDeleteChapterRequest,
   deriveChapterStateFromDraft,
@@ -112,7 +116,7 @@ export function useChapterActions({
       }
       setConsistencyResult(json.data as ConsistencyResult);
     } catch (err) {
-      setConsistencyError(err instanceof Error ? err.message : "一致性检查失败");
+      setConsistencyError(humanizeError(err));
     } finally {
       setConsistencyRunning(false);
     }

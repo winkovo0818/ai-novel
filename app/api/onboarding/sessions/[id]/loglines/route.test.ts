@@ -196,4 +196,74 @@ describe("POST /api/onboarding/sessions/[id]/loglines — auth + input gating", 
       data: { logline_suggestions: expect.any(Array) },
     });
   });
+
+  it("accepts model loglines longer than the prompt target", async () => {
+    authorizeOnboardingSession.mockResolvedValue({
+      ok: true,
+      userId: "user-1",
+      session: {
+        id: "session-1",
+        title: "长句测试",
+        genre_main: "web",
+        genre_sub: "玄幻",
+      },
+    });
+    const longLine = "A".repeat(80);
+    chatCompletionWithRetry.mockResolvedValue({
+      content: JSON.stringify({
+        loglines: Array.from({ length: 5 }, (_, index) => `${longLine}${index}`),
+      }),
+      tokenIn: 1,
+      tokenOut: 1,
+      costCny: 0,
+      tookMs: 1,
+      model: "test",
+    });
+    update.mockResolvedValue({});
+
+    const { POST } = await import("./route");
+    const res = await POST(buildRequest(validBody), {
+      params: Promise.resolve({ id: "session-1" }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.data.loglines).toHaveLength(5);
+    expect(json.data.loglines[0]).toHaveLength(81);
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "session-1" },
+      data: { logline_suggestions: json.data.loglines },
+    });
+  });
+
+  it("returns LLM_PARSE_FAILED instead of 500 when model output has the wrong shape", async () => {
+    authorizeOnboardingSession.mockResolvedValue({
+      ok: true,
+      userId: "user-1",
+      session: {
+        id: "session-1",
+        title: "坏格式测试",
+        genre_main: "web",
+        genre_sub: "玄幻",
+      },
+    });
+    chatCompletionWithRetry.mockResolvedValue({
+      content: JSON.stringify({ loglines: ["only one"] }),
+      tokenIn: 1,
+      tokenOut: 1,
+      costCny: 0,
+      tookMs: 1,
+      model: "test",
+    });
+
+    const { POST } = await import("./route");
+    const res = await POST(buildRequest(validBody), {
+      params: Promise.resolve({ id: "session-1" }),
+    });
+
+    expect(res.status).toBe(502);
+    const json = await res.json();
+    expect(json.error.code).toBe("LLM_PARSE_FAILED");
+    expect(update).not.toHaveBeenCalled();
+  });
 });

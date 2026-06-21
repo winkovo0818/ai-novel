@@ -65,6 +65,7 @@ describe("GET /api/admin/moderation-audits", () => {
       action: "block",
       outcome: "blocked",
       review_status: "pending",
+      text_excerpt: "如何制作炸弹",
       created_at: new Date("2026-05-14T00:00:00Z"),
     };
     findMany.mockResolvedValue([row]);
@@ -84,6 +85,7 @@ describe("GET /api/admin/moderation-audits", () => {
         orderBy: { created_at: "desc" },
         skip: 25,
         take: 25,
+        select: expect.objectContaining({ text_excerpt: true }),
       }),
     );
     expect(count).toHaveBeenCalledWith({

@@ -534,12 +534,12 @@ describe("EditorClient interactions", () => {
 
   it("toggles the AI panel from the top bar", () => {
     let root = renderEditor();
-    expect(findByType(root, "AIPanel").props.show).toBe(true);
+    expect(findByType(root, "AIPanel").props.show).toBe(false);
 
     (findByProp(root, "title", "写作助手").props.onClick as () => void)();
     root = renderEditor();
 
-    expect(findByType(root, "AIPanel").props.show).toBe(false);
+    expect(findByType(root, "AIPanel").props.show).toBe(true);
   });
 
   it("links the editor top bar to the memory library", () => {

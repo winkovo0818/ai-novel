@@ -1,0 +1,18 @@
+{
+  "sampleId": "xuanhuan-seed-ch1-3",
+  "window": [1, 2, 3],
+  "humanScores": {
+    "continuity": 0,
+    "logic": 0,
+    "character_consistency": 0,
+    "plot_progress": 0,
+    "world_rules": 0,
+    "ai_voice": 0,
+    "prose_readability": 0,
+    "overall": 0
+  },
+  "annotator": "SEED-PLACEHOLDER",
+  "annotatedAt": "2026-06-05",
+  "status": "seed",
+  "notes": "待人工标注：逐维度按 0-10 给分（0 仅为占位），overall 是作为读者的综合体感。标注后把 status 改为 annotated、annotator 填真实标识。"
+}

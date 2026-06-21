@@ -6,10 +6,10 @@
 
 覆盖作品设定、大纲、章节编辑、候选稿、记忆库、导出和后台任务，帮助作者从灵感开始持续推进一部长篇作品。
 
-[![CI](https://github.com/YunDanFengQing/ai-novel/actions/workflows/ci.yml/badge.svg)](https://github.com/YunDanFengQing/ai-novel/actions/workflows/ci.yml)
+[![CI](https://github.com/winkovo0818/ai-novel/actions/workflows/ci.yml/badge.svg)](https://github.com/winkovo0818/ai-novel/actions/workflows/ci.yml)
 [![TypeScript Strict](https://img.shields.io/badge/TypeScript-strict-blue)](https://www.typescriptlang.org/tsconfig#strict)
-[![Tests](https://img.shields.io/badge/tests-700%20passing-brightgreen)](https://github.com/YunDanFengQing/ai-novel)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/YunDanFengQing/ai-novel/pulls)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/winkovo0818/ai-novel/pulls)
 
 </div>
 
@@ -108,7 +108,7 @@
 ### 安装
 
 ```bash
-git clone https://github.com/YunDanFengQing/ai-novel.git
+git clone https://github.com/winkovo0818/ai-novel.git
 cd ai-novel
 npm install
 ```
@@ -311,6 +311,28 @@ docker run -p 3000:3000 --env-file .env.production ai-novel
 
 ---
 
+## 🤝 参与贡献
+
+欢迎贡献代码、报告问题或提出建议：
+
+- [贡献指南](CONTRIBUTING.md) — 开发环境搭建、提交流程、质量门禁
+- [安全策略](SECURITY.md) — 漏洞上报渠道与部署安全注意事项
+- [行为准则](CODE_OF_CONDUCT.md) — 社区行为规范
+
+---
+
 ## 📄 许可证
 
-Private — All rights reserved.
+本项目基于 [Apache License 2.0](LICENSE) 开源。
+
+你可以自由地使用、修改和分发本项目（包括商用），但需保留版权与许可声明，并对修改过的文件作出标注。Apache-2.0 额外提供明确的**专利授权**与专利反诉终止条款，详见 [LICENSE](LICENSE) 全文。
+
+```
+Copyright 2026 YunDanFengQing
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+```

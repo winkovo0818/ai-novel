@@ -7,6 +7,14 @@ const createVersion = vi.fn();
 const findFirstVersion = vi.fn();
 const findManyVersion = vi.fn();
 const deleteManyVersion = vi.fn();
+const enqueueJob = vi.fn().mockResolvedValue({ id: "job-1", type: "summarize_chapter", status: "pending" });
+const runPendingJobsForNovel = vi.fn().mockResolvedValue(0);
+
+vi.mock("@/lib/jobs/queue", () => ({
+  enqueueJob,
+  runPendingJobsForNovel,
+}));
+
 const getRequiredUserId = vi.fn();
 
 const txClient = {

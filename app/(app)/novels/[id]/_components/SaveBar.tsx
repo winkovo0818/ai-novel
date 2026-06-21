@@ -18,7 +18,7 @@ export function SaveBar({ dirty, status, error, onSave }: SaveBarProps) {
   if (!showBar) return null;
 
   return (
-    <div className="fixed bottom-0 left-[var(--width-sidebar)] right-0 bg-white border-t border-border-strong shadow-[0_-4px_16px_rgba(0,0,0,0.06)] z-30 animate-fade-in-up">
+    <div className="app-save-bar fixed bottom-0 left-0 right-0 bg-white border-t border-border-strong shadow-[0_-4px_16px_rgba(0,0,0,0.06)] z-30 animate-fade-in-up">
       <div className="max-w-6xl mx-auto px-8 md:px-12 lg:px-16 py-4 flex items-center justify-between gap-4">
         <div className="flex-1 min-w-0">
           {status === "saving" && (

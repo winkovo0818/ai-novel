@@ -173,6 +173,103 @@ function normalizeName(value: string): string {
   return value.trim().toLowerCase();
 }
 
+// ---------------------------------------------------------------------------
+// M0.2 — pre-merge validation (auto-pilot path).
+//
+// `detectStateDiffConflicts` above produces *warnings* for the interactive
+// StateDiffPanel where a human decides. The auto-pilot has no human in the
+// loop, so it needs hard *rejections*: a hallucinated or illegal diff that
+// merges into the Bible is inherited by every later chapter ("宁可状态滞后,
+// 不可状态污染"). See docs/DESIGN_LONGFORM_COHERENCE.md §M0.2.
+// ---------------------------------------------------------------------------
+
+export type StateDiffValidationCode =
+  | "unknown_character"
+  | "thread_status_regression"
+  | "diff_too_large";
+
+export interface StateDiffValidationIssue {
+  code: StateDiffValidationCode;
+  message: string;
+}
+
+/**
+ * Max items across all diff sections. A single chapter legitimately changes a
+ * handful of states; a diff this large usually means the model dumped the
+ * whole story state back (or hallucinated), and merging it would amplify noise.
+ */
+const MAX_STATE_DIFF_ITEMS = 15;
+
+/**
+ * Validate a StateDiff before unattended merge. Three cheap, deterministic
+ * checks — no LLM calls:
+ *
+ * 1. Entity existence: updated characters must already exist in the Bible /
+ *    story_state, be introduced by this diff's `new_entities`, or appear in
+ *    the chapter text itself (anti-hallucination).
+ * 2. State-machine legality: a resolved plot thread cannot regress to
+ *    open/progressing.
+ * 3. Scale sanity: oversized diffs are rejected wholesale.
+ *
+ * Returns an empty array when the diff is safe to merge.
+ */
+export function validateStateDiff(
+  bible: BibleDraft,
+  diff: StateDiff,
+  chapterContent: string,
+): StateDiffValidationIssue[] {
+  const issues: StateDiffValidationIssue[] = [];
+
+  // -- 3. Scale first: a dumped/hallucinated mega-diff makes per-item checks moot.
+  const totalItems =
+    diff.character_updates.length +
+    diff.timeline_events.length +
+    diff.plot_thread_updates.length +
+    diff.new_entities.length;
+  if (totalItems > MAX_STATE_DIFF_ITEMS) {
+    issues.push({
+      code: "diff_too_large",
+      message: `状态变更共 ${totalItems} 条,超过单章上限 ${MAX_STATE_DIFF_ITEMS} 条,疑似模型回灌全量状态。`,
+    });
+    return issues;
+  }
+
+  // -- 1. Entity existence for character updates.
+  const knownNames = new Set<string>([
+    ...bible.characters.map((c) => normalizeName(c.name)),
+    ...(bible.story_state?.characters?.map((c) => normalizeName(c.name)) ?? []),
+    ...diff.new_entities.filter((e) => e.type === "character").map((e) => normalizeName(e.name)),
+  ]);
+  for (const update of diff.character_updates) {
+    const name = update.name.trim();
+    if (knownNames.has(normalizeName(name))) continue;
+    // Last resort: the name literally appears in the chapter — a genuinely new
+    // on-page character the State Updater picked up without a new_entities row.
+    if (name && chapterContent.includes(name)) continue;
+    issues.push({
+      code: "unknown_character",
+      message: `角色「${update.name}」不存在于 Bible/Story State,也未出现在本章正文,疑似幻觉实体。`,
+    });
+  }
+
+  // -- 2. Plot-thread status regression.
+  const resolvedThreads = new Set(
+    bible.story_state?.plot_threads
+      ?.filter((t) => t.status === "resolved")
+      .map((t) => normalizeName(t.title)) ?? [],
+  );
+  for (const update of diff.plot_thread_updates) {
+    if (update.status !== "resolved" && resolvedThreads.has(normalizeName(update.title))) {
+      issues.push({
+        code: "thread_status_regression",
+        message: `线索「${update.title}」已是 resolved,不允许回退为 ${update.status}。`,
+      });
+    }
+  }
+
+  return issues;
+}
+
 /**
  * Apply a StateDiff to a BibleDraft, producing a new BibleDraft with updated
  * story_state. This is a shallow merge: existing state is preserved and

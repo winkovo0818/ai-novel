@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import Link from "next/link";
 
 import { Field, ErrorBanner, Spinner } from "@/components/auth/AuthForm";
@@ -10,8 +12,8 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
-  const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,28 +49,16 @@ export default function SignupPage() {
       return;
     }
 
-    setSuccess(true);
     setLoading(false);
+    // 注册成功后自动登录并跳转到创作页面
+    const result = await signIn("credentials", { email, password, redirect: false });
+    if (result?.ok) {
+      router.push("/new");
+    } else {
+      router.push("/login");
+    }
   }
 
-  if (success) {
-    return (
-      <SuccessShell
-        title="注册成功"
-        description={
-          <>
-            账号已创建完成，现在可以使用
-            <br />
-            <span className="font-bold text-text-primary text-base">{email}</span>
-            <br />
-            <br />
-            登录并开始您的创作之旅。
-          </>
-        }
-        action={{ label: "前往登录", href: "/login" }}
-      />
-    );
-  }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
@@ -153,6 +143,7 @@ export default function SignupPage() {
   );
 }
 
+// @ts-expect-error unused after fast-start
 function SuccessShell({
   title,
   description,

@@ -22,6 +22,7 @@ import {
   type RetrievalExplanationPreview,
   type RetrievedMemoryPreview,
 } from "@/lib/editor/chapterUtils";
+import { humanizeError } from "@/lib/http/errorMessages";
 import { readSse } from "@/lib/stream/readSse";
 import type { ChapterRevisionOperation } from "@/lib/validation/schemas";
 import type { BeatItem } from "./BeatSheetPanel";
@@ -162,7 +163,7 @@ export function useChapterDrafting({
         setCriticFailure(null);
       } catch (err) {
         // Critic failure is non-blocking. Display warning, don't gate the user.
-        const message = err instanceof Error ? err.message : "审校失败";
+        const message = humanizeError(err);
         setCandidateCriticError(message);
         // P1-6: persist so the badge survives panel close.
         setCriticFailure({ message, chapterIndex: selectedIndex });
@@ -201,7 +202,7 @@ export function useChapterDrafting({
       setMessage("候选稿已按建议修订，正在重新审校…");
       void runCandidateCritic(revised, true);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "修订失败";
+      const message = humanizeError(err);
       setMessage(message);
       setCandidateCriticError(message);
     } finally {
@@ -245,7 +246,7 @@ export function useChapterDrafting({
       setMessage("候选稿已按反馈修订，正在重新审校…");
       void runCandidateCritic(revised, true);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "修订失败";
+      const message = humanizeError(err);
       setMessage(message);
       setCandidateCriticError(message);
     } finally {
@@ -314,7 +315,7 @@ export function useChapterDrafting({
       setStatus(resolveSettledChapterStatus({ hasUnsavedChanges, status: "clean" }));
       setMessage("局部改写候选稿就绪");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "局部改写失败";
+      const message = humanizeError(err);
       setLocalRevisionError(message);
       setStatus("error");
       setMessage(message);
@@ -385,7 +386,7 @@ export function useChapterDrafting({
       setStatus(resolveSettledChapterStatus({ hasUnsavedChanges, status: "clean" }));
       setMessage("改写候选稿就绪");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "改写失败";
+      const message = humanizeError(err);
       setLocalRevisionError(message);
       setStatus("error");
       setMessage(message);
@@ -438,7 +439,7 @@ export function useChapterDrafting({
         );
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "审校失败";
+      const message = humanizeError(err);
       setCriticFailure({ message, chapterIndex: selectedIndex });
     } finally {
       setCriticRetrying(false);
@@ -560,7 +561,7 @@ export function useChapterDrafting({
         setMessage("候选稿就绪，请选择处理方式");
         void runCandidateCritic(draftState.generated);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "AI 起草失败";
+        const msg = humanizeError(err);
         setCandidateStreaming(false);
         setStatus("error");
         setMessage(msg);

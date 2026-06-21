@@ -6,12 +6,14 @@ interface LoglinePromptInput {
   title?: string | null;
   genreMainLabel?: string;
   genreSub?: string | null;
+  seedLogline?: string | null;
 }
 
 export function buildLoglinePrompt(input: LoglinePromptInput): ChatMessage[] {
   const { profile } = input;
   const title = input.title?.trim() || "（未定）";
   const genreSub = input.genreSub?.trim() || profile.genre_sub;
+  const seedLogline = input.seedLogline?.trim() || "（未填写）";
   return [
     {
       role: "system",
@@ -26,6 +28,7 @@ export function buildLoglinePrompt(input: LoglinePromptInput): ChatMessage[] {
 - 作品暂定标题：${title}
 - 文学领域划分：${input.genreMainLabel ?? profile.genre_main}
 - 细分题材 / 风格标签：${genreSub}
+- 用户当前一句话灵感：${seedLogline}
 
 档案：
 - 类型：${profile.genre_main} / ${profile.genre_sub}
@@ -37,7 +40,8 @@ export function buildLoglinePrompt(input: LoglinePromptInput): ChatMessage[] {
 
 要求：
 - 每条 20-60 字
-- 每条必须明显呼应作品标题、文学领域和细分题材 / 风格标签
+- 每条必须明显呼应作品标题、文学领域、细分题材 / 风格标签和用户当前一句话灵感
+- 如果用户当前一句话灵感已经清楚，请生成更强钩子、更清晰冲突或不同切入角度的变体，而不是完全另起炉灶
 - 不要擅自改成其他题材、职业、时代、关系类型或世界观
 - 适合继续扩展成完整长篇 Bible
 - 彼此差异明显，避免同义改写

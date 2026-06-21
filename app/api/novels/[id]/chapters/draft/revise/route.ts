@@ -37,6 +37,12 @@ function isCriticRevisionInput(
   return "content" in input && "issues" in input;
 }
 
+function isInstructionRevisionInput(
+  input: ReviseDraftRequest,
+): input is Extract<ReviseDraftRequest, { instruction: string }> {
+  return "instruction" in input && input.operation === "custom";
+}
+
 export async function POST(request: Request, context: RouteContext) {
   const { id } = await context.params;
   const body = await request.json().catch(() => null);
@@ -79,16 +85,14 @@ export async function POST(request: Request, context: RouteContext) {
   const input = parsed.data;
   const chapterContext = buildChapterContext(bible.data, novel.chapters, input.chapter_index);
 
-  const isInstructionRevision = 'instruction' in input && (input as any).operation === 'custom';
-
-  const messages = isInstructionRevision
+  const messages = isInstructionRevisionInput(input)
     ? buildInstructionRevisionPrompt({
         context: chapterContext,
-        instruction: (input as any).instruction as string,
-        selectedText: (input as any).selected_text as string,
-        beforeContext: (input as any).before_context as string,
-        afterContext: (input as any).after_context as string,
-        title: (input as any).title as string,
+        instruction: input.instruction,
+        selectedText: input.selected_text,
+        beforeContext: input.before_context,
+        afterContext: input.after_context,
+        title: input.title,
       })
     : isCriticRevisionInput(input)
     ? buildChapterRevisionPrompt({

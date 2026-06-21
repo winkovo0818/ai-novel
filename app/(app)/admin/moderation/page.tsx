@@ -20,6 +20,7 @@ interface ModerationAuditRow {
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_note: string | null;
+  text_excerpt: string | null;
   text_hash: string;
   text_chars: number;
   created_at: string;
@@ -140,7 +141,7 @@ export default function AdminModerationPage() {
       <div className="p-8 md:p-12 lg:p-16 max-w-7xl mx-auto min-h-full pb-32">
         <PageHeader
           title="内容审核队列"
-          description="复核 ModerationAudit 决策。记录只包含审核元数据与文本哈希，不保存原文。"
+          description="复核 ModerationAudit 决策。新记录会保存短证据片段，旧记录可能只有文本哈希。"
         />
 
         <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
@@ -209,6 +210,21 @@ export default function AdminModerationPage() {
                         </div>
                         <div className="mt-3 text-[11px] text-text-dim font-mono break-all">
                           sha256: {row.text_hash}
+                        </div>
+                        <div className="mt-4 rounded-2xl border border-border-subtle bg-white p-4">
+                          <div className="mb-2 flex items-center gap-2">
+                            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-accent">Evidence</span>
+                            <span className="text-[10px] font-bold text-text-dim">违规片段</span>
+                          </div>
+                          {row.text_excerpt ? (
+                            <p className="whitespace-pre-wrap break-words text-[13px] leading-6 text-text-primary">
+                              {row.text_excerpt}
+                            </p>
+                          ) : (
+                            <p className="text-[12px] leading-6 text-text-muted">
+                              这条记录创建时未保存原文片段，只能通过 sha256、route、用户和作品定位来源。新产生的审核记录会展示短证据片段。
+                            </p>
+                          )}
                         </div>
                         {(row.reason || row.matched_pattern || row.code) && (
                           <div className="mt-4 rounded-2xl border border-border-subtle bg-secondary/30 p-4 text-[12px] text-text-secondary">

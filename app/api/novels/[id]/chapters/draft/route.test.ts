@@ -419,16 +419,17 @@ describe("POST /api/novels/[id]/chapters/draft", () => {
     const text = await response.text();
 
     expect(text).toContain("event: chapter_delta");
-    expect(text).toContain("沈言抬头。井外人像是就在门外。");
+    // cleanupWriterOutputSegment 默认只清理格式（破折号、Markdown 粗体、生硬的"接下来"），
+    // 不做 context-blind 词汇替换（"慢慢"/"似乎"保留），见 writerOutputCleanup 的设计意图。
+    expect(text).toContain("沈言慢慢抬头。井外人似乎就在门外。");
     expect(text).toContain("他把木牌藏进袖口。");
-    expect(text).not.toContain("慢慢");
     expect(text).not.toContain("——");
     expect(text).not.toContain("**井外人**");
     expect(text).not.toContain("接下来");
     expect(completeDraftSession).toHaveBeenCalledWith(
       "ds-test",
       expect.objectContaining({
-        buffer: expect.stringContaining("沈言抬头。井外人像是就在门外。"),
+        buffer: expect.stringContaining("沈言慢慢抬头。井外人似乎就在门外。"),
       }),
     );
   });

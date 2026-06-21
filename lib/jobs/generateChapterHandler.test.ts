@@ -117,6 +117,25 @@ describe("handleGenerateChapter", () => {
     expect(enqueueJob).toHaveBeenCalledTimes(2);
   });
 
+  it("skips the Bible merge when validation rejects a hallucinated character (M0.2), but still persists + enqueues", async () => {
+    const { handleGenerateChapter } = await import("./generateChapterHandler");
+    findUniqueNovel.mockResolvedValue(novelRow());
+    // 幻觉角色:不在 Bible、不在 new_entities,也不在正文里
+    chatCompletionWithRetry.mockResolvedValue({
+      content: JSON.stringify({
+        character_updates: [{ name: "凭空人物", changes: { current_location: "裂井" }, confidence: "high" }],
+      }),
+    });
+
+    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1 });
+
+    expect(upsertChapter).toHaveBeenCalledTimes(1);
+    expect(updateBible).not.toHaveBeenCalled();
+    expect(enqueueJob).toHaveBeenCalledTimes(2);
+    // 无 run 时不触发 needs_review,只是跳过合并
+    expect(markNeedsReview).not.toHaveBeenCalled();
+  });
+
   it("throws on an invalid payload before touching the DB", async () => {
     const { handleGenerateChapter } = await import("./generateChapterHandler");
     await expect(handleGenerateChapter({ chapter_index: 1 } as unknown as never)).rejects.toThrow(/Invalid generate_chapter payload/);
@@ -281,6 +300,68 @@ describe("handleGenerateChapter self-chaining", () => {
     expect(markNeedsReview).not.toHaveBeenCalled();
     expect(enqueueJob).toHaveBeenCalledWith(
       expect.objectContaining({ type: "generate_chapter", payload: expect.objectContaining({ chapter_index: 2 }) }),
+    );
+  });
+
+  it("halts with needs_review when a validation-rejected state diff occurs under a checkpoint mode (M0.2)", async () => {
+    getRun.mockResolvedValue({ ...runningRun, checkpoint_mode: "on_fail" });
+    chatCompletionWithRetry.mockResolvedValue({
+      content: JSON.stringify({
+        character_updates: [{ name: "凭空人物", changes: { current_location: "裂井" }, confidence: "high" }],
+      }),
+    });
+    const { handleGenerateChapter } = await import("./generateChapterHandler");
+
+    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1, run_id: "run-1" });
+
+    // 章节本体已落库,摘要/索引照常排队,但 Bible 不合并、run 挂起待人工
+    expect(upsertChapter).toHaveBeenCalledTimes(1);
+    expect(updateBible).not.toHaveBeenCalled();
+    expect(markNeedsReview).toHaveBeenCalledWith("run-1", expect.stringContaining("状态变更被校验拒绝"));
+    expect(enqueueJob).not.toHaveBeenCalledWith(expect.objectContaining({ type: "generate_chapter" }));
+  });
+
+  it("keeps chaining on a validation-rejected state diff under checkpoint_mode none (M0.2)", async () => {
+    getRun.mockResolvedValue({ ...runningRun, checkpoint_mode: "none" });
+    chatCompletionWithRetry.mockResolvedValue({
+      content: JSON.stringify({
+        character_updates: [{ name: "凭空人物", changes: { current_location: "裂井" }, confidence: "high" }],
+      }),
+    });
+    const { handleGenerateChapter } = await import("./generateChapterHandler");
+
+    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1, run_id: "run-1" });
+
+    expect(updateBible).not.toHaveBeenCalled();
+    expect(markNeedsReview).not.toHaveBeenCalled();
+    expect(enqueueJob).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "generate_chapter", payload: expect.objectContaining({ chapter_index: 2 }) }),
+    );
+  });
+
+  it("forwards the pipeline's criticIssues into the quality gate so the critic floor can apply", async () => {
+    getRun.mockResolvedValue({ ...runningRun });
+    const criticIssues = [
+      { type: "world_rule", severity: "critical", description: "违反认主不可逆", suggestion: "改掉" },
+    ];
+    runChapterPipeline.mockResolvedValue({
+      chapterIndex: 1,
+      title: "第1章",
+      content: "本章正文：沈言蹲在灶前，火光跳动。",
+      criticIssues,
+      revisedRounds: 2,
+      rawCleanupHits: [],
+      cost: { cny: 0.01, tokenIn: 100, tokenOut: 200 },
+      model: "mock-model",
+    });
+    const { handleGenerateChapter } = await import("./generateChapterHandler");
+
+    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1, run_id: "run-1" });
+
+    expect(evaluateChapterGate).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.any(Object),
+      expect.objectContaining({ criticIssues }),
     );
   });
 

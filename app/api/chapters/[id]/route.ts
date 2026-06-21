@@ -1,6 +1,6 @@
 import { jsonError } from "@/lib/http/json";
 import { createHash } from "node:crypto";
-import { runPendingJobsForNovel } from "@/lib/jobs/queue";
+import { enqueueJob, runPendingJobsForNovel } from "@/lib/jobs/queue";
 
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
@@ -165,10 +165,15 @@ export async function PATCH(request: Request, context: RouteContext) {
       return updated;
     });
 
-    // Fire-and-forget: when a manual save or mark-done changes content,
-    // drain the background job queue so the chapter gets summarized and
-    // indexed without the user having to visit the management page.
+    // M3.1 auto-postprocess: when a manual save or mark-done changes content,
+    // enqueue summarize + index jobs then drain the queue so the chapter gets
+    // post-processed immediately — matching the auto-pilot path that does the
+    // same in generateChapterHandler.ts:153-154. Without this, manually
+    // generated chapters never get summaries or RAG memory chunks unless the
+    // user visits the chapter management page and clicks "refresh dirty".
     if (contentChanged && (source === "manual" || isPublishing)) {
+      await enqueueJob({ type: "summarize_chapter", payload: { chapter_id: chapter.id }, novelId: existing.novel_id });
+      await enqueueJob({ type: "index_chapter", payload: { novel_id: existing.novel_id, chapter_id: chapter.id }, novelId: existing.novel_id });
       void runPendingJobsForNovel(existing.novel_id).catch(() => {});
     }
 

@@ -64,7 +64,7 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
     } catch {
       // ignore
     }
-    document.documentElement.style.setProperty("--width-sidebar", next ? "80px" : "260px");
+    document.querySelector<HTMLElement>("[data-app-shell]")?.setAttribute("data-sidebar-collapsed", String(next));
   };
 
   const handleLogout = async () => {
@@ -107,7 +107,28 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
   };
 
   return (
-    <aside className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-secondary border-r border-border-subtle transition-[width] duration-300 ease-in-out ${isCollapsed ? "w-20" : "w-[260px]"}`}>
+    <aside
+      data-collapsed={isCollapsed}
+      className={`app-sidebar fixed inset-y-0 left-0 z-50 hidden flex-col border-r border-border-subtle transition-[width] duration-300 ease-in-out md:flex ${isCollapsed ? "w-20" : "w-[260px]"}`}
+    >
+      <button
+        onClick={toggleCollapse}
+        aria-label={isCollapsed ? "展开主侧栏" : "收起主侧栏"}
+        aria-expanded={!isCollapsed}
+        className="app-sidebar-edge-toggle"
+        title={isCollapsed ? "展开主侧栏" : "收起主侧栏"}
+      >
+        <svg
+          className={`h-4 w-4 transition-transform duration-300 ${isCollapsed ? "rotate-180" : ""}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+        </svg>
+      </button>
+
       <div className="h-24 flex-shrink-0 flex items-center px-6">
         <div className={`flex items-center transition-[justify-content,gap] duration-300 ${isCollapsed ? "w-full justify-center" : "gap-3.5"}`}>
           <div className="h-9 w-9 rounded-xl bg-text-primary flex items-center justify-center text-white font-bold text-lg shadow-premium shrink-0">A</div>
@@ -150,25 +171,6 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
             {!isCollapsed && <span className="animate-fade-in">退出登录</span>}
-          </button>
-
-          <button
-            onClick={toggleCollapse}
-            aria-label={isCollapsed ? "展开侧栏" : "收起侧栏"}
-            aria-expanded={!isCollapsed}
-            className={`flex items-center justify-center rounded-xl bg-white border border-border-subtle text-text-dim hover:text-text-primary transition-[background-color,color,box-shadow] duration-200 shadow-sm h-10 w-full ${!isCollapsed ? "gap-2" : ""}`}
-            title={isCollapsed ? "展开侧栏" : "收起侧栏"}
-          >
-            <svg
-              className={`w-4 h-4 transition-transform duration-500 ${isCollapsed ? "rotate-180" : ""}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-            </svg>
-            {!isCollapsed && <span className="text-[11px] font-bold uppercase tracking-wider">收起侧栏</span>}
           </button>
         </div>
       </div>

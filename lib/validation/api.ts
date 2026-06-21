@@ -9,7 +9,7 @@ import { BibleDraftSchema, GenreMainEnum, NovelProfileSchema } from "./domain";
 export const CreateSessionRequestSchema = z.object({
   title: z.string().max(64).optional(),
   genre_main: GenreMainEnum,
-  genre_sub: z.string().min(1).max(40),
+  genre_sub: z.string().min(1).max(200),
   description: z.string().max(500).optional(),
 });
 
@@ -20,6 +20,7 @@ export const CreateSessionResponseSchema = z.object({
 
 export const LoglineRequestSchema = z.object({
   regenerate: z.boolean().optional(),
+  logline: z.string().min(1).max(200).optional(),
 });
 
 export const QuestionsRequestSchema = z.object({
@@ -30,6 +31,7 @@ export const BibleStreamRequestSchema = z.object({
   logline: z.string().min(1).max(200),
   answers: z.record(z.union([z.string(), z.array(z.string())])),
   profile: NovelProfileSchema,
+  total_chapters: z.number().int().min(8).max(80).optional(),
 });
 
 export const FinalizeRequestSchema = z.object({
@@ -110,7 +112,7 @@ export const CHAPTER_REVISION_CONTEXT_MAX_CHARS = 4_000;
 export const CHAPTER_REVISION_SELECTED_TEXT_MAX_CHARS = 12_000;
 
 const CriticIssueSchema = z.object({
-  type: z.enum(["character", "world_rule", "plot_thread", "timeline", "tone"]),
+  type: z.enum(["character", "world_rule", "plot_thread", "timeline", "tone", "logic_chain", "prose_quality"]),
   severity: z.enum(["critical", "major", "minor"]),
   description: z.string().min(1).max(2000),
   suggestion: z.string().max(2000).optional(),

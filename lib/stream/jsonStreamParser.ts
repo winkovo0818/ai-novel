@@ -43,14 +43,27 @@ export function createBibleEventCursor(): BibleEventCursor {
   };
 }
 
-export function tryParseBibleDraft(buffer: string): BibleDraft | null {
+export function tryParseBibleDraft(buffer: string, minChapterCount?: number): BibleDraft | null {
   const trimmed = stripJsonFence(buffer).trim();
   if (!trimmed.endsWith("}")) return null;
 
   try {
     const parsed = JSON.parse(trimmed);
     const result = BibleDraftSchema.safeParse(parsed);
-    return result.success ? result.data : null;
+    if (!result.success) return null;
+
+    const actualChapterCount = result.data.outline.volume_1.chapters.length;
+    if (
+      typeof minChapterCount === "number" &&
+      actualChapterCount < minChapterCount
+    ) {
+      logWarn("stream.bible_chapter_count_shortfall", {
+        expected_min: minChapterCount,
+        actual: actualChapterCount,
+      });
+    }
+
+    return result.data;
   } catch (err) {
     // Streaming JSON may be incomplete — expected, not an error.
     logWarn("stream.bible_parse_failed", { reason: errorMessage(err) });

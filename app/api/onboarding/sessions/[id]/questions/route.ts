@@ -2,6 +2,7 @@ import { jsonError } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { authorizeOnboardingSession } from "@/lib/auth/onboardingAccess";
 import { isRateLimited } from "@/lib/auth/rateLimit";
+import { ZodError } from "zod";
 import { chatCompletionWithRetry } from "@/lib/llm/client";
 import { checkQuota, estimateLlmMessagesCostCny, quotaExceededResponse } from "@/lib/llm/usage";
 import { buildQuestionsPrompt } from "@/lib/llm/prompts/questions";
@@ -61,7 +62,7 @@ export async function POST(request: Request, context: RouteContext) {
       responseFormat: "json_object",
       temperature: 0.7,
       timeoutMs: 15_000,
-    });
+    }, 0);
 
     const data = QuestionsResponseSchema.parse(parseJson(result.content));
 
@@ -86,7 +87,7 @@ function parseJson(value: string): unknown {
 function llmErrorResponse(err: unknown) {
   const message = err instanceof Error ? err.message : "unknown error";
   const isTimeout = /timed out/i.test(message);
-  const isParse = err instanceof SyntaxError || /invalid|parse/i.test(message);
+  const isParse = err instanceof SyntaxError || err instanceof ZodError || /invalid|parse/i.test(message);
   const code = isTimeout ? "LLM_TIMEOUT" : isParse ? "LLM_PARSE_FAILED" : "INTERNAL";
   return jsonError(code, message, true, isTimeout ? 504 : isParse ? 502 : 500);
 }

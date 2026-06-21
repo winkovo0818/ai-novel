@@ -4,6 +4,7 @@ import {
   buildCspRequestHeaders,
   createCspNonce,
 } from "@/lib/security/csp";
+import { isE2eBypassEnabled } from "@/lib/auth/e2eBypass";
 import NextAuth from "next-auth";
 import { authConfig } from "@/auth.config";
 import { NextResponse } from "next/server";
@@ -30,7 +31,7 @@ export default auth((request) => {
     },
   });
 
-  const hasE2eUser = process.env.E2E_AUTH_BYPASS === "1" && process.env.E2E_TEST_USER_ID;
+  const hasE2eUser = isE2eBypassEnabled() && process.env.E2E_TEST_USER_ID;
   const user = hasE2eUser ? { id: process.env.E2E_TEST_USER_ID } : request.auth?.user;
 
   if (user && (request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/signup")) {

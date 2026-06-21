@@ -77,7 +77,7 @@ export const QuestionsResponseSchema = z.object({
 // ──────────────────────────────────────────────────
 
 export const LoglinesResponseSchema = z.object({
-  loglines: z.array(z.string().min(1).max(60)).length(5),
+  loglines: z.array(z.string().min(1).max(200)).length(5),
 });
 
 // ──────────────────────────────────────────────────
@@ -127,7 +127,7 @@ export const BeatSchema = z.object({
 });
 
 export const BibleMetaSchema = z.object({
-    suggested_title: z.string().min(2).max(8),
+    suggested_title: z.string().min(2).max(30),
     alternative_titles: z.array(z.string().min(2).max(8)).length(3),
 });
 

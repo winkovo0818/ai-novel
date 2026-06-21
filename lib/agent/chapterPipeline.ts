@@ -8,6 +8,7 @@ import { buildChapterPrompt } from "@/lib/llm/prompts/chapter";
 import { buildChapterRevisionPrompt } from "@/lib/llm/prompts/chapterRevision";
 import { buildCriticPrompt, type CriticResult } from "@/lib/llm/prompts/critic";
 import { cleanupWriterOutputWithReport, type CleanupHit } from "@/lib/llm/writerOutputCleanup";
+import { logWarn } from "@/lib/observability/logger";
 import type { BibleDraft, NovelProfile } from "@/lib/validation/schemas";
 
 const ROUTE_BASE = "/agent/chapter-pipeline";
@@ -57,12 +58,33 @@ interface CostAccumulator {
   model: string;
 }
 
-function parseCriticResult(raw: string): CriticResult {
+/**
+ * Parse the critic's JSON verdict. Returns `null` when the payload is not
+ * parseable JSON — callers must treat that as "review outcome unknown"
+ * (fail-closed), NOT as "no issues". The previous fail-open behavior
+ * (returning empty issues) let unreviewed chapters slip past the quality
+ * gate whenever the critic model drifted out of JSON mode.
+ */
+function parseCriticResult(raw: string): CriticResult | null {
   const parsed = parseFirstJsonObject<Partial<CriticResult>>(raw);
-  if (!parsed) return { consistent: false, issues: [] };
+  if (!parsed) return null;
   return {
     consistent: Boolean(parsed.consistent),
     issues: Array.isArray(parsed.issues) ? parsed.issues : [],
+  };
+}
+
+/**
+ * Synthetic issue injected when the critic output is unparseable twice in a
+ * row. Severity `major` so it surfaces in `criticIssues` → quality gate /
+ * needs_review, without auto-failing the whole run (tunable via CriticFloor).
+ */
+function buildCriticUnparseableIssue(chapterIndex: number): CriticIssue {
+  return {
+    type: "logic_chain",
+    severity: "major",
+    description: `第 ${chapterIndex} 章的 Critic 审校输出连续两次无法解析，本章未经一致性审校。`,
+    suggestion: "人工复核本章与前文的一致性后再定稿。",
   };
 }
 
@@ -124,23 +146,49 @@ export async function runChapterPipeline(input: RunChapterPipelineInput): Promis
 
   // 2. Critic → revise loop. Stop as soon as no major/critical issues remain.
   for (let round = 0; round < rounds; round += 1) {
-    const criticResp = await chatCompletionWithRetry({
-      route: `${ROUTE_BASE}/critic`,
-      agent: "critic",
-      novelId: input.novelId,
-      messages: buildCriticPrompt({
-        context,
-        chapterContent: text,
-        chapterIndex: input.chapterIndex,
-        isRevision: round > 0,
-        isMystery: policy.isMystery,
-      }),
-      responseFormat: "json_object",
-      temperature: 0,
-      timeoutMs: CRITIC_TIMEOUT_MS,
-    });
-    accrue(criticResp);
-    const critic = parseCriticResult(criticResp.content);
+    const runCritic = async () => {
+      const resp = await chatCompletionWithRetry({
+        route: `${ROUTE_BASE}/critic`,
+        agent: "critic",
+        novelId: input.novelId,
+        messages: buildCriticPrompt({
+          context,
+          chapterContent: text,
+          chapterIndex: input.chapterIndex,
+          isRevision: round > 0,
+          isMystery: policy.isMystery,
+        }),
+        responseFormat: "json_object",
+        temperature: 0,
+        timeoutMs: CRITIC_TIMEOUT_MS,
+      });
+      accrue(resp);
+      return parseCriticResult(resp.content);
+    };
+
+    // Fail-closed: unparseable critic output gets ONE immediate retry; if it
+    // still can't be parsed we record a synthetic major issue and stop —
+    // revising is pointless without a concrete issue to fix, but the chapter
+    // must NOT silently pass as "reviewed clean".
+    let critic = await runCritic();
+    if (critic === null) {
+      logWarn("chapter_pipeline.critic_unparseable_retry", {
+        novel_id: input.novelId,
+        chapter_index: input.chapterIndex,
+        round,
+      });
+      critic = await runCritic();
+    }
+    if (critic === null) {
+      logWarn("chapter_pipeline.critic_unparseable_final", {
+        novel_id: input.novelId,
+        chapter_index: input.chapterIndex,
+        round,
+      });
+      criticIssues = [buildCriticUnparseableIssue(input.chapterIndex)];
+      break;
+    }
+
     criticIssues = critic.issues;
     if (critic.consistent || !hasBlockingIssue(critic.issues)) break;
 

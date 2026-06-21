@@ -231,8 +231,8 @@ describe("evaluateNovelQuality", () => {
         outlineSummary: outlineSummary(index),
         content: "沈言握紧黑牌，裂井里传来声音。他必须去后山，因为符光亮了，所以他动身了。",
         rawCleanupHits: [
-          { id: "vocab_slowly", label: "AI 副词（慢慢）", category: "ai_signature", count: 4 },
-          { id: "dash_overuse", label: "旁白破折号", category: "ai_signature", count: 3 },
+          { id: "vocab_slowly", label: "AI 副词（慢慢）", category: "vocab", count: 4 },
+          { id: "dash_overuse", label: "旁白破折号", category: "format", count: 3 },
           { id: "ws_newline", label: "多余空行", category: "hygiene", count: 9 },
         ],
       })),
@@ -263,5 +263,149 @@ describe("evaluateNovelQuality", () => {
     expect(aiVoice?.warnings.some((w) => w.includes("清洗前 AI 签名"))).toBe(false);
     expect(aiVoice?.findings.some((f) => f.includes("清洗前 AI 签名"))).toBe(false);
     expect(report.rawCleanupHits).toEqual([]);
+  });
+});
+
+describe("evaluateNovelQuality 跨题材去过拟合", () => {
+  // 一部与玄幻 fixture 专名完全不同的都市悬疑小说。验证专名白名单跟着 Bible 走，
+  // 而不是写死玄幻的「木牌/裂井/剑魂」。
+  const urbanBible: BibleDraft = {
+    meta: { suggested_title: "回声档案", alternative_titles: ["静音", "录音带", "失踪者"] },
+    characters: [
+      {
+        role: "protagonist",
+        name: "林夏",
+        age: 29,
+        appearance: "短发，总是带着工牌",
+        personality: "谨慎、记性极好",
+        catchphrase: "再核一遍。",
+        abilities: ["速记", "察言观色"],
+        goals: "短期保住工作，长期查清同事失踪真相。",
+        motivation: "她是唯一见过失踪者最后一面的人。",
+        secrets: ["私存了一份录音"],
+        relations: [],
+      },
+      {
+        role: "antagonist",
+        name: "陈默",
+        age: 45,
+        appearance: "西装笔挺，笑容得体",
+        personality: "城府深，控场高手",
+        catchphrase: "公司会处理好。",
+        abilities: ["资源调度"],
+        goals: "短期压下舆情，长期销毁证据。",
+        motivation: "他相信牺牲个别人能保住整个项目。",
+        secrets: ["删过监控"],
+        relations: ["林夏的部门总监"],
+      },
+    ],
+    world: {
+      setting_summary: "一线城市的科技公司，加班、监控、KPI 与办公室政治交织。一名员工在项目上线前夜失踪。",
+      factions: [
+        { name: "风控部", alignment: "中立", role: "林夏所在部门" },
+        { name: "集团法务", alignment: "压力源", role: "替公司灭火" },
+      ],
+      rules: ["门禁刷卡留痕", "监控保留三十天"],
+      geography: ["写字楼", "地下车库"],
+    },
+    outline: {
+      volume_1: {
+        name: "上线前夜",
+        theme: "一段录音掀开整个项目的盖子",
+        chapter_count_estimate: 4,
+        chapters: [
+          { index: 1, title: "最后一面", summary: "林夏在地下车库见到失踪同事最后一面，对方塞给她一支录音笔。" },
+          { index: 2, title: "工牌留痕", summary: "林夏发现自己的工牌门禁记录被人改过，决定先不声张。" },
+          { index: 3, title: "监控空白", summary: "林夏查到那晚监控有十分钟空白，确认陈默删过录像。" },
+          { index: 4, title: "回声", summary: "林夏把录音笔里的内容备份到 U 盘，反将陈默一军。" },
+        ],
+      },
+    },
+    first_chapter_beats: [
+      { beat: 1, scene: "地下车库", purpose: "交代失踪事件与录音笔" },
+      { beat: 2, scene: "工位", purpose: "制造压迫" },
+      { beat: 3, scene: "监控室", purpose: "引出空白十分钟" },
+      { beat: 4, scene: "总监谈话", purpose: "抛出下一步危机" },
+    ],
+  };
+
+  // 一段都市正文：含 urbanBible 的专名（录音笔/工牌/监控/U盘/写字楼），有承接桥与状态变化。
+  const urbanChapters = [
+    {
+      chapterIndex: 1,
+      title: "最后一面",
+      outlineSummary: urbanBible.outline.volume_1.chapters[0].summary,
+      content:
+        "地下车库的灯只亮一半。林夏在电梯口撞见周野，他把一支录音笔塞进她手里，没说话就走了。\n\n她攥住录音笔，指节发白。第二天，周野没来上班，工位清空，像从没存在过。",
+    },
+    {
+      chapterIndex: 2,
+      title: "工牌留痕",
+      outlineSummary: urbanBible.outline.volume_1.chapters[1].summary,
+      content:
+        "林夏没有声张。前一天那支录音笔还在她包里。她去查门禁，发现自己的工牌昨晚有一条不属于她的刷卡记录。\n\n有人用她的工牌进过监控室。她确认了时间，决定先装作什么都不知道。",
+    },
+    {
+      chapterIndex: 3,
+      title: "监控空白",
+      outlineSummary: urbanBible.outline.volume_1.chapters[2].summary,
+      content:
+        "监控调出来，那晚十一点到十一点十分是黑的。林夏反复看，确认这十分钟被人手动删过。\n\n她想起陈默白天那句「公司会处理好」，于是把录音笔里的音频拿到地下车库，戴上耳机重新听了一遍。",
+    },
+  ];
+
+  it("uses Bible-derived proper nouns: an urban chapter scores continuity/plot on its own Bible", () => {
+    const report = evaluateNovelQuality({
+      generatedAt: "2026-06-05T00:00:00.000Z",
+      fixtureId: "urban-matched",
+      bible: urbanBible,
+      chapters: urbanChapters,
+    });
+
+    // 承接桥 / 剧情推进不依赖玄幻硬编码专名，仍能在都市题材上给出合理评分。
+    const continuity = report.metrics.find((m) => m.key === "continuity");
+    const plot = report.metrics.find((m) => m.key === "plot_progress");
+    expect(continuity).toBeDefined();
+    expect(plot).toBeDefined();
+    // 至少不应因为「正文里没有木牌/裂井」而拿到承接桥的零分。
+    expect(continuity!.score).toBeGreaterThan(0);
+    expect(plot!.score).toBeGreaterThan(0);
+  });
+
+  it("does not misjudge an urban chapter by hardcoded xianxia terms (matched Bible beats mismatched on continuity)", () => {
+    const matched = evaluateNovelQuality({
+      generatedAt: "2026-06-05T00:00:00.000Z",
+      fixtureId: "urban-matched",
+      bible: urbanBible,
+      chapters: urbanChapters,
+    });
+    // 同一段都市正文，配一本毫不相干的玄幻 Bible：动态专名（录音笔/工牌…）不会进白名单。
+    const mismatched = evaluateNovelQuality({
+      generatedAt: "2026-06-05T00:00:00.000Z",
+      fixtureId: "urban-mismatched",
+      bible,
+      chapters: urbanChapters,
+    });
+
+    // 承接桥（hasBridge）依赖 tokens.objects/places。都市正文里有「录音笔/工牌/写字楼」，
+    // 只有都市 Bible 能把它们识别为承接桥；玄幻 Bible 的「木牌/裂井」在正文里找不到，
+    // 连续性因此更低。这正是去过拟合的直接证据：白名单跟着 Bible 走，而非写死。
+    const matchedContinuity = matched.metrics.find((m) => m.key === "continuity")!.score;
+    const mismatchedContinuity = mismatched.metrics.find((m) => m.key === "continuity")!.score;
+    expect(matchedContinuity).toBeGreaterThan(mismatchedContinuity);
+  });
+
+  it("records the shadow TTR finding without affecting the score", () => {
+    const report = evaluateNovelQuality({
+      generatedAt: "2026-06-05T00:00:00.000Z",
+      fixtureId: "urban-shadow",
+      bible: urbanBible,
+      chapters: urbanChapters,
+    });
+    const aiVoice = report.metrics.find((m) => m.key === "ai_voice")!;
+    // shadow 特征只记录、不扣分：findings 里出现 TTR，且 ai_voice 分仍在合法区间。
+    expect(aiVoice.findings.some((f) => f.includes("[shadow] 词汇丰富度 TTR"))).toBe(true);
+    expect(aiVoice.score).toBeGreaterThanOrEqual(0);
+    expect(aiVoice.score).toBeLessThanOrEqual(10);
   });
 });

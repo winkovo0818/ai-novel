@@ -4,6 +4,7 @@ import {
   createStateDiffSelection,
   detectStateDiffConflicts,
   filterStateDiff,
+  validateStateDiff,
 } from "./stateDiffMerge";
 import type { BibleDraft, StateDiff } from "./schemas";
 
@@ -440,5 +441,101 @@ describe("detectStateDiffConflicts", () => {
     });
 
     expect(warnings).toEqual([]);
+  });
+});
+
+describe("validateStateDiff (M0.2 pre-merge validation)", () => {
+  const emptyDiff: StateDiff = {
+    character_updates: [],
+    timeline_events: [],
+    plot_thread_updates: [],
+    new_entities: [],
+  };
+
+  it("passes a clean diff referencing known characters", () => {
+    const diff: StateDiff = {
+      ...emptyDiff,
+      character_updates: [{ name: "主角", changes: { current_location: "城镇" }, confidence: "high" }],
+      timeline_events: [{ event: "到达城镇" }],
+    };
+
+    expect(validateStateDiff(baseBible, diff, "主角抵达了城镇。")).toEqual([]);
+  });
+
+  it("rejects a hallucinated character absent from Bible, story_state, new_entities and chapter text", () => {
+    const diff: StateDiff = {
+      ...emptyDiff,
+      character_updates: [{ name: "凭空人物", changes: { current_location: "城镇" }, confidence: "high" }],
+    };
+
+    const issues = validateStateDiff(baseBible, diff, "主角抵达了城镇,遇见了导师。");
+
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("unknown_character");
+    expect(issues[0].message).toContain("凭空人物");
+  });
+
+  it("accepts an unknown character when it literally appears in the chapter text", () => {
+    const diff: StateDiff = {
+      ...emptyDiff,
+      character_updates: [{ name: "铁匠老周", changes: { current_status: "受伤" }, confidence: "medium" }],
+    };
+
+    expect(validateStateDiff(baseBible, diff, "铁匠老周在巷口被打伤了。")).toEqual([]);
+  });
+
+  it("accepts an unknown character introduced by this diff's new_entities", () => {
+    const diff: StateDiff = {
+      ...emptyDiff,
+      character_updates: [{ name: "神秘旅人", changes: { current_location: "酒馆" }, confidence: "low" }],
+      new_entities: [{ type: "character", name: "神秘旅人", description: "斗篷遮面的旅人" }],
+    };
+
+    expect(validateStateDiff(baseBible, diff, "正文未直接点名。")).toEqual([]);
+  });
+
+  it("rejects a resolved plot thread regressing to progressing", () => {
+    const bible: BibleDraft = {
+      ...baseBible,
+      story_state: {
+        plot_threads: [{ id: "t1", title: "复仇之路", status: "resolved", introduced_in: 1, resolved_in: 9 }],
+      },
+    };
+    const diff: StateDiff = {
+      ...emptyDiff,
+      plot_thread_updates: [{ title: "复仇之路", status: "progressing", notes: "又被推进?" }],
+    };
+
+    const issues = validateStateDiff(bible, diff, "正文。");
+
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("thread_status_regression");
+  });
+
+  it("allows re-resolving an already resolved thread (dedup is a warning, not a hard reject)", () => {
+    const bible: BibleDraft = {
+      ...baseBible,
+      story_state: {
+        plot_threads: [{ id: "t1", title: "复仇之路", status: "resolved", introduced_in: 1 }],
+      },
+    };
+    const diff: StateDiff = {
+      ...emptyDiff,
+      plot_thread_updates: [{ title: "复仇之路", status: "resolved" }],
+    };
+
+    expect(validateStateDiff(bible, diff, "正文。")).toEqual([]);
+  });
+
+  it("rejects an oversized diff wholesale without running per-item checks", () => {
+    const diff: StateDiff = {
+      ...emptyDiff,
+      timeline_events: Array.from({ length: 16 }, (_, i) => ({ event: `事件${i + 1}` })),
+    };
+
+    const issues = validateStateDiff(baseBible, diff, "正文。");
+
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("diff_too_large");
   });
 });

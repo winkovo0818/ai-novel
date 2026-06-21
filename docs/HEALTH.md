@@ -74,15 +74,15 @@
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
 | `npm run lint` | ✅ 通过（零 warning） | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **124 files / 987 tests** 全绿,约 3s | auto-generate API 测试并入，清理残留 copy 文件 |
+| `npm run test` | ✅ **126 files / 1030 tests** 全绿,约 3s | auto-generate API 测试并入，清理残留 copy 文件 |
 | `npm run build` | ✅ 通过 | |
 | Playwright E2E | ✅ 8 tests（onboarding / editor-failure / editor-candidate × 4 / version-restore / beat-to-draft）全绿；P0-1 后按钮文案对齐 M1.3 候选稿模式 | 本轮全量 `npx playwright test` 已通过 |
 | `npm run smoke:onboarding` | ✅ 通过 | 2026-05-15 本地生产服务 + `LLM_MOCK=1` |
 | `npm run backup:check` | 待生产配置后运行 | 需设置 `BACKUP_LAST_SUCCESS_AT` 或 `BACKUP_CHECK_LAST_SUCCESS_AT` |
 | Coverage（v8） | ✅ lines/statements 68 · functions 93 · branches 83 阈值入 CI；基线 70.04/94.24/85.50 | summaries / handlers / chapterStatus 100% |
-| Prisma migrations | 30 条 | 含 `20260515010000_add_authjs_tables`；部署前需 `prisma migrate deploy` |
+| Prisma migrations | 31 条 | 含 `20260515010000_add_authjs_tables`；部署前需 `prisma migrate deploy` |
 
-**规模**：业务源码 17,500+ LoC（136 ts/tsx）；测试 7,700+ LoC（124 个 .test.ts）；59 个 API route + 27 个 page.tsx；24 个 Prisma model。
+**规模**：业务源码 17,500+ LoC（136 ts/tsx）；测试 7,700+ LoC（126 个 .test.ts）；61 个 API route + 28 个 page.tsx；24 个 Prisma model。
 
 ---
 
@@ -132,7 +132,7 @@
 
 - [x] **rateLimit Redis 适配器** ✅ Upstash REST 落地（2026-05-12），fail-open 异常路径 + 接口转 async + normalizeRouteKey bug 顺手修复
 - [x] **`/api/healthz` 合并探针** ✅ DB + pgvector + Auth.js config 三维（2026-05-12/15），200/503 + 子系统级 code 分类
-- [x] **`useChapterEditor.ts`（378 行，hook + 交互覆盖起步）** ✅ 已拆分到 380 行以内 — 纯函数、持久化 / 版本 / 候选稿 / state-diff / beat-sheet / actions / selection / core state 均已拆出，并补关键路径轻量 hook 测试与 EditorClient 交互布线测试；后续如需更高信心再切 jsdom + RTL
+- [x] **`useChapterEditor.ts`（380 行，hook + 交互覆盖起步）** ✅ 已拆分到 380 行以内 — 纯函数、持久化 / 版本 / 候选稿 / state-diff / beat-sheet / actions / selection / core state 均已拆出，并补关键路径轻量 hook 测试与 EditorClient 交互布线测试；后续如需更高信心再切 jsdom + RTL
 - [x] **`lib/agent/summaries.ts`** ✅ 100% 覆盖（2026-05-11 深夜）
 - [x] **`lib/jobs/handlers.ts`** ✅ 100% 覆盖（2026-05-11 深夜）
 - [x] **`lib/agent/chapterStatus.ts`** ✅ 100% 覆盖（2026-05-12）— buildChapterStatus + getChapterStatusesForNovel 都已覆盖；2026-05-13 补 dirty/job 优先级组合快照

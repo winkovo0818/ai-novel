@@ -1,7 +1,8 @@
 import { auth } from "@/auth";
+import { isE2eBypassEnabled } from "@/lib/auth/e2eBypass";
 
 function getE2eUserId(): string | null {
-  if (process.env.E2E_AUTH_BYPASS !== "1") return null;
+  if (!isE2eBypassEnabled()) return null;
   return process.env.E2E_TEST_USER_ID || null;
 }
 

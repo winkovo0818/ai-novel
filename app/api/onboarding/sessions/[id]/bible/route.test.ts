@@ -5,6 +5,7 @@ const isRateLimited = vi.fn();
 const checkQuota = vi.fn();
 const moderateContent = vi.fn();
 const streamChatCompletionWithRetry = vi.fn();
+const chatCompletionWithRetry = vi.fn();
 const update = vi.fn();
 
 vi.mock("@/lib/auth/onboardingAccess", () => ({
@@ -42,6 +43,7 @@ vi.mock("@/lib/moderation/moderate", () => ({
 
 vi.mock("@/lib/llm/client", () => ({
   streamChatCompletionWithRetry,
+  chatCompletionWithRetry,
 }));
 
 vi.mock("@/lib/db", () => ({

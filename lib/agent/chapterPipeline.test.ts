@@ -98,7 +98,25 @@ describe("runChapterPipeline", () => {
     expect(chatCompletionWithRetry).toHaveBeenCalledTimes(5); // writer + 2×(critic+revise)
   });
 
-  it("treats unparseable critic JSON as no blocking issues instead of throwing", async () => {
+  it("retries once on unparseable critic JSON and proceeds when the retry parses", async () => {
+    const { runChapterPipeline } = await import("./chapterPipeline");
+    const criticQueue = [
+      "抱歉，这里是一段不是 JSON 的模型废话。",
+      JSON.stringify({ consistent: true }),
+    ];
+    chatCompletionWithRetry.mockImplementation(async (opts: { agent?: string; route: string }) => {
+      if (opts.agent === "critic") return mockResult(criticQueue.shift() ?? JSON.stringify({ consistent: true }));
+      return mockResult("正文内容。");
+    });
+
+    const result = await runChapterPipeline({ ...baseInput });
+
+    expect(result.revisedRounds).toBe(0);
+    expect(result.criticIssues).toEqual([]);
+    expect(chatCompletionWithRetry).toHaveBeenCalledTimes(3); // writer + critic(bad) + critic(retry ok)
+  });
+
+  it("fails closed with a synthetic major issue when critic JSON is unparseable twice", async () => {
     const { runChapterPipeline } = await import("./chapterPipeline");
     chatCompletionWithRetry.mockImplementation(async (opts: { agent?: string; route: string }) => {
       if (opts.agent === "critic") return mockResult("抱歉，这里是一段不是 JSON 的模型废话。");
@@ -107,8 +125,12 @@ describe("runChapterPipeline", () => {
 
     const result = await runChapterPipeline({ ...baseInput });
 
+    // No revise (nothing concrete to fix), but the chapter must NOT pass as reviewed-clean:
+    // the synthetic major issue flows into criticIssues → quality gate / needs_review.
     expect(result.revisedRounds).toBe(0);
-    expect(result.criticIssues).toEqual([]);
-    expect(chatCompletionWithRetry).toHaveBeenCalledTimes(2); // writer + 1 critic, no revise
+    expect(result.criticIssues).toHaveLength(1);
+    expect(result.criticIssues[0].severity).toBe("major");
+    expect(result.criticIssues[0].description).toContain("未经一致性审校");
+    expect(chatCompletionWithRetry).toHaveBeenCalledTimes(3); // writer + critic + critic retry, no revise
   });
 });

@@ -34,6 +34,7 @@ interface ModerationDecisionFields {
   code?: "MODERATION_BLOCKED";
   reason?: string;
   matched_pattern?: string;
+  evidence_text?: string;
   error?: string;
 }
 
@@ -48,13 +49,15 @@ const MODERATION_PROMPT = `你是一个内容安全审核员。判断以下文�
 
 回复 JSON 格式：
 - 安全内容：{"allowed": true}
-- 违规内容：{"allowed": false, "reason": "简要说明违规类型"}
+- 违规内容：{"allowed": false, "reason": "简要说明违规类型", "evidence": "最相关的原文短句，最多80字"}
 
 仅回复 JSON，不要其他内容。`;
 
 const MODERATION_AUDIT_RETENTION_MS = Number(
   process.env.MODERATION_AUDIT_RETENTION_MS ?? 90 * 24 * 60 * 60 * 1000,
 );
+const MODERATION_EVIDENCE_MAX_CHARS = 240;
+const MODERATION_KEYWORD_CONTEXT_CHARS = 72;
 
 /**
  * Hard-blocked keyword patterns. A match is ALWAYS rejected regardless of
@@ -73,6 +76,8 @@ export const BLOCKED_KEYWORDS: readonly RegExp[] = [
 export interface BlockedKeywordMatch {
   /** The pattern that fired (useful for telemetry / debugging). */
   pattern: RegExp;
+  /** Exact text span matched by the pattern. */
+  matchText: string;
   /** UI-ready Chinese reason — kept identical to the legacy moderate path. */
   reason: string;
 }
@@ -85,8 +90,9 @@ export interface BlockedKeywordMatch {
  */
 export function matchBlockedKeywords(text: string): BlockedKeywordMatch | null {
   for (const pattern of BLOCKED_KEYWORDS) {
-    if (pattern.test(text)) {
-      return { pattern, reason: "内容包含违规关键词" };
+    const match = text.match(pattern);
+    if (match) {
+      return { pattern, matchText: match[0], reason: "内容包含违规关键词" };
     }
   }
   return null;
@@ -102,6 +108,7 @@ export async function moderateContent(input: ModerationInput): Promise<Moderatio
       outcome: "blocked",
       code: "MODERATION_BLOCKED",
       matched_pattern: localHit.pattern.source,
+      evidence_text: extractKeywordExcerpt(input.text, localHit.matchText) ?? undefined,
     });
     return {
       allowed: false,
@@ -125,6 +132,7 @@ export async function moderateContent(input: ModerationInput): Promise<Moderatio
     const parsed = JSON.parse(result.content) as {
       allowed?: boolean;
       reason?: string;
+      evidence?: string;
     };
 
     if (parsed.allowed === false) {
@@ -134,6 +142,7 @@ export async function moderateContent(input: ModerationInput): Promise<Moderatio
         outcome: "blocked",
         code: "MODERATION_BLOCKED",
         reason: parsed.reason ?? "内容审核未通过",
+        evidence_text: buildAuditExcerpt(input.text, parsed.evidence) ?? undefined,
       });
       return {
         allowed: false,
@@ -251,6 +260,7 @@ async function recordModerationDecision(
         code: decision.code ?? null,
         reason: decision.reason ?? null,
         matched_pattern: decision.matched_pattern ?? null,
+        text_excerpt: decision.evidence_text ? sanitizeAuditExcerpt(decision.evidence_text) : null,
         text_hash: createHash("sha256").update(input.text).digest("hex"),
         text_chars: input.text.length,
       },
@@ -263,4 +273,31 @@ async function recordModerationDecision(
       error: errorMessage(err),
     });
   }
+}
+
+function buildAuditExcerpt(text: string, preferred?: string | null): string | null {
+  const sanitizedPreferred = sanitizeAuditExcerpt(preferred);
+  if (sanitizedPreferred) return sanitizedPreferred;
+  return sanitizeAuditExcerpt(text);
+}
+
+function extractKeywordExcerpt(text: string, matchText: string): string | null {
+  const normalizedMatch = matchText.trim();
+  if (!normalizedMatch) return buildAuditExcerpt(text);
+
+  const index = text.toLowerCase().indexOf(normalizedMatch.toLowerCase());
+  if (index < 0) return buildAuditExcerpt(text);
+
+  const start = Math.max(0, index - MODERATION_KEYWORD_CONTEXT_CHARS);
+  const end = Math.min(text.length, index + normalizedMatch.length + MODERATION_KEYWORD_CONTEXT_CHARS);
+  const prefix = start > 0 ? "..." : "";
+  const suffix = end < text.length ? "..." : "";
+  return sanitizeAuditExcerpt(`${prefix}${text.slice(start, end)}${suffix}`);
+}
+
+function sanitizeAuditExcerpt(value?: string | null): string | null {
+  const normalized = value?.replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+  if (normalized.length <= MODERATION_EVIDENCE_MAX_CHARS) return normalized;
+  return `${normalized.slice(0, MODERATION_EVIDENCE_MAX_CHARS - 3)}...`;
 }

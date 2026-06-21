@@ -1,13 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useWizardStore } from "@/lib/store/wizardStore";
 import { BibleDraftSchema, type BibleDraft } from "@/lib/validation/schemas";
 import { getVolumes } from "@/lib/validation/domain";
 import { StepShell } from "./StepShell";
-import React from "react";
 
 export function Step5Review() {
   const router = useRouter();
@@ -87,8 +86,8 @@ export function Step5Review() {
   }
 
   return (
-    <StepShell eyebrow="分册 05" title="核对作品设定" description="请最后检查生成后的设定和大纲。您可以直接修改不符合预期的细节，确认无误后即可开始写作。">
-      <div className="grid gap-8">
+    <StepShell eyebrow="Manuscript 03" title="核对作品设定" description="请最后检查生成后的设定和大纲。您可以直接修改不符合预期的细节，确认无误后即可开始写作。">
+      <div className="grid gap-6">
         {store.bible_draft ? (
           <BibleReviewCards draft={store.bible_draft} onChange={store.setBibleDraft} />
         ) : (
@@ -100,37 +99,37 @@ export function Step5Review() {
           <FinalizeSuccess editorUrl={finalizedEditorUrl} />
         ) : null}
 
-        <footer className="flex flex-wrap items-center justify-between gap-6 pt-8 border-t border-border-subtle">
-          <button 
-            className="group flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.2em] text-text-dim hover:text-red-500 transition duration-500 disabled:cursor-not-allowed disabled:opacity-40" 
+        <footer className="flex flex-col gap-4 border-t border-border-subtle pt-5 lg:flex-row lg:items-center lg:justify-between">
+          <button
+            type="button"
+            className="group inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border-subtle bg-white/75 px-4 text-[11px] font-black text-text-dim transition hover:border-red-200 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40 lg:justify-start"
             disabled={isFinalizing}
             onClick={regenerate}
           >
-            <div className="h-10 w-10 rounded-full border border-border-strong flex items-center justify-center group-hover:border-red-200 group-hover:bg-red-50 transition">
-              <svg aria-hidden="true" className="w-4 h-4 transition-transform duration-300 group-hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg aria-hidden="true" className="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-            </div>
             重新生成设定 ({store.regeneration_count}/3)
           </button>
           
-          <div className="flex items-center gap-4">
-            <button 
-              className="h-12 px-6 rounded-full border border-border-strong text-text-primary text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-secondary transition active:scale-95 disabled:opacity-30" 
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button
+              type="button"
+              className="h-11 rounded-lg border border-border-strong bg-white/75 px-5 text-[11px] font-black text-text-primary transition hover:bg-secondary active:scale-[0.98] disabled:opacity-30"
               disabled={isFinalizing} 
               onClick={() => finalize("save_only")}
             >
               {finalizingAction === "save_only" ? "正在暂存…" : "暂存草稿"}
             </button>
-            <button 
-              className="group h-14 px-8 rounded-full bg-text-primary text-white text-[11px] font-bold uppercase tracking-[0.2em] shadow-premium hover:bg-accent transition flex items-center gap-3 active:scale-95 disabled:opacity-30 relative overflow-hidden" 
+            <button
+              type="button"
+              className="group relative inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-text-primary px-6 text-[12px] font-black text-white shadow-[0_12px_34px_rgba(17,17,15,0.14)] transition hover:bg-accent active:scale-[0.98] disabled:opacity-30"
               disabled={isFinalizing} 
               onClick={() => finalize("start_writing")}
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer pointer-events-none" />
               {finalizingAction === "start_writing" ? (
                 <>
-                  <div className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
                   正在进入编辑器…
                 </>
               ) : (
@@ -151,16 +150,17 @@ export function Step5Review() {
 
 function FinalizeSuccess({ editorUrl }: { editorUrl: string }) {
   return (
-    <div className="card border-emerald-100 bg-emerald-50/30 p-6 shadow-none">
+    <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-5 shadow-sm">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-800">作品已暂存</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-800">作品已暂存</p>
           <p className="mt-2 text-sm leading-relaxed text-emerald-950/70">
             作品设定已保存，您可以稍后从书架继续，也可以现在进入编辑器开始写正文。
           </p>
         </div>
         <button
-          className="btn-primary h-11 shrink-0 rounded-full px-5 text-[11px] font-bold uppercase tracking-[0.18em]"
+          type="button"
+          className="h-11 shrink-0 rounded-lg bg-text-primary px-5 text-[11px] font-black text-white transition hover:bg-accent"
           onClick={() => window.location.assign(editorUrl)}
         >
           进入编辑器
@@ -172,15 +172,15 @@ function FinalizeSuccess({ editorUrl }: { editorUrl: string }) {
 
 function ValidationPanel({ issues }: { issues: string[] }) {
   return (
-    <div className="card bg-red-50/20 border-red-100 p-6 shadow-none animate-shake">
-      <div className="flex items-center gap-4 mb-4">
-        <span className="font-serif text-4xl text-red-200 leading-none">!</span>
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-800">内容需要补充</p>
+    <div className="animate-shake rounded-lg border border-red-100 bg-red-50/35 p-5 shadow-sm">
+      <div className="mb-4 flex items-center gap-3">
+        <span className="font-serif text-4xl leading-none text-red-200">!</span>
+        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-red-800">内容需要补充</p>
       </div>
-      <ul className="grid gap-2 ml-12">
+      <ul className="ml-10 grid gap-2">
         {issues.map((issue, i) => (
-          <li key={i} className="text-[13px] text-red-900/60 font-serif">
-            <span className="text-red-300 mr-2 font-sans font-bold text-[9px]">待修正</span> {issue}
+          <li key={i} className="font-serif text-[13px] text-red-900/65">
+            <span className="mr-2 font-sans text-[9px] font-bold text-red-300">待修正</span> {issue}
           </li>
         ))}
       </ul>
@@ -328,22 +328,6 @@ function BibleReviewCards({
     }
   }
 
-  function addVolume() {
-    if (!draft.outline) return;
-    const extras = draft.outline.volumes ?? [];
-    if (extras.length >= 20 || totalChapters() >= 1000) return;
-    const volNum = extras.length + 2;
-    const placeholderChapters = Array.from({ length: 8 }, (_, i) => ({
-      index: 0,
-      title: `第${i + 1}章`,
-      summary: `第${volNum}卷章节梗概，待详细补充叙事线索与冲突走向。`,
-    }));
-    const newVol = { name: `第${volNum}卷`, theme: "待定", chapter_count_estimate: 8, chapters: placeholderChapters };
-    const nextOutline = { ...draft.outline, volumes: [...extras, newVol] };
-    const { reindexedV1, reindexedExtras } = reindexAndApply(nextOutline.volumes, nextOutline.volume_1);
-    onChange({ ...draft, outline: { volume_1: reindexedV1, volumes: reindexedExtras } });
-  }
-
   function updateBeat(index: number, patch: Partial<BibleDraft["first_chapter_beats"][number]>) {
     const beats = [...(draft.first_chapter_beats ?? [])];
     const current = beats[index];
@@ -376,18 +360,22 @@ function BibleReviewCards({
       ...draft,
       first_chapter_beats: beats
         .filter((_, i) => i !== index)
-        .map((beat, i) => ({ ...beat, beat: i + 1 })),
+      .map((beat, i) => ({ ...beat, beat: i + 1 })),
     });
   }
 
+  const outlineVolumes = draft.outline ? getVolumes(draft as BibleDraft) : [];
+  const hasMultipleVolumes = outlineVolumes.length > 1;
+  const firstOutlineVolume = outlineVolumes[0];
+
   return (
-    <div className="grid gap-12">
+    <div className="grid gap-7">
       {/* Meta Section */}
-      <section className="bg-white border-b border-border-strong pb-8 group relative">
+      <section className="group relative border-b border-border-strong bg-white pb-6">
         <FolioIndex index="01" label="作品基础信息" />
-        <div className="grid gap-6 mt-8">
+        <div className="mt-6 grid gap-5">
           <TextField
-            className="text-4xl md:text-5xl font-serif font-normal !bg-transparent !border-none !px-0 focus:!ring-0 placeholder:text-text-dim/10"
+            className="font-serif text-3xl font-normal tracking-normal !border-none !bg-transparent !px-0 placeholder:text-text-dim/10 focus:!ring-0 md:text-4xl"
             value={draft.meta?.suggested_title ?? ""}
             placeholder="未命名的作品"
             onChange={(value) => updateMeta({
@@ -397,8 +385,8 @@ function BibleReviewCards({
           />
           <div className="flex flex-wrap gap-2">
             {(draft.meta?.alternative_titles ?? []).map((title, i) => (
-              <span key={i} className="px-4 py-1 bg-secondary border border-border-subtle rounded-full text-[12px] font-serif text-text-muted">
-                <span className="opacity-30 mr-2 font-sans font-bold uppercase text-[8px]">备选 {i+1}</span>
+              <span key={i} className="rounded-lg border border-border-subtle bg-secondary px-3 py-1 text-[12px] font-serif text-text-muted">
+                <span className="mr-2 font-sans text-[8px] font-bold uppercase opacity-30">备选 {i + 1}</span>
                 {title}
               </span>
             ))}
@@ -408,25 +396,27 @@ function BibleReviewCards({
 
       {/* Characters Grid */}
       <section className="group relative">
-        <header className="flex items-center justify-between mb-8">
+        <header className="mb-4 flex items-center justify-between gap-3">
            <FolioIndex index="02" label="主要角色" />
-           <button 
-            className="btn-secondary !h-9 !px-5 text-[10px] font-bold rounded-full uppercase tracking-[0.2em] shadow-sm hover:border-accent" 
+           <button
+            type="button"
+            className="h-9 rounded-lg border border-border-strong bg-white px-4 text-[10px] font-black text-text-primary shadow-sm transition hover:border-accent disabled:opacity-35"
             disabled={(draft.characters ?? []).length >= 8} 
             onClick={addCharacter}
           >
             + 补充角色
           </button>
         </header>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {(draft.characters ?? []).map((character, index) => (
-            <article key={`${character.name}-${index}`} className="group/char bg-white border border-border-subtle p-6 rounded-[2.5rem] shadow-premium hover:border-accent/30 transition duration-300 relative overflow-hidden">
-              <div className="flex items-center justify-between gap-4 mb-6">
-                <span className="text-[10px] font-bold px-3 py-1 bg-accent/5 text-accent rounded-full uppercase tracking-widest border border-accent/10">
+            <article key={`${character.name}-${index}`} className="group/char relative overflow-hidden rounded-xl border border-border-subtle bg-white p-5 shadow-sm transition duration-300 hover:border-accent/30">
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <span className="rounded-lg border border-accent/10 bg-accent/5 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-accent">
                   {character.role}
                 </span>
-                <button 
-                  className="p-1.5 opacity-0 group-hover/char:opacity-100 text-text-dim hover:text-red-500 hover:bg-red-50 rounded-full transition duration-500" 
+                <button
+                  type="button"
+                  className="rounded-lg p-1.5 text-text-dim opacity-0 transition duration-300 hover:bg-red-50 hover:text-red-500 group-hover/char:opacity-100"
                   disabled={(draft.characters ?? []).length <= 3} 
                   onClick={() => removeCharacter(index)}
                 >
@@ -437,20 +427,20 @@ function BibleReviewCards({
               </div>
               <div className="flex flex-col gap-4">
                 <TextField 
-                  className="text-2xl font-serif font-normal !px-0 !bg-transparent !border-none focus:!ring-0 placeholder:text-text-dim/10" 
+                  className="font-serif text-2xl font-normal tracking-normal !border-none !bg-transparent !px-0 placeholder:text-text-dim/10 focus:!ring-0"
                   value={character.name} 
                   onChange={(value) => updateCharacter(index, { name: value })} 
                 />
                 <TextArea 
-                  className="text-[13px] leading-relaxed text-text-secondary !bg-secondary/30 !border-none rounded-xl p-4 shadow-inner font-serif" 
+                  className="rounded-lg !border-none !bg-secondary/35 p-4 font-serif text-[13px] leading-relaxed text-text-secondary shadow-inner"
                   value={character.personality} 
                   onChange={(value) => updateCharacter(index, { personality: value })} 
                   placeholder="该角色的主要特质…"
                 />
                 <div className="relative border-t border-border-subtle pt-4">
-                   <div className="text-[8px] font-bold text-accent/40 uppercase tracking-[0.3em] mb-2">Voice Signature / 名言</div>
+                   <div className="mb-2 text-[8px] font-bold uppercase tracking-[0.2em] text-accent/45">Voice Signature / 名言</div>
                    <TextField 
-                    className="text-[11px] text-text-muted !bg-transparent !border-none !px-0 font-serif font-medium" 
+                    className="font-serif text-[11px] font-medium text-text-muted !border-none !bg-transparent !px-0"
                     value={character.catchphrase} 
                     onChange={(value) => updateCharacter(index, { catchphrase: value })} 
                     placeholder="角色标志性台词…"
@@ -463,21 +453,21 @@ function BibleReviewCards({
       </section>
 
       {/* World System */}
-      <section className="bg-secondary border border-border-subtle p-8 md:p-10 rounded-[3rem] group relative shadow-inner">
+      <section className="group relative rounded-xl border border-border-subtle bg-secondary/55 p-5 shadow-inner md:p-6">
         <FolioIndex index="03" label="世界设定" />
-        <div className="flex flex-col gap-8 mt-8">
+        <div className="mt-5 flex flex-col gap-5">
           <TextArea 
-            className="text-xl leading-relaxed text-text-primary !bg-white !border-none rounded-[2rem] p-6 shadow-premium font-serif" 
+            className="rounded-lg !border-none !bg-white p-4 font-serif text-lg leading-relaxed text-text-primary shadow-sm"
             value={draft.world?.setting_summary ?? ""} 
             onChange={(value) => updateWorld({ setting_summary: value })} 
             placeholder="描述这个世界的物理与超自然法则…"
           />
           <div className="grid gap-3 md:grid-cols-2">
              {(draft.world?.rules ?? []).map((rule, i) => (
-                <div key={i} className="flex items-center gap-4 p-4 bg-white/80 backdrop-blur-sm border border-border-subtle rounded-[1.5rem] group/rule hover:border-accent/40 hover:-translate-y-0.5 transition duration-300 shadow-sm">
-                  <span className="font-serif text-2xl text-accent/20 group-hover/rule:text-accent transition-colors duration-500 shrink-0">{String(i+1).padStart(2, '0')}</span>
+                <div key={i} className="group/rule flex items-center gap-3 rounded-lg border border-border-subtle bg-white/80 p-4 shadow-sm transition duration-300 hover:border-accent/40">
+                  <span className="shrink-0 font-serif text-2xl tracking-normal text-accent/25 transition-colors duration-300 group-hover/rule:text-accent">{String(i + 1).padStart(2, "0")}</span>
                   <input 
-                    className="flex-1 bg-transparent border-none p-0 text-[13px] font-bold text-text-secondary focus:ring-0" 
+                    className="min-w-0 flex-1 border-none bg-transparent p-0 text-[13px] font-bold text-text-secondary focus:ring-0"
                     value={rule} 
                     onChange={(e) => {
                       const next = [...(draft.world?.rules ?? [])];
@@ -493,48 +483,52 @@ function BibleReviewCards({
 
       {/* Outline Section */}
       <section className="group relative">
-        <header className="flex items-center justify-between mb-8">
+        <header className="mb-4 flex items-center justify-between gap-3">
            <FolioIndex index="04" label={`章节大纲 / 共 ${totalChapters()} 章`} />
-           <div className="flex items-center gap-3">
-            {(draft.outline?.volumes?.length ?? 0) < 20 && totalChapters() < 1000 && (
+           {!hasMultipleVolumes && firstOutlineVolume ? (
               <button
-                className="btn-secondary !h-9 !px-5 text-[10px] font-bold rounded-full uppercase tracking-[0.2em] shadow-sm hover:border-accent"
-                onClick={addVolume}
+                type="button"
+                className="h-9 rounded-lg border border-border-strong bg-white px-4 text-[10px] font-black text-text-primary shadow-sm transition hover:border-accent"
+                disabled={firstOutlineVolume.chapters.length >= 80 || totalChapters() >= 1000}
+                onClick={() => addChapter(0)}
               >
-                + 添加分卷
+                + 补充章节
               </button>
-            )}
-           </div>
+            ) : null}
         </header>
-        <div className="grid gap-8">
-          {(draft.outline ? getVolumes(draft as BibleDraft) : []).map((volume, volumeIndex) => (
+        <div className="grid gap-6">
+          {outlineVolumes.map((volume, volumeIndex) => (
             <div key={volumeIndex} className="grid gap-4">
-              <div className="flex items-center justify-between px-2">
-                <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-accent/60">
-                  {volume.name} · {volume.theme} · {volume.chapters.length} 章
-                </span>
-                <button
-                  className="btn-secondary !h-7 !px-4 text-[9px] font-bold rounded-full uppercase tracking-[0.2em] shadow-sm hover:border-accent"
-                  disabled={volume.chapters.length >= (volumeIndex === 0 ? 80 : 200) || totalChapters() >= 1000}
-                  onClick={() => addChapter(volumeIndex)}
-                >
-                  + 补充单元
-                </button>
-              </div>
+              {hasMultipleVolumes ? (
+                <div className="flex flex-col gap-3 px-2 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-accent/65">
+                    {volume.name} · {volume.theme} · {volume.chapters.length} 章
+                  </span>
+                  <button
+                    type="button"
+                    className="h-8 rounded-lg border border-border-strong bg-white px-3 text-[9px] font-black text-text-primary shadow-sm transition hover:border-accent disabled:opacity-35"
+                    disabled={volume.chapters.length >= (volumeIndex === 0 ? 80 : 200) || totalChapters() >= 1000}
+                    onClick={() => addChapter(volumeIndex)}
+                  >
+                    + 补充章节
+                  </button>
+                </div>
+              ) : null}
               {volume.chapters.map((chapter, chapterIndex) => (
-                <div key={chapter.index} className="group/chapter p-6 bg-white border border-border-subtle rounded-[2.5rem] shadow-premium hover:border-accent/30 transition duration-300 relative overflow-hidden">
-                  <div className="flex items-center gap-8 mb-4">
-                    <span className="font-serif text-3xl text-accent/20 group-hover/chapter:text-accent transition-colors duration-500 shrink-0">
-                      {String(chapter.index).padStart(2, '0')}
+                <div key={chapter.index} className="group/chapter relative overflow-hidden rounded-xl border border-border-subtle bg-white p-5 shadow-sm transition duration-300 hover:border-accent/30">
+                  <div className="mb-4 flex items-center gap-4">
+                    <span className="shrink-0 font-serif text-3xl tracking-normal text-accent/25 transition-colors duration-300 group-hover/chapter:text-accent">
+                      {String(chapter.index).padStart(2, "0")}
                     </span>
                     <input
-                      className="flex-1 bg-transparent border-none p-0 text-2xl font-serif font-normal text-text-primary focus:ring-0 placeholder:text-text-dim/10"
+                      className="min-w-0 flex-1 border-none bg-transparent p-0 font-serif text-2xl font-normal tracking-normal text-text-primary placeholder:text-text-dim/10 focus:ring-0"
                       value={chapter.title}
                       placeholder="章节标题"
                       onChange={(e) => updateChapter(volumeIndex, chapterIndex, { title: e.target.value })}
                     />
                     <button
-                      className="p-1.5 opacity-0 group-hover/chapter:opacity-100 text-text-dim hover:text-red-500 hover:bg-red-50 rounded-full transition duration-500"
+                      type="button"
+                      className="rounded-lg p-1.5 text-text-dim opacity-0 transition duration-300 hover:bg-red-50 hover:text-red-500 group-hover/chapter:opacity-100"
                       disabled={volume.chapters.length <= (volumeIndex === 0 ? 8 : 1)}
                       onClick={() => removeChapter(volumeIndex, chapterIndex)}
                     >
@@ -544,7 +538,7 @@ function BibleReviewCards({
                     </button>
                   </div>
                   <TextArea
-                    className="text-base text-text-secondary leading-relaxed !bg-secondary/30 !border-none rounded-xl p-4 shadow-inner ml-12 font-serif"
+                    className="rounded-lg !border-none !bg-secondary/35 p-4 font-serif text-base leading-relaxed text-text-secondary shadow-inner sm:ml-12"
                     value={chapter.summary}
                     onChange={(value) => updateChapter(volumeIndex, chapterIndex, { summary: value })}
                     placeholder="该章节的剧情梗概…"
@@ -558,30 +552,32 @@ function BibleReviewCards({
 
       {/* Beats Section */}
       <section className="group relative">
-        <header className="flex items-center justify-between mb-8">
+        <header className="mb-4 flex items-center justify-between gap-3">
            <FolioIndex index="05" label="首章节拍" />
-           <button 
-            className="btn-secondary !h-9 !px-5 text-[10px] font-bold rounded-full uppercase tracking-[0.2em] shadow-sm hover:border-accent" 
+           <button
+            type="button"
+            className="h-9 rounded-lg border border-border-strong bg-white px-4 text-[10px] font-black text-text-primary shadow-sm transition hover:border-accent disabled:opacity-35"
             disabled={(draft.first_chapter_beats?.length ?? 0) >= 8} 
             onClick={addBeat}
           >
             + 补充节拍
           </button>
         </header>
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2">
           {(draft.first_chapter_beats ?? []).map((beat, index) => (
-            <div key={beat.beat} className="p-6 bg-white border border-border-subtle rounded-[2.5rem] shadow-premium group/beat relative hover:border-accent/30 transition duration-300 overflow-hidden">
-              <div className="absolute top-0 left-0 w-1.5 h-full bg-accent/5 group-hover/beat:bg-accent transition-colors duration-500" />
-              <div className="flex items-center gap-4 mb-4 pl-2">
-                <span className="font-serif text-2xl text-accent/20 group-hover/beat:text-accent transition-colors duration-500">节拍 {String(beat.beat).padStart(2, "0")}</span>
-                <input 
-                  className="flex-1 bg-transparent border-none p-0 text-lg font-serif font-normal text-text-primary focus:ring-0 placeholder:text-text-dim/10" 
+            <div key={beat.beat} className="group/beat relative overflow-hidden rounded-xl border border-border-subtle bg-white p-5 shadow-sm transition duration-300 hover:border-accent/30">
+              <div className="absolute left-0 top-0 h-full w-1 bg-accent/10 transition-colors duration-300 group-hover/beat:bg-accent" />
+              <div className="mb-4 flex items-center gap-3 pl-2">
+                <span className="shrink-0 font-serif text-xl tracking-normal text-accent/35 transition-colors duration-300 group-hover/beat:text-accent">节拍 {String(beat.beat).padStart(2, "0")}</span>
+                <input
+                  className="min-w-0 flex-1 border-none bg-transparent p-0 font-serif text-lg font-normal tracking-normal text-text-primary placeholder:text-text-dim/10 focus:ring-0"
                   value={beat.scene} 
                   placeholder="场景名称"
                   onChange={(e) => updateBeat(index, { scene: e.target.value })} 
                 />
-                <button 
-                  className="p-1.5 opacity-0 group-hover/beat:opacity-100 text-text-dim hover:text-red-500 hover:bg-red-50 rounded-full transition duration-500" 
+                <button
+                  type="button"
+                  className="rounded-lg p-1.5 text-text-dim opacity-0 transition duration-300 hover:bg-red-50 hover:text-red-500 group-hover/beat:opacity-100"
                   disabled={(draft.first_chapter_beats?.length ?? 0) <= 5} 
                   onClick={() => removeBeat(index)}
                 >
@@ -591,7 +587,7 @@ function BibleReviewCards({
                 </button>
               </div>
               <TextArea 
-                className="text-[14px] leading-relaxed text-text-secondary !bg-secondary/30 !border-none rounded-xl p-4 shadow-inner ml-2 font-serif" 
+                className="ml-2 rounded-lg !border-none !bg-secondary/35 p-4 font-serif text-[14px] leading-relaxed text-text-secondary shadow-inner"
                 value={beat.purpose} 
                 onChange={(value) => updateBeat(index, { purpose: value })} 
                 placeholder="该节拍的写作目的…"
@@ -601,18 +597,18 @@ function BibleReviewCards({
         </div>
       </section>
 
-      <details className="group border border-border-subtle rounded-[2rem] overflow-hidden shadow-sm transition duration-500">
-        <summary className="cursor-pointer p-6 text-[10px] font-bold uppercase tracking-[0.2em] text-text-dim hover:text-text-primary transition-colors list-none flex justify-between items-center bg-secondary/30">
+      <details className="group overflow-hidden rounded-xl border border-border-subtle shadow-sm transition duration-300">
+        <summary className="flex cursor-pointer list-none items-center justify-between bg-secondary/35 p-4 text-[10px] font-black uppercase tracking-[0.18em] text-text-dim transition-colors hover:text-text-primary">
           <div className="flex items-center gap-4">
-             <div className="w-1 h-1 rounded-full bg-text-dim" />
+             <div className="h-1.5 w-1.5 rounded-full bg-text-dim" />
              <span>原始设定数据 (JSON)</span>
           </div>
           <svg aria-hidden="true" className="w-4 h-4 transition-transform duration-300 group-open:rotate-180 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
           </svg>
         </summary>
-        <div className="border-t border-border-subtle bg-white p-6 max-h-[500px] overflow-auto custom-scrollbar">
-           <pre className="text-[11px] text-text-secondary font-mono leading-relaxed bg-secondary/20 p-6 rounded-xl">
+        <div className="custom-scrollbar max-h-[500px] overflow-auto border-t border-border-subtle bg-white p-4">
+           <pre className="rounded-lg bg-secondary/20 p-4 font-mono text-[11px] leading-relaxed text-text-secondary">
              {JSON.stringify(draft, null, 2)}
            </pre>
         </div>
@@ -623,9 +619,9 @@ function BibleReviewCards({
 
 function FolioIndex({ index, label }: { index: string; label: string }) {
   return (
-    <div className="flex items-center gap-4 group">
-      <span className="font-serif text-3xl text-accent/40 group-hover:text-accent transition-colors duration-500">{index}</span>
-      <label className="text-[10px] font-bold uppercase tracking-[0.3em] text-text-muted">
+    <div className="group flex items-center gap-3">
+      <span className="font-serif text-2xl tracking-normal text-accent/45 transition-colors duration-300 group-hover:text-accent">{index}</span>
+      <label className="text-[10px] font-black uppercase tracking-[0.18em] text-text-muted">
         {label}
       </label>
     </div>
@@ -664,9 +660,9 @@ function TextArea({
   placeholder?: string;
   onChange: (value: string) => void;
 }) {
-  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = "auto";
@@ -677,7 +673,7 @@ function TextArea({
   return (
     <textarea
       ref={textareaRef}
-      className={`input-base w-full min-h-[80px] py-4 text-sm leading-relaxed overflow-hidden resize-none ${className}`}
+      className={`input-base min-h-[80px] w-full resize-none overflow-hidden py-4 text-sm leading-relaxed ${className}`}
       value={value}
       placeholder={placeholder}
       onChange={(event) => onChange(event.target.value)}
@@ -687,15 +683,15 @@ function TextArea({
 
 function FallbackNotice() {
   return (
-    <div className="border-2 border-dashed border-border-strong p-24 text-center rounded-[2.5rem] bg-secondary/10 flex flex-col items-center gap-6">
-      <div className="h-14 w-14 rounded-full bg-white flex items-center justify-center shadow-sm">
-        <svg aria-hidden="true" className="w-7 h-7 text-text-dim opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div className="flex flex-col items-center gap-5 rounded-xl border border-dashed border-border-strong bg-secondary/20 p-10 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white shadow-sm">
+        <svg aria-hidden="true" className="h-6 w-6 text-text-dim opacity-45" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H4a2 2 0 00-2 2v11a2 2 0 002 2h8.5M20 13l-4 4m4-4l-4-4m4 4H13" />
         </svg>
       </div>
       <div className="flex flex-col gap-1.5">
-        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-text-dim">还没有生成设定</p>
-        <p className="text-lg font-serif text-text-dim/60 font-medium">请返回上一步生成作品设定，或稍后再试。</p>
+        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-text-dim">还没有生成设定</p>
+        <p className="font-serif text-lg font-medium tracking-normal text-text-dim/60">请返回上一步生成作品设定，或稍后再试。</p>
       </div>
     </div>
   );

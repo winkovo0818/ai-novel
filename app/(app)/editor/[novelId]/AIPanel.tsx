@@ -226,15 +226,15 @@ export function AIPanel({
 
   return (
     <aside
-      className={`bg-background border-l border-border-subtle h-full flex flex-col transition-all duration-500 ease-in-out shadow-lg relative z-20 ${
+      className={`editor-ai-panel h-full flex flex-col transition-all duration-500 ease-in-out relative z-20 ${
         show ? w : "w-0 opacity-0 invisible"
       }`}
     >
       <div className={`${w} h-full flex flex-col flex-shrink-0`}>
         {/* ---- header ---- */}
-        <header className="px-5 py-4 border-b border-border-subtle flex items-center justify-between bg-white/80 backdrop-blur-sm shrink-0">
+        <header className="editor-ai-header px-5 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-text-primary text-xs font-bold text-white shadow-sm">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-text-primary text-xs font-bold text-white shadow-sm">
               墨
             </span>
             <div>
@@ -244,7 +244,7 @@ export function AIPanel({
               </p>
             </div>
           </div>
-          <button onClick={onClose} aria-label="关闭写作助手" className="p-1.5 hover:bg-secondary rounded-lg text-text-dim hover:text-text-primary transition">
+          <button onClick={onClose} aria-label="关闭写作助手" className="editor-icon-button !h-8 !w-8">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -252,7 +252,7 @@ export function AIPanel({
         </header>
 
         {/* ---- body ---- */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
+        <div className="custom-scrollbar flex-1 space-y-6 overflow-y-auto p-5">
           {/* ================================================================ */}
           {/*  MODE: EMPTY                                                      */}
           {/* ================================================================ */}

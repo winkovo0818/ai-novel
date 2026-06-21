@@ -14,6 +14,7 @@ export interface BiblePromptInput {
   logline: string;
   profile: NovelProfile;
   answers?: Record<string, string | string[]>;
+  totalChapters?: number;
 }
 
 const SCHEMA_BLOCK = `必须严格输出以下 JSON 结构（snake_case，无注释，无多余字段）：
@@ -99,8 +100,11 @@ function answerLines(answers?: Record<string, string | string[]>): string {
 
 export function buildBiblePrompt(input: BiblePromptInput): ChatMessage[] {
   const { logline, profile, answers } = input;
+  const totalChapters = normalizeTotalChapters(input.totalChapters);
 
-  const chapterRange = getChapterRange(profile.length);
+  const chapterRange = totalChapters
+    ? { min: totalChapters, max: Math.min(80, totalChapters + 5) }
+    : getChapterRange(profile.length);
 
   const system = `你是资深网文世界观架构师，深谙 ${profile.genre_main}/${profile.genre_sub} 流派的爽点、套路与雷区。
 任务：基于用户的 logline + 偏好 + 反向追问答案，输出一份可直接交付主编辑器的小说 Bible 草稿。
@@ -125,12 +129,17 @@ ${profileLines(profile)}
 反向追问答案：
 ${answerLines(answers)}
 
-现在输出 Bible JSON。`;
+重要：请生成不少于 ${chapterRange.min} 章的大纲，最多 ${chapterRange.max} 章；可以多于目标章数，但不能少。\n\n现在输出 Bible JSON。`;
 
   return [
     { role: "system", content: system },
     { role: "user", content: user },
   ];
+}
+
+function normalizeTotalChapters(value: number | undefined): number | undefined {
+  if (!Number.isInteger(value) || value === undefined) return undefined;
+  return Math.max(8, Math.min(80, value));
 }
 
 function getChapterRange(length: string): { min: number; max: number } {

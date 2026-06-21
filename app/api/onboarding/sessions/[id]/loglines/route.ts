@@ -2,6 +2,7 @@ import { jsonError } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { authorizeOnboardingSession } from "@/lib/auth/onboardingAccess";
 import { isRateLimited } from "@/lib/auth/rateLimit";
+import { ZodError } from "zod";
 import { chatCompletionWithRetry } from "@/lib/llm/client";
 import { checkQuota, estimateLlmMessagesCostCny, quotaExceededResponse } from "@/lib/llm/usage";
 import { buildLoglinePrompt } from "@/lib/llm/prompts/logline";
@@ -55,6 +56,7 @@ export async function POST(request: Request, context: RouteContext) {
     title: session.title,
     genreMainLabel: GENRE_MAIN_LABELS[String(session.genre_main)] ?? String(session.genre_main),
     genreSub: session.genre_sub,
+    seedLogline: parsed.data.logline,
   });
 
   const quota = await checkQuota(userId, {
@@ -73,7 +75,7 @@ export async function POST(request: Request, context: RouteContext) {
       responseFormat: "json_object",
       temperature: parsed.data.regenerate ? 0.9 : 0.7,
       timeoutMs: 15_000,
-    });
+    }, 0);
 
     const data = LoglinesResponseSchema.parse(parseJson(result.content));
 
@@ -95,7 +97,7 @@ function parseJson(value: string): unknown {
 function llmErrorResponse(err: unknown) {
   const message = err instanceof Error ? err.message : "unknown error";
   const isTimeout = /timed out/i.test(message);
-  const isParse = err instanceof SyntaxError || /invalid|parse/i.test(message);
+  const isParse = err instanceof SyntaxError || err instanceof ZodError || /invalid|parse/i.test(message);
   const code = isTimeout ? "LLM_TIMEOUT" : isParse ? "LLM_PARSE_FAILED" : "INTERNAL";
   return jsonError(code, message, true, isTimeout ? 504 : isParse ? 502 : 500);
 }

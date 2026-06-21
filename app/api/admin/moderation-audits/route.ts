@@ -51,6 +51,7 @@ export async function GET(request: Request) {
         reviewed_by: true,
         reviewed_at: true,
         review_note: true,
+        text_excerpt: true,
         text_hash: true,
         text_chars: true,
         created_at: true,

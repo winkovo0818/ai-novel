@@ -24,6 +24,7 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 interface Check {
   name: string;
@@ -33,7 +34,7 @@ interface Check {
   ok: boolean;
 }
 
-const REPO_ROOT = resolve(__dirname, "..");
+const REPO_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 
 function walk(dir: string, files: string[] = []): string[] {
   if (!existsSync(dir)) return files;

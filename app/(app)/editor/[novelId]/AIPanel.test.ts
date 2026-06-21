@@ -9,6 +9,11 @@ vi.mock("react", () => ({
   default: { createElement },
   createElement,
   useState: <T,>(initial: T) => [initial, vi.fn()] as const,
+  useMemo: <T,>(factory: () => T) => factory(),
+  // editing 模式会渲染 InstructionInput / Collapsible 等子组件，补齐它们用到的 hook。
+  useCallback: <T,>(fn: T) => fn,
+  useRef: <T,>(current: T) => ({ current }),
+  useEffect: () => {},
 }));
 
 vi.mock("react/jsx-runtime", () => ({
@@ -83,6 +88,7 @@ function renderPanel(overrides: Partial<Parameters<typeof AIPanel>[0]> = {}) {
     selectedChapterIndex: 2,
     chapterTitle: "训练室",
     editorSelection: null,
+    content: "林燃走进训练室，篮球在指尖转动。",
     onDraftChapter: vi.fn(),
     onReviseSelection: vi.fn(),
     onDraftWithMemories: vi.fn(),
@@ -103,10 +109,14 @@ function renderPanel(overrides: Partial<Parameters<typeof AIPanel>[0]> = {}) {
 describe("AIPanel local revision actions", () => {
   it("disables local revision buttons until text is selected", () => {
     const root = renderPanel();
-    const localButtons = findButtons(root).filter((button) => button.props.title === "请先选中文本");
+    // 重构后本地修订按钮用 label 文本（润色/扩写/…）而非 title；未选中文本时全部禁用。
+    const revisionLabels = ["润色", "扩写", "缩写", "续写", "去AI味", "对白", "冲突"];
+    const revisionButtons = findButtons(root).filter((button) =>
+      revisionLabels.includes(collectText(button)),
+    );
 
-    expect(localButtons).toHaveLength(7);
-    expect(localButtons.every((button) => button.props.disabled === true)).toBe(true);
+    expect(revisionButtons).toHaveLength(7);
+    expect(revisionButtons.every((button) => button.props.disabled === true)).toBe(true);
   });
 
   it("calls the selected local revision operation", () => {
@@ -119,7 +129,7 @@ describe("AIPanel local revision actions", () => {
       },
       onReviseSelection,
     });
-    const polish = findButtons(root).find((button) => button.props.title === "润色选中文本");
+    const polish = findButtons(root).find((button) => collectText(button) === "润色");
 
     expect(polish?.props.disabled).toBe(false);
     (polish?.props.onClick as () => void)();
@@ -137,7 +147,7 @@ describe("AIPanel local revision actions", () => {
       },
       onReviseSelection,
     });
-    const humanize = findButtons(root).find((button) => button.props.title === "去AI味选中文本");
+    const humanize = findButtons(root).find((button) => collectText(button) === "去AI味");
 
     expect(humanize?.props.disabled).toBe(false);
     (humanize?.props.onClick as () => void)();
@@ -151,10 +161,11 @@ describe("AIPanel local revision actions", () => {
     });
     const text = collectText(root);
 
-    expect(text).toContain("写作操作");
+    // 重构后的 editing 面板文案：自然语言指令 + 快捷操作 + 工具区。
+    expect(text).toContain("自然语言指令");
     expect(text).toContain("一致性检查");
     expect(text).toContain("状态分析");
-    expect(text).toContain("章节提示");
+    expect(text).toContain("快捷操作");
     expect(text).toContain("一致性检查结果");
     expect(text).not.toContain("逻辑审计");
     expect(text).not.toContain("一致性审计报告");

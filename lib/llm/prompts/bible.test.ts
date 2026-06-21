@@ -75,6 +75,27 @@ describe("buildBiblePrompt", () => {
     expect(user.content).toContain("cool_points: 反差萌 / 扮猪吃老虎");
   });
 
+  it("uses an explicit target chapter count as a minimum schema constraint (allows up to +5)", () => {
+    const [system, user] = buildBiblePrompt({
+      logline: "x",
+      profile,
+      totalChapters: 40,
+    });
+    expect(system.content).toMatch(/严格\s*40-45/);
+    expect(user.content).toContain("不少于 40 章的大纲");
+    expect(user.content).toContain("最多 45 章");
+  });
+
+  it("clamps explicit target chapter count to the onboarding supported range", () => {
+    const [system, user] = buildBiblePrompt({
+      logline: "x",
+      profile,
+      totalChapters: 3,
+    });
+    expect(system.content).toMatch(/严格\s*8-13/);
+    expect(user.content).toContain("不少于 8 章的大纲");
+  });
+
   it("forbids markdown fences and inline comments", () => {
     const [system] = buildBiblePrompt({ logline: "x", profile });
     expect(system.content).toMatch(/禁止.*Markdown|Markdown/);

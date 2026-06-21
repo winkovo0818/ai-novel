@@ -1,6 +1,10 @@
 import type { BibleDraft } from "@/lib/validation/schemas";
 import { collectAiWritingTraceHits, type AiWritingTraceHit } from "@/lib/llm/prompts/humanStyle";
-import type { CleanupHit } from "@/lib/llm/writerOutputCleanup";
+import { AI_SIGNATURE_CATEGORIES, type CleanupHit } from "@/lib/llm/writerOutputCleanup";
+
+function isAiSignatureHit(hit: CleanupHit): boolean {
+  return AI_SIGNATURE_CATEGORIES.includes(hit.category);
+}
 
 export interface QualityChapterInput {
   chapterIndex: number;
@@ -154,11 +158,27 @@ const DIALOGUE_RE = /[“"][^”"]{1,80}[”"]/g;
 const DASH_TRACE_RE = /[—–]|--/g;
 const AI_VOCAB_TRACE_RE = /极其|几乎|仿佛|似乎|宛如|犹如|隐约|依稀|轻轻|缓缓|慢慢|悄悄|不约而同|不由得|与此同时|不知不觉|不禁|霎时|刹那|一时间/g;
 
+// ── 题材无关常量 ─────────────────────────────────────────────
+// 这些信号词与具体小说无关，对任何题材都成立，所以写死是安全的。本书专有名词
+// （角色名、地点、设定物件）一律从 Bible 动态生成（见 buildTokenStats / TokenStats），
+// 不再硬编码，否则换一部小说就会失效甚至误判。
+
+/** 承接上一章的通用时间/指代提示词（题材无关）。本书专名桥另从 tokenStats 动态拼接。 */
+const GENERIC_BRIDGE_CUES = ["前一", "刚才", "方才", "昨夜", "三日", "上一", "之前", "那天", "当晚", "次日"];
+/** 可感知的通用感官/身体名词（题材无关），用于判断正文是否有具体物象支撑画面。 */
+const GENERIC_SENSORY_NOUNS = ["手", "汗", "泥", "水", "火", "血", "喉", "风", "光", "灰", "烟", "雨", "门", "灯"];
+/** 句首豁免的通用代词/虚词（题材无关）。角色名豁免从 tokenStats.people 动态加入。 */
+const GENERIC_START_PREFIXES = ["他", "她", "它", "那", "这", "门", "雨", "风"];
+/** 可验证状态变化的通用结果动词（题材无关）。 */
+const GENERIC_RESULT_VERBS = /发现|确认|暴露|留下|拿到|失去|反制|受伤|亮起|熄灭|改口|听见/;
+/** 可追踪的通用抽象名词（题材无关）。本书设定物件另从 tokenStats.objects 动态加入。 */
+const GENERIC_TRACKABLE_NOUNS = ["线索", "关系", "位置", "道具", "敌人", "伤", "血", "规则", "秘密", "证据"];
+
 function aggregateAiSignatureHits(chapters: QualityChapterInput[]): CleanupHit[] {
   const byId = new Map<string, CleanupHit>();
   for (const chapter of chapters) {
     for (const hit of chapter.rawCleanupHits ?? []) {
-      if (hit.category !== "ai_signature") continue;
+      if (!isAiSignatureHit(hit)) continue;
       const existing = byId.get(hit.id);
       if (existing) existing.count += hit.count;
       else byId.set(hit.id, { ...hit });
@@ -175,12 +195,12 @@ export function evaluateNovelQuality(input: NovelQualityInput): NovelQualityRepo
   const aiTraceHits = collectAiWritingTraceHits(chapters.map((chapter) => chapter.content).join("\n"));
   const metrics = [
     evaluateContinuity(chapters, tokenStats),
-    evaluateLogic(chapters),
+    evaluateLogic(chapters, tokenStats),
     evaluateCharacterConsistency(input.bible, chapters, tokenStats),
     evaluatePlotProgress(chapters, tokenStats),
     evaluateWorldRules(input.bible, chapters, tokenStats),
-    evaluateAiVoice(chapters, aiTraceHits),
-    evaluateProseReadability(chapters),
+    evaluateAiVoice(chapters, aiTraceHits, tokenStats),
+    evaluateProseReadability(chapters, tokenStats),
   ];
 
   const overallScore = metrics.reduce((sum, metric) => sum + metric.score, 0);
@@ -256,7 +276,8 @@ function evaluateContinuity(chapters: QualityChapterInput[], tokens: TokenStats)
     warnings.push(`章节之间最高相似度 ${formatPercent(duplicateSimilarity)}，有重复生成或原地打转风险。`);
   }
 
-  const hasBridge = chapters.slice(1).filter((chapter) => /前一|刚才|方才|那枚|木牌|裂井|考核|旧案|剑魂|昨夜|三日/.test(chapter.content));
+  const bridgeTerms = unique([...GENERIC_BRIDGE_CUES, ...tokens.objects, ...tokens.places]).filter(Boolean);
+  const hasBridge = chapters.slice(1).filter((chapter) => bridgeTerms.some((term) => chapter.content.includes(term)));
   if (hasBridge.length >= Math.max(1, chapters.length - 2)) {
     score += 2;
     findings.push("后续章节存在承上启下的时间、物件或事件桥。");
@@ -267,7 +288,7 @@ function evaluateContinuity(chapters: QualityChapterInput[], tokens: TokenStats)
   return metric("continuity", "连续性", score, 10, findings, warnings);
 }
 
-function evaluateLogic(chapters: QualityChapterInput[]): MetricResult {
+function evaluateLogic(chapters: QualityChapterInput[], tokens: TokenStats): MetricResult {
   const findings: string[] = [];
   const warnings: string[] = [];
   let score = 0;
@@ -302,7 +323,7 @@ function evaluateLogic(chapters: QualityChapterInput[]): MetricResult {
     warnings.push(`仅 ${chaptersWithCausalHook.length}/${chapters.length} 章有可读因果钩，关键行动的选择理由不够稳。`);
   }
 
-  const chaptersWithGoalActionResult = chapters.filter((chapter) => hasGoalActionResultChain(chapter.content));
+  const chaptersWithGoalActionResult = chapters.filter((chapter) => hasGoalActionResultChain(chapter.content, tokens));
   if (chaptersWithGoalActionResult.length >= Math.ceil(chapters.length * 0.7)) {
     score += 2;
     findings.push(`多数章节能读出“目标 -> 行动 -> 结果”链条（${chaptersWithGoalActionResult.length}/${chapters.length}）。`);
@@ -326,8 +347,8 @@ function hasCausalHook(text: string): boolean {
   return causalSentenceCount >= 2 && GOAL_OR_DECISION_RE.test(text) && RESULT_OR_PRICE_RE.test(text);
 }
 
-function hasGoalActionResultChain(text: string): boolean {
-  return GOAL_OR_DECISION_RE.test(text) && PLOT_ACTION_CUES.some((cue) => text.includes(cue)) && hasVerifiableStateChange(text);
+function hasGoalActionResultChain(text: string, tokens: TokenStats): boolean {
+  return GOAL_OR_DECISION_RE.test(text) && PLOT_ACTION_CUES.some((cue) => text.includes(cue)) && hasVerifiableStateChange(text, tokens);
 }
 
 function evaluateCharacterConsistency(
@@ -400,7 +421,7 @@ function evaluatePlotProgress(chapters: QualityChapterInput[], tokens: TokenStat
     warnings.push(`剧情动作/发现类词仅 ${actionCount} 次，可能氛围多于推进。`);
   }
 
-  const chapterWithResult = chapters.filter((chapter) => hasVerifiableStateChange(chapter.content));
+  const chapterWithResult = chapters.filter((chapter) => hasVerifiableStateChange(chapter.content, tokens));
   if (chapterWithResult.length >= Math.ceil(chapters.length * 0.7)) {
     score += 3;
     findings.push(`多数章节有可记录的结果或状态变化（${chapterWithResult.length}/${chapters.length}）。`);
@@ -471,7 +492,7 @@ function evaluateWorldRules(
   return metric("world_rules", "世界规则", score, 10, findings, warnings);
 }
 
-function evaluateAiVoice(chapters: QualityChapterInput[], aiTraceHits: AiWritingTraceHit[]): MetricResult {
+function evaluateAiVoice(chapters: QualityChapterInput[], aiTraceHits: AiWritingTraceHit[], tokens: TokenStats): MetricResult {
   const findings: string[] = [];
   const warnings: string[] = [];
   let score = 10;
@@ -528,7 +549,7 @@ function evaluateAiVoice(chapters: QualityChapterInput[], aiTraceHits: AiWriting
     warnings.push(`段落长度变异系数 ${paragraphCv.toFixed(2)} 偏低，有段段同长的 AI 味风险。`);
   }
 
-  const repetitiveStarts = repeatedSentenceStartCount(text);
+  const repetitiveStarts = repeatedSentenceStartCount(text, tokens.people);
   if (repetitiveStarts <= 3) {
     findings.push("句首重复模式不明显。");
   } else {
@@ -545,7 +566,7 @@ function evaluateAiVoice(chapters: QualityChapterInput[], aiTraceHits: AiWriting
   if (rawChapters.length > 0) {
     const totalRawHits = rawChapters.reduce(
       (sum, chapter) =>
-        sum + (chapter.rawCleanupHits ?? []).filter((hit) => hit.category === "ai_signature").reduce((s, h) => s + h.count, 0),
+        sum + (chapter.rawCleanupHits ?? []).filter(isAiSignatureHit).reduce((s, h) => s + h.count, 0),
       0,
     );
     const avgRawHits = totalRawHits / rawChapters.length;
@@ -558,10 +579,17 @@ function evaluateAiVoice(chapters: QualityChapterInput[], aiTraceHits: AiWriting
     }
   }
 
+  // Shadow 统计特征（题材无关）：词汇丰富度 type-token ratio。TTR 越低 = 用词越重复
+  // 单调，是机械/AI 文本的常见信号；它不依赖固定词表，换题材/换模型都成立，可在词表
+  // 失效时兜底。当前以「仅记录、不扣分」的 shadow 模式接入——阈值需用第四章人工黄金集
+  // 校准后再决定是否参与扣分，避免现在拍脑袋设阈值破坏既有评分基线。
+  const ttr = typeTokenRatio(text);
+  findings.push(`[shadow] 词汇丰富度 TTR ${ttr.toFixed(3)}（越低越单调；暂不计分，待黄金集校准）。`);
+
   return metric("ai_voice", "AI 味控制", Math.max(0, score), 10, findings, warnings);
 }
 
-function evaluateProseReadability(chapters: QualityChapterInput[]): MetricResult {
+function evaluateProseReadability(chapters: QualityChapterInput[], tokens: TokenStats): MetricResult {
   const findings: string[] = [];
   const warnings: string[] = [];
   let score = 0;
@@ -586,7 +614,9 @@ function evaluateProseReadability(chapters: QualityChapterInput[]): MetricResult
     warnings.push(`对白仅 ${dialogueCount} 处，容易变成叙述摘要。`);
   }
 
-  const vividNouns = extractTerms(text).filter((term) => /火房|木牌|裂井|剑鸣|旧疤|冷雨|柴烟|尸检|黑箱|冷却|录像|档案/.test(term));
+  // 具体物象 = 通用感官名词（题材无关）+ 本书设定物件（从 Bible 动态生成）。
+  const vividCandidates = unique([...GENERIC_SENSORY_NOUNS, ...tokens.objects]).filter(Boolean);
+  const vividNouns = vividCandidates.filter((noun) => text.includes(noun));
   if (vividNouns.length >= Math.max(3, chapters.length)) {
     score += 2;
     findings.push("有足够具体物象支撑画面。");
@@ -630,11 +660,12 @@ function buildTokenStats(bible: BibleDraft): TokenStats {
   return { people, places, rules, objects, plotTerms };
 }
 
-function hasVerifiableStateChange(text: string): boolean {
+function hasVerifiableStateChange(text: string, tokens: TokenStats): boolean {
   const cueHits = STATE_CHANGE_CUES.filter((cue) => text.includes(cue)).length;
   if (cueHits >= 2) return true;
-  return /线索|关系|位置|道具|木牌|剑魂|符|旧案|敌人|门主|执事|伤|血|裂井|规则/.test(text)
-    && /发现|确认|暴露|留下|拿到|失去|反制|受伤|亮起|熄灭|改口|听见/.test(text);
+  // 通用可追踪名词（题材无关）+ 本书设定物件（从 Bible 动态生成），任一命中即可。
+  const trackable = unique([...GENERIC_TRACKABLE_NOUNS, ...tokens.objects]).filter(Boolean);
+  return trackable.some((noun) => text.includes(noun)) && GENERIC_RESULT_VERBS.test(text);
 }
 
 function buildRiskFlags(metrics: MetricResult[], chapters: QualityChapterInput[]): string[] {
@@ -772,26 +803,18 @@ function overlapCount(leftTerms: string[], rightTerms: string[]): number {
   return unique(leftTerms).filter((term) => right.has(term)).length;
 }
 
-function repeatedSentenceStartCount(text: string): number {
-  const ignoredStarts = [
-    "沈言",
-    "孙奉",
-    "蒋阶",
-    "剑魂",
-    "柴饦",
-    "赵家",
-    "他说",
-    "几说",
-    "他把",
-    "他没",
-    "他站",
-    "他蹲",
-    "他抬",
-    "他看",
-    "那人",
-    "门外",
-    "雨水",
+/**
+ * 统计句首重复模式。`knownNames` 是本书角色名（从 Bible 动态生成）——以角色名开头
+ * 的句子在中文小说里很常见，不应记为 AI 式重复，故豁免。通用代词开头（他/她…）同样
+ * 是省略主语的正常承接句，一并豁免。不再硬编码任何具体小说的专名。
+ */
+function repeatedSentenceStartCount(text: string, knownNames: string[]): number {
+  // 题材无关的通用句首豁免：代词 + 代词接常见动词（省略主语的承接句）。
+  const genericIgnored = [
+    ...GENERIC_START_PREFIXES,
+    "他说", "她说", "他把", "他没", "他站", "他蹲", "他抬", "他看", "那人",
   ];
+  const ignoredStarts = unique([...knownNames, ...genericIgnored]).filter(Boolean);
   const starts = splitSentences(text)
     .map((sentence) => sentence.replace(/^[“"']+/, "").slice(0, 4))
     .filter((start) => start.length === 4)
@@ -801,8 +824,22 @@ function repeatedSentenceStartCount(text: string): number {
   return [...counts.values()].filter((count) => count >= 4).reduce((sum, count) => sum + count, 0);
 }
 
-function coefficientOfVariation(values: number[]): number {
-  if (values.length === 0) return 0;
+/**
+ * 词汇丰富度 type-token ratio：去重 bigram 数 / 总 bigram 数。题材无关的统计特征，
+ * 越低代表用词越重复单调。这里用「全部汉字 bigram（含重复）」做分母——不能复用
+ * extractTerms，因为它内部已去重，TTR 会恒为 1。
+ */
+function typeTokenRatio(text: string): number {
+  const chars = Array.from(text).filter((char) => /\p{Script=Han}/u.test(char));
+  if (chars.length < 2) return 1;
+  const bigrams: string[] = [];
+  for (let index = 0; index < chars.length - 1; index += 1) {
+    bigrams.push(`${chars[index]}${chars[index + 1]}`);
+  }
+  return new Set(bigrams).size / bigrams.length;
+}
+
+function coefficientOfVariation(values: number[]): number {  if (values.length === 0) return 0;
   const mean = average(values);
   if (mean === 0) return 0;
   const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;

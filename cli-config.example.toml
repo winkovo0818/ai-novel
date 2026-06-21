@@ -1,0 +1,35 @@
+# CLI 整本生成配置示例
+# 用法：复制为 cli-config.toml 并填入你的 API Key。
+# 注意：cli-config.toml 已在 .gitignore 中（含密钥，不会被提交）。
+
+[llm]
+provider = "deepseek"
+model = "deepseek-chat"
+base_url = "https://api.deepseek.com/v1"
+api_key = "your-api-key-here"
+max_tokens = 4096
+temperature = 0.8
+
+# 可选：额外模型（CLI 内 /model 可切换）
+[llm.extra.reasoner]
+provider = "deepseek"
+model = "deepseek-reasoner"
+base_url = "https://api.deepseek.com/v1"
+api_key = "your-api-key-here"
+
+[llm.extra.fast]
+provider = "custom"
+model = "your-fast-model"
+base_url = "https://your-endpoint/v1"
+api_key = "your-api-key-here"
+
+[generation]
+default_chapters = 40
+quality_floor = 85
+revision_rounds = 2
+cost_cap_cny = 5.0
+target_words_per_chapter = 3000
+
+[output]
+export_dir = "./output"
+auto_export = true

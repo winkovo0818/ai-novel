@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "description": "人工标注黄金集索引。每个样本是一个评分滑窗（连续若干章），用于校验 evaluateNovelQuality 的自动分与人工分的相关性。bibleFixture 复用 scripts/fixtures/eval-novels/ 下的现成 Bible，避免重复造设定与版权问题；章节正文与人工标注单独存放在 samples/ 下。",
+  "scoreScale": {
+    "min": 0,
+    "max": 10,
+    "note": "人工分与自动分同尺度（0-10），便于直接比对。overall 是标注者对该滑窗的综合体感分。"
+  },
+  "dimensions": [
+    "continuity",
+    "logic",
+    "character_consistency",
+    "plot_progress",
+    "world_rules",
+    "ai_voice",
+    "prose_readability",
+    "overall"
+  ],
+  "samples": [
+    {
+      "id": "urban-suspense-ch1-3",
+      "bibleFixture": "urban-suspense",
+      "window": [1, 2, 3],
+      "chaptersFile": "samples/urban-suspense-ch1-3.chapters.json",
+      "labelsFile": "samples/urban-suspense-ch1-3.labels.json",
+      "status": "seed",
+      "note": "种子样本，演示数据格式（labels 含占位示意分）。status=seed 表示未经真人评审；正式样本请标 status=annotated 并填真实人工分。"
+    },
+    {
+      "id": "xuanhuan-seed-ch1-3",
+      "bibleFixture": "xuanhuan-seed",
+      "window": [1, 2, 3],
+      "chaptersFile": "samples/xuanhuan-seed-ch1-3.chapters.json",
+      "labelsFile": "samples/xuanhuan-seed-ch1-3.labels.json",
+      "status": "seed",
+      "note": "玄幻题材骨架。章节正文已就绪，labels 为占位（全 0），待人工标注后改 status=annotated。"
+    },
+    {
+      "id": "scifi-hard-ch1-3",
+      "bibleFixture": "scifi-hard",
+      "window": [1, 2, 3],
+      "chaptersFile": "samples/scifi-hard-ch1-3.chapters.json",
+      "labelsFile": "samples/scifi-hard-ch1-3.labels.json",
+      "status": "seed",
+      "note": "硬科幻题材骨架。章节正文已就绪，labels 为占位（全 0），待人工标注后改 status=annotated。"
+    },
+    {
+      "id": "history-conservative-ch1-3",
+      "bibleFixture": "history-conservative",
+      "window": [1, 2, 3],
+      "chaptersFile": "samples/history-conservative-ch1-3.chapters.json",
+      "labelsFile": "samples/history-conservative-ch1-3.labels.json",
+      "status": "seed",
+      "note": "历史权谋题材骨架。章节正文已就绪，labels 为占位（全 0），待人工标注后改 status=annotated。"
+    }
+  ]
+}

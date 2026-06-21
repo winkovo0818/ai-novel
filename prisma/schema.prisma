@@ -376,11 +376,12 @@ model LlmUsage {
 
 /// Durable audit trail for moderation decisions.
 ///
-/// This intentionally stores metadata and a sha256 of the moderated text,
-/// not the text itself. The row is enough to build review queues and route
-/// hot-spot metrics without turning the audit table into a second content
-/// store. Writes are best-effort from `moderateContent()` so an audit outage
-/// never changes the moderation decision returned to the caller.
+/// This intentionally stores metadata, a sha256 of the moderated text, and a
+/// short bounded evidence excerpt. It does not store the full moderated text.
+/// The row is enough to build review queues and route hot-spot metrics without
+/// turning the audit table into a second content store. Writes are best-effort
+/// from `moderateContent()` so an audit outage never changes the moderation
+/// decision returned to the caller.
 model ModerationAudit {
   id              String   @id @default(uuid())
   user_id          String?
@@ -398,6 +399,7 @@ model ModerationAudit {
   reviewed_by      String?
   reviewed_at      DateTime?
   review_note      String?
+  text_excerpt     String?
   text_hash        String
   text_chars       Int
   created_at       DateTime @default(now())

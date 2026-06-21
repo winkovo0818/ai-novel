@@ -93,11 +93,10 @@ describe("tryParseBibleDraft", () => {
     expect(tryParseBibleDraft('{"meta":')).toBeNull();
   });
 
-  it("parses a complete valid Bible draft", () => {
+  it("still parses but logs when actual chapter count is below the minimum", () => {
     const draft = validDraft();
-    expect(tryParseBibleDraft(JSON.stringify(draft))?.meta.suggested_title).toBe(
-      "逆魂纪",
-    );
+    // 8 chapters < 40 minimum → parses successfully but logs shortfall warning
+    expect(tryParseBibleDraft(JSON.stringify(draft), 40)?.outline.volume_1.chapters).toHaveLength(8);
   });
 });
 

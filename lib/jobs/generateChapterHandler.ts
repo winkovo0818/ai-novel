@@ -10,7 +10,7 @@ import { parseFirstJsonObject } from "@/lib/llm/extractJson";
 import { buildStateDiffPrompt } from "@/lib/llm/prompts/stateDiff";
 import { moderateContent } from "@/lib/moderation/moderate";
 import { logInfo, logWarn } from "@/lib/observability/logger";
-import { applyStateDiff } from "@/lib/validation/stateDiffMerge";
+import { applyStateDiff, validateStateDiff } from "@/lib/validation/stateDiffMerge";
 import { BibleDraftSchema, NovelProfileSchema, StateDiffSchema, type BibleDraft } from "@/lib/validation/schemas";
 import { enqueueJob } from "./queue";
 
@@ -40,6 +40,12 @@ export function isGenerateChapterPayload(p: unknown): p is GenerateChapterPayloa
  * chapter persistence depends on — so a malformed / invalid diff is logged and
  * the prior Bible kept rather than aborting the run. (The spike saw ~25% diff
  * JSON-parse failures; one bad diff must not stop a 40-chapter book.)
+ *
+ * M0.2: a diff that parses but fails `validateStateDiff` (hallucinated entity /
+ * thread status regression / oversized) is also skipped — unattended merges of
+ * polluted state are inherited by every later chapter, so "state lags one
+ * chapter" beats "state is wrong forever". Returns whether the merge happened
+ * so the run loop can decide if a checkpoint review is warranted.
  */
 async function applyChapterStateDiff(
   novelId: string,
@@ -47,7 +53,7 @@ async function applyChapterStateDiff(
   chapterIndex: number,
   title: string,
   content: string,
-): Promise<void> {
+): Promise<{ merged: boolean; requiresReview?: boolean; rejectionReason?: string }> {
   let updated: BibleDraft;
   try {
     const result = await chatCompletionWithRetry({
@@ -68,7 +74,21 @@ async function applyChapterStateDiff(
     const diff = StateDiffSchema.safeParse(parseFirstJsonObject(result.content));
     if (!diff.success) {
       logWarn("generate_chapter.state_diff_invalid", { novel_id: novelId, chapter_index: chapterIndex });
-      return;
+      return { merged: false, rejectionReason: "状态变更 JSON 无法解析" };
+    }
+    const validationIssues = validateStateDiff(bible, diff.data, content);
+    if (validationIssues.length > 0) {
+      logWarn("generate_chapter.state_diff_rejected", {
+        novel_id: novelId,
+        chapter_index: chapterIndex,
+        codes: validationIssues.map((issue) => issue.code).join(","),
+        messages: validationIssues.map((issue) => issue.message).join(" | "),
+      });
+      return {
+        merged: false,
+        requiresReview: true,
+        rejectionReason: validationIssues.map((issue) => issue.message).join("；"),
+      };
     }
     updated = applyStateDiff(bible, diff.data, chapterIndex);
   } catch (err) {
@@ -77,9 +97,10 @@ async function applyChapterStateDiff(
       chapter_index: chapterIndex,
       error: err instanceof Error ? err.message : String(err),
     });
-    return;
+    return { merged: false, rejectionReason: "状态更新调用失败" };
   }
   await prisma.bibleDraft.update({ where: { novel_id: novelId }, data: { content: updated } });
+  return { merged: true };
 }
 
 /**
@@ -147,11 +168,28 @@ export async function handleGenerateChapter(payload: Prisma.JsonValue): Promise<
     update: { title: result.title, content: result.content, status: "done" },
   });
 
-  await applyChapterStateDiff(novel_id, bible.data, chapter_index, result.title, result.content);
+  const stateDiffOutcome = await applyChapterStateDiff(novel_id, bible.data, chapter_index, result.title, result.content);
 
   // Let RAG indexing and summaries catch up asynchronously — don't block.
+  // These run even if the state diff was rejected below: the chapter itself
+  // persisted, so leaving it unsummarized/unindexed would only add a second
+  // problem for the human reviewer.
   await enqueueJob({ type: "summarize_chapter", payload: { chapter_id: chapter.id }, novelId: novel_id });
   await enqueueJob({ type: "index_chapter", payload: { novel_id, chapter_id: chapter.id }, novelId: novel_id });
+
+  // M0.2: a diff rejected by validation (hallucinated entity / status
+  // regression / oversized) means the story state is now knowingly stale.
+  // Under a checkpoint mode the run pauses for human review — continuing to
+  // chain chapters on top of stale state quietly degrades continuity. JSON
+  // parse failures keep the old lenient behavior (~25% rate would halt every
+  // run); only *semantic* rejections gate.
+  if (run && stateDiffOutcome.requiresReview && run.checkpoint_mode !== "none") {
+    await markNeedsReview(
+      run.id,
+      `第 ${chapter_index} 章状态变更被校验拒绝,未合并进 Bible:${stateDiffOutcome.rejectionReason ?? "未知原因"}`,
+    );
+    return;
+  }
 
   if (run) {
     await finalizeRun(run, novel_id, novel.chapters, bible.data, chapter_index, result);
@@ -194,8 +232,11 @@ async function finalizeRun(
 
   // T12 质量门：自修满 R 轮后，用末 3 章滑窗过门。on_fail / per_volume 下未达标即
   // 挂起人工复核并止链；none 模式只记录、继续跑（见 qualityGate 的冷启动/硬门说明）。
+  // critic 的最终判定（result.criticIssues）作为第三类硬门并入：启发式分达标但 critic
+  // 标记 critical 的章节会被拦下，零额外 LLM 成本（critic 已在 pipeline 跑过）。
   const gate = evaluateChapterGate(buildQualityWindow(priorChapters, chapterIndex, result), bible, {
     qualityFloor: run.quality_floor,
+    criticIssues: result.criticIssues,
   });
   if (!gate.pass) {
     if (run.checkpoint_mode === "none") {
