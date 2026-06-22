@@ -6,7 +6,6 @@
 
 覆盖作品设定、大纲、章节编辑、候选稿、记忆库、导出和后台任务，帮助作者从灵感开始持续推进一部长篇作品。
 
-[![CI](https://github.com/winkovo0818/ai-novel/actions/workflows/ci.yml/badge.svg)](https://github.com/winkovo0818/ai-novel/actions/workflows/ci.yml)
 [![TypeScript Strict](https://img.shields.io/badge/TypeScript-strict-blue)](https://www.typescriptlang.org/tsconfig#strict)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/winkovo0818/ai-novel/pulls)
