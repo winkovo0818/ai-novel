@@ -273,12 +273,18 @@ export async function retrieveMemories(
       return { status: "empty", memories: [], explanation: retrievalExplanation };
     }
 
-    // --- 4. Optional keyword pre-filter ---
+    // --- 4. Keyword pre-filter ---
+    // 纯 OR 过滤太宽（正文几乎必含某角色/地名）→ 收紧：含主角名/本章标题视为强相关直接保留；
+    // 否则要求命中 ≥2 个实体，挡掉"只蹭了一个边缘配角/地名"的无关 chunk。
     if (keywords.length > 0) {
-      const lowerKeywords = keywords.map((k) => k.toLowerCase());
-      const filtered = scored.filter((row) =>
-        lowerKeywords.some((k) => row.text.toLowerCase().includes(k)),
-      );
+      const protagonistName = protagonist?.name;
+      const chapterTitle = current?.title;
+      const filtered = scored.filter((row) => {
+        if (row.matchedKeywords.length === 0) return false;
+        if (protagonistName && row.matchedKeywords.includes(protagonistName)) return true;
+        if (chapterTitle && row.matchedKeywords.includes(chapterTitle)) return true;
+        return row.matchedKeywords.length >= 2;
+      });
       if (filtered.length > 0) scored = filtered;
     }
 

@@ -80,6 +80,25 @@ describe("retrieveMemories", () => {
     vi.restoreAllMocks();
   });
 
+  it("drops chunks that only mention a single non-protagonist entity", async () => {
+    mocks.createEmbeddings.mockResolvedValue([Array.from({ length: 1024 }, () => 0.1)]);
+    mocks.queryRaw.mockResolvedValue([
+      { id: "c-protagonist", text: "沈言握住木牌，主角相关的高价值记忆。", chunk_type: "plot_thread", chapter_id: "c-1", chapter_index: 1, similarity: 0.6, importance: 1 },
+      { id: "c-single-entity", text: "蒋阶独自在堂前踱步，这段只提到一个配角。", chunk_type: "scene", chapter_id: "c-2", chapter_index: 1, similarity: 0.9, importance: 1 },
+      { id: "c-two-entity", text: "蒋阶在柴饦峰布置祭剑阵，涉及两个实体。", chunk_type: "plot_thread", chapter_id: "c-3", chapter_index: 1, similarity: 0.7, importance: 1 },
+    ]);
+    mocks.updateManyMemoryChunk.mockResolvedValue({ count: 2 });
+
+    const result = await retrieveMemories("novel-1", bible, 1, 5);
+
+    expect(result.status).toBe("success");
+    // 含主角名（沈言）→ 强相关保留；含 ≥2 实体（蒋阶+柴饦峰）→ 保留；
+    // 只含单个配角名（蒋阶）且非主角 → 被收紧的预过滤挡掉（即便 similarity 最高 0.9）。
+    expect(result.memories.find((m) => m.id === "c-protagonist")).toBeDefined();
+    expect(result.memories.find((m) => m.id === "c-two-entity")).toBeDefined();
+    expect(result.memories.find((m) => m.id === "c-single-entity")).toBeUndefined();
+  });
+
   it("merges duplicate chunks across queries by max similarity, not sum", async () => {
     mocks.createEmbeddings.mockResolvedValue([
       Array.from({ length: 1024 }, () => 0.1),
