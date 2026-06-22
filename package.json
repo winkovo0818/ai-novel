@@ -23,6 +23,7 @@
     "backup:check": "dotenv -e .env -- tsx scripts/backup-check.ts",
     "eval:ai": "tsx scripts/eval-ai-quality.ts",
     "eval:novel-quality": "tsx scripts/eval-novel-quality.ts",
+    "eval:novel-quality:runs": "EVAL_NOVEL_QUALITY_RUNS=3 tsx scripts/eval-novel-quality.ts",
     "eval:novel-quality:matrix": "tsx scripts/eval-novel-quality-matrix.ts",
     "eval:retrieval": "tsx scripts/eval-retrieval.ts",
     "eval:critic-revise": "tsx scripts/eval-critic-revise.ts",

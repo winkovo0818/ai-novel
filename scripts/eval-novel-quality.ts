@@ -573,9 +573,134 @@ function bar(scorePct: number): string {
   return "█".repeat(Math.max(0, Math.min(10, filled)));
 }
 
+function readRuns(): number {
+  const parsed = Number(process.env.EVAL_NOVEL_QUALITY_RUNS);
+  if (!Number.isInteger(parsed)) return 1;
+  return Math.max(1, Math.min(10, parsed));
+}
+
+function mean(xs: number[]): number {
+  if (xs.length === 0) return 0;
+  return xs.reduce((a, b) => a + b, 0) / xs.length;
+}
+
+function std(xs: number[]): number {
+  if (xs.length < 2) return 0;
+  const m = mean(xs);
+  return Math.sqrt(xs.reduce((s, x) => s + (x - m) ** 2, 0) / xs.length);
+}
+
+function fmt(n: number): string {
+  return (Math.round(n * 10) / 10).toFixed(1);
+}
+
+interface RunSnapshot {
+  run: number;
+  totalPct: number;
+  dimScores: Record<string, number>;
+  aiTraceTotal: number;
+  rawCleanupTotal: number;
+}
+
+/**
+ * 多次跑取均值 ± 标准差。单次 4 章跑的随机波动（实测 58-66 分）会淹没 prompt
+ * 微调的信号；跑 N 次取均值能让信号显现，标准差则暴露哪些维度本身不稳定。
+ * 触发：EVAL_NOVEL_QUALITY_RUNS=N（默认 1，即单次原行为）。
+ */
+async function runMultiMode(fixture: NovelFixture, chapterCount: number, runs: number): Promise<void> {
+  const snapshots: RunSnapshot[] = [];
+  let model = "unknown";
+  for (let r = 1; r <= runs; r += 1) {
+    const generated = await generateSeries(fixture, chapterCount);
+    if (r === 1) model = generated.chapters[0]?.model ?? "unknown";
+    const report = evaluateNovelQuality({ fixtureId: fixture.id, bible: generated.bible, chapters: generated.chapters });
+    const totalPct = Math.round((report.overallScore / report.maxScore) * 1000) / 10;
+    const dimScores: Record<string, number> = {};
+    for (const m of report.metrics) {
+      dimScores[m.label] = Math.round((m.score / m.max) * 1000) / 10;
+    }
+    const aiTraceTotal = report.aiTraceHits.reduce((s, h) => s + h.count, 0);
+    const rawCleanupTotal = report.rawCleanupHits.reduce((s, h) => s + h.count, 0);
+    snapshots.push({ run: r, totalPct, dimScores, aiTraceTotal, rawCleanupTotal });
+    console.log(`[eval:novel-quality] run ${r}/${runs} done: ${totalPct}% (ai_trace=${aiTraceTotal}, raw_cleanup=${rawCleanupTotal})`);
+  }
+  await writeMultiReport(fixture, chapterCount, runs, model, snapshots);
+}
+
+async function writeMultiReport(
+  fixture: NovelFixture,
+  chapterCount: number,
+  runs: number,
+  model: string,
+  snapshots: RunSnapshot[],
+): Promise<void> {
+  await fs.mkdir(REPORT_DIR, { recursive: true });
+  const dimLabels = Object.keys(snapshots[0]?.dimScores ?? {});
+  const totalPcts = snapshots.map((s) => s.totalPct);
+  const aiTraces = snapshots.map((s) => s.aiTraceTotal);
+  const rawCleanups = snapshots.map((s) => s.rawCleanupTotal);
+  const lines = [
+    "# 多次跑评估（降低 LLM 随机噪声）",
+    "",
+    `- 生成时间：${new Date().toISOString()}`,
+    `- 样例：${fixture.id}《${fixture.bible.meta.suggested_title}》`,
+    `- 模型：${model}`,
+    `- 每跑 ${chapterCount} 章 × ${runs} 跑次（共 ${chapterCount * runs} 章）`,
+    `- 用途：prompt 改动 before/after 各跑 N 次，对比**均值**判断是否改善；**标准差**反映维度稳定性（大 = 该维度本就不稳，单次分不可信）。`,
+    "",
+    "## 总分",
+    "",
+    "| 跑次 | 总分% |",
+    "|---:|---:|",
+    ...snapshots.map((s) => `| ${s.run} | ${fmt(s.totalPct)} |`),
+    `| **均值 ± 标准差** | **${fmt(mean(totalPcts))} ± ${fmt(std(totalPcts))}** |`,
+    "",
+    "## 各维度（均值 ± 标准差）",
+    "",
+    "| 维度 | 均值% | 标准差 |",
+    "|---|---:|---:|",
+    ...dimLabels.map((label) => {
+      const vals = snapshots.map((s) => s.dimScores[label]);
+      return `| ${label} | ${fmt(mean(vals))} | ${fmt(std(vals))} |`;
+    }),
+    "",
+    "## AI 写作痕迹（越低越好）",
+    "",
+    "| 指标 | 均值 | 标准差 |",
+    "|---|---:|---:|",
+    `| humanizer 命中合计 | ${fmt(mean(aiTraces))} | ${fmt(std(aiTraces))} |`,
+    `| 清洗前 AI 签名合计 | ${fmt(mean(rawCleanups))} | ${fmt(std(rawCleanups))} |`,
+    "",
+  ];
+  await fs.writeFile(path.join(REPORT_DIR, "novel-quality-multi-latest.md"), `${lines.join("\n")}\n`, "utf-8");
+  await fs.writeFile(
+    path.join(REPORT_DIR, "novel-quality-multi-latest.json"),
+    `${JSON.stringify({
+      fixtureId: fixture.id,
+      model,
+      chapterCount,
+      runs,
+      snapshots,
+      summary: {
+        totalPct: { mean: mean(totalPcts), std: std(totalPcts) },
+        aiTrace: { mean: mean(aiTraces), std: std(aiTraces) },
+        rawCleanup: { mean: mean(rawCleanups), std: std(rawCleanups) },
+      },
+    }, null, 2)}\n`,
+    "utf-8",
+  );
+  console.log(`[eval:novel-quality] multi done: total ${fmt(mean(totalPcts))} ± ${fmt(std(totalPcts))} over ${runs} runs`);
+  console.log("[eval:novel-quality] wrote docs/evals/novel-quality-multi-latest.md");
+}
+
 async function main() {
   const fixture = await readFixture();
   const chapterCount = readChapterCount();
+  const runs = readRuns();
+  if (runs > 1) {
+    await runMultiMode(fixture, chapterCount, runs);
+    return;
+  }
   let mode: NovelQualityRunReport["mode"] = shouldUseRealLlm() ? "real_llm" : "fixture_fallback";
   let model = "not-run";
   let chapters: GeneratedChapter[];
