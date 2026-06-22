@@ -146,6 +146,7 @@ async function generateChapter(input: {
     {
       route: "/scripts/eval-novel-quality/chapters/draft",
       agent: "writer",
+      model: process.env.EVAL_NOVEL_QUALITY_MODEL,
       messages: buildChapterPrompt({
         context,
         profile: input.fixture.profile,
@@ -186,6 +187,7 @@ async function updateBibleWithChapter(bible: BibleDraft, chapter: GeneratedChapt
     {
       route: "/scripts/eval-novel-quality/state-diff",
       agent: "state_updater",
+      model: process.env.EVAL_NOVEL_QUALITY_MODEL,
       messages: buildStateDiffPrompt({
         bible,
         storyState: bible.story_state,

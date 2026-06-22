@@ -233,8 +233,10 @@ function getBaseUrl(): string {
  */
 async function resolveModelConfig(opts: { model?: string }): Promise<ResolvedModelConfig> {
   try {
+    // 指定 model 名时按名查配置（支持多模型切换，如 eval 对比不同模型）；
+    // 否则用 is_default。生产调用从不传 model，故按名查分支仅 eval/测试触发。
     const lookup = prisma.llmModel.findFirst({
-      where: { is_default: true, is_enabled: true },
+      where: opts.model ? { model: opts.model, is_enabled: true } : { is_default: true, is_enabled: true },
       orderBy: { created_at: "asc" },
     });
     const row = await Promise.race([
@@ -245,7 +247,7 @@ async function resolveModelConfig(opts: { model?: string }): Promise<ResolvedMod
       return {
         baseUrl: row.base_url.replace(/\/+$/, ""),
         apiKey: decryptApiKey(row.api_key),
-        model: opts.model ?? row.model,
+        model: row.model,
         provider: row.provider,
       };
     }

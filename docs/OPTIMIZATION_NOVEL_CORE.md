@@ -544,6 +544,19 @@ npm run eval:golden                 # 黄金集相关性（评估「评分」与
 2. **从评分侧校准**：ai_voice 维度 std 23.6 过大，部分 humanizer 规则可能误判（如"句首重复"的判定阈值、"虚假范围句"对合法列举的误报），校准评分算法本身；
 3. **接受当前基线**：92.9% 已是优秀，ai_voice 的 7/10 对整体不致命，把精力转到连贯性（P2/P3）或别的功能。
 
+### 模型对比实测：deepseek-v4-flash 优于 mimo-v2.5-pro，端点内已触顶（2026-06-22）
+
+用 multi(runs=3) 对比 DB 里两个模型配置（`resolveModelConfig` 已支持按 model 名切换，`EVAL_NOVEL_QUALITY_MODEL` 环境变量触发）：
+
+| 指标 | deepseek-v4-flash（默认）| mimo-v2.5-pro | 判定 |
+|------|------|------|------|
+| 总分 | 88.6 ± 6.1 | 83.3 ± 5.3 | mimo 略低 |
+| **humanizer 命中** | **16 ± 4.5** | **24 ± 8.6** | **mimo 更差** |
+| 人物一致性 | 83.3 ± 9.4 | 70.0 ± 0.0 | mimo 明显更差 |
+| ai_voice | 53.3 ± 23.6 | 36.7 ± 38.6 | mimo 更差且更不稳 |
+
+**结论：ai_voice 短板不是「选错了模型」。** 当前默认的 deepseek-v4-flash 是端点内两个模型里更优的（AI 味更少、人物更一致），换 mimo 只会退步。两个端点（api.deepseek.com 官方 / token-plan 小米）都属同一档位，ai_voice 在这档位触顶。要真正突破需接入端点外的更强模型（deepseek-v3.x 旗舰 / Claude / GPT 等），这是模型供应商层面的投入，非本项目 prompt/检索能解决。
+
 ---
 
 ## 八、风险与回滚原则
