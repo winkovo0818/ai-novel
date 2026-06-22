@@ -80,6 +80,40 @@ describe("retrieveMemories", () => {
     vi.restoreAllMocks();
   });
 
+  it("merges duplicate chunks across queries by max similarity, not sum", async () => {
+    mocks.createEmbeddings.mockResolvedValue([
+      Array.from({ length: 1024 }, () => 0.1),
+      Array.from({ length: 1024 }, () => 0.1),
+      Array.from({ length: 1024 }, () => 0.1),
+    ]);
+    let call = 0;
+    mocks.queryRaw.mockImplementation(() => {
+      call += 1;
+      if (call === 1) {
+        return Promise.resolve([
+          { id: "chunkA", text: "沈言握住木牌的瞬间，几的提醒传来，这段在多路查询里都会被捞到的泛泛记忆。", chunk_type: "plot_thread", chapter_id: "c-1", chapter_index: 1, similarity: 0.5, importance: 1 },
+          { id: "chunkB", text: "沈言在裂井边第一次听见剑魂的低语，单路高相关的具体记忆。", chunk_type: "scene", chapter_id: "c-2", chapter_index: 1, similarity: 0.8, importance: 1 },
+        ]);
+      }
+      if (call === 2) {
+        return Promise.resolve([
+          { id: "chunkA", text: "沈言握住木牌的瞬间，几的提醒传来，这段在多路查询里都会被捞到的泛泛记忆。", chunk_type: "plot_thread", chapter_id: "c-1", chapter_index: 1, similarity: 0.5, importance: 1 },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    mocks.updateManyMemoryChunk.mockResolvedValue({ count: 2 });
+
+    const result = await retrieveMemories("novel-1", bible, 1, 5);
+
+    expect(result.status).toBe("success");
+    // chunkA 在两路都被命中（sim 0.5 + 0.5），chunkB 仅一路（sim 0.8）。
+    // 用 max 合并：chunkA=0.5 < chunkB=0.8 → chunkB 排前；
+    // 若用 sum 合并：chunkA=1.0 > chunkB=0.8 → chunkA 排前（泛泛内容被放大，正是要防的）。
+    expect(result.memories[0].id).toBe("chunkB");
+    expect(result.memories.find((m) => m.id === "chunkA")).toBeDefined();
+  });
+
   it("returns a deterministic retrieval error in mock scenario mode", async () => {
     process.env.LLM_MOCK = "1";
     process.env.LLM_MOCK_SCENARIO = "retrieval-error";

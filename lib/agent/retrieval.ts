@@ -249,7 +249,9 @@ export async function retrieveMemories(
         const key = hit.text.slice(0, 100);
         const existing = merged.get(key);
         if (existing) {
-          existing.score += hit.score;
+          // 取最高相似度而非累加：多路查询都会沾边的“泛泛内容”（如主角名高频的早期场景）
+          // 不应因被多路命中而排名虚高，压过单路高分的相关 chunk（RRF 的简化版）。
+          existing.score = Math.max(existing.score, hit.score);
           existing.matchedKeywords = [
             ...new Set([...existing.matchedKeywords, ...matchingKeywords(hit.text, keywords)]),
           ];
