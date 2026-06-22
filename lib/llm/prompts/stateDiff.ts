@@ -44,6 +44,9 @@ ${PROMPT_SAFETY_PREAMBLE}
   ],
   "constraint_updates": [
     { "fact": "本章确立的既定事实/硬约束", "validity": "permanent|until_revealed", "notes": "可选说明" }
+  ],
+  "foreshadowing_updates": [
+    { "clue": "伏笔/线索名", "status": "planted|reinforced|revealed|resolved", "payoff_hint": "可选：何时何情境回收", "notes": "可选说明" }
   ]
 }
 
@@ -58,6 +61,7 @@ ${PROMPT_SAFETY_PREAMBLE}
   - 角色已知/未知的关键信息（如"沈言已知道木牌是追踪符"）
   - 物品归属、位置关系、不可违背的承诺/契约、确认的世界规则
   validity：permanent=永久约束，until_revealed=直到被某章明确推翻/揭示。只记可验证的硬事实，不记主观情绪或氛围；没有就留空数组。
+- foreshadowing_updates 追踪伏笔状态机：本章首次埋下伏笔记 planted（如首次出现的追踪符、神秘符号、未解之谜）；后续章节该伏笔被强化/再次提及记 reinforced；伏笔真相被揭示记 revealed；伏笔彻底回收/解决记 resolved。status 必须反映本章对既有伏笔的处理——避免伏笔埋下后多章不跟进导致悬置。没有伏笔变化就留空数组。
 - confidence 取 low/medium/high，基于文本中直接描写的取 high，需要推理的取 medium，有不确定性的取 low。
 - 如果本章没有明显状态变更，所有数组为空即可。
 - 不要输出任何 JSON 之外的文本或解释。`,

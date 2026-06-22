@@ -221,6 +221,27 @@ describe("buildChapterPrompt", () => {
     expect(systemContent).toContain("打断、改口、省略");
   });
 
+  it("injects unresolved foreshadowing so the writer follows up (not abandons)", () => {
+    const messages = buildChapterPrompt({
+      context: makeContext({
+        bible: { ...bible, story_state: { foreshadowing: [
+          { id: "f1", clue: "追踪符", status: "planted", introduced_in: 2 },
+          { id: "f2", clue: "断剑认主", status: "reinforced", introduced_in: 5, payoff_hint: "祭剑时揭示" },
+          { id: "f3", clue: "旧谜", status: "resolved", introduced_in: 1, resolved_in: 3 },
+        ] } },
+      }),
+      profile,
+    });
+    const userContent = messages[1]?.content ?? "";
+
+    // 未回收伏笔（planted/reinforced）注入，resolved 不再提示
+    expect(userContent).toContain("未回收伏笔");
+    expect(userContent).toContain("追踪符");
+    expect(userContent).toContain("断剑认主");
+    expect(userContent).toContain("祭剑时揭示");
+    expect(userContent).not.toContain("旧谜");
+  });
+
   it("injects active_constraints as must-respect established facts", () => {
     const messages = buildChapterPrompt({
       context: makeContext({

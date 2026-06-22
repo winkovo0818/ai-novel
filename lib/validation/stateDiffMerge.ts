@@ -404,6 +404,26 @@ export function applyStateDiff(
     }
   }
 
+  // 合并 foreshadowing_updates：按 clue 匹配更新状态，新 clue 追加。
+  // 这是伏笔状态机（planted→reinforced→revealed→resolved）的增量更新——
+  // 让 writer 能看到未回收伏笔、避免悬置（如追踪符第2章埋后4章不提）。
+  for (const update of (diff.foreshadowing_updates ?? [])) {
+    const idx = foreshadowing.findIndex((f) => f.clue === update.clue);
+    if (idx >= 0) {
+      foreshadowing[idx] = { ...foreshadowing[idx], status: update.status, payoff_hint: update.payoff_hint ?? foreshadowing[idx].payoff_hint, notes: update.notes ?? foreshadowing[idx].notes };
+      if (update.status === "resolved") foreshadowing[idx].resolved_in = chapterIndex;
+    } else {
+      foreshadowing.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        clue: update.clue,
+        status: update.status,
+        introduced_in: chapterIndex,
+        payoff_hint: update.payoff_hint,
+        notes: update.notes,
+      });
+    }
+  }
+
   // 2.7 防膨胀：timeline 只保留最近 N 条——writer 只取最后 1 条、critic 最后 10 条、
   // state-diff 只需基于最近状态判断增量；远端事件由卷摘要 / RAG 承载，不全量堆积进每章 prompt。
   const TIMELINE_KEEP_RECENT = 20;

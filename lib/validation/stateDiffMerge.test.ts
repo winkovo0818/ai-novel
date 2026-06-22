@@ -223,6 +223,31 @@ describe("applyStateDiff", () => {
     });
   });
 
+  it("merges foreshadowing_updates by clue and tracks planted→reinforced→resolved", () => {
+    const bible: BibleDraft = { ...baseBible, story_state: { foreshadowing: [
+      { id: "f1", clue: "追踪符", status: "planted", introduced_in: 2 },
+    ] } };
+    const diff: StateDiff = {
+      character_updates: [], timeline_events: [], plot_thread_updates: [], new_entities: [],
+      foreshadowing_updates: [
+        { clue: "追踪符", status: "reinforced", notes: "再次提及" },        // 既有：强化
+        { clue: "断剑认主", status: "planted", payoff_hint: "祭剑时揭示" }, // 新伏笔：埋下
+      ],
+    };
+
+    const next = applyStateDiff(bible, diff, 5);
+
+    const fs = next.story_state?.foreshadowing ?? [];
+    const trace = fs.find((f) => f.clue === "追踪符");
+    expect(trace?.status).toBe("reinforced");          // planted → reinforced
+    expect(trace?.introduced_in).toBe(2);              // 首现章保留
+    expect(trace?.notes).toBe("再次提及");
+    const sword = fs.find((f) => f.clue === "断剑认主");
+    expect(sword?.status).toBe("planted");
+    expect(sword?.introduced_in).toBe(5);
+    expect(sword?.payoff_hint).toBe("祭剑时揭示");
+  });
+
   it("merges constraint_updates into active_constraints with established_in and dedup", () => {
     const bible: BibleDraft = {
       ...baseBible,

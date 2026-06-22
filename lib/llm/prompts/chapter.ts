@@ -36,6 +36,16 @@ function buildStoryStateSection(context: ChapterContext): string {
     }
   }
 
+  // 未回收伏笔：让 writer 知道有哪些已埋但未揭穿的伏笔，适时强化或推进——防伏笔悬置
+  // （如追踪符第2章埋下后多章不提，读者忘了）。只列 planted/reinforced，revealed/resolved 不再提示。
+  const openForeshadowing = context.storyState.foreshadowing?.filter((f) => f.status === "planted" || f.status === "reinforced") ?? [];
+  if (openForeshadowing.length > 0) {
+    lines.push("\n未回收伏笔（适时强化或推进，不要让读者遗忘）：");
+    for (const f of openForeshadowing) {
+      lines.push(`- ${wrap(f.clue, "plot_thread")}（第 ${f.introduced_in ?? "?"} 章埋，${f.status === "reinforced" ? "已强化" : "待推进"}${f.payoff_hint ? "；回收提示：" + wrap(f.payoff_hint, "plot_thread") : ""}）`);
+    }
+  }
+
   if (context.storyState.timeline && context.storyState.timeline.length > 0) {
     const lastEvent = context.storyState.timeline[context.storyState.timeline.length - 1];
     lines.push(`\n最新时间线事件（第 ${lastEvent.chapter_index} 章）：${wrap(lastEvent.event, "story_state")}${lastEvent.impact ? "；影响：" + wrap(lastEvent.impact, "story_state") : ""}`);

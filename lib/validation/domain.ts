@@ -259,6 +259,15 @@ export const StateDiffSchema = z.object({
       description: entity.description?.trim() || entity.name,
     })),
   ).default([]),
+  /** 本章伏笔状态变化（state-diff agent 产出，合并进 foreshadowing）。optional。 */
+  foreshadowing_updates: z.array(
+    z.object({
+      clue: z.string().min(1),
+      status: z.enum(["planted", "reinforced", "revealed", "resolved"]).catch("reinforced"),
+      payoff_hint: z.string().optional(),
+      notes: z.string().optional(),
+    }),
+  ).optional(),
   /** 本章新确立的硬约束/既定事实（state-diff agent 产出，合并进 active_constraints）。optional：LLM 可能不产出。 */
   constraint_updates: z.array(
     z.object({
