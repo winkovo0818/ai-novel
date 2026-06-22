@@ -77,9 +77,21 @@ function buildContinuityTargetSection(context: ChapterContext, isMystery: boolea
     ? "- 本章悬疑结果：结尾前必须落到一个可记录的认知变化：新线索、新疑点、被推翻的假设、被排除的嫌疑人、新的误导/伏笔确认 之一；不要一次揭穿核心谜底。"
     : "- 本章结果：结尾前必须产生一个可记录状态变化：新线索、关系变化、位置变化、道具归属、敌人反应、伤势/能力变化或世界规则确认。";
 
+  // 章际承接：上一章结尾原文 + 摘要。writer 必须从上一章结尾的具体落点续写，
+  // 不能跳过衔接或另起场景——这是「上一章结尾↔本章开头对不上」的直接对策。
+  const prevEndingLine = lastSummary?.endingExcerpt
+    ? `- 上一章结尾原文（本章开头必须从此情境续写，不要跳过到地方/换场）：\n${wrap(lastSummary.endingExcerpt, "previous_summary")}`
+    : "";
+  const prevResultLine = lastSummary
+    ? `- 上一章结果：${wrap(lastSummary.summary, "previous_summary")}`
+    : latestTimelineEvent
+      ? `- 上一章结果：${wrap(latestTimelineEvent.event, "story_state")}`
+      : "- 上一章结果：无前章；用第一章场面建立主角处境和即时压力。";
+
   const lines = [
     "本章隐形计划（只在内部使用，不要输出提纲）：",
-    `- 上一章结果：${lastSummary ? wrap(lastSummary.summary, "previous_summary") : latestTimelineEvent ? wrap(latestTimelineEvent.event, "story_state") : "无前章；用第一章场面建立主角处境和即时压力。"}`,
+    prevResultLine,
+    ...(prevEndingLine ? [prevEndingLine] : []),
     `- 当前目标：${currentGoals && currentGoals.length > 0 ? currentGoals.join("；") : "从主角动机和章节大纲中推出一个当场目标。"}`,
     `- 当前阻碍：${activeThreads && activeThreads.length > 0 ? activeThreads.join("；") : "用章节大纲、反派压力或世界规则制造阻碍。"}`,
     actionLine,

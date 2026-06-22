@@ -14,6 +14,8 @@ export interface PreviousChapterContext {
   chapterIndex: number;
   title: string;
   summary: string;
+  /** 前一章结尾原文（截取），让 writer 接得住上一章的具体落点，防章际承接断裂。 */
+  endingExcerpt?: string;
 }
 
 export interface ChapterContext {
@@ -59,6 +61,20 @@ function formatPreviousChapter(index: number, title: string, content: string): s
   return `第 ${index} 章《${title}》：${head}……（中略）……${tail}`;
 }
 
+/** 取上一章结尾原文（按段落边界，~350 字），供 writer 接住上一章的具体落点。 */
+function extractEndingExcerpt(content: string): string {
+  const paragraphs = content.split(/\n+/).map((p) => p.trim()).filter(Boolean);
+  if (paragraphs.length === 0) return "";
+  const excerpt: string[] = [];
+  let charCount = 0;
+  // 从末段往前收，凑到 ~350 字为止——结尾段落承载上一章的落点/悬念
+  for (let i = paragraphs.length - 1; i >= 0 && charCount < 350; i -= 1) {
+    excerpt.unshift(paragraphs[i]);
+    charCount += paragraphs[i].length;
+  }
+  return excerpt.join("\n");
+}
+
 /** Maximum recent chapter summaries to inject directly. Older context comes from volume/novel summaries. */
 const MAX_RECENT_CHAPTER_SUMMARIES = 5;
 
@@ -88,18 +104,31 @@ export function buildChapterContext(
   // by volume_summary / novel_summary.
   const recentChapters = relevantChapters.slice(-MAX_RECENT_CHAPTER_SUMMARIES);
 
+  // 直接前章（上一章）的结尾原文——章际承接的关键。摘要把"她拦出租车去找人"
+  // 压成抽象概括，writer 接不住具体落点，导致下一章开头跳过衔接或另起。
+  // 只给最近一章填结尾，避免给每章都加造成 token 膨胀。
+  const directPrevChapter = relevantChapters.at(-1);
+  const prevEndingExcerpt = directPrevChapter?.content.trim()
+    ? extractEndingExcerpt(directPrevChapter.content)
+    : undefined;
+
   const previousSummaries = recentChapters.map((chapter) => {
+    const endingExcerpt = chapter.chapter_index === directPrevChapter?.chapter_index
+      ? prevEndingExcerpt
+      : undefined;
     if (chapter.summary) {
       return {
         chapterIndex: chapter.chapter_index,
         title: chapter.title,
         summary: `第 ${chapter.chapter_index} 章《${chapter.title}》：${chapter.summary.summary}`,
+        endingExcerpt,
       };
     }
     return {
       chapterIndex: chapter.chapter_index,
       title: chapter.title,
       summary: formatPreviousChapter(chapter.chapter_index, chapter.title, chapter.content),
+      endingExcerpt,
     };
   });
 

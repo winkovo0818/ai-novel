@@ -85,6 +85,19 @@ describe("buildChapterContext", () => {
     expect(context.previousSummaries[0].chapterIndex).toBe(2);
   });
 
+  it("injects the direct previous chapter ending excerpt for handoff continuity", () => {
+    const chapters = [
+      makeChapter(1, { content: "上一章开头内容。这里是上一章的正文。\n\n她拦了一辆出租车，报了一个地址。\n\n那个人知道的事，比YH贸易要多得多。" }),
+    ];
+    const context = buildChapterContext(bible, chapters, 2);
+    expect(context.previousSummaries).toHaveLength(1);
+    // 直接前章的结尾原文注入 endingExcerpt（章际承接的关键，防下章开头跳过衔接）
+    const prev = context.previousSummaries[0];
+    expect(prev.endingExcerpt).toBeDefined();
+    expect(prev.endingExcerpt).toContain("出租车");
+    expect(prev.endingExcerpt).toContain("YH贸易");
+  });
+
   it("passes through story_state from bible", () => {
     const bibleWithState = {
       ...bible,
