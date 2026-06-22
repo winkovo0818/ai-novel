@@ -42,6 +42,9 @@ export function buildCriticPrompt(input: BuildCriticPromptInput): ChatMessage[] 
   if (context.volumeSummary) {
     tieredSummarySection.push(`当前卷摘要：\n${wrap(context.volumeSummary, "previous_summary")}`);
   }
+  if (context.priorVolumeSummaries) {
+    tieredSummarySection.push(`前序各卷摘要（已完成的卷，判断本章是否有前序铺垫）：\n${wrap(context.priorVolumeSummaries, "previous_summary")}`);
+  }
   const tieredSummaryText = tieredSummarySection.length > 0
     ? tieredSummarySection.join("\n\n")
     : "";

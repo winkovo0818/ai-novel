@@ -223,6 +223,21 @@ describe("applyStateDiff", () => {
     });
   });
 
+  it("trims timeline to the most recent N entries to prevent bloat", () => {
+    const longTimeline = Array.from({ length: 25 }, (_, i) => ({
+      chapter_index: i + 1,
+      event: `事件${i + 1}`,
+      impact: `影响${i + 1}`,
+    }));
+    const bible: BibleDraft = { ...baseBible, story_state: { timeline: longTimeline } };
+    const diff: StateDiff = { character_updates: [], timeline_events: [], plot_thread_updates: [], new_entities: [] };
+    const next = applyStateDiff(bible, diff, 26);
+    // 超过 20 条时只保留最近 20 条，最早的被丢弃（远端事件靠卷摘要/RAG 承载）
+    expect(next.story_state?.timeline).toHaveLength(20);
+    expect(next.story_state?.timeline?.[0].event).toBe("事件6");
+    expect(next.story_state?.timeline?.[19].event).toBe("事件25");
+  });
+
   it("preserves expanded story_state relationships and tracks foreshadowing", () => {
     const bible: BibleDraft = {
       ...baseBible,

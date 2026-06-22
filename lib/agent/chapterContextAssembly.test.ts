@@ -130,4 +130,22 @@ describe("assembleChapterContext", () => {
     expect(result.context).toBeDefined();
     expect(result.context.outline.chapterIndex).toBe(3);
   });
+
+  it("includes prior volume summaries to preserve long-range coherence", async () => {
+    const { assembleChapterContext } = await import("./chapterContextAssembly");
+    const result = await assembleChapterContext({
+      novelId: "novel-1",
+      bible: makeBible(5),
+      chapters: makeChapters(2),
+      chapterIndex: 3,
+      volumeSummaries: [
+        { volume_index: 0, summary: "第一卷回顾：主角觉醒剑魂。" },
+        { volume_index: 1, summary: "第二卷回顾：主角进入剑冢。" },
+      ],
+    });
+    // 当前卷(0)由 volumeSummary 注入；前序卷(1)由 priorVolumeSummaries 收集，排除当前卷避免冗余
+    expect(result.context.volumeSummary).toBe("第一卷回顾：主角觉醒剑魂。");
+    expect(result.context.priorVolumeSummaries).toContain("第二卷回顾：主角进入剑冢。");
+    expect(result.context.priorVolumeSummaries).not.toContain("第一卷回顾");
+  });
 });

@@ -26,6 +26,8 @@ export interface ChapterContext {
   };
   novelSummary?: string;
   volumeSummary?: string;
+  /** 已完成的各卷摘要（排除当前卷），让长篇写作能看到前序卷的核心推进，防远端失锚。 */
+  priorVolumeSummaries?: string;
   previousSummaries: PreviousChapterContext[];
   retrievedMemories: Array<{
     source: string;
@@ -39,6 +41,7 @@ export interface ChapterContext {
 export interface BuildChapterContextOptions {
   novelSummary?: string;
   volumeSummary?: string;
+  priorVolumeSummaries?: string;
   retrievedMemories?: Array<{ source: string; text: string; reason: string }>;
   retrievalStatus?: RetrievalStatus;
   beatSheet?: BeatSheet;
@@ -110,6 +113,7 @@ export function buildChapterContext(
     },
     novelSummary: opts?.novelSummary,
     volumeSummary: opts?.volumeSummary,
+    priorVolumeSummaries: opts?.priorVolumeSummaries,
     previousSummaries,
     retrievedMemories: opts?.retrievedMemories ?? [],
     retrievalStatus: opts?.retrievalStatus ?? "empty",

@@ -104,6 +104,9 @@ export function buildChapterPrompt(input: ChapterPromptInput): ChatMessage[] {
   if (context.volumeSummary) {
     tieredSummarySection.push(`当前卷摘要：\n${wrap(context.volumeSummary, "previous_summary")}`);
   }
+  if (context.priorVolumeSummaries) {
+    tieredSummarySection.push(`前序各卷摘要（已完成的卷，用于长程连贯，不要复述）：\n${wrap(context.priorVolumeSummaries, "previous_summary")}`);
+  }
   const tieredSummaryText = tieredSummarySection.length > 0
     ? `\n${tieredSummarySection.join("\n\n")}\n`
     : "";

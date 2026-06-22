@@ -404,11 +404,17 @@ export function applyStateDiff(
     }
   }
 
+  // 2.7 防膨胀：timeline 只保留最近 N 条——writer 只取最后 1 条、critic 最后 10 条、
+  // state-diff 只需基于最近状态判断增量；远端事件由卷摘要 / RAG 承载，不全量堆积进每章 prompt。
+  const TIMELINE_KEEP_RECENT = 20;
+  const trimmedTimeline = timeline.length > TIMELINE_KEEP_RECENT
+    ? timeline.slice(-TIMELINE_KEEP_RECENT)
+    : timeline;
   const nextState: StoryStateV1 = {
     ...(characters.length > 0 ? { characters } : {}),
     ...(locations.length > 0 ? { locations } : {}),
     ...(items.length > 0 ? { items } : {}),
-    ...(timeline.length > 0 ? { timeline } : {}),
+    ...(trimmedTimeline.length > 0 ? { timeline: trimmedTimeline } : {}),
     ...(prev.relationships && prev.relationships.length > 0 ? { relationships: prev.relationships } : {}),
     ...(plotThreads.length > 0 ? { plot_threads: plotThreads } : {}),
     ...(foreshadowing.length > 0 ? { foreshadowing } : {}),
