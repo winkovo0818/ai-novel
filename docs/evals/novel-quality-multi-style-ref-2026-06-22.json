@@ -1,0 +1,97 @@
+{
+  "fixtureId": "xuanhuan-seed",
+  "model": "deepseek-v4-flash",
+  "chapterCount": 4,
+  "runs": 5,
+  "snapshots": [
+    {
+      "run": 1,
+      "totalPct": 84.3,
+      "dimScores": {
+        "连续性": 100,
+        "因果逻辑": 90,
+        "人物一致性": 70,
+        "剧情推进": 100,
+        "世界规则": 80,
+        "AI 味控制": 50,
+        "正文可读性": 100
+      },
+      "aiTraceTotal": 13,
+      "rawCleanupTotal": 26
+    },
+    {
+      "run": 2,
+      "totalPct": 92.9,
+      "dimScores": {
+        "连续性": 100,
+        "因果逻辑": 90,
+        "人物一致性": 90,
+        "剧情推进": 100,
+        "世界规则": 100,
+        "AI 味控制": 70,
+        "正文可读性": 100
+      },
+      "aiTraceTotal": 12,
+      "rawCleanupTotal": 19
+    },
+    {
+      "run": 3,
+      "totalPct": 90,
+      "dimScores": {
+        "连续性": 100,
+        "因果逻辑": 90,
+        "人物一致性": 90,
+        "剧情推进": 100,
+        "世界规则": 100,
+        "AI 味控制": 50,
+        "正文可读性": 100
+      },
+      "aiTraceTotal": 13,
+      "rawCleanupTotal": 29
+    },
+    {
+      "run": 4,
+      "totalPct": 90,
+      "dimScores": {
+        "连续性": 100,
+        "因果逻辑": 90,
+        "人物一致性": 90,
+        "剧情推进": 100,
+        "世界规则": 100,
+        "AI 味控制": 50,
+        "正文可读性": 100
+      },
+      "aiTraceTotal": 16,
+      "rawCleanupTotal": 18
+    },
+    {
+      "run": 5,
+      "totalPct": 87.1,
+      "dimScores": {
+        "连续性": 100,
+        "因果逻辑": 90,
+        "人物一致性": 90,
+        "剧情推进": 100,
+        "世界规则": 80,
+        "AI 味控制": 50,
+        "正文可读性": 100
+      },
+      "aiTraceTotal": 16,
+      "rawCleanupTotal": 18
+    }
+  ],
+  "summary": {
+    "totalPct": {
+      "mean": 88.85999999999999,
+      "std": 2.9261578904768655
+    },
+    "aiTrace": {
+      "mean": 14,
+      "std": 1.6733200530681511
+    },
+    "rawCleanup": {
+      "mean": 22,
+      "std": 4.604345773288535
+    }
+  }
+}

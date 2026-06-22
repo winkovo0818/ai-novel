@@ -94,6 +94,13 @@ function buildContinuityTargetSection(context: ChapterContext, isMystery: boolea
   return lines.join("\n");
 }
 
+/**
+ * 正面文风锚定片段。2.2：模型从 1 个好例子学到的文风 > N 条抽象规则。
+ * 针对实测短板（句首反复"沈言"、AI 高频词、破折号）——范文刻意示范换主语、
+ * 省主语、动作承接、具体物象，让模型有具体靶子模仿。只学文风，不抄情节/角色名。
+ */
+const STYLE_REFERENCE = `文风参照片段（只学叙事密度与句式，勿抄情节/角色/地名）：\n灶火暗了。柴烟顺着破瓦缝钻出去，像一条灰蛇。\n他没抬头。湿柴塞进火膛的动作很慢，慢到能听见执事在门外的脚步。\n“又在磨蹭。”\n脚步近了。门板被一脚踹开，冷雨卷进来，火苗伏低。\n孙奉把黑牌摔到脚边。考核的事，三天后。\n那道符线是回屋后才敢看的。泥水渗进牌纹，亮了半息，朝后山裂井的方向爬。`;
+
 export function buildChapterPrompt(input: ChapterPromptInput): ChatMessage[] {
   const { context, profile, existingContent, generationPolicy } = input;
   const bible = context.bible;
@@ -211,6 +218,8 @@ ${bible.first_chapter_beats.map((beat) => `${beat.beat}. ${wrap(beat.scene, "bea
 
 已有正文（如有，续写并融合，不要重复）：
 ${existingContent?.trim() ? wrap(existingContent.trim(), "existing_content") : "无"}
+
+${STYLE_REFERENCE}
 
 现在开始输出章节正文。`,
     },
