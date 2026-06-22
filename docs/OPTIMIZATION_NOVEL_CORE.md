@@ -396,24 +396,39 @@ const allVolumeSummaries = volumeSummaries
 
 当前架构靠「prompt 拼上下文」实现连贯，有三个结构性天花板。突破需 schema 扩展 + 新 agent，投入最大，但这是 40+ 章不衰减的根本手段。**建议在 P1/P2 落地、用 eval 确认仍不满足长篇目标后再启动。**
 
-### 4.1 活跃约束清单（Active Constraints）⭐ 长程最高杠杆
+### 4.1 活跃约束清单（Active Constraints）⭐ 长程最高杠杆 — ✅ 已落地（2026-06-22）
 
 **问题**：story_state 记「状态快照」（角色在哪/目标是什么），不记「硬约束」（「角色 A 不能知道秘密 B，因为 B 只在 C、D 间传递」）。critic 只能靠语义判断矛盾，第 30 章违背第 5 章设定时无结构化校验。
 
-**方案**：在 story_state 维护结构化断言清单：
+**方案**（已实现）：在 story_state 维护结构化断言清单：
 
 ```ts
 interface ActiveConstraint {
   fact: string;            // 「林砚知道密信内容」
   established_in: number;  // 第 5 章
-  validity: "permanent" | "until_revealed" | "until_chapter_N";
+  validity: "permanent" | "until_revealed";
+  notes?: string;
 }
 ```
 
-每章注入 writer prompt（作为「必须遵守的既定事实」），并由 critic 校验本章是否违反。critic 违反约束 → critical issue。
+闭环已打通（3 个提交）：
+1. **schema + 合并**（`637c4f9`）：StoryStateV1 加 `active_constraints`，StateDiffSchema 加 `constraint_updates`；applyStateDiff 合并（去重 by fact，记 established_in）。
+2. **约束流转**（`795fd96`）：state-diff prompt 产出 constraint_updates；chapter prompt 注入 active_constraints 给 writer（标注「必须遵守，不得违反」）。
+3. **critic 执法**（`fa0474a`）：critic prompt 注入 active_constraints，严重度定义强调「违反既定事实 = critical」。
+
+**真实验证**（deepseek-v4-flash，第 1 章 state-diff 产出）：
+```
+constraint_updates: [
+  { fact: "沈言已知剑魂是父亲沈渊封印的...", validity: "permanent", notes: "核心剧情设定" },
+  { fact: "陈渡声称有人即将来寻找剑魂，暗示危险临近", validity: "until_revealed", notes: "可能是伏笔" },
+  { fact: "沈言手上的血曾使石头显露出'言'字，证明父亲曾留标记", validity: "permanent", notes: "硬约束" },
+]
+```
+state-diff agent 确实产出高质量约束（permanent/until_revealed 正确分类 + notes），机制生效。
 
 **预期**：从根本上补长程盲区，是「第 30 章不违背第 5 章」的关键。
-**代价**：高（schema 扩展 + state-diff agent 产出约束 + critic 校验逻辑）。
+**已落地代价**：中（3 提交 + schema 扩展，向后兼容——constraint_updates optional，旧 story_state 不受影响）。
+**待验证**：长篇（40+ 章）auto-pilot 实测，确认约束累积后真能阻止跨章矛盾（需真实 auto-pilot 跑批）。
 
 ---
 
