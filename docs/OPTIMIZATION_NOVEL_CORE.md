@@ -440,6 +440,18 @@ state-diff agent 确实产出高质量约束（permanent/until_revealed 正确�
 **已落地代价**：中（3 提交 + schema 扩展，向后兼容——constraint_updates optional，旧 story_state 不受影响）。
 **待验证**：长篇（40+ 章）auto-pilot 实测，确认约束累积后真能阻止跨章矛盾（需真实 auto-pilot 跑批）。
 
+**端到端 auto-pilot 验证（2026-06-22，deepseek-v4-flash，新建 novel 跑 20 章）**：
+
+约束机制端到端生效，4 章已累积 **22 条 active_constraints**，质量极高：
+- permanent 硬约束：「裂井剑魂与沈言体内剑魂同源」「苍云殿阵法记录沈言气息，下次进入直接绞杀」「考核木牌有追踪符，孙奉可定位」「黑铁令牌红线是剑魂苏醒标志」
+- until_revealed 伏笔：「九死锁天阵识别剑魂为仇敌，有生命危险」「黑铁令牌与苍云殿同源，父亲沈原是苍云宗的人」
+
+这些约束已注入后续 writer prompt + critic 校验——是防"第 10 章让沈言随便进苍云殿"（违反"直接绞杀"约束）的根本手段。**约束机制各环节（提取/合并/注入/校验）端到端验证通过。**
+
+**但 20 章长跑在第 4 章被 ai_voice 质量门止链**（`last_error: 第 4 章质量门未过：AI 味控制(ai_voice) 5 < 6`，`checkpoint_mode: on_fail` 止链）。根因仍是 AI 高频词 + 句首重复（humanizer 命中 13 次）——与 prompt 触顶、模型对比的结论一致：**ai_voice 是当前档位模型的瓶颈，在长篇中会反复触发质量门挂起**。
+
+**结论**：P3-4.1 约束机制已完整生效并累积有价值约束，但它解决的是「跨章矛盾」而非「AI 味」。长篇 auto-pilot 的实际瓶颈仍是 ai_voice（需更强模型，见模型对比结论），不是连贯性机制。
+
 ---
 
 ### 4.2 因果链图
