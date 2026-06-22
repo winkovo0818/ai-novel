@@ -8,11 +8,26 @@ import type { CriticIssue } from "@/lib/agent/contracts";
 import type { BibleDraft } from "@/lib/validation/schemas";
 
 export const DEFAULT_QUALITY_FLOOR = 85;
-/** Per-dimension hard floors (absolute score out of 10). A chapter that tanks
- *  one critical axis fails even if the total passes — total alone is too coarse. */
+/**
+ * Per-dimension hard floors (absolute score out of 10). A chapter that tanks
+ * one critical axis fails even if the total passes — total alone is too coarse.
+ *
+ * ai_voice 是**软信号**（见 SOFT_SIGNAL_DIMENSIONS），不设硬门——实测其 std
+ * 高达 23.6（满分 100），单次跑在 0-7 间剧烈摆动，用不可信维度止链长跑是
+ * 机制错配。ai_voice 低分仍记入 failedDims 作 warning，但不阻断 pass。
+ */
 export const DEFAULT_DIMENSION_FLOORS: Partial<Record<MetricResult["key"], number>> = {
-  ai_voice: 6,
   logic: 7,
+};
+/**
+ * 软信号维度：低于阈值时记录为 warning（进 failedDims 供观测），但不计入 pass
+ * 判定。ai_voice 维度稳定性不足（multi 实测 std 23.6），设硬门会在长篇中反复
+ * 误止链，故降为软信号。logic/continuity 等稳定维度仍走硬门。
+ */
+export const SOFT_SIGNAL_DIMENSIONS: ReadonlySet<MetricResult["key"]> = new Set(["ai_voice"]);
+/** 软信号维度的阈值（仅用于记录 warning，不阻断 pass）。 */
+export const SOFT_SIGNAL_THRESHOLDS: Partial<Record<MetricResult["key"], number>> = {
+  ai_voice: 6,
 };
 /**
  * Critic hard floor: the heuristic evaluator only sees surface signals, so a
@@ -72,6 +87,11 @@ export interface QualityGateResult {
   /** Total folded to a 0-100 percent. */
   scorePct: number;
   failedDims: FailedDimension[];
+  /**
+   * 软信号维度低于阈值（仅记录，不阻断 pass）。含 ai_voice——实测稳定性不足
+   * （std 23.6），降为软信号避免长篇反复误止链；此处供观测/告警，不进 pass 判定。
+   */
+  softWarnings: FailedDimension[];
   /** Critic issues that tripped the critic floor (empty unless criticIssues supplied). */
   criticBlocked: CriticIssue[];
   reason: string;
@@ -103,7 +123,16 @@ export function evaluateChapterGate(
     report.maxScore > 0 ? Math.round((report.overallScore / report.maxScore) * 1000) / 10 : 0;
 
   const failedDims: FailedDimension[] = [];
+  const softWarnings: FailedDimension[] = [];
   for (const m of report.metrics) {
+    // 软信号维度（ai_voice）：低分记 warning 不阻断 pass，避免不可信维度止链长跑
+    if (SOFT_SIGNAL_DIMENSIONS.has(m.key)) {
+      const softFloor = SOFT_SIGNAL_THRESHOLDS[m.key];
+      if (softFloor != null && m.score < softFloor) {
+        softWarnings.push({ key: m.key, label: m.label, score: m.score, max: m.max, floor: softFloor });
+      }
+      continue;
+    }
     const floor = dimensionFloors[m.key];
     if (floor != null && m.score < floor) {
       failedDims.push({ key: m.key, label: m.label, score: m.score, max: m.max, floor });
@@ -118,6 +147,7 @@ export function evaluateChapterGate(
       pass: true,
       scorePct,
       failedDims: [],
+      softWarnings: [],
       criticBlocked: [],
       reason: `冷启动窗口（${window.length} < ${MIN_WINDOW_FOR_GATE} 章），跳过质量门`,
       report,
@@ -137,9 +167,13 @@ export function evaluateChapterGate(
   if (!floorPass) reasons.push(`总分 ${scorePct}% < 阈值 ${qualityFloor}%`);
   for (const d of failedDims) reasons.push(`${d.label}(${d.key}) ${d.score} < ${d.floor}`);
   for (const issue of criticBlocked) reasons.push(`critic(${issue.severity}/${issue.type}) ${issue.description}`);
-  const reason = pass ? `通过：总分 ${scorePct}%` : `未达标：${reasons.join("；")}`;
+  // 软信号 warning 记入 reason 但不影响 pass
+  for (const w of softWarnings) reasons.push(`软信号${w.label}(${w.key}) ${w.score} < ${w.floor}（已降为软信号，不止链）`);
+  const reason = pass
+    ? `通过：总分 ${scorePct}%${softWarnings.length > 0 ? `（含 ${softWarnings.length} 个软信号 warning）` : ""}`
+    : `未达标：${reasons.join("；")}`;
 
-  return { pass, scorePct, failedDims, criticBlocked, reason, report };
+  return { pass, scorePct, failedDims, softWarnings, criticBlocked, reason, report };
 }
 
 /**

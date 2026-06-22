@@ -71,16 +71,18 @@ describe("evaluateChapterGate", () => {
     expect(result.reason).toContain("总分 80% < 阈值 85%");
   });
 
-  it("fails on the ai_voice hard floor even when the total passes", async () => {
+  it("records ai_voice as a soft warning (not a hard floor) when low, without blocking pass", async () => {
     evaluateNovelQuality.mockReturnValue(makeReport({ ai_voice: 5 }, 10)); // 65/70 = 92.9%
     const { evaluateChapterGate } = await import("./qualityGate");
 
     const result = evaluateChapterGate(window(3), bible);
 
-    expect(result.pass).toBe(false);
+    // ai_voice 已降为软信号：低分不再止链（std 23.6 不可信），但仍记录 warning 供观测
+    expect(result.pass).toBe(true);
     expect(result.scorePct).toBeGreaterThan(85);
-    expect(result.failedDims.map((d) => d.key)).toContain("ai_voice");
-    expect(result.reason).toContain("ai_voice");
+    expect(result.failedDims.map((d) => d.key)).not.toContain("ai_voice");
+    expect(result.softWarnings.map((d) => d.key)).toContain("ai_voice");
+    expect(result.reason).toContain("软信号");
   });
 
   it("fails on the logic hard floor", async () => {
