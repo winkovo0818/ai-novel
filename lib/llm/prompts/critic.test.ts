@@ -90,6 +90,25 @@ describe("buildCriticPrompt", () => {
     expect(user.content).toContain("（无）");
   });
 
+  it("injects active_constraints and marks violations as critical", () => {
+    const [system, user] = buildCriticPrompt({
+      context: { ...baseContext, storyState: { active_constraints: [
+        { fact: "沈言已知道木牌是追踪符", established_in: 2, validity: "permanent" },
+      ] } },
+      chapterContent: "正文",
+      chapterIndex: 3,
+    });
+    const userContent = user?.content ?? "";
+    const systemContent = system?.content ?? "";
+
+    // 约束清单注入 critic 的 user message
+    expect(userContent).toContain("既定事实");
+    expect(userContent).toContain("本章不得违反");
+    expect(userContent).toContain("沈言已知道木牌是追踪符");
+    // system 的严重度定义强调违反既定事实 = critical
+    expect(systemContent).toContain("违反任一既定事实即为 critical");
+  });
+
   it("truncates chapter content to 12000 characters", () => {
     const long = "字".repeat(13000);
     const [, user] = buildCriticPrompt({ context: baseContext, chapterContent: long, chapterIndex: 1 });

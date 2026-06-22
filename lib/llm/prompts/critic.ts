@@ -82,6 +82,13 @@ export function buildCriticPrompt(input: BuildCriticPromptInput): ChatMessage[] 
         lines.push(`- 第 ${ev.chapter_index} 章：${wrap(ev.event, "story_state")}${ev.impact ? `；影响：${wrap(ev.impact, "story_state")}` : ""}`);
       }
     }
+    // P3-4.1 活跃约束清单：注入给 critic 校验，本章违反任一即 critical 连贯性硬伤。
+    if (context.storyState.active_constraints && context.storyState.active_constraints.length > 0) {
+      lines.push("\n既定事实（本章不得违反；违反即 critical 连贯性硬伤）：");
+      for (const c of context.storyState.active_constraints) {
+        lines.push(`- ${wrap(c.fact, "story_state")}（第 ${c.established_in} 章确立）`);
+      }
+    }
     stateSection = lines.join("\n");
   }
 
@@ -108,7 +115,7 @@ ${PROMPT_SAFETY_PREAMBLE}
 - 仅当**既找不到事实矛盾、也数不出任何 logic_chain / prose_quality 信号**时，才输出 \`{"consistent": true}\`。
 
 严重度定义：
-- critical：能在 Bible/世界规则/timeline/已知秘密里指出明确事实矛盾。
+- critical：能在 Bible/世界规则/timeline/已知秘密/既定事实（active_constraints）里指出明确事实矛盾。**本章行为违反任一既定事实即为 critical**（长程连贯性硬伤，必须修订）。
 - major：与已有 plot_thread 状态或角色当前 goal/location 存在硬冲突；或 **logic_chain 整章由并列事件短句堆叠、几乎无因果/转折连接词（因为/所以/于是/为了/导致…）、读不出主角动机与结果链**；或 **prose_quality 多类信号叠加（句首重复 / 三连排比 / 套话 中 ≥2 类同时出现，或单类极密集）**。
 - minor：单一、轻度的风格建议，或 logic_chain"目标 → 阻碍 → 行动 → 结果"只缺一环。**minor 也要照常报出（consistent:false），只是不强制触发整章重写**；"能少报就少报"只适用于主观一致性类，不适用于 prose_quality / logic_chain。${isMystery ? `
 
