@@ -223,6 +223,43 @@ describe("applyStateDiff", () => {
     });
   });
 
+  it("merges constraint_updates into active_constraints with established_in and dedup", () => {
+    const bible: BibleDraft = {
+      ...baseBible,
+      story_state: {
+        active_constraints: [
+          { fact: "沈言拥有黑色木牌", established_in: 2, validity: "permanent" },
+        ],
+      },
+    };
+    const diff: StateDiff = {
+      character_updates: [],
+      timeline_events: [],
+      plot_thread_updates: [],
+      new_entities: [],
+      constraint_updates: [
+        // 新约束：记录确立章号
+        { fact: "沈言与剑魂达成交易", validity: "permanent" },
+        // 重复约束（去重，不重复追加）
+        { fact: "沈言拥有黑色木牌", validity: "permanent" },
+        // until_revealed 约束
+        { fact: "蒋阶不知沈言已觉醒", validity: "until_revealed", notes: "信息差" },
+      ],
+    };
+
+    const next = applyStateDiff(bible, diff, 3);
+
+    const constraints = next.story_state?.active_constraints ?? [];
+    // 去重后 3 条；既有约束保留原 established_in=2，新约束 established_in=3
+    expect(constraints).toHaveLength(3);
+    expect(constraints.find((c) => c.fact === "沈言拥有黑色木牌")?.established_in).toBe(2);
+    expect(constraints.find((c) => c.fact === "沈言与剑魂达成交易")?.established_in).toBe(3);
+    const hidden = constraints.find((c) => c.fact === "蒋阶不知沈言已觉醒");
+    expect(hidden?.established_in).toBe(3);
+    expect(hidden?.validity).toBe("until_revealed");
+    expect(hidden?.notes).toBe("信息差");
+  });
+
   it("trims timeline to the most recent N entries to prevent bloat", () => {
     const longTimeline = Array.from({ length: 25 }, (_, i) => ({
       chapter_index: i + 1,

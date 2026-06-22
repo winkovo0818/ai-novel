@@ -410,6 +410,21 @@ export function applyStateDiff(
   const trimmedTimeline = timeline.length > TIMELINE_KEEP_RECENT
     ? timeline.slice(-TIMELINE_KEEP_RECENT)
     : timeline;
+
+  // P3-4.1 活跃约束清单：合并 state-diff 产出的 constraint_updates（去重 by fact）。
+  // established_in 记录确立章号，供 writer/critic 追溯；本章注入 prompt 防跨章违背。
+  const activeConstraints = prev.active_constraints ? [...prev.active_constraints] : [];
+  for (const update of (diff.constraint_updates ?? [])) {
+    if (!activeConstraints.some((c) => c.fact === update.fact)) {
+      activeConstraints.push({
+        fact: update.fact,
+        established_in: chapterIndex,
+        validity: update.validity,
+        notes: update.notes,
+      });
+    }
+  }
+
   const nextState: StoryStateV1 = {
     ...(characters.length > 0 ? { characters } : {}),
     ...(locations.length > 0 ? { locations } : {}),
@@ -418,6 +433,7 @@ export function applyStateDiff(
     ...(prev.relationships && prev.relationships.length > 0 ? { relationships: prev.relationships } : {}),
     ...(plotThreads.length > 0 ? { plot_threads: plotThreads } : {}),
     ...(foreshadowing.length > 0 ? { foreshadowing } : {}),
+    ...(activeConstraints.length > 0 ? { active_constraints: activeConstraints } : {}),
   };
 
   return {

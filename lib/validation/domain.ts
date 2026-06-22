@@ -203,6 +203,17 @@ export const StoryStateV1Schema = z.object({
     payoff_hint: z.string().optional(),
     notes: z.string().optional(),
   })).optional(),
+  /**
+   * 活跃约束清单（P3-4.1）：跨章必须遵守的既定事实/硬约束。每章注入 writer prompt 并由
+   * critic 校验，是长程连贯性的根本手段——防"第 30 章违背第 5 章设定"。
+   * 如「林砚在第 5 章已知密信内容」「木牌归沈言所有」。
+   */
+  active_constraints: z.array(z.object({
+    fact: z.string().min(1),
+    established_in: z.number().int().min(1),
+    validity: z.enum(["permanent", "until_revealed"]).default("permanent"),
+    notes: z.string().optional(),
+  })).optional(),
 });
 export type StoryStateV1 = z.infer<typeof StoryStateV1Schema>;
 
@@ -248,6 +259,14 @@ export const StateDiffSchema = z.object({
       description: entity.description?.trim() || entity.name,
     })),
   ).default([]),
+  /** 本章新确立的硬约束/既定事实（state-diff agent 产出，合并进 active_constraints）。optional：LLM 可能不产出。 */
+  constraint_updates: z.array(
+    z.object({
+      fact: z.string().min(1),
+      validity: z.enum(["permanent", "until_revealed"]).catch("permanent"),
+      notes: z.string().optional(),
+    }),
+  ).optional(),
 });
 export type StateDiff = z.infer<typeof StateDiffSchema>;
 
