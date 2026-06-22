@@ -41,6 +41,9 @@ ${PROMPT_SAFETY_PREAMBLE}
   ],
   "new_entities": [
     { "type": "character|location|item|rule", "name": "实体名", "description": "描述" }
+  ],
+  "constraint_updates": [
+    { "fact": "本章确立的既定事实/硬约束", "validity": "permanent|until_revealed", "notes": "可选说明" }
   ]
 }
 
@@ -50,6 +53,7 @@ ${PROMPT_SAFETY_PREAMBLE}
 - timeline_events 至少记录本章最核心的“行动 -> 结果”，除非正文真的没有任何事件推进。
 - plot_thread_updates 只记录被推进、强化、揭示或解决的线索；不要把纯氛围描写当线索。
 - new_entities 中 item/location/rule 的归属、位置或限制要写在 description 里，方便下一章承接。
+- constraint_updates 抽取本章确立、后续章节必须遵守的既定事实/硬约束：角色已知/未知的关键信息（如"沈言已知道木牌是追踪符"）、物品归属、位置关系、不可违背的承诺/契约、确认的世界规则。validity：permanent=永久约束，until_revealed=直到被某章明确推翻/揭示。只记可验证的硬事实，不记主观情绪或氛围；没有就留空数组。
 - confidence 取 low/medium/high，基于文本中直接描写的取 high，需要推理的取 medium，有不确定性的取 low。
 - 如果本章没有明显状态变更，所有数组为空即可。
 - 不要输出任何 JSON 之外的文本或解释。`,

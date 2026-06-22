@@ -41,6 +41,14 @@ function buildStoryStateSection(context: ChapterContext): string {
     lines.push(`\n最新时间线事件（第 ${lastEvent.chapter_index} 章）：${wrap(lastEvent.event, "story_state")}${lastEvent.impact ? "；影响：" + wrap(lastEvent.impact, "story_state") : ""}`);
   }
 
+  // P3-4.1 活跃约束清单：注入跨章必须遵守的既定事实，防"本章违背前文设定"。
+  if (context.storyState.active_constraints && context.storyState.active_constraints.length > 0) {
+    lines.push("\n既定事实（必须遵守，本章不得违反；违反即连贯性硬伤）：");
+    for (const c of context.storyState.active_constraints) {
+      lines.push(`- ${wrap(c.fact, "story_state")}（第 ${c.established_in} 章确立${c.validity === "until_revealed" ? "，待揭示" : ""}）`);
+    }
+  }
+
   return lines.join("\n");
 }
 

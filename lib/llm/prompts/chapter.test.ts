@@ -221,6 +221,31 @@ describe("buildChapterPrompt", () => {
     expect(systemContent).toContain("打断、改口、省略");
   });
 
+  it("injects active_constraints as must-respect established facts", () => {
+    const messages = buildChapterPrompt({
+      context: makeContext({
+        bible: {
+          ...bible,
+          story_state: {
+            active_constraints: [
+              { fact: "沈言已知道木牌是追踪符", established_in: 2, validity: "permanent" },
+              { fact: "蒋阶不知沈言已觉醒", established_in: 2, validity: "until_revealed", notes: "信息差" },
+            ],
+          },
+        },
+      }),
+      profile,
+    });
+    const userContent = messages[1]?.content ?? "";
+
+    // 约束清单注入 writer 的 user message，标注"必须遵守/不得违反"
+    expect(userContent).toContain("既定事实");
+    expect(userContent).toContain("必须遵守");
+    expect(userContent).toContain("沈言已知道木牌是追踪符");
+    expect(userContent).toContain("第 2 章确立");
+    expect(userContent).toContain("待揭示");
+  });
+
   it("requires an internal goal-obstacle-action-result chain and a state change", () => {
     const messages = buildChapterPrompt({
       context: makeContext({
