@@ -50,15 +50,20 @@ function buildQueryKeywords(bible: BibleDraft, chapterIndex: number): string[] {
  * Time-decay factor: smooth exponential decay so chunks from nearby
  * chapters get boosted relative to distant ones.
  *
- *   decay(distance) = 1 / (1 + 0.1 * distance)
+ *   decay(distance) = 1 / (1 + TIME_DECAY_RATE * distance)
  *
- *   distance 0  -> 1.000
- *   distance 1  -> 0.909
- *   distance 5  -> 0.667
- *   distance 10 -> 0.500
+ * 系数从 0.1 调缓到 0.05（实测 0.1 时距离 8 章只剩 56%，远端设定难进 top-K，
+ * 导致第8章检索全是近章内容、第1-4章设定完全召回不到）。0.05 时距离 8 章仍有
+ * 71%、距离 10 章 67%，让远端关键设定有机会进 top-K，同时近章仍保有优先。
+ *
+ *   distance 0  -> 1.000   (0.1: 1.000)
+ *   distance 1  -> 0.952   (0.1: 0.909)
+ *   distance 5  -> 0.800   (0.1: 0.667)
+ *   distance 10 -> 0.667   (0.1: 0.500)
  */
+const TIME_DECAY_RATE = 0.05;
 function timeDecay(distance: number): number {
-  return 1 / (1 + 0.1 * distance);
+  return 1 / (1 + TIME_DECAY_RATE * distance);
 }
 
 function matchingKeywords(text: string, keywords: string[]): string[] {
