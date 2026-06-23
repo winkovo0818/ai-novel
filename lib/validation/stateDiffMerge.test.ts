@@ -553,6 +553,20 @@ describe("validateStateDiff (M0.2 pre-merge validation)", () => {
     expect(issues[0].message).toContain("凭空人物");
   });
 
+  it("accepts a character name with bracket annotation (e.g. 几（剑魂）→ 几)", () => {
+    // state-diff 有时给带括号注释的名字「几（剑魂）」，Bible 里纯名是「几」。
+    // 旧逻辑直接比对「几（剑魂）」≠「几」会误判幻觉并止链 auto-pilot。
+    const diff: StateDiff = {
+      ...emptyDiff,
+      character_updates: [{ name: "几（剑魂）", changes: { emotional_state: "沉默" }, confidence: "medium" }],
+    };
+
+    const issues = validateStateDiff(baseBible, diff, "沈言听见几的声音。");
+
+    // 剥离括号后「几」命中 Bible mentor，不应判幻觉
+    expect(issues.filter((i) => i.code === "unknown_character")).toHaveLength(0);
+  });
+
   it("accepts an unknown character when it literally appears in the chapter text", () => {
     const diff: StateDiff = {
       ...emptyDiff,

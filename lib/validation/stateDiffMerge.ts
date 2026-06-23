@@ -173,6 +173,23 @@ function normalizeName(value: string): string {
   return value.trim().toLowerCase();
 }
 
+/**
+ * 剥离角色名里的括号注释（如「几（剑魂）」→「几」、「剑魂(几)」→「剑魂」）。
+ * state-diff agent 有时给带注释的名字，导致和 Bible 纯名不匹配被判幻觉。
+ * 返回所有可能的归一化候选（括号外 + 括号内），任一命中已知实体即算存在。
+ */
+function nameCandidates(value: string): string[] {
+  const trimmed = value.trim();
+  const candidates = [normalizeName(trimmed)];
+  // 剥离中文/英文括号注释：「几（剑魂）」「剑魂(几)」
+  const bracketMatch = trimmed.match(/^([^（(]+)[（(]([^）)]+)[）)]/);
+  if (bracketMatch) {
+    candidates.push(normalizeName(bracketMatch[1])); // 括号外
+    candidates.push(normalizeName(bracketMatch[2])); // 括号内
+  }
+  return [...new Set(candidates)];
+}
+
 // ---------------------------------------------------------------------------
 // M0.2 — pre-merge validation (auto-pilot path).
 //
@@ -241,11 +258,13 @@ export function validateStateDiff(
     ...diff.new_entities.filter((e) => e.type === "character").map((e) => normalizeName(e.name)),
   ]);
   for (const update of diff.character_updates) {
-    const name = update.name.trim();
-    if (knownNames.has(normalizeName(name))) continue;
-    // Last resort: the name literally appears in the chapter — a genuinely new
-    // on-page character the State Updater picked up without a new_entities row.
-    if (name && chapterContent.includes(name)) continue;
+    const candidates = nameCandidates(update.name);
+    // 任一候选（纯名 / 括号外 / 括号内）命中已知实体即算存在
+    if (candidates.some((c) => knownNames.has(c))) continue;
+    // Last resort: 名字（取括号外主名）字面出现在章节正文——本章新登场的角色
+    const mainName = candidates[1] ?? candidates[0];
+    if (mainName && chapterContent.includes(mainName)) continue;
+    if (candidates[0] && chapterContent.includes(candidates[0])) continue;
     issues.push({
       code: "unknown_character",
       message: `角色「${update.name}」不存在于 Bible/Story State,也未出现在本章正文,疑似幻觉实体。`,
