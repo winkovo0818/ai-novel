@@ -19,8 +19,18 @@ import { enqueueJob, sweepStaleRunningJobs } from "../lib/jobs/queue";
 import { BibleDraftSchema, NovelProfileSchema } from "../lib/validation/schemas";
 
 const USAGE =
-  "用法: npm run auto:generate -- --novel <id> --chapters <N> [--rounds R] [--floor F] [--cost-cap C] [--user U]\n" +
-  "      npm run auto:generate -- --resume <runId>";
+  "用法: npm run auto:generate -- --novel <id> --chapters <N> [--rounds R] [--floor F] [--cost-cap C] [--user U] [--checkpoint none|on_fail|per_volume]\n" +
+  "      npm run auto:generate -- --resume <runId>\n" +
+  "  --checkpoint none: 质量门失败只记录不挂起（用于评估/验证，不降标准）；默认 on_fail（失败挂起待人工）";
+
+const CHECKPOINT_MODES = ["none", "on_fail", "per_volume"] as const;
+type CheckpointMode = (typeof CHECKPOINT_MODES)[number];
+
+function parseCheckpointMode(value: string | undefined): CheckpointMode {
+  if (!value) return "on_fail";
+  if ((CHECKPOINT_MODES as readonly string[]).includes(value)) return value as CheckpointMode;
+  throw new Error(`--checkpoint 必须是 ${CHECKPOINT_MODES.join("/")} 之一，得到: ${value}`);
+}
 
 function parseArgs(argv: string[]): Record<string, string> {
   const args: Record<string, string> = {};
@@ -70,6 +80,7 @@ async function startRun(args: Record<string, string>): Promise<void> {
   const qualityFloor = optionalNumber(args.floor, "--floor");
   const costCapCny = optionalNumber(args["cost-cap"], "--cost-cap") ?? null;
   const userId = novel.user_id ?? args.user ?? "cli";
+  const checkpointMode = parseCheckpointMode(args.checkpoint);
 
   const run = await createRun({
     novelId,
@@ -78,9 +89,10 @@ async function startRun(args: Record<string, string>): Promise<void> {
     revisionRounds,
     qualityFloor,
     costCapCny,
+    checkpointMode,
     config: { source: "cli" },
   });
-  console.log(`[auto-generate] 已创建 run ${run.id}（小说 ${novelId}，目标 ${totalChapters} 章）`);
+  console.log(`[auto-generate] 已创建 run ${run.id}（小说 ${novelId}，目标 ${totalChapters} 章，checkpoint=${checkpointMode}）`);
 
   // 前置补全大纲：超出种子的章节必须有真实标题/摘要，否则逐章会失锚（spike 教训）。
   const planned = await planOutline({
