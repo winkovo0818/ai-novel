@@ -30,6 +30,15 @@ describe("writerOutputCleanup", () => {
     // 这是 trace（全面计数）与 cleanup（保守只清段首）的分工，故不再断言 signposting trace 为 false。
   });
 
+  it("strips Chinese chapter heading lines (第N章 标题)", () => {
+    // writer 有时把章节标题当正文输出，需清洗（Markdown # 标题规则不匹配中文格式）
+    expect(cleanupWriterOutput("第 4 章 考核初战\n\n天亮之前沈言就醒了。")).toBe("天亮之前沈言就醒了。");
+    expect(cleanupWriterOutput("第5章 门主旧案\n沈言回到火房时")).toBe("沈言回到火房时");
+    expect(cleanupWriterOutput("第十二章 最终决战\n\n正文")).toBe("正文");
+    // 正文里合法的"第N章"提及不应被清洗（只清行首的整行标题）
+    expect(cleanupWriterOutput("他想起了第三章里师父说的话。")).toBe("他想起了第三章里师父说的话。");
+  });
+
   it("strips signposting only at line start; keeps in-prose 接下来", () => {
     // 段首教程路标清洗；句中正文"接下来"保留
     expect(cleanupWriterOutput("接下来我们看看他的反应。")).not.toContain("接下来");

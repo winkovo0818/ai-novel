@@ -59,6 +59,7 @@ export interface CleanupOptions {
 const CLEANUP_RULES: CleanupRule[] = [
   { id: "bold_markdown", label: "Markdown 粗体", category: "format", pattern: /\*\*([^*\n]+)\*\*/g, replacement: "$1" },
   { id: "heading", label: "Markdown 标题", category: "format", pattern: /^\s{0,3}#{1,6}\s*/gm, replacement: "" },
+  { id: "chinese_heading", label: "中文章节标题", category: "format", pattern: /^\s*第\s*[一二三四五六七八九十百零\d]+\s*章[ \t]+[^\n]{2,}[ \t]*$/gm, replacement: "" },
   { id: "list_marker", label: "列表符号", category: "format", pattern: /^\s*[-*]\s+(?=\S)/gm, replacement: "" },
   { id: "dash_overuse", label: "旁白破折号", category: "format", pattern: /[—–]+|--+/g, replacement: "。", customApply: stripNarrationDashes },
   { id: "signposting", label: "教程路标", category: "format", pattern: /^\s*(接下来(?:我们)?|下面是|以下是|让我们)/gm, replacement: "" },
