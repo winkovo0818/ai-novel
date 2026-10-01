@@ -18,6 +18,8 @@
 
 ## 最近更新
 
+- **2026-10-02（卷规划线索名止链修复，P1.2 首轮发现）** — 真实跑批启动后 `plan_outline` 失败：卷规划器把状态中的「上古剑魂来源」改写为「活过宗门考核并确认剑魂来源」，`planVolume` 的逐字相等校验拒收、重试耗尽致整个 run failed（花费 0.015 元即止）。修复：prompt 显式列出未解决线索名并要求逐字复制；校验改为精确/包含匹配后**改写回规范名**（保证 `overduePayoffs` 精确匹配继续工作），无法对应或期限越界的目标**丢弃并告警**（`volume_plan.target_dropped`），不再止链——与角色名括号注释修复（4758e79）同一模式的防线后移。Vitest 1294 → 1295。
+
 - **2026-10-02（状态变更上限可配置，P1.1）** — 单章 state-diff 条数上限从硬编码 15 改为 run 级 `max_state_changes`（int 5–40，默认 15）：`GenerationPolicySchema` 新字段随 `run.config` 持久化，`generate_chapter` handler 与文件 CLI 透传到 `validateStateDiff(options)`，`eval:serial` 新增 `--max-state-changes`。动机：真实连载验收第 2 章 16 条合法变更被默认上限止链；放宽入口打通验收循环，防「回灌全量状态」的兜底上限仍在（见 `docs/OPTIMIZATION_PLAN_2026-10.md` P1.1）。Vitest 1287 → 1294 tests。
 
 - **2026-10-02（预算调度与真实验收）** — 每日预算、日/月配额到期唤醒、队列资源等待及站内提醒落地。新增明确不限累计预算策略和验收停止章数；真实验收在第二章进入待审，尚未达到百章目标。
@@ -28,7 +30,7 @@
 
 ### 2026-10-02 验证证据与边界
 
-- Vitest：145 files / 1294 tests；覆盖率 lines/statements 83.01%、functions 94.91%、branches 85.41%，满足现有门禁。覆盖率配置仍排除 API `route.ts`、TSX 和 scripts，不能把该数字解释成全仓覆盖率。
+- Vitest：145 files / 1295 tests；覆盖率 lines/statements 83.01%、functions 94.91%、branches 85.41%，满足现有门禁。覆盖率配置仍排除 API `route.ts`、TSX 和 scripts，不能把该数字解释成全仓覆盖率。
 - Playwright 在生产构建下 13 条全绿（12 条产品用例 + 真实登录 setup），覆盖持续连载配置、规划暂停、预算调整、恢复与取消，以及卷目标/期限/校准提示展示、真实登录、新建作品、书架跳转、节拍起草、候选稿丢弃/追加/覆盖/差异预览、错误保护、未保存切章确认、自动保存、快捷键保存、恢复版本及刷新持久化、导出成功/失败。最后一轮显式传入专用的 `E2E_DATABASE_URL` / `E2E_DIRECT_URL`，使用本机 Chrome、单 worker，13 条用例通过并正常退出（约 1.1m），验证测试夹具和服务均使用同一隔离库；没有身份或限流绕过。Embedding 未配置，RAG 检索降级为空；本轮浏览器用例未验证真实向量召回。
 - `typecheck`、生产 `build` 通过；lint 0 errors、6 warnings，来自原有 BibleEditorPanel、signup、useModelAdmin、CLI Poller。
 - 隔离的本地 PostgreSQL 16 + pgvector 应用全部 33 条 migration。`scripts/reliability-smoke.ts` 使用独立 schema，验证真实并发保存只能成功一次、并行取任务受并发上限约束、长任务不被五分钟规则误回收、旧执行权失效及超时取消后无法提交；结束会删除该 schema。可复现命令：`RELIABILITY_DATABASE_URL=<专用本地测试库连接串> npx tsx scripts/reliability-smoke.ts`。
@@ -106,7 +108,7 @@
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
 | `npm run lint` | ✅ 0 errors，6 条已有 warning | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **145 files / 1294 tests** 全绿,约 3s | 新增并发、取消、审校、恢复及 CLI 回归覆盖 |
+| `npm run test` | ✅ **145 files / 1295 tests** 全绿,约 3s | 新增并发、取消、审校、恢复及 CLI 回归覆盖 |
 | `npm run build` | ✅ 通过 | |
 | Playwright E2E | ✅ 13 条全绿，约 1.1m（12 条产品用例 + 登录 setup） | 独立测试 DB、真实登录，每例独立账号；LLM_MOCK=1 |
 | `npm run smoke:onboarding` | ✅ 通过 | 2026-05-15 本地生产服务 + `LLM_MOCK=1` |
