@@ -630,4 +630,26 @@ describe("validateStateDiff (M0.2 pre-merge validation)", () => {
     expect(issues).toHaveLength(1);
     expect(issues[0].code).toBe("diff_too_large");
   });
+
+  it("admits the same 16-event diff under a raised options.maxStateChanges cap", () => {
+    const diff: StateDiff = {
+      ...emptyDiff,
+      timeline_events: Array.from({ length: 16 }, (_, i) => ({ event: `事件${i + 1}` })),
+    };
+
+    expect(validateStateDiff(baseBible, diff, "正文。", { maxStateChanges: 25 })).toEqual([]);
+  });
+
+  it("reports the configured cap when a custom limit rejects", () => {
+    const diff: StateDiff = {
+      ...emptyDiff,
+      timeline_events: Array.from({ length: 11 }, (_, i) => ({ event: `事件${i + 1}` })),
+    };
+
+    const issues = validateStateDiff(baseBible, diff, "正文。", { maxStateChanges: 10 });
+
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("diff_too_large");
+    expect(issues[0].message).toContain("超过单章上限 10 条");
+  });
 });

@@ -7,6 +7,13 @@ export const GenerationPolicySchema = z.object({
   daily_cost_cap_cny: z.number().finite().positive().optional(),
   unlimited_budget: z.boolean().optional(),
   model: z.string().min(1).max(120).optional(),
+  /**
+   * Per-chapter cap on state-diff items (validateStateDiff). Default mirrors
+   * DEFAULT_MAX_STATE_CHANGES. Raising it unblocks real acceptance runs whose
+   * chapters legitimately touch many facts — the cap still exists to stop
+   * full-state regurgitation, so it is bounded (5–40).
+   */
+  max_state_changes: z.number().int().min(5).max(40).default(15),
 });
 
 /** Legacy runs did not persist a policy. Malformed policies fail closed. */

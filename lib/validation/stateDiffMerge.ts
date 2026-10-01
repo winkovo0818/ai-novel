@@ -211,11 +211,20 @@ export interface StateDiffValidationIssue {
 }
 
 /**
- * Max items across all diff sections. A single chapter legitimately changes a
- * handful of states; a diff this large usually means the model dumped the
- * whole story state back (or hallucinated), and merging it would amplify noise.
+ * Default max items across all diff sections. A single chapter legitimately
+ * changes a handful of states; a diff this large usually means the model
+ * dumped the whole story state back (or hallucinated), and merging it would
+ * amplify noise. The cap is per-run configurable via `max_state_changes`
+ * (see GenerationPolicySchema) — the 2026-10 real acceptance run stalled at
+ * chapter 2 with 16 legitimate changes vs this default, so acceptance runs
+ * can raise it instead of hand-reviewing near-misses.
  */
-const MAX_STATE_DIFF_ITEMS = 15;
+export const DEFAULT_MAX_STATE_CHANGES = 15;
+
+export interface ValidateStateDiffOptions {
+  /** Per-chapter cap on total diff items. Defaults to {@link DEFAULT_MAX_STATE_CHANGES}. */
+  maxStateChanges?: number;
+}
 
 /**
  * Validate a StateDiff before unattended merge. Three cheap, deterministic
@@ -234,8 +243,10 @@ export function validateStateDiff(
   bible: BibleDraft,
   diff: StateDiff,
   chapterContent: string,
+  options: ValidateStateDiffOptions = {},
 ): StateDiffValidationIssue[] {
   const issues: StateDiffValidationIssue[] = [];
+  const maxStateChanges = options.maxStateChanges ?? DEFAULT_MAX_STATE_CHANGES;
 
   // -- 3. Scale first: a dumped/hallucinated mega-diff makes per-item checks moot.
   const totalItems =
@@ -243,10 +254,10 @@ export function validateStateDiff(
     diff.timeline_events.length +
     diff.plot_thread_updates.length +
     diff.new_entities.length;
-  if (totalItems > MAX_STATE_DIFF_ITEMS) {
+  if (totalItems > maxStateChanges) {
     issues.push({
       code: "diff_too_large",
-      message: `状态变更共 ${totalItems} 条,超过单章上限 ${MAX_STATE_DIFF_ITEMS} 条,疑似模型回灌全量状态。`,
+      message: `状态变更共 ${totalItems} 条,超过单章上限 ${maxStateChanges} 条,疑似模型回灌全量状态。`,
     });
     return issues;
   }

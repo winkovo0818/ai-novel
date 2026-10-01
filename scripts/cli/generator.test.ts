@@ -25,7 +25,7 @@ const validBible = {
 const dirs: string[] = [];
 afterEach(() => { vi.resetAllMocks(); for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 const config: CliConfig = { llm: { provider: "custom", model: "chosen-model", base_url: "https://test.invalid", api_key: "test", max_tokens: 4096, temperature: 0.7 },
-  generation: { default_chapters: 8, quality_floor: 85, revision_rounds: 0, cost_cap_cny: 1, target_words_per_chapter: 3000 },
+  generation: { default_chapters: 8, quality_floor: 85, revision_rounds: 0, cost_cap_cny: 1, target_words_per_chapter: 3000, max_state_changes: 15 },
   output: { export_dir: "/tmp", auto_export: false } };
 function input() {
   const dir = mkdtempSync(join(tmpdir(), "novel-generator-")); dirs.push(dir); mkdirSync(join(dir, "chapters"));

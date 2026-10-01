@@ -48,7 +48,7 @@ worker 启动及定期扫描会修复缺失的任务链；重试耗尽标记失�
 |-----------------------------|-------------------------------------------------------------------------------------------------------------|
 | `npm run typecheck`         | ✅ 通过                                                                                                        |
 | `npm run lint` (`eslint .`) | ✅ 0 errors，6 条已有 warning |
-| `npm run test` (Vitest)     | ✅ 通过，**145 files / 1287 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
+| `npm run test` (Vitest)     | ✅ 通过，**145 files / 1294 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
 | `npm run build`             | ✅ 通过                                                            |
 | `tests/e2e/` (Playwright) | ✅ 13 条通过（12 条产品用例 + 真实登录 setup），含持续连载配置/规划暂停/预算调整/恢复/取消及卷进度展示，生产构建、每例独立账号 |
 | coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines/statements 68 · functions 93 · branches 83，当前 lines 83.01 / functions 94.91 / branches 85.41）                                                                                  |

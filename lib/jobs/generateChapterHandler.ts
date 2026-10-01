@@ -33,7 +33,7 @@ export function isGenerateChapterPayload(p: unknown): p is GenerateChapterPayloa
 }
 
 /** No state is written until the chapter, verdict, and state update are ready. */
-async function chapterStateDiff(novelId: string, bible: BibleDraft, result: ChapterPipelineResult, model?: string, storyState = bible.story_state) {
+async function chapterStateDiff(novelId: string, bible: BibleDraft, result: ChapterPipelineResult, model?: string, storyState = bible.story_state, maxStateChanges?: number) {
   try {
     const response = await chatCompletionWithRetry({
       route: "/jobs/generate_chapter/state-diff", agent: "state_updater", novelId,
@@ -44,7 +44,7 @@ async function chapterStateDiff(novelId: string, bible: BibleDraft, result: Chap
     });
     const diff = StateDiffSchema.safeParse(parseFirstJsonObject(response.content));
     if (!diff.success) return { reason: "状态变更 JSON 无法解析" };
-    const issues = validateStateDiff(bible, diff.data, result.content);
+    const issues = validateStateDiff(bible, diff.data, result.content, maxStateChanges != null ? { maxStateChanges } : undefined);
     if (issues.length) return { reason: issues.map(i => i.message).join("；") };
     return { bible: applyStateDiff(bible, diff.data, result.chapterIndex) };
   } catch (error) {
@@ -101,7 +101,7 @@ export async function handleGenerateChapter(payload: Prisma.JsonValue, execution
       qualityFloor: run?.quality_floor, criticIssues: result.criticIssues,
     });
     // Failed output remains an editable draft; it never receives done status.
-    let state = gate.pass ? await chapterStateDiff(novel_id, recalledBible, result, policy.model, memory.state) : { reason: gate.reason };
+    let state = gate.pass ? await chapterStateDiff(novel_id, recalledBible, result, policy.model, memory.state, policy.max_state_changes) : { reason: gate.reason };
     const overdue = state.bible ? overduePayoffs(arc, state.bible.story_state, chapter_index) : [];
     if (overdue.length) state = { reason: `本章已到线索回收期限：${overdue.join("、")}` };
     const accepted = gate.pass && Boolean(state.bible);

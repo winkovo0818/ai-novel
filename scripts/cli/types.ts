@@ -25,6 +25,8 @@ export interface CliConfig {
     revision_rounds: number;
     cost_cap_cny: number;
     target_words_per_chapter: number;
+    /** 单章 state-diff 条数上限，与 GenerationPolicySchema.max_state_changes 对齐（5–40，默认 15）。 */
+    max_state_changes: number;
   };
   output: {
     export_dir: string;

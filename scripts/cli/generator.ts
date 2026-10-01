@@ -77,7 +77,7 @@ export async function runAutoGeneration(input: GeneratorInput): Promise<void> {
       const diff = StateDiffSchema.safeParse(parseFirstJsonObject(response.content));
       if (!diff.success) reject("状态变更 JSON 无法解析");
       if (diff.success) {
-        const errors = validateStateDiff(bible, diff.data, result.content);
+        const errors = validateStateDiff(bible, diff.data, result.content, { maxStateChanges: config.generation.max_state_changes });
         if (errors.length) reject(errors.map(e => e.message).join("；"));
         bible = applyStateDiff(bible, diff.data, i);
       }

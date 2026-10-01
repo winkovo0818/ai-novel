@@ -104,6 +104,17 @@ describe("generation write protection", () => {
     chatCompletionWithRetry.mockResolvedValue({ content: "invalid" }); await invoke();
     expect(createChapter.mock.calls[0][0].data.status).toBe("draft"); expect(updateBible).not.toHaveBeenCalled();
   });
+  it("honors the run's max_state_changes cap on state diffs", async () => {
+    // 16 timeline events: over the default cap 15, admitted when the run config raises it to 25.
+    const sixteen = { character_updates: [], timeline_events: Array.from({ length: 16 }, (_, i) => ({ event: `事件${i + 1}` })), plot_thread_updates: [], new_entities: [] };
+    chatCompletionWithRetry.mockResolvedValue({ content: JSON.stringify(sixteen) });
+    await invoke();
+    expect(createChapter.mock.calls[0][0].data.status).toBe("draft"); expect(updateBible).not.toHaveBeenCalled();
+
+    getRun.mockResolvedValue(makeRun({ config: { max_state_changes: 25 } }));
+    await invoke();
+    expect(createChapter.mock.calls[1][0].data.status).toBe("done"); expect(updateBible).toHaveBeenCalled();
+  });
   it("none checkpoints may advance drafts but never label them done", async () => {
     getRun.mockResolvedValue(makeRun({ checkpoint_mode: "none" }));
     evaluateChapterGate.mockReturnValue({ pass: false, reason: "critical" }); await invoke();

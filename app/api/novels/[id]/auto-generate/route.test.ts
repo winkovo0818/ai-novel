@@ -224,7 +224,14 @@ describe("POST /api/novels/[id]/auto-generate", () => {
     expect(runCreate.mock.calls[0][0].data.checkpoint_mode).toBe("per_volume");
     expect(runCreate.mock.calls[0][0].data.revision_rounds).toBe(0);
   });
-  it.each([{ total_chapters: 81 }, { revision_rounds: -1 }, { revision_rounds: 1.5 }, { quality_floor: 101 }, { cost_cap_cny: -1 }, { checkpoint_mode: "other" }])("rejects invalid config %j", async body => {
+  it("persists max_state_changes into the run config, defaulting to 15", async () => {
+    await start({ max_state_changes: 25 });
+    expect(runCreate.mock.calls[0][0].data.config.max_state_changes).toBe(25);
+    runCreate.mockClear();
+    await start();
+    expect(runCreate.mock.calls[0][0].data.config.max_state_changes).toBe(15);
+  });
+  it.each([{ total_chapters: 81 }, { revision_rounds: -1 }, { revision_rounds: 1.5 }, { quality_floor: 101 }, { cost_cap_cny: -1 }, { checkpoint_mode: "other" }, { max_state_changes: 4 }, { max_state_changes: 41 }])("rejects invalid config %j", async body => {
     expect((await start(body)).status).toBe(400); expect(runCreate).not.toHaveBeenCalled();
   });
   it("returns planning without calling the model inside HTTP", async () => {
