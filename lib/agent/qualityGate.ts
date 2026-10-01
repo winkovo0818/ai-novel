@@ -11,23 +11,28 @@ export const DEFAULT_QUALITY_FLOOR = 85;
 /**
  * Per-dimension hard floors (absolute score out of 10). A chapter that tanks
  * one critical axis fails even if the total passes — total alone is too coarse.
- *
- * ai_voice 是**软信号**（见 SOFT_SIGNAL_DIMENSIONS），不设硬门——实测其 std
- * 高达 23.6（满分 100），单次跑在 0-7 间剧烈摆动，用不可信维度止链长跑是
- * 机制错配。ai_voice 低分仍记入 failedDims 作 warning，但不阻断 pass。
+ * 默认为空：logic 原是唯一默认硬门，2026-10 真实跑批（P1.2）连续两章被其误杀
+ * （见 SOFT_SIGNAL_DIMENSIONS 注释）后降为软信号。自定义硬门仍可通过
+ * {@link QualityGateOptions.dimensionFloors} 注入。
  */
-export const DEFAULT_DIMENSION_FLOORS: Partial<Record<MetricResult["key"], number>> = {
-  logic: 7,
-};
+export const DEFAULT_DIMENSION_FLOORS: Partial<Record<MetricResult["key"], number>> = {};
 /**
- * 软信号维度：低于阈值时记录为 warning（进 failedDims 供观测），但不计入 pass
- * 判定。ai_voice 维度稳定性不足（multi 实测 std 23.6），设硬门会在长篇中反复
- * 误止链，故降为软信号。logic/continuity 等稳定维度仍走硬门。
+ * 软信号维度：低于阈值时记录为 warning（进 softWarnings 供观测），但不计入 pass
+ * 判定。
+ *
+ * - ai_voice：multi 实测 std 23.6，单次跑 0-7 间剧烈摆动，不可信维度止链长跑。
+ * - logic：其分项是因果连接词密度等**词汇代理**——管线自身的文风优化（去 AI 腔、
+ *   白描化、删模板化悬念句）会系统性地压低连接词密度，导致该维度与产品目标文风
+ *   直接对冲。真实跑批证据：连续两章（第 5、6 章）总分 82.9% 且 logic 3/10 被
+ *   拦，而 Critic 均无阻断问题、continuity/character/plot/world 全 10/10、人工
+ *   阅读因果链完整（因果隐含在动作序列中）。词汇密度测不出隐含因果，两个黄金
+ *   样本留作 LLM Judge 标定（P2）。
  */
-export const SOFT_SIGNAL_DIMENSIONS: ReadonlySet<MetricResult["key"]> = new Set(["ai_voice"]);
+export const SOFT_SIGNAL_DIMENSIONS: ReadonlySet<MetricResult["key"]> = new Set(["ai_voice", "logic"]);
 /** 软信号维度的阈值（仅用于记录 warning，不阻断 pass）。 */
 export const SOFT_SIGNAL_THRESHOLDS: Partial<Record<MetricResult["key"], number>> = {
   ai_voice: 6,
+  logic: 7,
 };
 /**
  * Critic hard floor: the heuristic evaluator only sees surface signals, so a

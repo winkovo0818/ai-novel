@@ -85,14 +85,17 @@ describe("evaluateChapterGate", () => {
     expect(result.reason).toContain("软信号");
   });
 
-  it("fails on the logic hard floor", async () => {
+  it("demotes logic to a soft signal: low score warns but does not block", async () => {
     evaluateNovelQuality.mockReturnValue(makeReport({ logic: 6 }, 10)); // 66/70 = 94.3%
     const { evaluateChapterGate } = await import("./qualityGate");
 
     const result = evaluateChapterGate(window(3), bible);
 
-    expect(result.pass).toBe(false);
-    expect(result.failedDims.map((d) => d.key)).toContain("logic");
+    // logic 已降为软信号：其分项是因果连接词密度等词汇代理，与管线目标文风
+    //（白描、去 AI 腔）直接对冲，真实跑批连续两章被误杀（P1.2 黄金样本）
+    expect(result.pass).toBe(true);
+    expect(result.failedDims.map((d) => d.key)).not.toContain("logic");
+    expect(result.softWarnings.map((d) => d.key)).toContain("logic");
   });
 
   it("skips the gate (passes) on a cold-start window smaller than 3 chapters", async () => {

@@ -18,6 +18,8 @@
 
 ## 最近更新
 
+- **2026-10-02（logic 维度降软信号，P1.2 系统性发现）** — 真实跑批第 5、6 两章被质量门以**完全相同的判定**（总分 82.9% < 85%；logic 3/10 < 硬门 7）连续拦截，而两章 Critic 均无阻断问题、continuity/character/plot/world 全部 10/10、人工阅读因果链完整（白描文风下因果隐含于动作序列）。根因：logic 分项是因果连接词密度等**词汇代理**，与管线自身的文风优化（去 AI 腔、删模板句）直接对冲，对目标文风通过率为 0。处置：沿用 ai_voice（std 23.6）降软信号的先例，`logic` 移入 SOFT_SIGNAL_DIMENSIONS（阈值 7 仅告警），默认硬门集合为空；自定义硬门仍可通过 dimensionFloors 注入。第 5/6 章留作 LLM Judge 标定黄金样本（P2）。同批发现：gate 拦下的章节批准后不回填 state-diff，后续章节上下文缺失本章事实（产品设计缺口，记入问题清单）。
+
 - **2026-10-02（卷规划线索名止链修复，P1.2 首轮发现）** — 真实跑批启动后 `plan_outline` 失败：卷规划器把状态中的「上古剑魂来源」改写为「活过宗门考核并确认剑魂来源」，`planVolume` 的逐字相等校验拒收、重试耗尽致整个 run failed（花费 0.015 元即止）。修复：prompt 显式列出未解决线索名并要求逐字复制；校验改为精确/包含匹配后**改写回规范名**（保证 `overduePayoffs` 精确匹配继续工作），无法对应或期限越界的目标**丢弃并告警**（`volume_plan.target_dropped`），不再止链——与角色名括号注释修复（4758e79）同一模式的防线后移。Vitest 1294 → 1295。
 
 - **2026-10-02（状态变更上限可配置，P1.1）** — 单章 state-diff 条数上限从硬编码 15 改为 run 级 `max_state_changes`（int 5–40，默认 15）：`GenerationPolicySchema` 新字段随 `run.config` 持久化，`generate_chapter` handler 与文件 CLI 透传到 `validateStateDiff(options)`，`eval:serial` 新增 `--max-state-changes`。动机：真实连载验收第 2 章 16 条合法变更被默认上限止链；放宽入口打通验收循环，防「回灌全量状态」的兜底上限仍在（见 `docs/OPTIMIZATION_PLAN_2026-10.md` P1.1）。Vitest 1287 → 1294 tests。
