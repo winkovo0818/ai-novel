@@ -66,6 +66,7 @@ export async function mockStreamChatCompletion(
 ): Promise<ChatStreamResult> {
   const start = Date.now();
   const scenario = getLlmMockScenario();
+
   const content = mockStreamContentForRoute(opts, scenario);
   const chunkSize = scenario === "stream-slow" ? 24 : 96;
   const delayMs = scenario === "stream-slow" ? mockTokenDelayMs() : 0;
@@ -132,6 +133,21 @@ function mockJsonForRoute(opts: ChatCompletionOptions): unknown {
   const route = opts.route;
   const scenario = getLlmMockScenario();
 
+  if (route === "/agent/plan_volume") {
+    return { name: "旧案追踪卷", theme: "用行动追索真相并承担选择的代价", goal: "沈言寻找旧案证人，取得可以验证的新证据。",
+      central_conflict: "追查行动受到宗门利益与旧敌的阻挠，需要作出取舍。", character_change: "沈言从被动防守转向主动调查，并学会承担行动的后果。",
+      climax: "沈言在各方冲突中保住证人，使旧案获得关键突破。", resolution: "解决当前证据可信度的问题，形成明确的阶段性成果。",
+      next_hook: "新证据指向另一处势力，引出后续需要面对的冲突。", avoid_patterns: ["重复考核打脸"], thread_targets: [] };
+  }
+  if (route === "/agent/plan_outline") {
+    const range = opts.messages[0]?.content.match(/必须覆盖第 (\d+) 到第 (\d+) 章/);
+    if (!range) throw new Error("Mock outline request is missing a chapter range");
+    const from = Number(range[1]), to = Number(range[2]);
+    if (to < from || to - from >= 20) throw new Error("Mock outline range exceeds the planning window");
+    return { chapters: Array.from({ length: to - from + 1 }, (_, i) => ({ index: from + i,
+      title: `旧案线索${from + i}`, summary: `沈言沿着旧案线索追查新的证人，在各方阻挠下取得阶段进展，并为下一章留下尚待揭开的悬念。` })) };
+  }
+
   if (route.includes(":moderation")) {
     if (scenario === "chat-moderation-block") {
       return {
@@ -142,7 +158,7 @@ function mockJsonForRoute(opts: ChatCompletionOptions): unknown {
     return { allowed: true };
   }
 
-  if (route.includes("/chapters/critic")) {
+  if (route.includes("/chapters/critic") || route === "/agent/chapter-pipeline/critic") {
     if (opts.messages.some((message) => message.content.includes("EVAL_CRITIC_CONFLICT"))) {
       return {
         consistent: false,

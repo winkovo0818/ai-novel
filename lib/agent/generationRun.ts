@@ -1,3 +1,4 @@
+import { generationBudgetDay } from "./generationBudget";
 import { prisma } from "@/lib/db";
 import type { NovelGenerationRun, Prisma } from "@prisma/client";
 
@@ -22,7 +23,7 @@ export interface CreateRunInput {
   qualityFloor?: number;
   /** When to pause for human review. Default "on_fail". */
   checkpointMode?: CheckpointMode;
-  /** Optional hard spend cap in CNY; null = no cap. */
+  /** Spend threshold checked before calls; in-flight calls can exceed it. null = no cap. */
   costCapCny?: number | null;
   /** Free-form run config (model, target_words, ...). */
   config?: Prisma.InputJsonValue;
@@ -61,7 +62,7 @@ function update(runId: string, data: Prisma.NovelGenerationRunUpdateInput): Prom
 
 /** planning → running, once outline planning is done and the chain is about to start. */
 export function markRunning(runId: string): Promise<NovelGenerationRun> {
-  return update(runId, { status: "running", last_error: null });
+  return update(runId, { status: "running", last_error: null, pause_reason: null, resume_after: null });
 }
 
 /**
@@ -77,30 +78,42 @@ export function advanceProgress(runId: string, chapterIndex: number): Promise<No
  * Accumulate spend. Returns the updated row so the caller can compare
  * cost_cny_spent against cost_cap_cny and pause when the budget is exceeded.
  */
-export function addCost(runId: string, cny: number): Promise<NovelGenerationRun> {
-  return update(runId, { cost_cny_spent: { increment: cny } });
+export async function addCost(runId: string, cny: number, now = new Date()): Promise<NovelGenerationRun> {
+  if (!Number.isFinite(cny) || cny < 0) throw new Error("Invalid generation cost");
+  const day = generationBudgetDay(now);
+  return prisma.$transaction(async tx => {
+    // Updating total first acquires the row lock before the day reset decision.
+    const run = await tx.novelGenerationRun.update({ where: { id: runId }, data: { cost_cny_spent: { increment: cny } } });
+    if (run.cost_day && run.cost_day > day) return run; // A late prior-day receipt must not reset today's counter.
+    return tx.novelGenerationRun.update({ where: { id: runId }, data: {
+      cost_day: day,
+      daily_cost_cny_spent: run.cost_day === day ? { increment: cny } : cny,
+    } });
+  });
 }
 
 export function pause(runId: string, reason?: string): Promise<NovelGenerationRun> {
-  return update(runId, { status: "paused", ...(reason ? { last_error: reason } : {}) });
+  return update(runId, { status: "paused", pause_reason: "manual", resume_after: null, ...(reason ? { last_error: reason } : {}) });
 }
 
 export function resume(runId: string): Promise<NovelGenerationRun> {
-  return update(runId, { status: "running", last_error: null });
+  return update(runId, { status: "running", last_error: null, pause_reason: null, resume_after: null });
 }
 
 export function cancel(runId: string): Promise<NovelGenerationRun> {
-  return update(runId, { status: "cancelled" });
+  return update(runId, { status: "cancelled", pause_reason: null, resume_after: null });
 }
 
-export function markNeedsReview(runId: string, reason: string): Promise<NovelGenerationRun> {
-  return update(runId, { status: "needs_review", last_error: reason });
+export async function markNeedsReview(runId: string, reason: string): Promise<NovelGenerationRun> {
+  await prisma.novelGenerationRun.updateMany({ where: { id: runId, status: { in: ["running", "planning"] } },
+    data: { status: "needs_review", last_error: reason, pause_reason: null, resume_after: null } });
+  return prisma.novelGenerationRun.findUniqueOrThrow({ where: { id: runId } });
 }
 
 export function markCompleted(runId: string): Promise<NovelGenerationRun> {
-  return update(runId, { status: "completed", last_error: null });
+  return update(runId, { status: "completed", last_error: null, pause_reason: null, resume_after: null });
 }
 
 export function markFailed(runId: string, error: string): Promise<NovelGenerationRun> {
-  return update(runId, { status: "failed", last_error: error.slice(0, 1000) });
+  return update(runId, { status: "failed", pause_reason: null, resume_after: null, last_error: error.slice(0, 1000) });
 }

@@ -1,3 +1,4 @@
+import { formatVolumeArc } from "@/lib/agent/volumePlan";
 import type { ChatMessage } from "@/lib/llm/client";
 import type { NovelProfile } from "@/lib/validation/schemas";
 import type { ChapterContext } from "@/lib/agent/chapterContext";
@@ -207,7 +208,7 @@ ${styleDirectives.length > 0 ? `- ${styleDirectives.join("\n- ")}` : ""}
     },
     {
       role: "user",
-      content: `小说标题：${wrap(bible.meta.suggested_title, "outline_title")}
+      content: `${formatVolumeArc(context.volumeArc)}\n\n小说标题：${wrap(bible.meta.suggested_title, "outline_title")}
 章节：第 ${chapterIndex} 章《${wrap(context.outline.title, "chapter_title")}》
 
 章节大纲：

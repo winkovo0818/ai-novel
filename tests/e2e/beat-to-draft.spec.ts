@@ -1,6 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 
-import { completeOnboardingToEditor } from "./helpers/onboarding";
+import { completeOnboardingToEditor, openWritingAssistant } from "./helpers/onboarding";
 
 const BEAT_ONE = "让沈言发现第二章的关键线索，并决定主动试探门主。";
 const BEAT_TWO = "剑魂提出危险的训练方式，逼迫沈言做出选择。";
@@ -56,17 +56,19 @@ test("beat sheet generation can be edited and used to draft a candidate", async 
   await completeOnboardingToEditor(page, { title: "节拍起草 E2E" });
   const getDraftPayload = await mockBeatSheetAndDraft(page);
 
-  const editor = page.locator("textarea").first();
-  await page.getByRole("button", { name: /UNIT 02/ }).click();
+  const editor = page.getByPlaceholder("开始书写故事…");
+  await page.getByRole("button", { name: /^02 / }).click();
   await expect(editor).toHaveValue("");
 
+  await openWritingAssistant(page);
+  await page.getByRole("button", { name: "先规划章节节奏" }).click();
   await page
-    .getByPlaceholder("（可选）本章节目标，例：让主角与师傅决裂")
+    .getByPlaceholder("本章节核心目标（可选）")
     .fill("让主角发现旧案线索");
-  await page.getByRole("button", { name: "生成节拍" }).click();
-  await expect(page.getByText("章节节拍（3）")).toBeVisible();
+  await page.getByRole("button", { name: "生成章节节拍" }).click();
+  await expect(page.getByRole("heading", { name: "章节节拍 / BEATS" })).toBeVisible();
 
-  const beatsPanel = page.getByText("章节节拍（3）").locator("xpath=ancestor::section[1]");
+  const beatsPanel = page.getByRole("heading", { name: "章节节拍 / BEATS" }).locator("xpath=ancestor::section[1]");
   const firstBeatInput = beatsPanel.locator("textarea").first();
   await expect(firstBeatInput).toHaveValue(BEAT_ONE);
   await firstBeatInput.fill(EDITED_BEAT);

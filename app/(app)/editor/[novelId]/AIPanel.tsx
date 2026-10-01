@@ -325,7 +325,7 @@ export function AIPanel({
                   onGenerate={onGenerateBeats}
                   onUpdateBeats={onUpdateBeats}
                   onClear={onClearBeats}
-                  onDraft={() => {}}
+                  onDraft={onDraftWithBeats}
                 />
               </Collapsible>
 
@@ -503,7 +503,7 @@ export function AIPanel({
                   onGenerate={onGenerateBeats}
                   onUpdateBeats={onUpdateBeats}
                   onClear={onClearBeats}
-                  onDraft={() => {}}
+                  onDraft={onDraftWithBeats}
                 />
               </Collapsible>
 

@@ -10,7 +10,7 @@ const refreshSummaries = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    chapterDraft: { findUnique: findUniqueChapter, update: updateChapter },
+    chapterDraft: { findUnique: findUniqueChapter, updateMany: updateChapter },
     chapterSummary: { upsert: upsertSummary },
     $transaction,
   },
@@ -51,7 +51,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   handlerRegistry.clear();
   // Default: $transaction passthrough so we can assert what was passed.
-  $transaction.mockImplementation(async (ops: unknown[]) => ops);
+  $transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn({ chapterDraft: { updateMany: updateChapter }, chapterSummary: { upsert: upsertSummary } }));
+  updateChapter.mockResolvedValue({ count: 1 });
+  indexChapter.mockImplementation(async (_n, _c, _text, beforeWrite) => { await beforeWrite?.({ chapterDraft: { updateMany: updateChapter } }); });
 });
 
 describe("summarize_chapter handler", () => {
@@ -89,7 +91,7 @@ describe("summarize_chapter handler", () => {
       }),
     );
     expect(updateChapter).toHaveBeenCalledWith({
-      where: { id: "c-1" },
+      where: { id: "c-1", version: undefined },
       data: { summary_dirty: false },
     });
   });
@@ -134,16 +136,16 @@ describe("index_chapter handler", () => {
   it("calls indexChapter then clears index_dirty", async () => {
     await loadModule();
     findUniqueChapter.mockResolvedValue({
-      id: "c-1",
+      id: "c-1", novel_id: "n-1",
       content: "正文内容",
     });
 
     const handler = handlerRegistry.get("index_chapter")!;
     await handler({ novel_id: "n-1", chapter_id: "c-1" });
 
-    expect(indexChapter).toHaveBeenCalledWith("n-1", "c-1", "正文内容");
+    expect(indexChapter).toHaveBeenCalledWith("n-1", "c-1", "正文内容", expect.any(Function));
     expect(updateChapter).toHaveBeenCalledWith({
-      where: { id: "c-1" },
+      where: { id: "c-1", version: undefined },
       data: { index_dirty: false },
     });
   });
@@ -163,16 +165,15 @@ describe("index_chapter handler", () => {
     findUniqueChapter.mockResolvedValueOnce(null);
     await handler({ novel_id: "n-1", chapter_id: "missing" });
 
-    findUniqueChapter.mockResolvedValueOnce({ id: "c-1", content: "" });
+    findUniqueChapter.mockResolvedValueOnce({ id: "c-1", novel_id: "n-1", content: "" });
     await handler({ novel_id: "n-1", chapter_id: "c-1" });
 
-    expect(indexChapter).not.toHaveBeenCalled();
-    expect(updateChapter).not.toHaveBeenCalled();
+    expect(indexChapter).toHaveBeenCalledOnce();
   });
 
   it("does not clear index_dirty when indexChapter throws", async () => {
     await loadModule();
-    findUniqueChapter.mockResolvedValue({ id: "c-1", content: "正文" });
+    findUniqueChapter.mockResolvedValue({ id: "c-1", novel_id: "n-1", content: "正文" });
     indexChapter.mockRejectedValue(new Error("embedding 503"));
 
     const handler = handlerRegistry.get("index_chapter")!;
@@ -191,7 +192,7 @@ describe("refresh_summaries handler", () => {
     const handler = handlerRegistry.get("refresh_summaries")!;
     await handler({ novel_id: "n-1" });
 
-    expect(refreshSummaries).toHaveBeenCalledWith("n-1");
+    expect(refreshSummaries).toHaveBeenCalledWith("n-1", undefined);
   });
 
   it("rejects payloads missing novel_id", async () => {

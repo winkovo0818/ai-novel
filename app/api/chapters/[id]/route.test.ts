@@ -18,6 +18,7 @@ vi.mock("@/lib/jobs/queue", () => ({
 const getRequiredUserId = vi.fn();
 
 const txClient = {
+  backgroundJob: { create: enqueueJob },
   chapterDraft: { update },
   chapterVersion: {
     create: createVersion,
@@ -71,7 +72,7 @@ describe("PATCH /api/chapters/[id]", () => {
     expect(response.status).toBe(200);
     expect(json).toEqual({ ok: true, data: chapter });
     expect(update).toHaveBeenCalledWith({
-      where: { id: "chapter-1" },
+      where: { id: "chapter-1", version: 0 },
       data: {
         content: "正文",
         status: "done",
@@ -282,7 +283,7 @@ describe("PATCH /api/chapters/[id]", () => {
 
     expect(response.status).toBe(200);
     expect(update).toHaveBeenCalledWith({
-      where: { id: "chapter-1" },
+      where: { id: "chapter-1", version: 4 },
       data: {
         content: "fresh",
         summary_dirty: true,
@@ -337,7 +338,7 @@ describe("PATCH /api/chapters/[id]", () => {
     // Title-only edits don't invalidate the chapter summary or RAG index, so
     // the batch-flush button shouldn't light up for these.
     expect(update).toHaveBeenCalledWith({
-      where: { id: "chapter-1" },
+      where: { id: "chapter-1", version: 0 },
       data: { title: "new-title", version: { increment: 1 } },
     });
   });
@@ -359,10 +360,22 @@ describe("PATCH /api/chapters/[id]", () => {
     });
 
     expect(update).toHaveBeenCalledWith({
-      where: { id: "chapter-1" },
+      where: { id: "chapter-1", version: 0 },
       data: { content: "same-content", version: { increment: 1 } },
     });
   });
+});
+
+it("returns 409 when another writer wins after the initial read", async () => {
+  findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", version: 0,
+    status: "draft", novel_id: "n", novel: { user_id: "user-1" } });
+  getRequiredUserId.mockResolvedValue("user-1");
+  update.mockRejectedValueOnce({ code: "P2025" });
+  const response = await (await import("./route")).PATCH(request({ title: "new", expected_version: 0 }), {
+    params: Promise.resolve({ id: "chapter-1" }),
+  });
+  expect(response.status).toBe(409);
+  expect((await response.json()).error.code).toBe("CHAPTER_VERSION_CONFLICT");
 });
 
 describe("DELETE /api/chapters/[id]", () => {

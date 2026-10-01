@@ -1,3 +1,4 @@
+import { calculateModelCost } from "@/lib/llm/pricing";
 import type { CliConfig } from "./types";
 
 interface ChatMessage {
@@ -96,16 +97,7 @@ export async function cliChatCompletion(
  * Accurate enough for progress display; not billing-grade.
  */
 function calcCost(tokenIn: number, tokenOut: number, model: string): number {
-  // DeepSeek V3 pricing (CNY per 1M tokens)
-  let inPrice = 1.0; // ¥1 / 1M input tokens
-  let outPrice = 2.0; // ¥2 / 1M output tokens
-
-  if (model.includes("reasoner") || model.includes("r1")) {
-    inPrice = 4.0;
-    outPrice = 16.0;
-  }
-
-  return (tokenIn / 1_000_000) * inPrice + (tokenOut / 1_000_000) * outPrice;
+  return calculateModelCost(tokenIn, tokenOut, model);
 }
 
 /* ------------------------------------------------------------------ */

@@ -1,3 +1,4 @@
+import { JobDeferredError } from "@/lib/jobs/deferred";
 import { createHash } from "node:crypto";
 
 import { prisma } from "@/lib/db";
@@ -153,6 +154,7 @@ export async function moderateContent(input: ModerationInput): Promise<Moderatio
 
     return { allowed: true };
   } catch (err) {
+    if (err instanceof JobDeferredError) throw err;
     const mode = getFailureMode();
     const message = errorMessage(err, "审核服务异常");
 
@@ -266,6 +268,7 @@ async function recordModerationDecision(
       },
     });
   } catch (err) {
+    if (err instanceof JobDeferredError) throw err;
     logWarn("moderation.audit_persist_failed", {
       route: input.route,
       source: decision.source,

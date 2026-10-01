@@ -1,9 +1,11 @@
+import { JobDeferredError } from "./deferred";
 import { prisma } from "@/lib/db";
 import type { BackgroundJob } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
+import { type JobExecution, createJobExecution } from "./execution";
 
-export type JobType = "summarize_chapter" | "index_chapter" | "refresh_summaries" | "generate_chapter";
-export const JOB_TYPES: readonly JobType[] = ["summarize_chapter", "index_chapter", "refresh_summaries", "generate_chapter"] as const;
+export type JobType = "summarize_chapter" | "index_chapter" | "refresh_summaries" | "generate_chapter" | "plan_outline";
+export const JOB_TYPES: readonly JobType[] = ["summarize_chapter", "index_chapter", "refresh_summaries", "generate_chapter", "plan_outline"] as const;
 
 export type JobStatus = "pending" | "running" | "done" | "failed";
 
@@ -45,7 +47,7 @@ export async function enqueueJob(input: EnqueueJobInput) {
 }
 
 export interface JobHandler {
-  (payload: Prisma.JsonValue): Promise<void>;
+  (payload: Prisma.JsonValue, execution?: JobExecution): Promise<void>;
 }
 
 const handlers = new Map<JobType, JobHandler>();
@@ -65,6 +67,7 @@ const DEFAULT_JOB_TYPE_CONFIG: JobTypeConfig = {
 };
 
 const JOB_TYPE_CONFIG: Record<JobType, JobTypeConfig> = {
+  plan_outline: { timeoutMs: numberFromEnv("JOB_PLAN_OUTLINE_TIMEOUT_MS", 300_000), maxAttempts: 2, maxConcurrent: 1 },
   summarize_chapter: {
     timeoutMs: numberFromEnv("JOB_SUMMARIZE_TIMEOUT_MS", 150_000),
     maxAttempts: numberFromEnv("JOB_SUMMARIZE_MAX_ATTEMPTS", 3),
@@ -85,8 +88,8 @@ const JOB_TYPE_CONFIG: Record<JobType, JobTypeConfig> = {
   // (maxConcurrent 1) so chapters generate one at a time — avoids two chapters
   // racing to write the same Bible, and eases LLM rate limits. The budget must
   // exceed draft + rounds×(critic + revise): too small and a slow model both
-  // times out AND leaves a zombie handler (withTimeout races but can't cancel
-  // the in-flight call) that re-persists the chapter and burns ~2-3x tokens.
+  // exhausts its deadline. Cancellation and write leases prevent timed out
+  // handlers from committing after a retry has begun.
   // 20min covers the worst case (240s draft + 2×(120s critic + 240s revise)).
   generate_chapter: {
     timeoutMs: numberFromEnv("JOB_GENERATE_CHAPTER_TIMEOUT_MS", 1_200_000),
@@ -99,41 +102,24 @@ export function getJobTypeConfig(type: string): JobTypeConfig {
   return isJobType(type) ? JOB_TYPE_CONFIG[type] : DEFAULT_JOB_TYPE_CONFIG;
 }
 
-/**
- * P0-6: how long a job may stay in `running` before drains treat it as
- * orphaned. The drainer is invoked inline from API routes and dies with
- * the Serverless function — if the function is killed (timeout, OOM,
- * cold-shed) between the claim and the finalize update, the row sits in
- * `running` forever and `runPendingJobsForNovel` never sees it again
- * (it only queries `pending`). Five minutes is well past every handler's
- * own LLM timeout, so any `running` row older than this is provably
- * abandoned. Override via env for stress tests with slow handlers.
- */
-const STALE_RUNNING_TIMEOUT_MS = Number(
-  process.env.JOB_STALE_RUNNING_MS ?? 5 * 60 * 1000,
-);
+// Lease expiration follows the handler budget; updated_at is refreshed by a
+// heartbeat, so a healthy long generation is never mistaken for a dead worker.
+const STALE_RUNNING_TIMEOUT_MS = numberFromEnv("JOB_STALE_RUNNING_MS", 5 * 60_000);
+const CLAIM_LOCK_KEY = 739_421_008;
 
-/**
- * Reset `running` jobs whose `started_at` is past the TTL back to
- * `pending` so the next drain re-picks them up. Returns the count
- * resurrected. `attempts` is intentionally NOT incremented — the
- * failure here is infrastructural (function torn down), not a handler
- * error, and we don't want to burn the user's retry budget on it.
- * The handler's own per-call timeout (and MAX_ATTEMPTS on real
- * failures) is still the backstop for genuinely broken handlers.
- */
 export async function sweepStaleRunningJobs(novelId?: string): Promise<number> {
-  const cutoff = new Date(Date.now() - STALE_RUNNING_TIMEOUT_MS);
+  const now = Date.now();
   const result = await prisma.backgroundJob.updateMany({
     where: {
       status: "running",
-      started_at: { lt: cutoff },
+      updated_at: { lt: new Date(now - STALE_RUNNING_TIMEOUT_MS) },
+      OR: JOB_TYPES.map(type => ({
+        type,
+        started_at: { lt: new Date(now - Math.max(STALE_RUNNING_TIMEOUT_MS, getJobTypeConfig(type).timeoutMs + 60_000)) },
+      })),
       ...(novelId ? { novel_id: novelId } : {}),
     },
-    data: {
-      status: "pending",
-      last_error: "Previous run timed out (stale running > TTL); requeued",
-    },
+    data: { status: "pending", last_error: "Previous run expired (stale running lease); requeued" },
   });
   return result.count;
 }
@@ -147,75 +133,46 @@ export async function sweepStaleRunningJobs(novelId?: string): Promise<number> {
  * the next row or returns null.
  */
 export async function claimNextJob(options: ClaimNextJobOptions = {}): Promise<BackgroundJob | null> {
-  const statuses = normalizeList(options.status ?? "pending");
-  const types = normalizeList(options.type);
-  const typeConstraint = await buildClaimTypeConstraint(types);
-  if (typeConstraint === null) return null;
-  const where = buildClaimWhere(options.novelId, statuses, typeConstraint);
-
-  while (true) {
-    const candidate = await prisma.backgroundJob.findFirst({
-      where,
-      orderBy: { created_at: "asc" },
-    });
-
-    if (!candidate) return null;
-
-    const startedAt = new Date();
-    const claimed = await prisma.backgroundJob.updateMany({
-      where: {
-        id: candidate.id,
-        status: { in: statuses },
-      },
-      data: {
-        status: "running",
-        started_at: startedAt,
-        finished_at: null,
-      },
-    });
-
-    if (claimed.count > 0) {
-      return {
-        ...candidate,
-        status: "running",
-        started_at: startedAt,
-        finished_at: null,
-      };
+  return prisma.$transaction(async tx => {
+    // Serializes count + claim across all worker processes, including inline drains.
+    await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(${CLAIM_LOCK_KEY}::bigint)`;
+    const statuses = normalizeList(options.status ?? "pending");
+    const types = normalizeList(options.type);
+    const typeConstraint = await buildClaimTypeConstraint(types, tx);
+    if (typeConstraint === null) return null;
+    const where = buildClaimWhere(options.novelId, statuses, typeConstraint);
+    while (true) {
+      const candidate = await tx.backgroundJob.findFirst({ where, orderBy: { created_at: "asc" } });
+      if (!candidate) return null;
+      const startedAt = new Date();
+      const claimed = await tx.backgroundJob.updateMany({
+        where: { id: candidate.id, status: { in: statuses } },
+        data: { status: "running", started_at: startedAt, finished_at: null },
+      });
+      if (claimed.count > 0) return { ...candidate, status: "running", started_at: startedAt, finished_at: null };
     }
-  }
+  });
 }
 
-/**
- * Run a single job by id. Atomic state transitions:
- *   pending -> running (only if previous status was pending or failed)
- *   running -> done | failed
- *
- * Returns the final status. Errors bubble up so callers can decide whether
- * to retry the whole drain.
- */
 export async function runJob(jobId: string): Promise<JobStatus> {
-  // Claim the job: only flip pending/failed -> running so concurrent runners
-  // don't double-process the same row.
-  const claimed = await prisma.backgroundJob.updateMany({
-    where: {
-      id: jobId,
-      status: { in: ["pending", "failed"] },
-    },
-    data: {
-      status: "running",
-      started_at: new Date(),
-    },
+  const job = await prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(${CLAIM_LOCK_KEY}::bigint)`;
+    const candidate = await tx.backgroundJob.findUnique({ where: { id: jobId } });
+    if (!candidate || !["pending", "failed"].includes(candidate.status)) return null;
+    if (candidate.available_at === null || (candidate.available_at && candidate.available_at > new Date())) return null;
+    const running = await tx.backgroundJob.count({ where: { type: candidate.type, status: "running" } });
+    if (running >= getJobTypeConfig(candidate.type).maxConcurrent) return null;
+    const startedAt = new Date();
+    const claimed = await tx.backgroundJob.updateMany({
+      where: { id: jobId, status: { in: ["pending", "failed"] } },
+      data: { status: "running", started_at: startedAt, finished_at: null },
+    });
+    return claimed.count ? { ...candidate, started_at: startedAt, status: "running" } : null;
   });
-
-  if (claimed.count === 0) {
-    // Another runner picked it up, or it was already terminal.
+  if (!job) {
     const existing = await prisma.backgroundJob.findUnique({ where: { id: jobId } });
     return (existing?.status as JobStatus | undefined) ?? "failed";
   }
-
-  const job = await prisma.backgroundJob.findUnique({ where: { id: jobId } });
-  if (!job) return "failed";
-
   return executeClaimedJob(job);
 }
 
@@ -226,47 +183,53 @@ export async function runNextJob(options: ClaimNextJobOptions = {}): Promise<Job
 }
 
 async function executeClaimedJob(job: BackgroundJob): Promise<JobStatus> {
+  if (isJobType(job.type) && !getHandler(job.type)) await import("./handlers");
   const handler = getHandler(job.type as JobType);
   const config = getJobTypeConfig(job.type);
-  if (!handler) {
-    await prisma.backgroundJob.update({
-      where: { id: job.id },
-      data: {
-        status: "failed",
-        attempts: { increment: 1 },
-        last_error: `No handler registered for type "${job.type}"`,
-        finished_at: new Date(),
-      },
-    });
-    return "failed";
-  }
-
+  const controller = new AbortController();
+  const execution = createJobExecution(job, controller.signal);
+  const lease = { id: job.id, status: "running", started_at: job.started_at };
+  const heartbeat = setInterval(() => {
+    void execution.assertActive().catch(error => controller.abort(error));
+  }, Math.min(30_000, Math.max(10, STALE_RUNNING_TIMEOUT_MS / 3)));
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await withTimeout(handler(job.payload), config.timeoutMs, job.type);
-    await prisma.backgroundJob.update({
-      where: { id: job.id },
-      data: {
-        status: "done",
-        attempts: { increment: 1 },
-        last_error: null,
-        finished_at: new Date(),
-      },
+    if (!handler) throw new Error(`No handler registered for type "${job.type}"`);
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        const error = new Error(`Job "${job.type}" timed out after ${config.timeoutMs}ms`);
+        controller.abort(error);
+        reject(error);
+      }, config.timeoutMs);
     });
-    return "done";
+    await Promise.race([handler(job.payload, execution), timeout]);
+    controller.signal.throwIfAborted();
+    const completed = await prisma.backgroundJob.updateMany({
+      where: lease,
+      data: { status: "done", attempts: { increment: 1 }, last_error: null, finished_at: new Date() },
+    });
+    return completed.count ? "done" : "failed";
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const nextAttempts = job.attempts + 1;
-    const willRetry = nextAttempts < config.maxAttempts;
-    await prisma.backgroundJob.update({
-      where: { id: job.id },
+    controller.abort(err);
+    if (err instanceof JobDeferredError) {
+      const deferred = await prisma.backgroundJob.updateMany({ where: lease,
+        data: { status: "pending", available_at: err.retryAt, last_error: err.message.slice(0, 1000), finished_at: null } });
+      return deferred.count ? "pending" : "failed";
+    }
+    const attempts = job.attempts + 1;
+    const willRetry = Boolean(handler) && attempts < config.maxAttempts;
+    const updated = await prisma.backgroundJob.updateMany({
+      where: lease,
       data: {
-        status: willRetry ? "pending" : "failed",
-        attempts: nextAttempts,
-        last_error: message.slice(0, 1000),
+        status: willRetry ? "pending" : "failed", attempts,
+        last_error: (err instanceof Error ? err.message : String(err)).slice(0, 1000),
         finished_at: willRetry ? null : new Date(),
       },
     });
-    return willRetry ? "pending" : "failed";
+    return updated.count && willRetry ? "pending" : "failed";
+  } finally {
+    clearInterval(heartbeat);
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -278,9 +241,10 @@ function normalizeList<T>(value: T | readonly T[] | undefined): T[] {
 
 async function buildClaimTypeConstraint(
   requestedTypes: readonly JobType[],
+  tx: Prisma.TransactionClient,
 ): Promise<Prisma.StringFilter<"BackgroundJob"> | undefined | null> {
   const typesToCheck = requestedTypes.length > 0 ? requestedTypes : JOB_TYPES;
-  const saturatedTypes = await findSaturatedJobTypes(typesToCheck);
+  const saturatedTypes = await findSaturatedJobTypes(typesToCheck, tx);
 
   if (requestedTypes.length > 0) {
     const availableTypes = requestedTypes.filter((type) => !saturatedTypes.has(type));
@@ -299,15 +263,16 @@ function buildClaimWhere(
 ): Prisma.BackgroundJobWhereInput {
   return {
     status: { in: [...statuses] },
+    available_at: { lte: new Date() },
     ...(novelId ? { novel_id: novelId } : {}),
     ...(typeConstraint ? { type: typeConstraint } : {}),
   };
 }
 
-async function findSaturatedJobTypes(types: readonly JobType[]): Promise<Set<JobType>> {
+async function findSaturatedJobTypes(types: readonly JobType[], tx: Prisma.TransactionClient): Promise<Set<JobType>> {
   const saturated = new Set<JobType>();
   for (const type of types) {
-    const running = await prisma.backgroundJob.count({
+    const running = await tx.backgroundJob.count({
       where: { type, status: "running" },
     });
     if (running >= getJobTypeConfig(type).maxConcurrent) saturated.add(type);
@@ -324,19 +289,6 @@ function numberFromEnv(name: string, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, jobType: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      reject(new Error(`Job "${jobType}" timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-  });
-
-  return Promise.race([promise, timeout]).finally(() => {
-    if (timer) clearTimeout(timer);
-  });
-}
-
 /**
  * Drain all pending jobs for a novel sequentially. Best-effort — if one job
  * fails we still try the rest. Returns the count processed. P0-6: also
@@ -344,10 +296,11 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, jobType: string)
  * jobs killed mid-flight by a Serverless teardown don't hide forever.
  */
 export async function runPendingJobsForNovel(novelId: string): Promise<number> {
+  if (handlers.size === 0) await import("./handlers");
   await sweepStaleRunningJobs(novelId);
 
   const pending = await prisma.backgroundJob.findMany({
-    where: { novel_id: novelId, status: "pending" },
+    where: { novel_id: novelId, status: "pending", type: { notIn: ["generate_chapter", "plan_outline"] } },
     orderBy: { created_at: "asc" },
     select: { id: true },
   });

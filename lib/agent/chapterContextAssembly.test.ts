@@ -131,7 +131,7 @@ describe("assembleChapterContext", () => {
     expect(result.context.outline.chapterIndex).toBe(3);
   });
 
-  it("includes prior volume summaries to preserve long-range coherence", async () => {
+  it("excludes summaries from future volumes", async () => {
     const { assembleChapterContext } = await import("./chapterContextAssembly");
     const result = await assembleChapterContext({
       novelId: "novel-1",
@@ -143,9 +143,15 @@ describe("assembleChapterContext", () => {
         { volume_index: 1, summary: "第二卷回顾：主角进入剑冢。" },
       ],
     });
-    // 当前卷(0)由 volumeSummary 注入；前序卷(1)由 priorVolumeSummaries 收集，排除当前卷避免冗余
     expect(result.context.volumeSummary).toBe("第一卷回顾：主角觉醒剑魂。");
-    expect(result.context.priorVolumeSummaries).toContain("第二卷回顾：主角进入剑冢。");
-    expect(result.context.priorVolumeSummaries).not.toContain("第一卷回顾");
+    expect(result.context.priorVolumeSummaries).toBeUndefined();
+  });
+  it("omits aggregate summaries when rewriting before existing prose", async () => {
+    const { assembleChapterContext } = await import("./chapterContextAssembly");
+    const result = await assembleChapterContext({ novelId: "n", bible: makeBible(), chapters: makeChapters(5),
+      chapterIndex: 3, novelSummary: "后续剧情", volumeSummaries: [{ volume_index: 0, summary: "后续剧情" }], skipRetrieval: true });
+    expect(result.context.novelSummary).toBeUndefined();
+    expect(result.context.volumeSummary).toBeUndefined();
+    expect(result.context.previousSummaries.map(c => c.chapterIndex)).toEqual([1, 2]);
   });
 });

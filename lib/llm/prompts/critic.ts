@@ -1,3 +1,4 @@
+import { formatVolumeArc } from "@/lib/agent/volumePlan";
 import type { ChatMessage } from "@/lib/llm/client";
 import type { ChapterContext } from "@/lib/agent/chapterContext";
 import type { CriticIssue } from "@/lib/agent/contracts";
@@ -134,7 +135,7 @@ ${PROMPT_SAFETY_PREAMBLE}
     },
     {
       role: "user",
-      content: `## Story Bible 设定
+      content: `${formatVolumeArc(context.volumeArc)}\n\n## Story Bible 设定
 小说标题：${wrap(bible.meta.suggested_title, "outline_title")}
 
 主角：

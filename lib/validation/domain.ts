@@ -115,7 +115,7 @@ export const FactionSchema = z.object({
 });
 
 export const ChapterSchema = z.object({
-  index: z.number().int().min(1).max(1000),
+  index: z.number().int().min(1).max(2_147_483_647),
   title: z.string().min(1),
   summary: z.string().min(20).max(120),
 });
@@ -302,7 +302,7 @@ export const BibleDraftSchema = z.object({
       chapter_count_estimate: z.number().int().min(8),
       chapters: z.array(ChapterSchema).min(8).max(80),
     }),
-    volumes: z.array(VolumeSchema).max(20).optional(),
+    volumes: z.array(VolumeSchema).optional(),
   }),
   first_chapter_beats: z.array(BeatSchema).min(5).max(8),
   story_state: StoryStateV1Schema.optional(),

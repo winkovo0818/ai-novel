@@ -133,6 +133,7 @@ describe("buildChapterStatus — M3.1 dirty bits", () => {
         updated_at: new Date(),
         started_at: new Date(),
         finished_at: null,
+        available_at: new Date(),
       },
     });
     expect(view.summary).toBe("running");

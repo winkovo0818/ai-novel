@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const generationAlertGroupBy = vi.fn();
 const llmGroupBy = vi.fn();
 const llmAggregate = vi.fn();
 const queryRaw = vi.fn();
@@ -13,6 +14,7 @@ const draftSessionGroupBy = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
+    novelGenerationAlert: { groupBy: generationAlertGroupBy },
     llmUsage: { groupBy: llmGroupBy, aggregate: llmAggregate },
     $queryRaw: queryRaw,
     moderationAudit: { groupBy: moderationGroupBy },
@@ -26,6 +28,7 @@ vi.mock("@/lib/db", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  generationAlertGroupBy.mockResolvedValue([{ kind: "review", _count: { _all: 2 } }]);
 });
 
 describe("collectMetrics", () => {
@@ -126,6 +129,7 @@ describe("collectMetrics", () => {
     const families = await collectMetrics();
 
     const byName = Object.fromEntries(families.map((f) => [f.name, f]));
+    expect(byName.ai_novel_generation_alerts.samples).toEqual([{ labels: { kind: "review" }, value: 2 }]);
 
     expect(byName.ai_novel_llm_requests_total.samples).toEqual([
       { labels: { status: "ok" }, value: 100 },

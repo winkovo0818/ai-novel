@@ -1,26 +1,64 @@
 # AI Novel — 项目状态
 
-> 最近更新：2026-05-14 · 内容审核 review queue + TTL：ModerationAudit 支持后台人工复核、队列指标与 90 天清理 cron
+> 最近更新：2026-10-02 · 并发写入、任务执行权、自动生成质量门、CLI 和部署修复；生产模式登录及书架跳转验证；同一本小说持续连载、版本化长期记忆与卷级剧情规划
 > 本文件是 PROGRESS / AUDIT / TASKS 三份历史状态文档的合并版本，是当前**唯一**的项目状态来源。
 > 战略路线见 `docs/ROADMAP_2_4_8_WEEKS.md`，战术任务单见 `docs/IMPLEMENTATION_TASKS.md`，阶段 3 之后的 phase 决策见 `docs/phases/`，每次任务后的体检报告见 `docs/HEALTH.md`，真实产品标准的审阅见 `docs/PROJECT_REVIEW_REPORT.md`。
 
 ---
 
-## 一、当前实测验证基线（2026-05-14，project-shell 轻量测试后）
+## 2026-10-01 修复交付
+
+章节 PATCH 和恢复使用数据库版本条件防止并发覆盖。AI 写入会检查版本和执行权，在同一事务提交正文、状态、任务进度及后处理任务；已有正文保留。启动/恢复服务由 Web 与数据库 CLI 共用。
+
+队列取任务在数据库锁内执行并发上限检查，增加心跳、取消信号和提交前执行权检查。回收期限同时考虑任务类型预算，避免默认五分钟 TTL 误回收二十分钟的生成任务。
+
+质量门在落库前执行；最终修订再次审校，审校异常和 major/critical 冲突不再放行。短段落保留，索引替换原子提交，检索排除当前及未来章节，重写时避免使用可能包含后续剧情的汇总摘要。调用费用按用户、作品及任务记录，报价可配置。
+
+本地文件 CLI 接入统一 Bible schema、章节生成管线、质量门和状态校验，恢复参数及成本上限接通，文件写入使用原子替换与互斥锁。生产登录修复 CSP nonce 与静态 HTML 不匹配，作品详情新增加载边界，节拍按钮接通。Docker standalone 构建及 pgvector 数据库可启动。
+
+自动化验收使用 mock 模型，不代表真实小说质量已提升；后续仍需真实长篇样本和人工评审。费用上限属于估价控制；供应商实际计费和单次调用超额另行核对。详细证据及剩余风险见 HEALTH.md。
+
+## 持续连载交付（2026-10-01）
+
+详情页及数据库 CLI 支持 `continuous`：不预设完结章数，默认每批规划 10 章（最多 20），写完后依据最新剧情状态再次规划。新卷按 80 章切分，章节校验取消 1000 章和 20 卷限制。启动 HTTP 请求仅持久化 run 与 `plan_outline` job，规划结果及下一个任务在同一事务提交，暂停后恢复会重新检查大纲覆盖范围。
+
+worker 启动及定期扫描会修复缺失的任务链；重试耗尽标记失败，数据库暂时失联时退避重试，空闲轮询不累积 AbortSignal 监听器。规划中可暂停，已暂停任务可提高累计预算后恢复。连载必须启用质量检查点及明确预算策略（累计上限或显式不限任务累计预算），已有正文不自动覆盖。生成任务只读取最近 20 章历史正文（未来正文仍保留用于已有内容保护），规划提示只注入最近 20 条大纲和有界剧情状态。
+
+本轮验收覆盖真实本地数据库上的第 81 章、新卷、并发恢复、任务链修复、失败复核及下一批规划；模型使用 mock。尚未验证数百章真实生成质量与连续多日运行。长期记忆拆表与卷级剧情规划已交付；真实百章质量、多日运行、日预算调度和连载运行提醒已接入，见 `docs/IMPL_AUTO_NOVEL_GENERATION_M1-M3.md` 的持续连载章节。
+
+## 长期记忆与卷规划交付（2026-10-01）
+
+新增独立事实、记忆检查点、章节大纲和卷计划四张表。事实保留有效章节范围、来源正文 ID 与版本；自动续写按章节读取有界事实，并额外召回卷计划指定的旧线索。旧事件不会随短时间线裁剪而消失。正文、Bible、记忆、任务进度和后续任务同一事务提交。相关正文改动或历史快照不可用时，规划与续写暂停待审。
+
+卷计划包含目标、冲突、人物变化、高潮、阶段结果、后续钩子和线索回收期限，注入大纲、作者、审校与修订。计划按卷保存，重试复用，并发提交保留先保存的结果。期限已到但尚未回收的线索阻止自动定稿。详情页显示阶段目标和期限，所有者可通过 `story-memory` API 读取事实来源。
+
+旧作品按需回填，也可运行 `npm run memory:backfill` 预览，指定 `--apply` 才写入。迁移只在本地独立测试库应用。Bible 完整 JSON 仍保留兼容编辑器；不能将本次拆表理解为已消除所有存储增长。回填也不能恢复旧版本已丢失的历史。
+
+## 预算、唤醒和提醒交付（2026-10-02）
+
+任务每日预算按北京时间零点重置。账户日/月费用或调用数配额耗尽后，任务记录 `pause_reason` / `resume_after`，队列记录 `available_at`；资源等待不消耗重试次数。worker 定期唤醒到期任务，并使用版本条件保护人工暂停、取消和并发恢复。人工暂停、累计预算及待审草稿不自动继续。配置可显式选择 `unlimited_budget`，每日和账户配额仍有效；`stop_after_chapter` 可用于限定验收样本。
+
+书架显示待审、失败、累计预算及长时间无进展的站内提醒；确认提醒不恢复任务，重复扫描不重复提醒。提供所有者限定的 `/api/generation-alerts`，Prometheus 及 Grafana 规则包含待处理提醒数。没有发送外部消息。
+
+`eval:serial` 默认只预览，显式执行时创建独立作品、使用真实管线、每步导出正文和报告。此次沿用数据库默认 `deepseek-v4-flash`，第 1 章通过，第 2 章因状态变更 16 条超过 15 条上限而保留待审草稿；未完成百章验收。模型记录中的占位默认配置在独立验收库修正，失败摘要已补跑。累计估价约 0.202034 元，非供应商账单。真实样本保存在本地 `artifacts/serial-agent/0c60a65f-91c1-4f33-be70-0e233ce35d19/`，未修改或迁移远程数据库。
+
+## 一、当前实测验证基线（2026-10-02）
 
 | 命令                          | 结果                                                                                                          |
 |-----------------------------|-------------------------------------------------------------------------------------------------------------|
 | `npm run typecheck`         | ✅ 通过                                                                                                        |
-| `npm run lint` (`eslint .`) | ✅ 通过                                                                                                        |
-| `npm run test` (Vitest)     | ✅ 通过，**126 files / 1030 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
+| `npm run lint` (`eslint .`) | ✅ 0 errors，6 条已有 warning |
+| `npm run test` (Vitest)     | ✅ 通过，**145 files / 1287 tests**（`scripts/docs-check.ts` 在 verify 链路防数字漂移） |
 | `npm run build`             | ✅ 通过                                                            |
-| `tests/e2e/` (Playwright)   | ✅ 8 tests（onboarding / editor-failure / editor-candidate × 4 / version-restore / beat-to-draft），P0-1 后按钮文案对齐 M1.3 候选稿模式                                          |
-| coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines/statements 68 · functions 93 · branches 83，基线 70.04 / 94.24 / 85.50）                                                                                  |
-| 代码规模                     | 61 个 API route · 28 个 page.tsx · 31 条 Prisma migration · 24 个 Prisma model                                                                  |
+| `tests/e2e/` (Playwright) | ✅ 13 条通过（12 条产品用例 + 真实登录 setup），含持续连载配置/规划暂停/预算调整/恢复/取消及卷进度展示，生产构建、每例独立账号 |
+| coverage（v8）                | ✅ 已生成报告 + **CI 门禁**（thresholds: lines/statements 68 · functions 93 · branches 83，当前 lines 83.01 / functions 94.91 / branches 85.41）                                                                                  |
+| 代码规模                     | 63 个 API route · 28 个 page.tsx · 33 条 Prisma migration · 29 个 Prisma model                                                                  |
 
 `.github/workflows/ci.yml` 现有两个 job：`verify`（lint/typecheck/test/build）+ `e2e`（pgvector postgres + LLM_MOCK + playwright + 失败上传 trace）。
 
-> 累计 migration（31 条），关键的近期 5 条：
+> 累计 migration（33 条），关键的近期迁移：
+> - `20261002000000_add_generation_budget_scheduling` — 任务每日费用、资源等待时间、队列可执行时间及提醒
+> - `20261001000000_add_story_memory_and_volume_plans` — 事实版本、记忆检查点、独立大纲和卷计划
 > - `20260511010000_add_embedding_models` — `EmbeddingModel` 表 + `(provider, model)` 唯一约束（Phase B）
 > - `20260511020000_add_chapter_dirty_flags` — `ChapterDraft.summary_dirty / index_dirty` + 双索引 + 历史数据 backfill（M3.1，2026-05-11 晚）
 > - `20260512000000_add_draft_sessions` — `DraftSession` 表（UX3 SSE 续传，2026-05-12）
@@ -46,7 +84,7 @@
 | RAG / MemoryChunk     | 🟡 | 65-75% | pgvector + HNSW + 混合检索已落地；M3.4 命中片段对用户可见；索引失败可观测性、召回评估未生产化                            |
 | 多 Agent 协作            | 🟡 | 55-65% | Writer / Critic / StateUpdater / Outline(BeatSheet) / Retrieval 都有；Outline UI 已接，自动回炉无 |
 | 工程验证                  | ✅  | 80-85% | lint/typecheck/test/build 都过                                                           |
-| CI/CD                 | 🟡 | 65-75% | 基础 verify 已接；E2E + coverage 仍未入门禁                                                      |
+| CI/CD                 | 🟡 | 65-75% | verify、E2E 和 coverage 门禁已接；生产部署仍需配置                                                      |
 | 产品化能力                 | 🟡 | 77-83% | 候选稿、项目层信息架构、Dashboard、生成历史、版本恢复 + diff、独立导出中心、四格式导出、retrieval 命中可视化、UI 降噪 + 设计刷新、乐观锁、核心编辑器交互布线测试均已落地；发布前仍缺部分 E2E |
 | **UI 设计语言**           | ✅  | 85-90% | **2026-05-11 一次性刷新**：tokens（颜色 / 阴影 / 字体节奏）+ 6 大页面层级（auth / onboarding / workspace / 详情 / 编辑器）一致采用；新增 SectionCard / StatCard 原语 |
 

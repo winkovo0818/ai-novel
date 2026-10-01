@@ -1,23 +1,30 @@
 import { chatCompletionWithRetry } from "@/lib/llm/client";
 import { parseFirstJsonObject } from "@/lib/llm/extractJson";
 import { buildOutlinePlanPrompt } from "@/lib/llm/prompts/outlinePlan";
-import { ChapterSchema, getAllChapters, type BibleDraft, type NovelProfile } from "@/lib/validation/schemas";
+import { ChapterSchema, getAllChapters, getVolumes, type BibleDraft, type NovelProfile, type StoryStateV1 } from "@/lib/validation/schemas";
+
+import type { VolumeArc } from "./volumePlan";
 
 const OUTLINE_PLAN_TIMEOUT_MS = 120_000;
-// volume_1.chapters tops out at 80 in BibleDraftSchema; multi-volume planning
-// (splitting beyond a single volume) is out of scope for this milestone.
-const MAX_VOLUME_1_CHAPTERS = 80;
+const VOLUME_CHAPTERS = 80;
 
 export interface PlanOutlineInput {
   novelId: string;
   bible: BibleDraft;
   profile: NovelProfile;
-  /** Total chapters the finished novel should have. */
+  /** End of this bounded planning batch, not necessarily the book ending. */
   targetChapters: number;
+  continuous?: boolean;
+  storyState?: StoryStateV1;
+  recentOutline?: Array<{chapter_index: number; title: string; summary: string}>;
+  volumePlans?: VolumeArc[];
+  recentProgress?: Array<{chapter_index: number; title: string; excerpt: string}>;
+  finalChapter?: number;
+  model?: string;
 }
 
 export interface PlanOutlineResult {
-  /** Bible with outline.volume_1.chapters filled up to targetChapters. */
+  /** Bible with the requested outline batch appended across volumes. */
   bible: BibleDraft;
   /** How many new chapters were appended (0 when the outline already covered the target). */
   addedChapters: number;
@@ -28,31 +35,22 @@ export interface PlanOutlineResult {
 
 type PlannedChapter = { index: number; title: string; summary: string };
 
-/**
- * Front-load the full outline before the per-chapter generation loop. If the
- * seed outline (e.g. 8 chapters) is shorter than the target (e.g. 40), ask the
- * planner for real title + summary for every missing chapter and append them to
- * volume_1 so `buildChapterContext` finds a real outline entry instead of
- * falling back to「第 N 章」(the spike's continuity-loss root cause).
- *
- * Headless and DB-free so it can be unit-tested with a mocked LLM; the caller
- * (CLI launcher) persists the returned Bible. Requires the model to cover the
- * *entire* missing range — a gap would reintroduce title loss, so a missing
- * chapter throws rather than silently leaving a hole.
+/** Plan one bounded batch. The worker persists it before scheduling the next batch.
+ * Missing or duplicate existing indices are rejected to keep the writing cursor reliable.
  */
 export async function planOutline(input: PlanOutlineInput): Promise<PlanOutlineResult> {
   const { novelId, bible, profile, targetChapters } = input;
 
   const existing = getAllChapters(bible);
+  const ordered = [...existing].sort((a, b) => a.index - b.index);
+  if (ordered.some((c, i) => c.index !== i + 1)) throw new Error("planOutline: existing outline has gaps or duplicate indices");
   const maxIndex = existing.reduce((max, c) => Math.max(max, c.index), 0);
 
   if (maxIndex >= targetChapters) {
     return { bible, addedChapters: 0, cost: { cny: 0, tokenIn: 0, tokenOut: 0 }, model: "none" };
   }
-  if (targetChapters > MAX_VOLUME_1_CHAPTERS) {
-    throw new Error(
-      `planOutline: targetChapters ${targetChapters} exceeds the single-volume cap ${MAX_VOLUME_1_CHAPTERS}; multi-volume planning is not yet supported`,
-    );
+  if (!Number.isInteger(targetChapters) || targetChapters > 2_147_483_647 || targetChapters - maxIndex > 20) {
+    throw new Error("planOutline: invalid target or batch exceeds 20 chapters");
   }
 
   const fromIndex = maxIndex + 1;
@@ -62,7 +60,10 @@ export async function planOutline(input: PlanOutlineInput): Promise<PlanOutlineR
     route: "/agent/plan_outline",
     agent: "outline_planner",
     novelId,
-    messages: buildOutlinePlanPrompt({ profile, bible, fromIndex, toIndex }),
+    model: input.model,
+    messages: buildOutlinePlanPrompt({ profile, bible, fromIndex, toIndex,
+      continuous: input.continuous, finalChapter: input.finalChapter, storyState: input.storyState,
+      recentOutline: input.recentOutline, volumePlans: input.volumePlans, recentProgress: input.recentProgress }),
     responseFormat: "json_object",
     temperature: 0.7,
     timeoutMs: OUTLINE_PLAN_TIMEOUT_MS,
@@ -94,17 +95,20 @@ export async function planOutline(input: PlanOutlineInput): Promise<PlanOutlineR
     added.push(chapter);
   }
 
-  const updatedBible: BibleDraft = {
-    ...bible,
-    outline: {
-      ...bible.outline,
-      volume_1: {
-        ...bible.outline.volume_1,
-        chapter_count_estimate: Math.max(bible.outline.volume_1.chapter_count_estimate, targetChapters),
-        chapters: [...bible.outline.volume_1.chapters, ...added].sort((a, b) => a.index - b.index),
-      },
-    },
-  };
+  const volumes = getVolumes(bible);
+  for (const chapter of added) {
+    let last = volumes[volumes.length - 1];
+    if (last.chapters.length >= VOLUME_CHAPTERS) {
+      const arc = input.volumePlans?.find(a => a.volume_index === volumes.length);
+      last = { name: arc?.plan.name ?? `第${volumes.length + 1}卷`, theme: arc?.plan.theme ?? "承接前卷，推进尚未解决的冲突", chapter_count_estimate: VOLUME_CHAPTERS, chapters: [] };
+      volumes.push(last);
+    }
+    const extended = { ...last, chapter_count_estimate: Math.max(last.chapter_count_estimate, last.chapters.length + 1),
+      chapters: [...last.chapters, chapter] };
+    volumes[volumes.length - 1] = extended;
+  }
+  const updatedBible: BibleDraft = { ...bible, outline: { ...bible.outline,
+    volume_1: volumes[0], ...(volumes.length > 1 ? { volumes: volumes.slice(1) } : {}) } };
 
   return {
     bible: updatedBible,

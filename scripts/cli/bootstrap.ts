@@ -1,25 +1,9 @@
+import { BibleDraftSchema, ChapterSchema, buildDefaultProfile } from "@/lib/validation/schemas";
+import { buildBiblePrompt } from "@/lib/llm/prompts/bible";
+import { z } from "zod";
 import type { CliConfig } from "./types";
-import type { BibleData, OutlineChapter } from "./types";
+import type { BibleData, OutlineChapter, UsageRecord } from "./types";
 import { cliChatCompletionStream } from "./llm";
-
-const BIBLE_SYSTEM = `你是专业的小说设定设计师。根据用户提供的题材和灵感，生成一份完整的叙事圣经（Bible），包含：
-
-1. 世界观设定：时代、地理、势力、规则
-2. 角色设计：主角、导师、反派、配角，每个角色包含姓名、年龄、性格、目标、能力、关系
-3. 建议书名
-
-请以严格的 JSON 格式返回，不要包含其他文本。格式如下：
-{
-  "meta": { "suggested_title": "书名", "alternative_titles": ["备选1", "备选2"] },
-  "characters": [
-    { "role": "protagonist", "name": "主角名", "age": 年龄, "personality": "性格", "goals": "目标", "abilities": ["能力1", "能力2"], "relations": ["关系1"] }
-  ],
-  "world": {
-    "setting_summary": "世界观描述",
-    "rules": ["规则1", "规则2"],
-    "factions": [{"name": "势力名", "alignment": "正/邪/中立", "role": "描述"}]
-  }
-}`;
 
 const OUTLINE_SYSTEM = `你是专业的小说大纲设计师。根据已生成的叙事圣经，为指定数量的章节设计大纲。
 
@@ -31,21 +15,21 @@ export async function bootstrapNovel(
   logline: string,
   totalChapters: number,
   onProgress?: (label: string, text: string) => void,
+  onUsage?: (record: UsageRecord) => void,
 ): Promise<{ bible: BibleData; outline: OutlineChapter[] }> {
   onProgress?.("Bible", "正在生成叙事圣经…");
 
+  let spent = 0;
+  const account = (title: string, cost: number) => {
+    spent += cost;
+    onUsage?.({ chapter: 0, title, draft_cost: cost, critic_cost: 0, revise_cost: 0, state_diff_cost: 0, total_cost: cost });
+  };
   // 1. Generate Bible (streaming)
   let bibleContent = "";
   await cliChatCompletionStream(
     config,
     {
-      messages: [
-        { role: "system", content: BIBLE_SYSTEM },
-        {
-          role: "user",
-          content: `题材：${theme}\n核心冲突：${logline}\n目标章数：${totalChapters} 章\n\n请生成完整的叙事圣经。`,
-        },
-      ],
+      messages: buildBiblePrompt({ logline, profile: buildDefaultProfile("web", theme, logline), totalChapters: Math.min(8, totalChapters) }),
       temperature: 0.7,
       timeoutMs: 120_000,
     },
@@ -54,9 +38,7 @@ export async function bootstrapNovel(
         bibleContent += token; process.stderr.write(token);
         onProgress?.("Bible", bibleContent);
       },
-      onDone() {
-        // handled below
-      },
+      onDone(result) { account("Bible", result.costCny); },
       onError(err) {
         throw err;
       },
@@ -65,16 +47,13 @@ export async function bootstrapNovel(
 
   let bible: BibleData;
   try {
-    const raw = JSON.parse(extractJson(bibleContent));
-    bible = raw as unknown as BibleData;
-    if (!bible.characters) bible.characters = [];
-    if (!bible.world) bible.world = { setting_summary: "", rules: [] };
-    if (!bible.meta) bible.meta = { suggested_title: "未命名作品", alternative_titles: [] };
+    bible = BibleDraftSchema.parse(JSON.parse(extractJson(bibleContent)));
     onProgress?.("Bible", `✅ 世界观完成 · ${bible.characters.length} 位角色`);
   } catch (err) {
     throw new Error(`Bible 解析失败: ${err instanceof Error ? err.message : err}`);
   }
 
+  if (spent >= config.generation.cost_cap_cny) throw new Error("生成费用达到上限");
   // 2. Generate Outline
   console.log(`\n📋 正在生成 ${totalChapters} 章大纲 …`);
 
@@ -98,7 +77,7 @@ export async function bootstrapNovel(
     timeoutMs: 120_000,
   }, {
     onToken(token) { outlineContent += token; process.stderr.write(token); onProgress?.("Outline", outlineContent); },
-    onDone() {},
+    onDone(result) { account("Outline", result.costCny); },
     onError(err) { throw err; },
   });
 
@@ -106,7 +85,10 @@ export async function bootstrapNovel(
   try {
     const parsed = JSON.parse(extractJson(outlineContent));
     if (!Array.isArray(parsed)) throw new Error("大纲不是数组");
-    outline = parsed as OutlineChapter[];
+    outline = z.array(ChapterSchema).parse(parsed);
+    if (outline.length !== totalChapters || outline.some((c, i) => c.index !== i + 1)) {
+      throw new Error("大纲必须完整覆盖目标章节，且序号连续");
+    }
     // Validate
     for (let i = 0; i < outline.length; i++) {
       if (!outline[i].index || !outline[i].title) {
@@ -118,6 +100,7 @@ export async function bootstrapNovel(
     throw new Error(`大纲解析失败: ${err instanceof Error ? err.message : err}`);
   }
 
+  bible = BibleDraftSchema.parse({ ...bible, outline: { volume_1: { ...bible.outline.volume_1, chapters: outline, chapter_count_estimate: totalChapters } } });
   return { bible, outline };
 }
 

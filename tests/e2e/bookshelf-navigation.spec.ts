@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "./fixtures";
 
 async function createNovelViaApi(request: APIRequestContext, title: string): Promise<string> {
   const sessionRes = await request.post("/api/onboarding/sessions", {

@@ -9,15 +9,20 @@ const bibleUpdate = vi.fn();
 const jobFindFirst = vi.fn();
 const jobCreate = vi.fn();
 const jobUpdateMany = vi.fn();
-const chapterCount = vi.fn();
+const chapterCount = vi.fn(), chapterFindMany = vi.fn(), runUpdateMany = vi.fn(), runLatest = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({
+      $queryRaw: vi.fn().mockResolvedValue([]), chapterDraft: { findMany: chapterFindMany },
+      novelGenerationRun: { findFirst: runFindFirst, create: runCreate, updateMany: runUpdateMany, findUniqueOrThrow: runLatest },
+      bibleDraft: { update: bibleUpdate }, backgroundJob: { create: jobCreate },
+    }),
     novel: { findUnique: novelFindUnique },
     novelGenerationRun: {
       findFirst: runFindFirst,
       create: runCreate,
-      update: vi.fn(),
+      update: vi.fn(), updateMany: runUpdateMany,
     },
     bibleDraft: { update: bibleUpdate },
     backgroundJob: {
@@ -189,159 +194,69 @@ describe("GET /api/novels/[id]/auto-generate", () => {
 
 describe("POST /api/novels/[id]/auto-generate", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockAuth();
-    mockNovel();
+    vi.resetAllMocks(); mockAuth(); mockNovel();
     safeParse.mockReturnValue({ success: true, data: {} });
-    createRun.mockResolvedValue({ id: "run-1" });
-    planOutline.mockResolvedValue({
-      addedChapters: 32,
-      bible: { meta: { suggested_title: "逆魂纪" }, characters: [], world: { rules: [] }, outline: {} },
-      cost: { cny: 0.005 },
-      model: "mimo-v2.5-pro",
-    });
-    markRunning.mockResolvedValue({ id: "run-1", status: "running" });
+    runFindFirst.mockResolvedValue(null); chapterFindMany.mockResolvedValue([]);
+    runCreate.mockImplementation(async ({ data }) => ({ id: "run-1", ...data }));
+    runUpdateMany.mockResolvedValue({ count: 1 });
+    runLatest.mockResolvedValue({ id: "run-1", status: "planning", cost_cny_spent: 0, cost_cap_cny: null });
     getRun.mockResolvedValue({ id: "run-1", status: "running" });
-    enqueueJob.mockResolvedValue({ id: "job-1" });
-    addCost.mockResolvedValue({});
-    runFindFirst.mockResolvedValue(null); // 无活跃 run
+    planOutline.mockResolvedValue({ addedChapters: 1, bible: {}, cost: { cny: 0.005 } });
+  });
+  const start = async (body = {}) => (await import("./route")).POST(new Request("http://localhost/auto-generate", {
+    method: "POST", body: JSON.stringify(body),
+  }), { params: Promise.resolve({ id: "novel-1" }) });
+  it("requires authentication", async () => {
+    getRequiredUserId.mockRejectedValue(new Error("unauthorized")); expect((await start()).status).toBe(401);
+  });
+  it("requires a Bible", async () => { mockNovel({ bible: null }); expect((await start()).status).toBe(400); });
+  it("rejects a second active run", async () => {
+    runFindFirst.mockResolvedValue({ status: "running" }); expect((await start()).status).toBe(409);
+    expect(runCreate).not.toHaveBeenCalled();
+  });
+  it("starts with validated defaults and enqueues atomically", async () => {
+    expect((await start()).status).toBe(200);
+    expect(runCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ checkpoint_mode: "on_fail", revision_rounds: 2, quality_floor: 85 }) });
+    expect(jobCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ type: "plan_outline", payload: { novel_id: "novel-1", target_chapters: 40, run_id: "run-1" } }) });
+  });
+  it("persists per_volume to the actual checkpoint field", async () => {
+    await start({ checkpoint_mode: "per_volume", revision_rounds: 0 });
+    expect(runCreate.mock.calls[0][0].data.checkpoint_mode).toBe("per_volume");
+    expect(runCreate.mock.calls[0][0].data.revision_rounds).toBe(0);
+  });
+  it.each([{ total_chapters: 81 }, { revision_rounds: -1 }, { revision_rounds: 1.5 }, { quality_floor: 101 }, { cost_cap_cny: -1 }, { checkpoint_mode: "other" }])("rejects invalid config %j", async body => {
+    expect((await start(body)).status).toBe(400); expect(runCreate).not.toHaveBeenCalled();
+  });
+  it("returns planning without calling the model inside HTTP", async () => {
+    const response = await start(); expect((await response.json()).data.status).toBe("planning");
+    expect(planOutline).not.toHaveBeenCalled(); expect(bibleUpdate).not.toHaveBeenCalled();
+  });
+  it("starts a rolling horizon after 80 existing chapters", async () => {
+    chapterFindMany.mockResolvedValue(Array.from({ length: 80 }, (_, i) => ({ chapter_index: i + 1, content: "已完成", status: "done" })));
+    await start({ continuous: true, planning_window: 10, cost_cap_cny: 5 });
+    expect(runCreate.mock.calls[0][0].data).toMatchObject({ current_chapter: 80, total_chapters: 90, config: { continuous: true, planning_window: 10 } });
+    expect(jobCreate.mock.calls[0][0].data.payload.target_chapters).toBe(90);
+  });
+  it.each([{ continuous: true }, { continuous: true, cost_cap_cny: 5, checkpoint_mode: "none" }, { planning_window: 21 }, { continuous: "yes" }])("rejects unsafe continuous config %j", async body => {
+    expect((await start(body)).status).toBe(400); expect(runCreate).not.toHaveBeenCalled();
+  });
+  it("starts after existing completed chapters", async () => {
+    chapterFindMany.mockResolvedValue([{ chapter_index: 1, content: "old", status: "done" }]);
+    await start();
+    expect(runCreate.mock.calls[0][0].data.current_chapter).toBe(1);
+    expect(jobCreate.mock.calls[0][0].data.type).toBe("plan_outline");
+  });
+  it("refuses to overwrite the next existing draft", async () => {
+    chapterFindMany.mockResolvedValue([{ chapter_index: 1, content: "old", status: "draft" }]);
+    expect((await start()).status).toBe(409); expect(runCreate).not.toHaveBeenCalled();
   });
 
-  it("returns 401 when unauthenticated", async () => {
-    getRequiredUserId.mockRejectedValue(new Error("UNAUTHORIZED"));
-    const { POST } = await import("./route");
-    const res = await POST(
-      new Request("http://localhost/api/novels/novel-1/auto-generate", {
-        method: "POST",
-        body: JSON.stringify({ total_chapters: 40 }),
-      }),
-      { params: Promise.resolve({ id: "novel-1" }) } as never,
-    );
-    expect(res.status).toBe(401);
-  });
-
-  it("returns 400 when novel has no bible", async () => {
-    safeParse.mockReturnValue({ success: false, error: { issues: [] } });
-    mockNovel({ bible: null });
-    const { POST } = await import("./route");
-    const res = await POST(
-      new Request("http://localhost/api/novels/novel-1/auto-generate", {
-        method: "POST",
-        body: JSON.stringify({ total_chapters: 40 }),
-      }),
-      { params: Promise.resolve({ id: "novel-1" }) } as never,
-    );
-    expect(res.status).toBe(400);
-    const json = await res.json();
-    expect(json.error.code).toBe("NO_BIBLE");
-  });
-
-  it("returns 409 when an active run already exists", async () => {
-    runFindFirst.mockResolvedValue({ id: "old-run", status: "running" });
-    const { POST } = await import("./route");
-    const res = await POST(
-      new Request("http://localhost/api/novels/novel-1/auto-generate", {
-        method: "POST",
-        body: JSON.stringify({ total_chapters: 40 }),
-      }),
-      { params: Promise.resolve({ id: "novel-1" }) } as never,
-    );
-    expect(res.status).toBe(409);
-    const json = await res.json();
-    expect(json.error.code).toBe("RUN_ACTIVE");
-  });
-
-  it("starts a new run with defaults when body is empty", async () => {
-    const { POST } = await import("./route");
-    const res = await POST(
-      new Request("http://localhost/api/novels/novel-1/auto-generate", {
-        method: "POST",
-        body: JSON.stringify({}),
-      }),
-      { params: Promise.resolve({ id: "novel-1" }) } as never,
-    );
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.data.id).toBe("run-1");
-    expect(createRun).toHaveBeenCalledWith(
-      expect.objectContaining({ totalChapters: 40, userId: "user-1" }),
-    );
-    expect(planOutline).toHaveBeenCalledWith(
-      expect.objectContaining({ targetChapters: 40 }),
-    );
-    expect(markRunning).toHaveBeenCalledWith("run-1");
-    expect(enqueueJob).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "generate_chapter",
-        payload: expect.objectContaining({ chapter_index: 1 }),
-      }),
-    );
-  });
-
-  it("starts a run with custom config", async () => {
-    const { POST } = await import("./route");
-    const res = await POST(
-      new Request("http://localhost/api/novels/novel-1/auto-generate", {
-        method: "POST",
-        body: JSON.stringify({
-          total_chapters: 20,
-          quality_floor: 80,
-          revision_rounds: 3,
-          cost_cap_cny: 10,
-          checkpoint_mode: "per_volume",
-        }),
-      }),
-      { params: Promise.resolve({ id: "novel-1" }) } as never,
-    );
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.data.total_chapters).toBe(20);
-    expect(createRun).toHaveBeenCalledWith(
-      expect.objectContaining({
-        totalChapters: 20,
-        qualityFloor: 80,
-        revisionRounds: 3,
-        costCapCny: 10,
-      }),
-    );
-  });
-
-  it("continues even when planOutline fails", async () => {
-    planOutline.mockRejectedValue(new Error("LLM timeout"));
-    const { POST } = await import("./route");
-    const res = await POST(
-      new Request("http://localhost/api/novels/novel-1/auto-generate", {
-        method: "POST",
-        body: JSON.stringify({ total_chapters: 40 }),
-      }),
-      { params: Promise.resolve({ id: "novel-1" }) } as never,
-    );
-    // 不应因大纲失败而中断，仍应标记 running 并入队
-    expect(res.status).toBe(200);
-    expect(markRunning).toHaveBeenCalled();
-    expect(enqueueJob).toHaveBeenCalled();
-  });
-
-  it("rejects total_chapters > 80", async () => {
-    const { POST } = await import("./route");
-    const res = await POST(
-      new Request("http://localhost/api/novels/novel-1/auto-generate", {
-        method: "POST",
-        body: JSON.stringify({ total_chapters: 100 }),
-      }),
-      { params: Promise.resolve({ id: "novel-1" }) } as never,
-    );
-    expect(res.status).toBe(400);
-  });
 });
-
-/* ================================================================ */
-/*  PATCH (pause / cancel)                                           */
-/* ================================================================ */
 
 describe("PATCH /api/novels/[id]/auto-generate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    runUpdateMany.mockResolvedValue({ count: 1 });
     mockAuth();
     mockNovel();
   });
@@ -403,5 +318,43 @@ describe("PATCH /api/novels/[id]/auto-generate", () => {
       { params: Promise.resolve({ id: "novel-1" }) } as never,
     );
     expect(res.status).toBe(400);
+  });
+});
+
+
+describe("budget and state races", () => {
+  beforeEach(() => { vi.resetAllMocks(); mockAuth(); mockNovel(); runUpdateMany.mockResolvedValue({ count: 1 }); });
+  const patch = async (body: unknown) => (await import("./route")).PATCH(new Request("http://localhost/auto-generate", { method: "PATCH", body: JSON.stringify(body) }), { params: Promise.resolve({ id: "novel-1" }) });
+  it("increases a paused run's cumulative budget without resuming it", async () => {
+    runFindFirst.mockResolvedValue({ id: "run-1", status: "paused", cost_cap_cny: 5, cost_cny_spent: 5.1 });
+    expect((await patch({ action: "budget", cost_cap_cny: 10 })).status).toBe(200);
+    expect(runUpdateMany.mock.calls[0][0].data).toEqual({ cost_cap_cny: 10 });
+  });
+  it.each([0, -1, 5, 5.1, "10"])("refuses invalid or insufficient budget %j", async amount => {
+    runFindFirst.mockResolvedValue({ id: "run-1", status: "paused", cost_cap_cny: 5, cost_cny_spent: 5.1 });
+    expect((await patch({ action: "budget", cost_cap_cny: amount })).status).toBe(400);
+    expect(runUpdateMany).not.toHaveBeenCalled();
+  });
+  it("changes a daily budget with a CAS and requires explicit resumption", async () => {
+    const updated = new Date(0);
+    runFindFirst.mockResolvedValue({id: "run-1", status: "paused", updated_at: updated, pause_reason: "daily_budget", config: {continuous: true, unlimited_budget: true, custom: "keep", daily_cost_cap_cny: 2}});
+    expect((await patch({action: "daily_budget", daily_cost_cap_cny: 3})).status).toBe(200);
+    expect(runUpdateMany.mock.calls[0][0]).toMatchObject({where: {updated_at: updated}, data: {config: {custom: "keep", daily_cost_cap_cny: 3, unlimited_budget: true}, pause_reason: "manual", resume_after: null}});
+    runUpdateMany.mockClear();
+    expect((await patch({action: "daily_budget", daily_cost_cap_cny: null})).status).toBe(200);
+    expect(runUpdateMany.mock.calls[0][0].data.config).not.toHaveProperty("daily_cost_cap_cny");
+  });
+  it.each([0, -1, "2", undefined])("refuses invalid daily budgets %j", async amount => {
+    expect((await patch({action: "daily_budget", daily_cost_cap_cny: amount})).status).toBe(400);
+    expect(runUpdateMany).not.toHaveBeenCalled();
+  });
+  it("can manually stop a scheduled wakeup", async () => {
+    runFindFirst.mockResolvedValue({id: "run-1", status: "paused", pause_reason: "quota"});
+    expect((await patch({action: "pause"})).status).toBe(200);
+    expect(runUpdateMany.mock.calls[0][0].data).toMatchObject({pause_reason: "manual", resume_after: null});
+  });
+  it("cannot pause a run that completed concurrently", async () => {
+    runFindFirst.mockResolvedValue({ id: "run-1", status: "running" }); runUpdateMany.mockResolvedValue({ count: 0 });
+    expect((await patch({ action: "pause" })).status).toBe(409);
   });
 });

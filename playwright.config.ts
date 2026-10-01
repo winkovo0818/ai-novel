@@ -1,9 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const useBuilt = process.env.E2E_USE_BUILT === "1" || process.env.CI === "true";
-const databaseUrl =
-  process.env.E2E_DATABASE_URL ??
-  "postgresql://ai_novel:sffBA4NBWXGXMMtr@47.107.28.214:5432/ai_novel";
+const databaseUrl = process.env.E2E_DATABASE_URL;
+if (!databaseUrl) throw new Error("E2E_DATABASE_URL must point to a dedicated test database");
+// Test fixtures also import Prisma; use the same isolated database as the server.
+process.env.DATABASE_URL = databaseUrl;
+process.env.DIRECT_URL = process.env.E2E_DIRECT_URL ?? databaseUrl;
+const authFile = "test-results/.auth/user.json";
 const browserChannel = process.env.E2E_BROWSER_CHANNEL;
 
 export default defineConfig({
@@ -25,18 +28,21 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       LLM_MOCK: "1",
-      E2E_AUTH_BYPASS: "1",
-      E2E_DISABLE_RATE_LIMIT: "1",
-      E2E_TEST_USER_ID: "e2e-user",
+      EDGEFN_API_KEY: "",
+      AUTH_SECRET: process.env.AUTH_SECRET ?? "e2e-only-local-auth-secret-replace-in-production",
+      AUTH_TRUST_HOST: "true",
       DATABASE_URL: databaseUrl,
       DIRECT_URL: process.env.E2E_DIRECT_URL ?? databaseUrl,
     },
   },
   projects: [
+    { name: "setup", testMatch: /auth.setup.ts/, use: browserChannel ? { channel: browserChannel } : {} },
     {
       name: "chromium",
+      dependencies: ["setup"],
       use: {
         ...devices["Desktop Chrome"],
+        storageState: authFile,
         ...(browserChannel ? { channel: browserChannel } : {}),
       },
     },

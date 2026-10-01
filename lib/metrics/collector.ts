@@ -37,6 +37,7 @@ export async function collectMetrics(): Promise<MetricFamily[]> {
     jobsRecentDone,
     jobsRecentFailed,
     draftSessionsRecent,
+    generationAlerts,
     novelCount,
     chaptersByStatus,
   ] = await Promise.all([
@@ -155,6 +156,7 @@ export async function collectMetrics(): Promise<MetricFamily[]> {
       },
       _count: { _all: true },
     }),
+    prisma.novelGenerationAlert.groupBy({ by: ["kind"], where: { resolved_at: null, read_at: null }, _count: { _all: true } }),
     prisma.novel.count(),
     prisma.chapterDraft.groupBy({
       by: ["status"],
@@ -411,6 +413,8 @@ export async function collectMetrics(): Promise<MetricFamily[]> {
     })),
   });
 
+  families.push({ name: "ai_novel_generation_alerts", help: "Unacknowledged active generation alerts by kind.", type: "gauge",
+    samples: generationAlerts.map(row => ({ labels: { kind: row.kind }, value: row._count._all })) });
   return families;
 }
 

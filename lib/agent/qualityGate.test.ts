@@ -130,7 +130,7 @@ describe("evaluateChapterGate", () => {
     expect(result.reason).toContain("critic(critical/world_rule)");
   });
 
-  it("does not fail on minor or (by default) major critic issues", async () => {
+  it("blocks major critic issues by default", async () => {
     evaluateNovelQuality.mockReturnValue(makeReport({}, 10));
     const { evaluateChapterGate } = await import("./qualityGate");
 
@@ -138,8 +138,8 @@ describe("evaluateChapterGate", () => {
       criticIssues: [criticIssue("minor"), criticIssue("major"), criticIssue("major")],
     });
 
-    expect(result.pass).toBe(true);
-    expect(result.criticBlocked).toEqual([]);
+    expect(result.pass).toBe(false);
+    expect(result.criticBlocked).toHaveLength(2);
   });
 
   it("fails on too many major critic issues when maxMajor is set", async () => {
@@ -168,7 +168,7 @@ describe("evaluateChapterGate", () => {
     expect(result.criticBlocked).toEqual([]);
   });
 
-  it("skips the critic floor on a cold-start window", async () => {
+  it("enforces the critic floor on a cold-start window", async () => {
     evaluateNovelQuality.mockReturnValue(makeReport({}, 10));
     const { evaluateChapterGate } = await import("./qualityGate");
 
@@ -176,9 +176,8 @@ describe("evaluateChapterGate", () => {
       criticIssues: [criticIssue("critical")],
     });
 
-    expect(result.pass).toBe(true);
-    expect(result.criticBlocked).toEqual([]);
-    expect(result.reason).toContain("冷启动");
+    expect(result.pass).toBe(false);
+    expect(result.criticBlocked).toHaveLength(1);
   });
 
   it("keeps criticBlocked empty when no criticIssues are supplied (back-compat)", async () => {

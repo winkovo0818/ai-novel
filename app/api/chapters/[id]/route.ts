@@ -1,6 +1,6 @@
 import { jsonError } from "@/lib/http/json";
 import { createHash } from "node:crypto";
-import { enqueueJob, runPendingJobsForNovel } from "@/lib/jobs/queue";
+import { runPendingJobsForNovel } from "@/lib/jobs/queue";
 
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
@@ -114,7 +114,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         : {};
 
       const updated = await tx.chapterDraft.update({
-        where: { id },
+        where: { id, version: expected_version },
         data: { ...updateData, ...dirtyPatch, version: { increment: 1 } },
       });
 
@@ -162,23 +162,28 @@ export async function PATCH(request: Request, context: RouteContext) {
         }
       }
 
+      if ((contentChanged && source === "manual") || isPublishing) {
+        for (const type of ["summarize_chapter", "index_chapter"]) await tx.backgroundJob.create({ data: {
+          type, novel_id: existing.novel_id, status: "pending", payload: { novel_id: existing.novel_id, chapter_id: id },
+        } });
+      }
       return updated;
     });
 
-    // M3.1 auto-postprocess: when a manual save or mark-done changes content,
-    // enqueue summarize + index jobs then drain the queue so the chapter gets
-    // post-processed immediately — matching the auto-pilot path that does the
-    // same in generateChapterHandler.ts:153-154. Without this, manually
-    // generated chapters never get summaries or RAG memory chunks unless the
-    // user visits the chapter management page and clicks "refresh dirty".
-    if (contentChanged && (source === "manual" || isPublishing)) {
-      await enqueueJob({ type: "summarize_chapter", payload: { chapter_id: chapter.id }, novelId: existing.novel_id });
-      await enqueueJob({ type: "index_chapter", payload: { novel_id: existing.novel_id, chapter_id: chapter.id }, novelId: existing.novel_id });
+    if ((contentChanged && source === "manual") || isPublishing) {
       void runPendingJobsForNovel(existing.novel_id).catch(() => {});
     }
 
     return Response.json({ ok: true, data: chapter });
   } catch (err) {
+    if (typeof err === "object" && err !== null && "code" in err && err.code === "P2025") {
+      const latest = await prisma.chapterDraft.findUnique({ where: { id } });
+      return Response.json({ ok: false, error: {
+        code: "CHAPTER_VERSION_CONFLICT",
+        message: "章节已被另一处修改，请加载最新版本后再保存",
+        retryable: false,
+      }, data: latest }, { status: 409 });
+    }
     const message = err instanceof Error ? err.message : "unknown error";
     return jsonError("INTERNAL", message, true, 500);
   }

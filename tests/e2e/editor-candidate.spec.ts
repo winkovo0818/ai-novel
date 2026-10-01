@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
-import { completeOnboardingToEditor } from "./helpers/onboarding";
+import { completeOnboardingToEditor, openWritingAssistant } from "./helpers/onboarding";
 
 /**
  * E2E coverage for M1.3 candidate-draft flow.
@@ -13,10 +13,10 @@ import { completeOnboardingToEditor } from "./helpers/onboarding";
 const CANDIDATE_TEXT = "AI 候选稿正文：龙吟自远方传来。";
 
 async function seedOriginalContent(page: import("@playwright/test").Page, text: string) {
-  const editor = page.locator("textarea").first();
+  const editor = page.getByPlaceholder("开始书写故事…");
   await editor.fill(text);
   await page.getByRole("button", { name: "保存草稿" }).click();
-  await expect(page.getByText("草稿已保存")).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByTitle("草稿已保存", { exact: true })).toBeVisible({ timeout: 8_000 });
 }
 
 async function expectCandidateReady(page: import("@playwright/test").Page) {
@@ -51,15 +51,16 @@ test("discarding a candidate leaves the editor body unchanged", async ({ page })
   await completeOnboardingToEditor(page, { title: "候选稿丢弃 E2E" });
   await mockDraftStream(page);
 
-  const editor = page.locator("textarea").first();
+  const editor = page.getByPlaceholder("开始书写故事…");
   const original = "用户的原稿。";
   await seedOriginalContent(page, original);
 
-  await page.getByRole("button", { name: "全文起草" }).click();
+  await openWritingAssistant(page);
+  await page.getByRole("button", { name: /生成本章初稿|重新起草本章/ }).click();
   await expectCandidateReady(page);
 
   await page.getByRole("button", { name: "放弃候选稿" }).click();
-  await expect(page.getByText("候选稿已丢弃")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "候选稿就绪" })).toBeHidden();
   await expect(editor).toHaveValue(original);
 });
 
@@ -67,11 +68,12 @@ test("appending a candidate keeps original content and adds AI text below it", a
   await completeOnboardingToEditor(page, { title: "候选稿追加 E2E" });
   await mockDraftStream(page);
 
-  const editor = page.locator("textarea").first();
+  const editor = page.getByPlaceholder("开始书写故事…");
   const original = "用户的原稿。";
   await seedOriginalContent(page, original);
 
-  await page.getByRole("button", { name: "全文起草" }).click();
+  await openWritingAssistant(page);
+  await page.getByRole("button", { name: /生成本章初稿|重新起草本章/ }).click();
   await expectCandidateReady(page);
 
   await page.getByRole("button", { name: "追加到末尾" }).click();
@@ -86,11 +88,12 @@ test("replacing a non-empty body requires explicit confirm", async ({ page }) =>
   await completeOnboardingToEditor(page, { title: "候选稿覆盖 E2E" });
   await mockDraftStream(page);
 
-  const editor = page.locator("textarea").first();
+  const editor = page.getByPlaceholder("开始书写故事…");
   const original = "用户的原稿，需要确认才能被覆盖。";
   await seedOriginalContent(page, original);
 
-  await page.getByRole("button", { name: "全文起草" }).click();
+  await openWritingAssistant(page);
+  await page.getByRole("button", { name: /生成本章初稿|重新起草本章/ }).click();
   await expectCandidateReady(page);
 
   await page.getByRole("button", { name: "覆盖正文" }).click();
@@ -110,7 +113,8 @@ test("P2-3: candidate panel toggles between preview and diff view", async ({ pag
   const original = "用户的原稿，与候选稿差异明显。";
   await seedOriginalContent(page, original);
 
-  await page.getByRole("button", { name: "全文起草" }).click();
+  await openWritingAssistant(page);
+  await page.getByRole("button", { name: /生成本章初稿|重新起草本章/ }).click();
   await expectCandidateReady(page);
 
   // Two view-mode buttons are visible inside the candidate panel.

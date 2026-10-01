@@ -49,7 +49,7 @@ services:
       JOBS_WORKER_POLL_MS: ${JOBS_WORKER_POLL_MS:-2000}
 
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: ai-novel-pg
     restart: unless-stopped
     environment:

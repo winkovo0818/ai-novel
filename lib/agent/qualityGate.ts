@@ -34,19 +34,18 @@ export const SOFT_SIGNAL_THRESHOLDS: Partial<Record<MetricResult["key"], number>
  * chapter can clear the score floor while the LLM critic flagged a genuine
  * semantic contradiction. Folding the critic's final-pass issues into the gate
  * is a free cross-check — the critic already ran in the pipeline, we just stop
- * discarding its verdict. By default any `critical` issue fails the gate; `major`
- * is recorded but not auto-failed (keeps prior behavior — major already drives
- * the in-pipeline revise loop). Tunable per run via {@link QualityGateOptions}.
+ * discarding its verdict. By default any `critical` or `major` issue fails the gate.
+ * Tunable per run via {@link QualityGateOptions}.
  */
 export const DEFAULT_CRITIC_FLOOR: Required<CriticFloor> = {
   failOnCritical: true,
-  maxMajor: Infinity,
+  maxMajor: 0,
 };
 /**
  * Below this window size the heuristics (especially continuity, which needs ≥3
  * chapters) are unreliable and would unfairly fail the opening chapters. The
  * spike saw quality peak mid-run and the cold start is inherently noisy, so we
- * let the first couple of chapters through rather than halt the whole book.
+ * skip only heuristic floors for the opening chapters; critic issues still block.
  */
 const MIN_WINDOW_FOR_GATE = 3;
 
@@ -54,7 +53,7 @@ const MIN_WINDOW_FOR_GATE = 3;
 export interface CriticFloor {
   /** Any `critical` critic issue fails the gate. Default true. */
   failOnCritical?: boolean;
-  /** Fail when `major` issue count exceeds this. Default Infinity (never). */
+  /** Fail when `major` issue count exceeds this. Default 0. */
   maxMajor?: number;
 }
 
@@ -139,28 +138,15 @@ export function evaluateChapterGate(
     }
   }
 
-  if (window.length < MIN_WINDOW_FOR_GATE) {
-    // Cold start skips every floor — including the critic floor. The opening
-    // chapters are inherently noisy and the run shouldn't halt this early; the
-    // critic still drove the in-pipeline revise loop, it just doesn't gate here.
-    return {
-      pass: true,
-      scorePct,
-      failedDims: [],
-      softWarnings: [],
-      criticBlocked: [],
-      reason: `冷启动窗口（${window.length} < ${MIN_WINDOW_FOR_GATE} 章），跳过质量门`,
-      report,
-    };
-  }
-
   // Critic hard floor: cross-check the heuristic score against the LLM critic's
   // final-pass verdict. Free — the critic already ran in the pipeline.
   const criticFloor = { ...DEFAULT_CRITIC_FLOOR, ...options.criticFloor };
   const criticIssues = options.criticIssues ?? [];
   const criticBlocked = collectCriticBlocked(criticIssues, criticFloor);
 
-  const floorPass = scorePct >= qualityFloor;
+  const coldStart = window.length < MIN_WINDOW_FOR_GATE;
+  if (coldStart) failedDims.length = 0;
+  const floorPass = coldStart || scorePct >= qualityFloor;
   const pass = floorPass && failedDims.length === 0 && criticBlocked.length === 0;
 
   const reasons: string[] = [];
@@ -170,7 +156,7 @@ export function evaluateChapterGate(
   // 软信号 warning 记入 reason 但不影响 pass
   for (const w of softWarnings) reasons.push(`软信号${w.label}(${w.key}) ${w.score} < ${w.floor}（已降为软信号，不止链）`);
   const reason = pass
-    ? `通过：总分 ${scorePct}%${softWarnings.length > 0 ? `（含 ${softWarnings.length} 个软信号 warning）` : ""}`
+    ? `通过：${coldStart ? "冷启动仅跳过启发式门；" : ""}总分 ${scorePct}%${softWarnings.length > 0 ? `（含 ${softWarnings.length} 个软信号 warning）` : ""}`
     : `未达标：${reasons.join("；")}`;
 
   return { pass, scorePct, failedDims, softWarnings, criticBlocked, reason, report };

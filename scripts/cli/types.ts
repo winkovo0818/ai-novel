@@ -1,3 +1,5 @@
+import type { BibleDraft, ChapterSchema } from "@/lib/validation/schemas";
+import type { z } from "zod";
 /* ------------------------------------------------------------------ */
 /*  Shared CLI types                                                   */
 /* ------------------------------------------------------------------ */
@@ -37,29 +39,8 @@ export interface NovelMeta {
   created_at: string;
 }
 
-export interface BibleData {
-  meta: { suggested_title: string; alternative_titles: string[] };
-  characters: Array<{
-    role: string;
-    name: string;
-    age?: number;
-    personality: string;
-    goals: string;
-    abilities?: string[];
-    relations?: string[];
-  }>;
-  world: {
-    setting_summary: string;
-    rules: string[];
-    factions?: Array<{ name: string; alignment: string; role: string }>;
-  };
-}
-
-export interface OutlineChapter {
-  index: number;
-  title: string;
-  summary: string;
-}
+export type BibleData = BibleDraft;
+export type OutlineChapter = z.infer<typeof ChapterSchema>;
 
 export type RunStatus =
   | "planning"

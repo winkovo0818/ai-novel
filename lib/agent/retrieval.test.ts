@@ -256,3 +256,11 @@ function character(role: "protagonist" | "mentor" | "antagonist", name: string) 
     relations: [],
   };
 }
+
+it("bounds vector search to chapters before the one being written", async () => {
+  mocks.createEmbeddings.mockResolvedValue([Array.from({ length: 1024 }, () => 0.1)]);
+  mocks.queryRaw.mockResolvedValue([]);
+  await retrieveMemories("novel-1", bible, 5, 5);
+  const [strings, ...values] = mocks.queryRaw.mock.calls[0] as [TemplateStringsArray, ...unknown[]];
+  expect(strings.join("")).toContain("cd.chapter_index < "); expect(values).toContain(5);
+});

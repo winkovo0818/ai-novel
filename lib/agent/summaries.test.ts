@@ -8,6 +8,7 @@ const chatCompletionWithRetry = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({ volumeSummary: { upsert: upsertVolumeSummary }, novelSummary: { upsert: upsertNovelSummary } }),
     novel: { findUnique: findUniqueNovel },
     volumeSummary: { upsert: upsertVolumeSummary, findMany: findManyVolumeSummary },
     novelSummary: { upsert: upsertNovelSummary },

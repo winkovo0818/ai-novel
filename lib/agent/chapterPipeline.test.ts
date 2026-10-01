@@ -95,7 +95,7 @@ describe("runChapterPipeline", () => {
     expect(result.revisedRounds).toBe(2);
     expect(result.criticIssues).toHaveLength(1);
     expect(result.criticIssues[0].severity).toBe("critical");
-    expect(chatCompletionWithRetry).toHaveBeenCalledTimes(5); // writer + 2×(critic+revise)
+    expect(chatCompletionWithRetry).toHaveBeenCalledTimes(6); // writer + 2×(critic+revise)
   });
 
   it("rolls back to the cleanest draft when revise degrades AI voice and critic never clears", async () => {
@@ -140,7 +140,7 @@ describe("runChapterPipeline", () => {
     expect(chatCompletionWithRetry).toHaveBeenCalledTimes(3); // writer + critic(bad) + critic(retry ok)
   });
 
-  it("fails closed with a synthetic major issue when critic JSON is unparseable twice", async () => {
+  it("fails closed with a synthetic critical issue when critic JSON is unparseable twice", async () => {
     const { runChapterPipeline } = await import("./chapterPipeline");
     chatCompletionWithRetry.mockImplementation(async (opts: { agent?: string; route: string }) => {
       if (opts.agent === "critic") return mockResult("抱歉，这里是一段不是 JSON 的模型废话。");
@@ -150,11 +150,29 @@ describe("runChapterPipeline", () => {
     const result = await runChapterPipeline({ ...baseInput });
 
     // No revise (nothing concrete to fix), but the chapter must NOT pass as reviewed-clean:
-    // the synthetic major issue flows into criticIssues → quality gate / needs_review.
+    // the synthetic critical issue flows into criticIssues → quality gate / needs_review.
     expect(result.revisedRounds).toBe(0);
     expect(result.criticIssues).toHaveLength(1);
-    expect(result.criticIssues[0].severity).toBe("major");
+    expect(result.criticIssues[0].severity).toBe("critical");
     expect(result.criticIssues[0].description).toContain("未经一致性审校");
     expect(chatCompletionWithRetry).toHaveBeenCalledTimes(3); // writer + critic + critic retry, no revise
   });
+  it("critiques the final revision rather than returning the previous verdict", async () => {
+    const { runChapterPipeline } = await import("./chapterPipeline");
+    const issue = { consistent: false, issues: [{ type: "world_rule", severity: "critical", description: "旧稿问题" }] };
+    chatCompletionWithRetry.mockResolvedValueOnce(mockResult("旧稿"))
+      .mockResolvedValueOnce(mockResult(JSON.stringify(issue)))
+      .mockResolvedValueOnce(mockResult("最终修订稿"))
+      .mockResolvedValueOnce(mockResult(JSON.stringify({ consistent: true, issues: [] })));
+    const result = await runChapterPipeline({ ...baseInput, revisionRounds: 1 });
+    expect(result.content).toBe("最终修订稿"); expect(result.criticIssues).toEqual([]);
+    expect(JSON.stringify(chatCompletionWithRetry.mock.calls.at(-1))).toContain("最终修订稿");
+  });
+  it("still critiques when zero revisions are configured and rejects malformed verdict objects", async () => {
+    const { runChapterPipeline } = await import("./chapterPipeline");
+    chatCompletionWithRetry.mockImplementation(async opts => mockResult(opts.agent === "critic" ? '{"consistent":"true","issues":[]}' : "正文"));
+    const result = await runChapterPipeline({ ...baseInput, revisionRounds: 0 });
+    expect(result.revisedRounds).toBe(0); expect(result.criticIssues[0].severity).toBe("critical");
+  });
+
 });

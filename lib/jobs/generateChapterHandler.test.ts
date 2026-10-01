@@ -1,36 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const findUniqueNovel = vi.fn();
-const upsertChapter = vi.fn();
-const updateBible = vi.fn();
-const runChapterPipeline = vi.fn();
-const chatCompletionWithRetry = vi.fn();
-const enqueueJob = vi.fn();
-const getRun = vi.fn();
-const advanceProgress = vi.fn();
-const addCost = vi.fn();
-const markCompleted = vi.fn();
-const markNeedsReview = vi.fn();
-const pause = vi.fn();
-const moderateContent = vi.fn();
-const evaluateChapterGate = vi.fn();
-
-vi.mock("@/lib/db", () => ({
-  prisma: {
-    novel: { findUnique: findUniqueNovel },
-    chapterDraft: { upsert: upsertChapter },
-    bibleDraft: { update: updateBible },
-  },
-}));
-
+import { getLlmCallContext } from "@/lib/llm/callContext";
+const findUniqueNovel = vi.fn(), createChapter = vi.fn(), updateChapter = vi.fn(), snapshot = vi.fn();
+const updateBible = vi.fn(), createJob = vi.fn(), runUpdate = vi.fn(), runLock = vi.fn(), runLatest = vi.fn();
+const runChapterPipeline = vi.fn(), chatCompletionWithRetry = vi.fn(), getRun = vi.fn(), addCost = vi.fn();
+const memoryLoad = vi.fn(), memorySync = vi.fn(), arcRead = vi.fn();
+const markNeedsReview = vi.fn(), moderateContent = vi.fn(), evaluateChapterGate = vi.fn();
+vi.mock("@/lib/db", () => ({ prisma: {
+  novel: { findUnique: findUniqueNovel },
+  novelGenerationRun: { updateMany: runLock },
+  $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({
+    chapterDraft: { create: createChapter, update: updateChapter }, chapterVersion: { create: snapshot },
+    bibleDraft: { update: updateBible }, backgroundJob: { create: createJob },
+    novelGenerationRun: { update: runUpdate, updateMany: runLock, findUniqueOrThrow: runLatest },
+  }),
+} }));
+vi.mock("@/lib/agent/storyMemory", async importOriginal => ({ ...await importOriginal<typeof import("@/lib/agent/storyMemory")>(), loadStoryMemory: memoryLoad, syncStoryMemory: memorySync }));
+vi.mock("@/lib/agent/volumePlanStore", () => ({ readVolumeArc: arcRead }));
 vi.mock("@/lib/agent/chapterPipeline", () => ({ runChapterPipeline }));
-vi.mock("@/lib/agent/generationRun", () => ({ getRun, advanceProgress, addCost, markCompleted, markNeedsReview, pause }));
+vi.mock("@/lib/agent/generationRun", () => ({ getRun, addCost, markNeedsReview }));
 vi.mock("@/lib/agent/qualityGate", () => ({ evaluateChapterGate }));
 vi.mock("@/lib/moderation/moderate", () => ({ moderateContent }));
 vi.mock("@/lib/llm/client", () => ({ chatCompletionWithRetry }));
-vi.mock("./queue", () => ({ enqueueJob }));
-vi.mock("@/lib/observability/logger", () => ({ logWarn: vi.fn(), logInfo: vi.fn() }));
-
 const validBible = {
   meta: { suggested_title: "逆魂纪", alternative_titles: ["逆魂", "魂纪", "纪逆"] },
   characters: [
@@ -60,333 +50,179 @@ function novelRow() {
   return {
     id: "novel-1",
     profile,
-    bible: { id: "bible-1", content: validBible },
+    user_id: "user-1",
+    bible: { id: "bible-1", content: validBible, updated_at: new Date(0) },
     chapters: [],
     volume_summaries: [],
     novel_summary: null,
   };
 }
 
-describe("handleGenerateChapter", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    runChapterPipeline.mockResolvedValue({
-      chapterIndex: 1,
-      title: "第1章",
-      content: "本章正文：沈言蹲在灶前，火光跳动。",
-      criticIssues: [],
-      revisedRounds: 0,
-      rawCleanupHits: [],
-      cost: { cny: 0.01, tokenIn: 100, tokenOut: 200 },
-      model: "mock-model",
+
+const makeRun = (extra = {}) => ({ id: "run-1", novel_id: "novel-1", user_id: "user-1", status: "running",
+  current_chapter: 0, total_chapters: 8, revision_rounds: 2, quality_floor: 85,
+  checkpoint_mode: "on_fail", cost_cap_cny: null, cost_cny_spent: 0, ...extra });
+const payload = { novel_id: "novel-1", chapter_index: 1, run_id: "run-1" };
+beforeEach(() => {
+  vi.resetAllMocks();
+  findUniqueNovel.mockResolvedValue(novelRow());
+  memoryLoad.mockResolvedValue({ state: {}, stale_records: 0 });
+  updateBible.mockResolvedValue({ updated_at: new Date(1) });
+  getRun.mockResolvedValue(makeRun()); runLatest.mockResolvedValue(makeRun());
+  runLock.mockResolvedValue({ count: 1 }); createChapter.mockResolvedValue({ id: "ch-1" });
+  chatCompletionWithRetry.mockResolvedValue({ content: "{}" });
+  moderateContent.mockResolvedValue({ allowed: true });
+  evaluateChapterGate.mockReturnValue({ pass: true, reason: "clean" });
+  runChapterPipeline.mockResolvedValue({ chapterIndex: 1, title: "第1章", content: "沈言走出灶房。",
+    criticIssues: [], revisedRounds: 0, rawCleanupHits: [], cost: { cny: 0.01, tokenIn: 1, tokenOut: 1 }, model: "mock" });
+});
+const invoke = async (p = payload, execution?: Parameters<typeof import("./generateChapterHandler").handleGenerateChapter>[1]) =>
+  (await import("./generateChapterHandler")).handleGenerateChapter(p, execution);
+
+describe("generation write protection", () => {
+  it("saves accepted chapter, Bible, progress and next job together", async () => {
+    await invoke();
+    expect(createChapter).toHaveBeenCalledWith({ data: expect.objectContaining({ status: "done", chapter_index: 1 }) });
+    expect(updateBible).toHaveBeenCalledWith(expect.objectContaining({ where: { novel_id: "novel-1", updated_at: new Date(0) } }));
+    expect(createJob.mock.calls.map(c => c[0].data.type)).toEqual(["summarize_chapter", "index_chapter", "generate_chapter"]);
+    expect(runUpdate).toHaveBeenCalledWith({ where: { id: "run-1" }, data: { status: "running", current_chapter: 1, last_error: null, last_progress_at: expect.any(Date) } });
+  });
+  it("never overwrites nonempty user prose", async () => {
+    const row = novelRow(); row.chapters = [{ id: "ch-1", chapter_index: 1, content: "用户正文" }] as never;
+    findUniqueNovel.mockResolvedValue(row); await invoke();
+    expect(runChapterPipeline).not.toHaveBeenCalled(); expect(createChapter).not.toHaveBeenCalled();
+    expect(markNeedsReview).toHaveBeenCalled();
+  });
+  it("saves a failed verdict as a draft without advancing or changing the Bible", async () => {
+    evaluateChapterGate.mockReturnValue({ pass: false, reason: "critical" }); await invoke();
+    expect(createChapter).toHaveBeenCalledWith({ data: expect.objectContaining({ status: "draft" }) });
+    expect(runUpdate).toHaveBeenCalledWith({ where: { id: "run-1" }, data: expect.objectContaining({ status: "needs_review" }) });
+    expect(runUpdate.mock.calls[0][0].data).not.toHaveProperty("current_chapter");
+    expect(updateBible).not.toHaveBeenCalled(); expect(createJob).toHaveBeenCalledTimes(2);
+  });
+  it("invalid state updates prevent automatic acceptance", async () => {
+    chatCompletionWithRetry.mockResolvedValue({ content: "invalid" }); await invoke();
+    expect(createChapter.mock.calls[0][0].data.status).toBe("draft"); expect(updateBible).not.toHaveBeenCalled();
+  });
+  it("none checkpoints may advance drafts but never label them done", async () => {
+    getRun.mockResolvedValue(makeRun({ checkpoint_mode: "none" }));
+    evaluateChapterGate.mockReturnValue({ pass: false, reason: "critical" }); await invoke();
+    expect(createChapter.mock.calls[0][0].data.status).toBe("draft");
+    expect(runUpdate.mock.calls[0][0].data.current_chapter).toBe(1); expect(createJob).toHaveBeenCalledTimes(3);
+  });
+  it("pausing during generation prevents all writes", async () => {
+    runLock.mockResolvedValue({ count: 0 }); await invoke(); expect(createChapter).not.toHaveBeenCalled();
+  });
+  it("a replaced job lease prevents all writes", async () => {
+    await expect(invoke(payload, { signal: new AbortController().signal, assertActive: vi.fn().mockRejectedValue(new Error("expired")) })).rejects.toThrow("expired");
+    expect(createChapter).not.toHaveBeenCalled();
+  });
+  it("rejects another novel's run", async () => {
+    getRun.mockResolvedValue(makeRun({ novel_id: "other" })); await expect(invoke()).rejects.toThrow("another novel");
+  });
+  it("cancelled or completed runs skip the pipeline", async () => {
+    getRun.mockResolvedValue(makeRun({ status: "cancelled" })); await invoke(); expect(runChapterPipeline).not.toHaveBeenCalled();
+  });
+  it("stops the chain after the final accepted chapter", async () => {
+    getRun.mockResolvedValue(makeRun({ total_chapters: 1 })); await invoke();
+    expect(runUpdate.mock.calls[0][0].data.status).toBe("completed"); expect(createJob).toHaveBeenCalledTimes(2);
+  });
+  it("pauses at a volume boundary", async () => {
+    const run = makeRun({ checkpoint_mode: "per_volume", current_chapter: 7, total_chapters: 12 });
+    getRun.mockResolvedValue(run); runLatest.mockResolvedValue(run);
+    runChapterPipeline.mockResolvedValue({ chapterIndex: 8, title: "卷末", content: "沈言走出灶房。", criticIssues: [] });
+    await invoke({ ...payload, chapter_index: 8 });
+    expect(runUpdate.mock.calls[0][0].data.status).toBe("paused"); expect(createJob).toHaveBeenCalledTimes(2);
+  });
+  it("uses actual call costs and owner attribution even when a state update fails", async () => {
+    runChapterPipeline.mockImplementation(async () => {
+      expect(getLlmCallContext()?.userId).toBe("user-1");
+      await getLlmCallContext()?.onCost?.(0.02);
+      return { chapterIndex: 1, title: "第一章", content: "正文", criticIssues: [] };
     });
-    upsertChapter.mockResolvedValue({ id: "chap-1", chapter_index: 1 });
-    updateBible.mockResolvedValue({});
-    enqueueJob.mockResolvedValue({ id: "job-x" });
-    moderateContent.mockResolvedValue({ allowed: true });
+    chatCompletionWithRetry.mockImplementation(async () => { await getLlmCallContext()?.onCost?.(0.01); return { content: "invalid" }; });
+    await invoke(); expect(addCost.mock.calls).toEqual([["run-1", 0.02], ["run-1", 0.01]]);
   });
-
-  it("runs the pipeline, upserts the chapter as done, merges the Bible, and enqueues post-processing", async () => {
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-    findUniqueNovel.mockResolvedValue(novelRow());
-    chatCompletionWithRetry.mockResolvedValue({ content: "{}" }); // valid (empty) state diff
-
-    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1 });
-
-    expect(runChapterPipeline).toHaveBeenCalledWith(expect.objectContaining({ novelId: "novel-1", chapterIndex: 1 }));
-    expect(upsertChapter).toHaveBeenCalledWith(expect.objectContaining({
-      where: { novel_id_chapter_index: { novel_id: "novel-1", chapter_index: 1 } },
-      create: expect.objectContaining({ novel_id: "novel-1", chapter_index: 1, title: "第1章", content: "本章正文：沈言蹲在灶前，火光跳动。", status: "done" }),
-      update: expect.objectContaining({ status: "done" }),
-    }));
-    expect(updateBible).toHaveBeenCalledWith(expect.objectContaining({ where: { novel_id: "novel-1" } }));
-    expect(enqueueJob).toHaveBeenCalledTimes(2);
-    expect(enqueueJob).toHaveBeenNthCalledWith(1, { type: "summarize_chapter", payload: { chapter_id: "chap-1" }, novelId: "novel-1" });
-    expect(enqueueJob).toHaveBeenNthCalledWith(2, { type: "index_chapter", payload: { novel_id: "novel-1", chapter_id: "chap-1" }, novelId: "novel-1" });
+  it("pauses when the budget was reached during the chapter", async () => {
+    runLatest.mockResolvedValue(makeRun({ cost_cap_cny: 0.1, cost_cny_spent: 0.11 })); await invoke();
+    expect(runUpdate.mock.calls[0][0].data.status).toBe("paused"); expect(createJob).toHaveBeenCalledTimes(2);
   });
-
-  it("keeps the prior Bible (no update) when the state diff is unparseable, but still persists + enqueues", async () => {
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-    findUniqueNovel.mockResolvedValue(novelRow());
-    chatCompletionWithRetry.mockResolvedValue({ content: "对不起，这一段不是 JSON。" });
-
-    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1 });
-
-    expect(upsertChapter).toHaveBeenCalledTimes(1);
-    expect(updateBible).not.toHaveBeenCalled();
-    expect(enqueueJob).toHaveBeenCalledTimes(2);
+  it("moderation blocks output before it is persisted", async () => {
+    moderateContent.mockResolvedValue({ allowed: false }); await invoke(); expect(createChapter).not.toHaveBeenCalled();
+    expect(markNeedsReview).toHaveBeenCalled();
   });
-
-  it("skips the Bible merge when validation rejects a hallucinated character (M0.2), but still persists + enqueues", async () => {
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-    findUniqueNovel.mockResolvedValue(novelRow());
-    // 幻觉角色:不在 Bible、不在 new_entities,也不在正文里
-    chatCompletionWithRetry.mockResolvedValue({
-      content: JSON.stringify({
-        character_updates: [{ name: "凭空人物", changes: { current_location: "裂井" }, confidence: "high" }],
-      }),
-    });
-
-    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1 });
-
-    expect(upsertChapter).toHaveBeenCalledTimes(1);
-    expect(updateBible).not.toHaveBeenCalled();
-    expect(enqueueJob).toHaveBeenCalledTimes(2);
-    // 无 run 时不触发 needs_review,只是跳过合并
-    expect(markNeedsReview).not.toHaveBeenCalled();
-  });
-
-  it("throws on an invalid payload before touching the DB", async () => {
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-    await expect(handleGenerateChapter({ chapter_index: 1 } as unknown as never)).rejects.toThrow(/Invalid generate_chapter payload/);
-    expect(findUniqueNovel).not.toHaveBeenCalled();
-    expect(runChapterPipeline).not.toHaveBeenCalled();
-  });
-
-  it("throws when the novel or Bible is missing", async () => {
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-    findUniqueNovel.mockResolvedValue(null);
-    await expect(handleGenerateChapter({ novel_id: "missing", chapter_index: 1 })).rejects.toThrow(/not found/);
-    expect(upsertChapter).not.toHaveBeenCalled();
+  it("handles a concurrent chapter creation without overwriting", async () => {
+    createChapter.mockRejectedValue({ code: "P2002" }); await invoke(); expect(markNeedsReview).toHaveBeenCalled();
   });
 });
 
-describe("handleGenerateChapter self-chaining", () => {
-  const runningRun = { id: "run-1", status: "running", total_chapters: 5, revision_rounds: 2 };
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    runChapterPipeline.mockResolvedValue({
-      chapterIndex: 1,
-      title: "第1章",
-      content: "本章正文：沈言蹲在灶前，火光跳动。",
-      criticIssues: [],
-      revisedRounds: 0,
-      rawCleanupHits: [],
-      cost: { cny: 0.01, tokenIn: 100, tokenOut: 200 },
-      model: "mock-model",
-    });
-    upsertChapter.mockResolvedValue({ id: "chap-1", chapter_index: 1 });
-    updateBible.mockResolvedValue({});
-    enqueueJob.mockResolvedValue({ id: "job-x" });
-    findUniqueNovel.mockResolvedValue(novelRow());
-    chatCompletionWithRetry.mockResolvedValue({ content: "{}" });
-    advanceProgress.mockResolvedValue({});
-    addCost.mockResolvedValue({});
-    markCompleted.mockResolvedValue({});
-    markNeedsReview.mockResolvedValue({});
-    pause.mockResolvedValue({});
-    moderateContent.mockResolvedValue({ allowed: true });
-    evaluateChapterGate.mockReturnValue({ pass: true, scorePct: 95, failedDims: [], reason: "通过", report: {} });
+describe("continuous chapter completion", () => {
+  const continuous = (extra = {}) => makeRun({ total_chapters: 1, config: { continuous: true, planning_window: 10 }, ...extra });
+  it("continues with a planning job after the current horizon", async () => {
+    getRun.mockResolvedValue(continuous()); runLatest.mockResolvedValue(continuous()); await invoke();
+    expect(runUpdate.mock.calls[0][0].data).toMatchObject({ status: "planning", current_chapter: 1, total_chapters: 11 });
+    expect(createJob.mock.calls.at(-1)![0].data).toMatchObject({ type: "plan_outline", payload: { target_chapters: 11, run_id: "run-1" } });
   });
-
-  it("advances progress/cost and enqueues the next chapter while the run is active", async () => {
-    getRun.mockResolvedValue({ ...runningRun });
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-
-    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1, run_id: "run-1" });
-
-    expect(advanceProgress).toHaveBeenCalledWith("run-1", 1);
-    expect(addCost).toHaveBeenCalledWith("run-1", 0.01);
-    expect(markCompleted).not.toHaveBeenCalled();
-    expect(enqueueJob).toHaveBeenCalledWith({
-      type: "generate_chapter",
-      payload: { novel_id: "novel-1", chapter_index: 2, run_id: "run-1" },
-      novelId: "novel-1",
-    });
+  it("pauses at the budget even when a continuous horizon finishes", async () => {
+    getRun.mockResolvedValue(continuous({ cost_cap_cny: 1 })); runLatest.mockResolvedValue(continuous({ cost_cap_cny: 1, cost_cny_spent: 1.1 }));
+    await invoke(); expect(runUpdate.mock.calls[0][0].data.status).toBe("paused");
+    expect(createJob.mock.calls.map(c => c[0].data.type)).toEqual(["summarize_chapter", "index_chapter"]);
   });
-
-  it("marks the run completed on the final chapter without chaining further", async () => {
-    getRun.mockResolvedValue({ ...runningRun, total_chapters: 5 });
-    runChapterPipeline.mockResolvedValue({
-      chapterIndex: 5,
-      title: "第5章",
-      content: "末章正文，收束主线。",
-      criticIssues: [],
-      revisedRounds: 0,
-      rawCleanupHits: [],
-      cost: { cny: 0.01, tokenIn: 1, tokenOut: 1 },
-      model: "mock-model",
-    });
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-
-    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 5, run_id: "run-1" });
-
-    expect(markCompleted).toHaveBeenCalledWith("run-1");
-    expect(enqueueJob).not.toHaveBeenCalledWith(expect.objectContaining({ type: "generate_chapter" }));
+  it("keeps a failing continuous chapter for review instead of planning more", async () => {
+    getRun.mockResolvedValue(continuous()); evaluateChapterGate.mockReturnValue({ pass: false, reason: "continuity" }); await invoke();
+    expect(runUpdate.mock.calls[0][0].data.status).toBe("needs_review"); expect(runUpdate.mock.calls[0][0].data).not.toHaveProperty("total_chapters");
   });
-
-  it("halts the chain when the run was paused while the chapter was generating", async () => {
-    getRun
-      .mockResolvedValueOnce({ ...runningRun }) // pre-flight: still active
-      .mockResolvedValueOnce({ ...runningRun, status: "paused" }); // post-persist re-read: paused
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-
-    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1, run_id: "run-1" });
-
-    expect(advanceProgress).toHaveBeenCalledWith("run-1", 1);
-    expect(enqueueJob).not.toHaveBeenCalledWith(expect.objectContaining({ type: "generate_chapter" }));
+  it("does not confuse the end of an outlined batch with a completed volume", async () => {
+    getRun.mockResolvedValue(continuous({ current_chapter: 7, total_chapters: 8, checkpoint_mode: "per_volume" }));
+    runChapterPipeline.mockResolvedValue({ chapterIndex: 8, title: "第8章", content: "沈言前往后山。", criticIssues: [], rawCleanupHits: [] });
+    await invoke({ ...payload, chapter_index: 8 }); expect(runUpdate.mock.calls[0][0].data.status).toBe("planning");
   });
-
-  it("skips the chapter entirely when the run is already cancelled before it runs", async () => {
-    getRun.mockResolvedValue({ ...runningRun, status: "cancelled" });
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-
-    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 3, run_id: "run-1" });
-
-    expect(runChapterPipeline).not.toHaveBeenCalled();
-    expect(upsertChapter).not.toHaveBeenCalled();
-    expect(advanceProgress).not.toHaveBeenCalled();
+  it("uses the chosen model for the state updater too", async () => {
+    getRun.mockResolvedValue(continuous({ config: { continuous: true, model: "chosen" } })); await invoke();
+    expect(chatCompletionWithRetry.mock.calls[0][0].model).toBe("chosen");
   });
+});
 
-  it("throws when run_id is given but the run is missing", async () => {
-    getRun.mockResolvedValue(null);
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-
-    await expect(
-      handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1, run_id: "ghost" }),
-    ).rejects.toThrow(/run ghost not found/);
-    expect(runChapterPipeline).not.toHaveBeenCalled();
+describe("long-term memory and payoff gates", () => {
+  it.each([{ stale_records: 1 }, { historical_available: false }])("pauses before generation when remembered history is unsafe %j", async extra => {
+    memoryLoad.mockResolvedValue({ state: {}, stale_records: 0, ...extra }); await invoke();
+    expect(markNeedsReview).toHaveBeenCalledWith("run-1", expect.stringContaining("校准")); expect(runChapterPipeline).not.toHaveBeenCalled(); expect(createChapter).not.toHaveBeenCalled();
   });
-
-  it("simulates the worker draining the chain: 3 chapters to completion", async () => {
-    getRun.mockResolvedValue({ ...runningRun, total_chapters: 3 });
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-
-    type ChainPayload = { novel_id: string; chapter_index: number; run_id: string };
-    const queue: ChainPayload[] = [{ novel_id: "novel-1", chapter_index: 1, run_id: "run-1" }];
-    enqueueJob.mockImplementation(async (job: { type: string; payload: Record<string, unknown> }) => {
-      if (job.type === "generate_chapter") queue.push(job.payload as ChainPayload);
-      return { id: "job-x" };
-    });
-
-    let processed = 0;
-    while (processed <= 10) {
-      const next = queue.shift();
-      if (!next) break;
-      await handleGenerateChapter(next);
-      processed += 1;
-    }
-
-    expect(processed).toBe(3);
-    expect(markCompleted).toHaveBeenCalledTimes(1);
+  it("passes recalled facts and the volume plan into the pipeline and state updater", async () => {
+    const state = { characters: [{ name: "沈言", current_location: "旧井" }] }; memoryLoad.mockResolvedValue({ state, stale_records: 0 });
+    arcRead.mockResolvedValue({ plan: { thread_targets: [] } }); await invoke();
+    expect(runChapterPipeline.mock.calls[0][0]).toMatchObject({ bible: { story_state: state }, volumeArc: { plan: { thread_targets: [] } } });
+    expect(chatCompletionWithRetry.mock.calls[0][0].messages.map((m: {content: string}) => m.content).join("\n")).toContain("旧井");
   });
-
-  it("halts with needs_review when the quality gate fails under on_fail checkpoint", async () => {
-    getRun.mockResolvedValue({ ...runningRun, checkpoint_mode: "on_fail" });
-    evaluateChapterGate.mockReturnValue({
-      pass: false,
-      scorePct: 72,
-      failedDims: [{ key: "ai_voice", label: "ai_voice", score: 4, max: 10, floor: 6 }],
-      reason: "未达标：ai_voice(ai_voice) 4 < 6",
-      report: {},
-    });
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-
-    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1, run_id: "run-1" });
-
-    expect(markNeedsReview).toHaveBeenCalledWith("run-1", expect.stringContaining("质量门未过"));
-    expect(markCompleted).not.toHaveBeenCalled();
-    expect(enqueueJob).not.toHaveBeenCalledWith(expect.objectContaining({ type: "generate_chapter" }));
+  it("holds a due but unresolved payoff for review without committing state or progress", async () => {
+    arcRead.mockResolvedValue({ plan: { thread_targets: [{ kind: "plot_threads", title: "旧案", action: "resolve", deadline_chapter: 1 }] } }); await invoke();
+    expect(createChapter.mock.calls[0][0].data.status).toBe("draft"); expect(runUpdate.mock.calls[0][0].data.last_error).toContain("回收期限");
+    expect(runUpdate.mock.calls[0][0].data).not.toHaveProperty("current_chapter"); expect(updateBible).not.toHaveBeenCalled(); expect(memorySync).not.toHaveBeenCalled();
   });
-
-  it("logs but keeps chaining when the gate fails under checkpoint_mode none", async () => {
-    getRun.mockResolvedValue({ ...runningRun, checkpoint_mode: "none" });
-    evaluateChapterGate.mockReturnValue({ pass: false, scorePct: 70, failedDims: [], reason: "未达标：总分 70% < 阈值 85%", report: {} });
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-
-    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1, run_id: "run-1" });
-
-    expect(markNeedsReview).not.toHaveBeenCalled();
-    expect(enqueueJob).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "generate_chapter", payload: expect.objectContaining({ chapter_index: 2 }) }),
-    );
+  it("does not enforce advance-only or future targets early", async () => {
+    arcRead.mockResolvedValue({ plan: { thread_targets: [{ kind: "plot_threads", title: "旧案", action: "advance", deadline_chapter: 1 }, { kind: "foreshadowing", title: "木牌", action: "resolve", deadline_chapter: 2 }] } }); await invoke();
+    expect(createChapter.mock.calls[0][0].data.status).toBe("done");
   });
-
-  it("halts with needs_review when a validation-rejected state diff occurs under a checkpoint mode (M0.2)", async () => {
-    getRun.mockResolvedValue({ ...runningRun, checkpoint_mode: "on_fail" });
-    chatCompletionWithRetry.mockResolvedValue({
-      content: JSON.stringify({
-        character_updates: [{ name: "凭空人物", changes: { current_location: "裂井" }, confidence: "high" }],
-      }),
-    });
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-
-    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1, run_id: "run-1" });
-
-    // 章节本体已落库,摘要/索引照常排队,但 Bible 不合并、run 挂起待人工
-    expect(upsertChapter).toHaveBeenCalledTimes(1);
-    expect(updateBible).not.toHaveBeenCalled();
-    expect(markNeedsReview).toHaveBeenCalledWith("run-1", expect.stringContaining("状态变更被校验拒绝"));
-    expect(enqueueJob).not.toHaveBeenCalledWith(expect.objectContaining({ type: "generate_chapter" }));
+  it("commits accepted memory with the saved chapter version and propagates sync failure", async () => {
+    createChapter.mockResolvedValue({ id: "ch-1", version: 1 }); await invoke(); expect(memorySync.mock.calls[0][4]).toEqual({ kind: "generated_chapter", chapterIndex: 1, chapterId: "ch-1", chapterVersion: 1 });
+    memorySync.mockRejectedValue(new Error("memory failed")); await expect(invoke()).rejects.toThrow("memory failed");
   });
+});
 
-  it("keeps chaining on a validation-rejected state diff under checkpoint_mode none (M0.2)", async () => {
-    getRun.mockResolvedValue({ ...runningRun, checkpoint_mode: "none" });
-    chatCompletionWithRetry.mockResolvedValue({
-      content: JSON.stringify({
-        character_updates: [{ name: "凭空人物", changes: { current_location: "裂井" }, confidence: "high" }],
-      }),
-    });
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-
-    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1, run_id: "run-1" });
-
-    expect(updateBible).not.toHaveBeenCalled();
-    expect(markNeedsReview).not.toHaveBeenCalled();
-    expect(enqueueJob).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "generate_chapter", payload: expect.objectContaining({ chapter_index: 2 }) }),
-    );
+describe("evaluation stop and resource deferral", () => {
+  it("accepts chapter 100 and never queues chapter 101", async () => {
+    const run = makeRun({current_chapter: 99, total_chapters: 100, config: {continuous: true, unlimited_budget: true, stop_after_chapter: 100}});
+    getRun.mockResolvedValue(run); runLatest.mockResolvedValue(run);
+    runChapterPipeline.mockResolvedValue({chapterIndex: 100, title: "百章", content: "沈言走出灶房。", criticIssues: []});
+    await invoke({...payload, chapter_index: 100});
+    expect(runUpdate.mock.calls[0][0].data).toMatchObject({status: "completed", current_chapter: 100});
+    expect(createJob.mock.calls.map(c => c[0].data.type)).toEqual(["summarize_chapter", "index_chapter"]);
   });
-
-  it("forwards the pipeline's criticIssues into the quality gate so the critic floor can apply", async () => {
-    getRun.mockResolvedValue({ ...runningRun });
-    const criticIssues = [
-      { type: "world_rule", severity: "critical", description: "违反认主不可逆", suggestion: "改掉" },
-    ];
-    runChapterPipeline.mockResolvedValue({
-      chapterIndex: 1,
-      title: "第1章",
-      content: "本章正文：沈言蹲在灶前，火光跳动。",
-      criticIssues,
-      revisedRounds: 2,
-      rawCleanupHits: [],
-      cost: { cny: 0.01, tokenIn: 100, tokenOut: 200 },
-      model: "mock-model",
-    });
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-
-    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1, run_id: "run-1" });
-
-    expect(evaluateChapterGate).toHaveBeenCalledWith(
-      expect.any(Array),
-      expect.any(Object),
-      expect.objectContaining({ criticIssues }),
-    );
-  });
-
-  it("pauses (resumable) when accumulated spend exceeds the cost cap, before scoring quality", async () => {
-    getRun.mockResolvedValue({ ...runningRun, cost_cap_cny: 0.005 });
-    addCost.mockResolvedValue({ ...runningRun, cost_cny_spent: 0.012 });
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-
-    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1, run_id: "run-1" });
-
-    expect(pause).toHaveBeenCalledWith("run-1", expect.stringContaining("成本超上限"));
-    expect(evaluateChapterGate).not.toHaveBeenCalled();
-    expect(enqueueJob).not.toHaveBeenCalledWith(expect.objectContaining({ type: "generate_chapter" }));
-  });
-
-  it("halts with needs_review and never persists when output moderation blocks the chapter", async () => {
-    getRun.mockResolvedValue({ ...runningRun });
-    moderateContent.mockResolvedValue({ allowed: false, code: "MODERATION_BLOCKED", reason: "色情内容" });
-    const { handleGenerateChapter } = await import("./generateChapterHandler");
-
-    await handleGenerateChapter({ novel_id: "novel-1", chapter_index: 1, run_id: "run-1" });
-
-    expect(upsertChapter).not.toHaveBeenCalled();
-    expect(advanceProgress).not.toHaveBeenCalled();
-    expect(markNeedsReview).toHaveBeenCalledWith("run-1", expect.stringContaining("内容审核"));
-    expect(enqueueJob).not.toHaveBeenCalled();
+  it("does not mistake a resource wait in the state updater for a rejected draft", async () => {
+    const {JobDeferredError} = await import("./deferred");
+    const wait = new JobDeferredError(new Date(Date.now()+1000), "wait");
+    chatCompletionWithRetry.mockRejectedValue(wait);
+    await expect(invoke()).rejects.toBe(wait);
+    expect(createChapter).not.toHaveBeenCalled(); expect(markNeedsReview).not.toHaveBeenCalled();
   });
 });

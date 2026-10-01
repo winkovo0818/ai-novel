@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
+import { z } from "zod";
 import TOML from "@iarna/toml";
 import type { CliConfig } from "./types";
 
@@ -50,6 +51,13 @@ export function loadConfig(configPath?: string): CliConfig {
       process.exit(1);
     }
 
+    z.object({
+      llm: z.object({ model: z.string().min(1), base_url: z.string().url(), api_key: z.string().min(1),
+        max_tokens: z.number().int().positive(), temperature: z.number().min(0).max(2) }),
+      generation: z.object({ default_chapters: z.number().int().min(1).max(80),
+        quality_floor: z.number().min(0).max(100), revision_rounds: z.number().int().min(0).max(4),
+        cost_cap_cny: z.number().positive(), target_words_per_chapter: z.union([z.literal(2000), z.literal(3000), z.literal(5000)]) }),
+    }).parse(config);
     return config;
   } catch (err) {
     console.error(`Failed to parse config: ${err instanceof Error ? err.message : err}`);

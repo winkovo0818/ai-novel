@@ -1,5 +1,8 @@
+import { JobDeferredError } from "@/lib/jobs/deferred";
 import { prisma } from "@/lib/db";
 import { createEmbedding, createEmbeddings } from "@/lib/llm/embeddings";
+import type { Prisma } from "@prisma/client";
+import { getLlmCallContext } from "@/lib/llm/callContext";
 
 export type ChunkType = "scene" | "dialogue" | "character_fact" | "world_rule" | "plot_thread" | "summary";
 
@@ -83,7 +86,10 @@ function splitByParagraphs(content: string): IndexedParagraph[] {
   return content
     .split(/\n{2,}/)
     .map((p, index) => ({ text: p.trim(), paragraphIndex: index + 1 }))
-    .filter((p) => p.text.length >= MIN_CHUNK_LENGTH);
+    .filter((p) => p.text.length > 0)
+    .flatMap(p => Array.from({ length: Math.ceil(p.text.length / MAX_CHUNK_LENGTH) }, (_, i) => ({
+      ...p, text: p.text.slice(i * MAX_CHUNK_LENGTH, (i + 1) * MAX_CHUNK_LENGTH),
+    })));
 }
 
 function mergeShortChunks(paragraphs: IndexedParagraph[]): MergedChunk[] {
@@ -91,7 +97,7 @@ function mergeShortChunks(paragraphs: IndexedParagraph[]): MergedChunk[] {
   let current: MergedChunk | null = null;
 
   for (const p of paragraphs) {
-    if (current && current.text.length + p.text.length > MAX_CHUNK_LENGTH && current.text.length >= MIN_CHUNK_LENGTH) {
+    if (current && current.text.length + 2 + p.text.length > MAX_CHUNK_LENGTH) {
       result.push({ ...current, text: current.text.trim() });
       current = {
         text: p.text,
@@ -113,7 +119,7 @@ function mergeShortChunks(paragraphs: IndexedParagraph[]): MergedChunk[] {
     }
   }
 
-  if (current && current.text.trim().length >= MIN_CHUNK_LENGTH) {
+  if (current && current.text.trim()) {
     result.push({ ...current, text: current.text.trim() });
   }
 
@@ -124,6 +130,7 @@ function mergeShortChunks(paragraphs: IndexedParagraph[]): MergedChunk[] {
  * Split chapter content into typed chunks for RAG indexing.
  */
 export function chunkChapterContent(content: string): Chunk[] {
+  if (content.trim().length < MIN_CHUNK_LENGTH) return [];
   const paragraphs = splitByParagraphs(content);
   const merged = mergeShortChunks(paragraphs);
 
@@ -147,16 +154,19 @@ export async function indexChapter(
   novelId: string,
   chapterId: string,
   content: string,
+  beforeWrite?: (tx: Prisma.TransactionClient) => Promise<void>,
 ): Promise<{ chunks: number }> {
   const chunks = chunkChapterContent(content);
-  if (chunks.length === 0) return { chunks: 0 };
 
-  const embeddings = await createEmbeddings(chunks.map((c) => c.text)).catch(async (batchErr) => {
+  const embeddings = chunks.length === 0 ? [] : await createEmbeddings(chunks.map((c) => c.text)).catch(async (batchErr) => {
+    if (batchErr instanceof JobDeferredError) throw batchErr;
+    getLlmCallContext()?.signal?.throwIfAborted();
     const located: number[][] = [];
     for (let i = 0; i < chunks.length; i++) {
       try {
         located.push(await createEmbedding(chunks[i].text));
       } catch (err) {
+        if (err instanceof JobDeferredError) throw err;
         throw new MemoryChunkIndexError("embedding", chunks[i], i, chunks.length, err);
       }
     }
@@ -168,32 +178,40 @@ export async function indexChapter(
   // Delete existing chunks for this chapter only after embeddings succeed.
   // If the provider rejects one paragraph, old chunks remain queryable and
   // the failure still points at the exact source paragraph.
-  await prisma.memoryChunk.deleteMany({ where: { chapter_id: chapterId } });
+  await prisma.$transaction(async tx => {
+    getLlmCallContext()?.signal?.throwIfAborted();
+    await beforeWrite?.(tx);
+    await tx.memoryChunk.deleteMany({ where: { chapter_id: chapterId } });
 
-  // Insert using raw SQL since embedding is a vector(1024) column.
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i];
-    const embedding = embeddings[i];
-    if (!embedding || embedding.length !== 1024) continue;
+    // Insert using raw SQL since embedding is a vector(1024) column.
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      const embedding = embeddings[i];
+      if (!embedding || embedding.length !== 1024 || embedding.some(n => !Number.isFinite(n))) {
+        throw new MemoryChunkIndexError("embedding", chunk, i, chunks.length, new Error("Expected 1024 finite vector coordinates"));
+      }
 
-    const embeddingStr = `[${embedding.join(",")}]`;
-    try {
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO "MemoryChunk" (id, novel_id, chapter_id, chunk_type, text, embedding, metadata, importance, source_kind)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5::vector, $6, $7, $8)`,
-        novelId,
-        chapterId,
-        chunk.chunk_type as string,
-        chunk.text,
-        embeddingStr,
-        chunk.metadata,
-        estimateChunkImportance(chunk),
-        "chapter",
-      );
-    } catch (err) {
-      throw new MemoryChunkIndexError("insert", chunk, i, chunks.length, err);
+      const embeddingStr = `[${embedding.join(",")}]`;
+      try {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO "MemoryChunk" (id, novel_id, chapter_id, chunk_type, text, embedding, metadata, importance, source_kind)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5::vector, $6, $7, $8)`,
+          novelId,
+          chapterId,
+          chunk.chunk_type as string,
+          chunk.text,
+          embeddingStr,
+          chunk.metadata,
+          estimateChunkImportance(chunk),
+          "chapter",
+        );
+      } catch (err) {
+        if (err instanceof JobDeferredError) throw err;
+        throw new MemoryChunkIndexError("insert", chunk, i, chunks.length, err);
+      }
     }
-  }
+    getLlmCallContext()?.signal?.throwIfAborted();
+  });
 
   return { chunks: chunks.length };
 }

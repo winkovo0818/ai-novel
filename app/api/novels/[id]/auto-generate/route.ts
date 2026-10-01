@@ -2,23 +2,17 @@ import { jsonError, jsonOk } from "@/lib/http/json";
 import { prisma } from "@/lib/db";
 import { canAccessOwnerResource } from "@/lib/auth/ownership";
 import { getRequiredUserId } from "@/lib/auth/session";
-import {
-  createRun,
-  markRunning,
-  addCost,
-  getRun,
-  pause,
-  cancel,
-} from "@/lib/agent/generationRun";
-import { planOutline } from "@/lib/agent/planOutline";
-import { enqueueJob } from "@/lib/jobs/queue";
+import { generationPolicy } from "@/lib/agent/generationPolicy";
+import { generationDailySpend, nextGenerationBudgetReset } from "@/lib/agent/generationBudget";
+import { z } from "zod";
+import { StartRequestSchema, startGeneration, GenerationError } from "@/lib/agent/autoGeneration";
 import { BibleDraftSchema, NovelProfileSchema } from "@/lib/validation/schemas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// 远程 planOutline 可能 30-60s，预留足够时间
-export const maxDuration = 120;
+// Planning is persisted to the queue; this request never waits for the model.
+export const maxDuration = 30;
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -58,6 +52,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
   return jsonOk({
     active: true,
+    ...generationPolicy(run.config),
     id: run.id,
     status: run.status,
     current_chapter: run.current_chapter,
@@ -65,6 +60,10 @@ export async function GET(_request: Request, context: RouteContext) {
     done_chapters: doneCount,
     cost_cny_spent: run.cost_cny_spent,
     cost_cap_cny: run.cost_cap_cny,
+    daily_cost_cny_spent: generationDailySpend(run),
+    pause_reason: run.pause_reason,
+    resume_after: run.resume_after?.toISOString() ?? null,
+    next_daily_reset_at: nextGenerationBudgetReset().toISOString(),
     quality_floor: run.quality_floor,
     revision_rounds: run.revision_rounds,
     checkpoint_mode: run.checkpoint_mode,
@@ -73,26 +72,6 @@ export async function GET(_request: Request, context: RouteContext) {
     updated_at: run.updated_at.toISOString(),
   });
 }
-
-const StartRequestSchema = {
-  parse: (body: unknown) => {
-    if (typeof body !== "object" || body === null) throw new Error("body 必须是对象");
-    const b = body as Record<string, unknown>;
-    const total_chapters = Number(b.total_chapters ?? 40);
-    if (!Number.isInteger(total_chapters) || total_chapters < 1 || total_chapters > 80) {
-      throw new Error("total_chapters 必须是 1-80 的整数");
-    }
-    return {
-      total_chapters,
-      revision_rounds: typeof b.revision_rounds === "number" ? b.revision_rounds : undefined,
-      quality_floor: typeof b.quality_floor === "number" ? b.quality_floor : undefined,
-      cost_cap_cny: typeof b.cost_cap_cny === "number" ? b.cost_cap_cny : undefined,
-      checkpoint_mode: ["none", "per_volume", "on_fail"].includes(b.checkpoint_mode as string)
-        ? (b.checkpoint_mode as "none" | "per_volume" | "on_fail")
-        : undefined,
-    };
-  },
-};
 
 /** POST — 启动全自动生成 */
 export async function POST(request: Request, context: RouteContext) {
@@ -116,19 +95,6 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("NO_BIBLE", "请先合成叙事圣经 (Bible)", false, 400);
   }
 
-  // 检查是否有在途 run
-  const activeRun = await prisma.novelGenerationRun.findFirst({
-    where: { novel_id: id, status: { in: ["planning", "running", "paused", "needs_review"] } },
-  });
-  if (activeRun) {
-    return jsonError(
-      "RUN_ACTIVE",
-      `已有进行中的生成任务（${activeRun.status}），请先暂停或取消后再启动新任务`,
-      false,
-      409,
-    );
-  }
-
   let body: unknown;
   try {
     body = await request.json();
@@ -136,7 +102,7 @@ export async function POST(request: Request, context: RouteContext) {
     body = {};
   }
 
-  let config: ReturnType<typeof StartRequestSchema.parse>;
+  let config: z.infer<typeof StartRequestSchema>;
   try {
     config = StartRequestSchema.parse(body);
   } catch (e) {
@@ -149,58 +115,12 @@ export async function POST(request: Request, context: RouteContext) {
     return jsonError("INVALID_BIBLE", "Bible 或 Profile 数据不合法", false, 400);
   }
 
-  // 1. 建 run
-  const run = await createRun({
-    novelId: id,
-    userId,
-    totalChapters: config.total_chapters,
-    revisionRounds: config.revision_rounds,
-    qualityFloor: config.quality_floor,
-    costCapCny: config.cost_cap_cny ?? null,
-    config: {
-      source: "ui",
-      checkpoint_mode: config.checkpoint_mode ?? "on_fail",
-    },
-  });
-
-  // 2. 前置补全大纲（同步 LLM 调用，可能 30-60s）
-  let outlineCost = 0;
   try {
-    const planned = await planOutline({
-      novelId: id,
-      bible: bible.data,
-      profile: profile.data,
-      targetChapters: config.total_chapters,
-    });
-    if (planned.addedChapters > 0) {
-      await prisma.bibleDraft.update({
-        where: { novel_id: id },
-        data: { content: planned.bible },
-      });
-      await addCost(run.id, planned.cost.cny);
-      outlineCost = planned.cost.cny;
-    }
-  } catch (e) {
-    // 大纲补全失败不阻塞，用现有 outline 继续
-    console.error("[auto-generate] planOutline 失败:", e instanceof Error ? e.message : String(e));
+    return jsonOk(await startGeneration(novel, userId, config));
+  } catch (error) {
+    if (error instanceof GenerationError) return jsonError(error.code, error.message, error.status >= 500, error.status);
+    throw error;
   }
-
-  // 3. 标记 running 并入队第 1 章
-  await markRunning(run.id);
-  await enqueueJob({
-    type: "generate_chapter",
-    payload: { novel_id: id, chapter_index: 1, run_id: run.id },
-    novelId: id,
-  });
-
-  const updated = await getRun(run.id);
-
-  return jsonOk({
-    id: run.id,
-    status: updated?.status ?? "running",
-    total_chapters: config.total_chapters,
-    outline_cost_cny: outlineCost,
-  });
 }
 
 /** PATCH — 暂停/取消（简化版，完整操作走 /[action]） */
@@ -230,23 +150,54 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
   const action = (body as Record<string, unknown>)?.action;
 
+  if (action === "budget") {
+    const budget = z.number().finite().positive().safeParse((body as Record<string, unknown>)?.cost_cap_cny);
+    if (!budget.success) return jsonError("INVALID_INPUT", "累计预算必须为正数", false, 400);
+    const run = await prisma.novelGenerationRun.findFirst({ where: { novel_id: id, status: { in: ["paused", "needs_review", "failed"] } }, orderBy: { created_at: "desc" } });
+    if (!run) return jsonError("NO_PAUSED_RUN", "请先暂停任务再调整预算", false, 409);
+    if (budget.data <= Math.max(run.cost_cny_spent, run.cost_cap_cny ?? 0)) return jsonError("INVALID_INPUT", "新预算必须高于已用费用及原上限", false, 400);
+    const changed = await prisma.novelGenerationRun.updateMany({ where: { id: run.id, status: run.status,
+      cost_cny_spent: { lt: budget.data }, cost_cap_cny: run.cost_cap_cny }, data: { cost_cap_cny: budget.data } });
+    if (!changed.count) return jsonError("RUN_CHANGED", "任务费用或状态已改变，请刷新", false, 409);
+    return jsonOk({ cost_cap_cny: budget.data });
+  }
+
+  if (action === "daily_budget") {
+    const cap = z.number().finite().positive().nullable().safeParse((body as Record<string, unknown>)?.daily_cost_cap_cny);
+    if (!cap.success) return jsonError("INVALID_INPUT", "每日预算必须为正数，或 null 表示关闭", false, 400);
+    const run = await prisma.novelGenerationRun.findFirst({ where: { novel_id: id, status: { in: ["paused", "needs_review", "failed"] } }, orderBy: { created_at: "desc" } });
+    if (!run) return jsonError("NO_PAUSED_RUN", "请先暂停任务再调整每日预算", false, 409);
+    const config = { ...(run.config as Record<string, unknown>), ...generationPolicy(run.config) };
+    delete config.daily_cost_cap_cny;
+    if (cap.data != null) config.daily_cost_cap_cny = cap.data;
+    const changed = await prisma.novelGenerationRun.updateMany({ where: { id: run.id, status: run.status, updated_at: run.updated_at },
+      data: { config: config as import("@prisma/client").Prisma.InputJsonObject,
+        ...(run.pause_reason === "daily_budget" ? { pause_reason: "manual", resume_after: null, last_error: "每日预算已调整，请确认后恢复" } : {}) } });
+    if (!changed.count) return jsonError("RUN_CHANGED", "任务状态已改变，请刷新", false, 409);
+    return jsonOk({ daily_cost_cap_cny: cap.data });
+  }
+
   if (action === "pause") {
     const run = await prisma.novelGenerationRun.findFirst({
-      where: { novel_id: id, status: "running" },
+      where: { novel_id: id, OR: [{ status: { in: ["planning", "running"] } }, { status: "paused", pause_reason: { in: ["daily_budget", "quota"] } }] },
       orderBy: { created_at: "desc" },
     });
     if (!run) return jsonError("NO_ACTIVE_RUN", "没有正在运行的生成任务", false, 404);
-    await pause(run.id, "用户暂停");
+    const changed = await prisma.novelGenerationRun.updateMany({ where: { id: run.id, OR: [{ status: { in: ["planning", "running"] } }, { status: "paused", pause_reason: { in: ["daily_budget", "quota"] } }] },
+      data: { status: "paused", pause_reason: "manual", resume_after: null, last_error: "用户暂停" } });
+    if (!changed.count) return jsonError("RUN_CHANGED", "任务状态已改变，请刷新", false, 409);
     return jsonOk({ status: "paused" });
   }
 
   if (action === "cancel") {
     const run = await prisma.novelGenerationRun.findFirst({
-      where: { novel_id: id, status: { in: ["running", "paused", "needs_review"] } },
+      where: { novel_id: id, status: { in: ["planning", "running", "paused", "needs_review", "failed"] } },
       orderBy: { created_at: "desc" },
     });
     if (!run) return jsonError("NO_ACTIVE_RUN", "没有可取消的生成任务", false, 404);
-    await cancel(run.id);
+    const changed = await prisma.novelGenerationRun.updateMany({ where: { id: run.id, status: { in: ["planning", "running", "paused", "needs_review", "failed"] } },
+      data: { status: "cancelled", pause_reason: null, resume_after: null } });
+    if (!changed.count) return jsonError("RUN_CHANGED", "任务状态已改变，请刷新", false, 409);
     return jsonOk({ status: "cancelled" });
   }
 

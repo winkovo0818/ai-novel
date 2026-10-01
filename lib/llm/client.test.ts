@@ -19,6 +19,21 @@ const ORIG_MOCK_TOKEN_DELAY_MS = process.env.LLM_MOCK_TOKEN_DELAY_MS;
 const ORIG_MODEL_KEY_SECRET = process.env.MODEL_KEY_ENCRYPTION_SECRET;
 
 describe("lib/llm/client", () => {
+  it("enforces the deadline while a successful stream body stalls", async () => {
+    process.env.DEEPSEEK_API_KEY = "test-key"; delete process.env.LLM_MOCK;
+    vi.stubGlobal("fetch", vi.fn(async (_url, init: RequestInit) => new Response(new ReadableStream({
+      start(controller) { init.signal?.addEventListener("abort", () => controller.error(new DOMException("aborted", "AbortError")), { once: true }); },
+    }), { status: 200 })));
+    await expect(streamChatCompletion({ route: "/test", messages: [], timeoutMs: 25 }, { onDelta() {} })).rejects.toThrow(/timed out/);
+  });
+  it("enforces the deadline while a non-stream response body stalls", async () => {
+    process.env.DEEPSEEK_API_KEY = "test-key"; delete process.env.LLM_MOCK;
+    vi.stubGlobal("fetch", vi.fn(async (_url, init: RequestInit) => new Response(new ReadableStream({
+      start(controller) { init.signal?.addEventListener("abort", () => controller.error(new DOMException("aborted", "AbortError")), { once: true }); },
+    }), { status: 200 })));
+    await expect(chatCompletion({ route: "/test", messages: [], timeoutMs: 25 })).rejects.toThrow(/timed out/);
+  });
+
   beforeEach(() => {
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
@@ -301,29 +316,12 @@ describe("lib/llm/client", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("forwards an external AbortSignal into the fetch (P0-8)", async () => {
-    process.env.DEEPSEEK_API_KEY = "test-key";
-    delete process.env.LLM_MOCK;
-
-    // Pre-aborted signal: the inner controller must abort synchronously,
-    // so fetch sees signal.aborted=true before the request goes out.
-    let observedAborted: boolean | undefined;
-    const fetchMock = vi.fn().mockImplementation((_url, init: RequestInit) => {
-      observedAborted = (init.signal as AbortSignal | undefined)?.aborted;
-      throw new DOMException("aborted", "AbortError");
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const ac = new AbortController();
-    ac.abort();
-    await expect(
-      chatCompletion({
-        route: "/test",
-        messages: [{ role: "user", content: "ping" }],
-        signal: ac.signal,
-      }),
-    ).rejects.toThrow();
-    expect(observedAborted).toBe(true);
+  it("rejects a pre-aborted request without making a network call", async () => {
+    process.env.DEEPSEEK_API_KEY = "test-key"; delete process.env.LLM_MOCK;
+    const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController(); controller.abort();
+    await expect(chatCompletion({ route: "/test", messages: [], signal: controller.signal })).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("forwards a stream-time external abort onto fetch's signal (P0-8)", async () => {

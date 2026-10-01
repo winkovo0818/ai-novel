@@ -15,7 +15,9 @@ import {
   mockStreamChatCompletion,
 } from "./mock";
 import { decryptApiKey } from "./encryption";
-import { logUsage } from "./usage";
+import { checkQuota, estimateLlmMessagesCostCny, logUsage } from "./usage";
+import { getLlmCallContext } from "./callContext";
+import { calculateModelCost } from "./pricing";
 import { errorMessage, logInfo, logWarn } from "@/lib/observability/logger";
 import {
   anthropicHeaders,
@@ -122,9 +124,9 @@ export interface ChatStreamCallbacks {
 const DEFAULT_MODEL = process.env.DEEPSEEK_MODEL ?? "deepseek-chat";
 const DEFAULT_TIMEOUT_MS = 15_000;
 
-/** DeepSeek-V3 当前定价：输入 ¥0.001/1k token，输出 ¥0.002/1k token。如调价更新此处。 */
-function calcCostCny(tokenIn: number, tokenOut: number): number {
-  return (tokenIn * 0.001 + tokenOut * 0.002) / 1000;
+/** Estimated cost; configure actual provider rates through LLM_PRICING_JSON. */
+function calcCostCny(tokenIn: number, tokenOut: number, model: string): number {
+  return calculateModelCost(tokenIn, tokenOut, model);
 }
 
 function requireEnv(name: string): string {
@@ -149,7 +151,10 @@ interface LlmLogEntry {
   novelId?: string;
 }
 
-function logLlmCall(entry: LlmLogEntry): void {
+async function logLlmCall(entry: LlmLogEntry): Promise<void> {
+  const context = getLlmCallContext();
+  entry.userId ??= context?.userId;
+  entry.novelId ??= context?.novelId;
   logInfo("llm.call", {
     route: entry.route,
     agent: entry.agent,
@@ -164,9 +169,9 @@ function logLlmCall(entry: LlmLogEntry): void {
     novel_id: entry.novelId,
   });
 
-  // Persist usage to database (fire-and-forget)
+  // Persist usage before resolving so quota checks see the preceding call
   if (entry.userId) {
-    logUsage({
+    await logUsage({
       userId: entry.userId,
       novelId: entry.novelId,
       route: entry.route,
@@ -180,6 +185,7 @@ function logLlmCall(entry: LlmLogEntry): void {
       tookMs: entry.tookMs,
     });
   }
+  if (context?.onCost && entry.costCny > 0) await context.onCost(entry.costCny);
 }
 
 interface DeepSeekResponse {
@@ -281,8 +287,20 @@ export async function streamChatCompletion(
   // Hoisted here so the outer finally can always detach it after the
   // stream-read loop settles, even on the throw paths.
   let detachExternalAbort: () => void = () => {};
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
   try {
+    await getLlmCallContext()?.beforeCall?.();
+    const callerSignal = opts.signal ?? getLlmCallContext()?.signal;
+    callerSignal?.throwIfAborted();
+    const quotaUserId = opts.userId ?? getLlmCallContext()?.userId;
+    if (getLlmCallContext()?.enforceQuota && quotaUserId) {
+      const quota = await checkQuota(quotaUserId, { estimatedCostCny: estimateLlmMessagesCostCny(opts.messages) });
+      if (!quota.allowed) {
+        await getLlmCallContext()?.onQuotaBlocked?.(quota);
+        throw new Error(quota.reason ?? "QUOTA_EXCEEDED");
+      }
+    }
     if (isLlmMockEnabled()) {
       const result = await mockStreamChatCompletion(opts, callbacks);
       content = result.content;
@@ -296,8 +314,8 @@ export async function streamChatCompletion(
     const apiKey = config.apiKey;
     const anthropic = isAnthropicConfig(config);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    detachExternalAbort = forwardAbort(opts.signal, controller);
+    timer = setTimeout(() => controller.abort(), timeoutMs);
+    detachExternalAbort = forwardAbort(callerSignal, controller);
 
     let response: Response;
     try {
@@ -327,13 +345,14 @@ export async function streamChatCompletion(
       });
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
+        if (callerSignal?.aborted) { errCode = "LLM_ABORTED"; throw err; }
         errCode = "LLM_TIMEOUT";
         throw new Error(`DeepSeek stream timed out after ${timeoutMs}ms`);
       }
       errCode = "NETWORK";
       throw err;
     } finally {
-      clearTimeout(timer);
+      // Keep the deadline active while reading the response body.
       // NOTE: external-abort listener is NOT detached here — we want
       // caller aborts during the stream-read loop below to keep
       // propagating into the internal controller so reader.read()
@@ -396,24 +415,30 @@ export async function streamChatCompletion(
       content,
       tokenIn,
       tokenOut,
-      costCny: calcCostCny(tokenIn, tokenOut),
+      costCny: calcCostCny(tokenIn, tokenOut, model),
       tookMs: Date.now() - start,
       model,
     };
     return result;
   } catch (err) {
     status = "err";
+    if (err instanceof Error && err.name === "AbortError") {
+      const external = opts.signal ?? getLlmCallContext()?.signal;
+      errCode = external?.aborted ? "LLM_ABORTED" : "LLM_TIMEOUT";
+      if (!external?.aborted) throw new Error(`LLM request timed out after ${timeoutMs}ms`);
+    }
     if (!errCode) errCode = "UNKNOWN";
     throw err;
   } finally {
+    if (timer) clearTimeout(timer);
     detachExternalAbort();
-    logLlmCall({
+    await logLlmCall({
       route: opts.route,
       agent: opts.agent,
       model,
       tokenIn,
       tokenOut,
-      costCny: calcCostCny(tokenIn, tokenOut),
+      costCny: calcCostCny(tokenIn, tokenOut, model),
       tookMs: Date.now() - start,
       status,
       errCode,
@@ -458,8 +483,20 @@ export async function chatCompletion(
   let errCode: string | undefined;
   let result: ChatCompletionResult | undefined;
   let detachExternalAbort: () => void = () => {};
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
   try {
+    await getLlmCallContext()?.beforeCall?.();
+    const callerSignal = opts.signal ?? getLlmCallContext()?.signal;
+    callerSignal?.throwIfAborted();
+    const quotaUserId = opts.userId ?? getLlmCallContext()?.userId;
+    if (getLlmCallContext()?.enforceQuota && quotaUserId) {
+      const quota = await checkQuota(quotaUserId, { estimatedCostCny: estimateLlmMessagesCostCny(opts.messages) });
+      if (!quota.allowed) {
+        await getLlmCallContext()?.onQuotaBlocked?.(quota);
+        throw new Error(quota.reason ?? "QUOTA_EXCEEDED");
+      }
+    }
     if (isLlmMockEnabled()) {
       result = await mockChatCompletion(opts);
       return result;
@@ -472,8 +509,8 @@ export async function chatCompletion(
     const anthropic = isAnthropicConfig(config);
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    detachExternalAbort = forwardAbort(opts.signal, controller);
+    timer = setTimeout(() => controller.abort(), timeoutMs);
+    detachExternalAbort = forwardAbort(callerSignal, controller);
 
     let response: Response;
     try {
@@ -505,13 +542,14 @@ export async function chatCompletion(
       });
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
+        if (callerSignal?.aborted) { errCode = "LLM_ABORTED"; throw err; }
         errCode = "LLM_TIMEOUT";
         throw new Error(`DeepSeek request timed out after ${timeoutMs}ms`);
       }
       errCode = "NETWORK";
       throw err;
     } finally {
-      clearTimeout(timer);
+      // Keep the deadline active while reading the response body.
     }
 
     if (!response.ok) {
@@ -532,18 +570,24 @@ export async function chatCompletion(
         : data.choices?.[0]?.message?.content ?? "",
       tokenIn,
       tokenOut,
-      costCny: calcCostCny(tokenIn, tokenOut),
+      costCny: calcCostCny(tokenIn, tokenOut, model),
       tookMs: Date.now() - start,
       model,
     };
     return result;
   } catch (err) {
     status = "err";
+    if (err instanceof Error && err.name === "AbortError") {
+      const external = opts.signal ?? getLlmCallContext()?.signal;
+      errCode = external?.aborted ? "LLM_ABORTED" : "LLM_TIMEOUT";
+      if (!external?.aborted) throw new Error(`LLM request timed out after ${timeoutMs}ms`);
+    }
     if (!errCode) errCode = "UNKNOWN";
     throw err;
   } finally {
+    if (timer) clearTimeout(timer);
     detachExternalAbort();
-    logLlmCall({
+    await logLlmCall({
       route: opts.route,
       agent: opts.agent,
       model,

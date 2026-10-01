@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 
 import { prisma } from "../../lib/db";
 
@@ -75,8 +75,7 @@ function makeBible(title: string) {
   };
 }
 
-async function seedExportNovel(title: string) {
-  const userId = process.env.E2E_TEST_USER_ID ?? "e2e-user";
+async function seedExportNovel(title: string, userId: string) {
   const novel = await prisma.novel.create({
     data: {
       user_id: userId,
@@ -105,7 +104,8 @@ async function seedExportNovel(title: string) {
 }
 
 async function openExportCenterWithContent(page: Page, title: string) {
-  const novelId = await seedExportNovel(title);
+  const session = await (await page.request.get("/api/auth/session")).json();
+  const novelId = await seedExportNovel(title, session.user.id);
 
   await page.goto(`/novels/${novelId}/export`);
   await expect(page.getByRole("heading", { name: "导出中心" })).toBeVisible({

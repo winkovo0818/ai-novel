@@ -12,7 +12,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DOCKER_BUILD=1
-RUN npm run build
+RUN mkdir -p public && printf 'export default { output: "standalone" };\n' > next.config.mjs && npm run build
 
 FROM base AS runner
 WORKDIR /app

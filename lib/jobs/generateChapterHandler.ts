@@ -1,281 +1,175 @@
-import type { NovelGenerationRun, Prisma } from "@prisma/client";
-
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { runChapterPipeline, type ChapterPipelineResult } from "@/lib/agent/chapterPipeline";
-import { addCost, advanceProgress, getRun, markCompleted, markNeedsReview, pause } from "@/lib/agent/generationRun";
+import { getRun, markNeedsReview } from "@/lib/agent/generationRun";
+import { generationPolicy, nextPlanningTarget } from "@/lib/agent/generationPolicy";
 import { evaluateChapterGate } from "@/lib/agent/qualityGate";
-import { type QualityChapterInput } from "@/lib/evals/novelQuality";
+import type { QualityChapterInput } from "@/lib/evals/novelQuality";
 import { chatCompletionWithRetry } from "@/lib/llm/client";
+import { withLlmCallContext } from "@/lib/llm/callContext";
 import { parseFirstJsonObject } from "@/lib/llm/extractJson";
 import { buildStateDiffPrompt } from "@/lib/llm/prompts/stateDiff";
 import { moderateContent } from "@/lib/moderation/moderate";
-import { logInfo, logWarn } from "@/lib/observability/logger";
 import { applyStateDiff, validateStateDiff } from "@/lib/validation/stateDiffMerge";
-import { BibleDraftSchema, NovelProfileSchema, StateDiffSchema, getAllChapters, type BibleDraft } from "@/lib/validation/schemas";
-import { enqueueJob } from "./queue";
-
-const STATE_DIFF_TIMEOUT_MS = 90_000;
+import { BibleDraftSchema, NovelProfileSchema, StateDiffSchema, getAllChapters, getVolumes, type BibleDraft } from "@/lib/validation/schemas";
+import { loadStoryMemory, mergeRecalledState, syncStoryMemory } from "@/lib/agent/storyMemory";
+import { readVolumeArc } from "@/lib/agent/volumePlanStore";
+import { overduePayoffs } from "@/lib/agent/volumePlan";
+import { generationCallContext } from "@/lib/agent/generationExecution";
+import { generationBudgetPause } from "@/lib/agent/generationBudget";
+import { JobDeferredError } from "./deferred";
+import type { JobExecution } from "./execution";
 
 export interface GenerateChapterPayload {
   novel_id: string;
   chapter_index: number;
-  /** Overrides the pipeline's default self-revision rounds. */
   revision_rounds?: number;
-  /**
-   * When set, this chapter is part of an auto-pilot run: the handler advances
-   * the run's progress/cost and chains the next chapter until completion.
-   */
   run_id?: string;
 }
-
 export function isGenerateChapterPayload(p: unknown): p is GenerateChapterPayload {
   if (typeof p !== "object" || p === null) return false;
-  const obj = p as { novel_id?: unknown; chapter_index?: unknown };
-  return typeof obj.novel_id === "string" && typeof obj.chapter_index === "number";
+  const o = p as Partial<GenerateChapterPayload>;
+  return typeof o.novel_id === "string" && Number.isInteger(o.chapter_index) && (o.chapter_index ?? 0) > 0;
 }
 
-/**
- * Run the state updater on a freshly written chapter and merge the diff into the
- * Bible. The diff feeds continuity context for later chapters but isn't what the
- * chapter persistence depends on — so a malformed / invalid diff is logged and
- * the prior Bible kept rather than aborting the run. (The spike saw ~25% diff
- * JSON-parse failures; one bad diff must not stop a 40-chapter book.)
- *
- * M0.2: a diff that parses but fails `validateStateDiff` (hallucinated entity /
- * thread status regression / oversized) is also skipped — unattended merges of
- * polluted state are inherited by every later chapter, so "state lags one
- * chapter" beats "state is wrong forever". Returns whether the merge happened
- * so the run loop can decide if a checkpoint review is warranted.
- */
-async function applyChapterStateDiff(
-  novelId: string,
-  bible: BibleDraft,
-  chapterIndex: number,
-  title: string,
-  content: string,
-): Promise<{ merged: boolean; requiresReview?: boolean; rejectionReason?: string }> {
-  let updated: BibleDraft;
+/** No state is written until the chapter, verdict, and state update are ready. */
+async function chapterStateDiff(novelId: string, bible: BibleDraft, result: ChapterPipelineResult, model?: string, storyState = bible.story_state) {
   try {
-    const result = await chatCompletionWithRetry({
-      route: "/jobs/generate_chapter/state-diff",
-      agent: "state_updater",
-      novelId,
-      messages: buildStateDiffPrompt({
-        bible,
-        storyState: bible.story_state,
-        chapterIndex,
-        chapterTitle: title,
-        chapterContent: content,
-      }),
-      responseFormat: "json_object",
-      temperature: 0,
-      timeoutMs: STATE_DIFF_TIMEOUT_MS,
+    const response = await chatCompletionWithRetry({
+      route: "/jobs/generate_chapter/state-diff", agent: "state_updater", novelId,
+      model,
+      messages: buildStateDiffPrompt({ bible, storyState,
+        chapterIndex: result.chapterIndex, chapterTitle: result.title, chapterContent: result.content }),
+      responseFormat: "json_object", temperature: 0, timeoutMs: 90_000,
     });
-    const diff = StateDiffSchema.safeParse(parseFirstJsonObject(result.content));
-    if (!diff.success) {
-      logWarn("generate_chapter.state_diff_invalid", { novel_id: novelId, chapter_index: chapterIndex });
-      return { merged: false, rejectionReason: "状态变更 JSON 无法解析" };
-    }
-    const validationIssues = validateStateDiff(bible, diff.data, content);
-    if (validationIssues.length > 0) {
-      logWarn("generate_chapter.state_diff_rejected", {
-        novel_id: novelId,
-        chapter_index: chapterIndex,
-        codes: validationIssues.map((issue) => issue.code).join(","),
-        messages: validationIssues.map((issue) => issue.message).join(" | "),
-      });
-      return {
-        merged: false,
-        requiresReview: true,
-        rejectionReason: validationIssues.map((issue) => issue.message).join("；"),
-      };
-    }
-    updated = applyStateDiff(bible, diff.data, chapterIndex);
-  } catch (err) {
-    logWarn("generate_chapter.state_diff_failed", {
-      novel_id: novelId,
-      chapter_index: chapterIndex,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return { merged: false, rejectionReason: "状态更新调用失败" };
+    const diff = StateDiffSchema.safeParse(parseFirstJsonObject(response.content));
+    if (!diff.success) return { reason: "状态变更 JSON 无法解析" };
+    const issues = validateStateDiff(bible, diff.data, result.content);
+    if (issues.length) return { reason: issues.map(i => i.message).join("；") };
+    return { bible: applyStateDiff(bible, diff.data, result.chapterIndex) };
+  } catch (error) {
+    if (error instanceof JobDeferredError) throw error;
+    return { reason: error instanceof Error ? error.message : "状态更新失败" };
   }
-  await prisma.bibleDraft.update({ where: { novel_id: novelId }, data: { content: updated } });
-  return { merged: true };
 }
 
-/**
- * Generate ONE chapter end-to-end, persist it, and — when part of an auto-pilot
- * run — gate it and chain the next chapter. Pipeline (draft → critic → revise) →
- * output moderation (violations never persist) → upsert → state diff → enqueue
- * post-processing. With a run_id it then advances progress/cost, enforces the
- * cost cap and quality gate, and either completes, halts for needs_review, or
- * enqueues the next chapter until total_chapters is reached.
- */
-export async function handleGenerateChapter(payload: Prisma.JsonValue): Promise<void> {
+export async function handleGenerateChapter(payload: Prisma.JsonValue, execution?: JobExecution): Promise<void> {
   if (!isGenerateChapterPayload(payload)) throw new Error("Invalid generate_chapter payload");
   const { novel_id, chapter_index, run_id } = payload;
-
   const run = run_id ? await getRun(run_id) : null;
   if (run_id && !run) throw new Error(`generate_chapter: run ${run_id} not found`);
-  // The run may have been paused/cancelled between this job being enqueued and
-  // claimed — don't spend LLM tokens on a chapter the user no longer wants.
-  if (run && (run.status === "paused" || run.status === "cancelled")) {
-    logInfo("generate_chapter.run_inactive", { run_id, status: run.status, chapter_index });
-    return;
-  }
-
+  if (run && (run.status !== "running" || run.current_chapter >= chapter_index)) return;
+  if (run && chapter_index !== run.current_chapter + 1) throw new Error("Generation chapter is out of order");
+  if (run && run.novel_id !== novel_id) throw new Error("Generation run belongs to another novel");
+  const policy = generationPolicy(run?.config);
   const novel = await prisma.novel.findUnique({
-    where: { id: novel_id },
-    include: {
-      bible: true,
-      chapters: { orderBy: { chapter_index: "asc" }, include: { summary: true } },
-      volume_summaries: { orderBy: { volume_index: "asc" } },
-      novel_summary: true,
+    where: { id: novel_id }, include: {
+      bible: true, chapters: { where: { chapter_index: { gte: Math.max(1, chapter_index - 20) } },
+        orderBy: { chapter_index: "asc" }, include: { summary: true } },
+      volume_summaries: { orderBy: { volume_index: "asc" } }, novel_summary: true,
     },
   });
-  if (!novel || !novel.bible) throw new Error(`generate_chapter: novel or bible not found for ${novel_id}`);
-
-  const bible = BibleDraftSchema.safeParse(novel.bible.content);
-  const profile = NovelProfileSchema.safeParse(novel.profile);
-  if (!bible.success || !profile.success) {
-    throw new Error(`generate_chapter: invalid bible/profile for ${novel_id}`);
-  }
-
-  const result = await runChapterPipeline({
-    novelId: novel_id,
-    bible: bible.data,
-    profile: profile.data,
-    chapters: novel.chapters,
-    chapterIndex: chapter_index,
-    revisionRounds: run?.revision_rounds ?? payload.revision_rounds,
-    novelSummary: novel.novel_summary?.summary,
-    volumeSummaries: novel.volume_summaries,
-  });
-
-  // T13 输出审核：违规正文绝不落库；auto-pilot 下挂起 needs_review 等人工处理。
-  const moderation = await moderateContent({ route: "/jobs/generate_chapter", text: result.content, novelId: novel_id });
-  if (!moderation.allowed) {
-    logWarn("generate_chapter.moderation_blocked", { novel_id, chapter_index, reason: moderation.reason });
-    if (run) await markNeedsReview(run.id, `第 ${chapter_index} 章触发内容审核：${moderation.reason ?? "MODERATION_BLOCKED"}`);
+  if (!novel || novel.deleted_at || !novel.bible) throw new Error("Novel or Bible not found");
+  const bible = BibleDraftSchema.parse(novel.bible.content);
+  const profile = NovelProfileSchema.parse(novel.profile);
+  const existing = novel.chapters.find(c => c.chapter_index === chapter_index);
+  if (existing?.content.trim()) {
+    if (run) await markNeedsReview(run.id, `第 ${chapter_index} 章已有正文，请确认后继续，自动生成不会覆盖已有内容`);
     return;
   }
-
-  // Idempotent persist: the unique (novel_id, chapter_index) makes a re-run of
-  // the same chapter overwrite instead of duplicating.
-  const chapter = await prisma.chapterDraft.upsert({
-    where: { novel_id_chapter_index: { novel_id, chapter_index } },
-    create: { novel_id, chapter_index, title: result.title, content: result.content, status: "done" },
-    update: { title: result.title, content: result.content, status: "done" },
-  });
-
-  const stateDiffOutcome = await applyChapterStateDiff(novel_id, bible.data, chapter_index, result.title, result.content);
-
-  // Let RAG indexing and summaries catch up asynchronously — don't block.
-  // These run even if the state diff was rejected below: the chapter itself
-  // persisted, so leaving it unsummarized/unindexed would only add a second
-  // problem for the human reviewer.
-  await enqueueJob({ type: "summarize_chapter", payload: { chapter_id: chapter.id }, novelId: novel_id });
-  await enqueueJob({ type: "index_chapter", payload: { novel_id, chapter_id: chapter.id }, novelId: novel_id });
-
-  // M0.2: a diff rejected by validation (hallucinated entity / status
-  // regression / oversized) means the story state is now knowingly stale.
-  // Under a checkpoint mode the run pauses for human review — continuing to
-  // chain chapters on top of stale state quietly degrades continuity. JSON
-  // parse failures keep the old lenient behavior (~25% rate would halt every
-  // run); only *semantic* rejections gate.
-  if (run && stateDiffOutcome.requiresReview && run.checkpoint_mode !== "none") {
-    await markNeedsReview(
-      run.id,
-      `第 ${chapter_index} 章状态变更被校验拒绝,未合并进 Bible:${stateDiffOutcome.rejectionReason ?? "未知原因"}`,
-    );
+  const arc = await readVolumeArc(novel_id, chapter_index);
+  const memory = await loadStoryMemory(novel_id, novel.bible, chapter_index - 1, arc?.plan.thread_targets);
+  if (memory.stale_records || memory.historical_available === false) {
+    if (run) await markNeedsReview(run.id, "历史正文已修改，请校准剧情状态后再继续");
     return;
   }
-
-  if (run) {
-    await finalizeRun(run, novel_id, novel.chapters, bible.data, chapter_index, result);
-  }
-}
-
-/**
- * After a chapter persists in an auto-pilot run: record progress + spend, then
- * decide whether the chain continues. Halt conditions checked in order:
- *   1. cost cap exceeded → pause (resumable),
- *   2. quality gate failed on the last-3-chapter window → needs_review
- *      (only under a checkpoint mode; "none" logs and keeps going),
- *   3. last chapter reached → completed,
- * otherwise re-read the run (a pause/cancel may have landed while this chapter
- * was generating) and enqueue the next chapter.
- */
-async function finalizeRun(
-  run: NovelGenerationRun,
-  novelId: string,
-  priorChapters: Array<{ chapter_index: number; title: string | null; content: string }>,
-  bible: BibleDraft,
-  chapterIndex: number,
-  result: ChapterPipelineResult,
-): Promise<void> {
-  await advanceProgress(run.id, chapterIndex);
-  const afterCost = await addCost(run.id, result.cost.cny);
-
-  // T13 成本上限：本章已落库，但累计花费超过硬上限就暂停（可 resume 续跑），不再链下一章。
-  if (run.cost_cap_cny != null && afterCost.cost_cny_spent > run.cost_cap_cny) {
-    const reason = `成本超上限：已花 ${afterCost.cost_cny_spent.toFixed(4)} 元 > 上限 ${run.cost_cap_cny} 元（停在第 ${chapterIndex} 章）`;
-    await pause(run.id, reason);
-    logWarn("generate_chapter.cost_cap_paused", {
-      run_id: run.id,
-      chapter_index: chapterIndex,
-      spent: afterCost.cost_cny_spent,
-      cap: run.cost_cap_cny,
+  const recalledBible = mergeRecalledState(bible, memory.state);
+  const userId = run?.user_id ?? novel.user_id ?? undefined;
+  await withLlmCallContext(generationCallContext({ runId: run?.id, novelId: novel_id, userId, phase: "running", execution }), async () => {
+    const result = await runChapterPipeline({
+      model: policy.model,
+      novelId: novel_id, userId, signal: execution?.signal, bible: { ...bible, story_state: memory.state }, volumeArc: arc, profile, chapters: novel.chapters,
+      chapterIndex: chapter_index, revisionRounds: run?.revision_rounds ?? payload.revision_rounds,
+      novelSummary: novel.novel_summary?.summary, volumeSummaries: novel.volume_summaries,
     });
-    return;
-  }
-
-  // T12 质量门：自修满 R 轮后，用末 3 章滑窗过门。on_fail / per_volume 下未达标即
-  // 挂起人工复核并止链；none 模式只记录、继续跑（见 qualityGate 的冷启动/硬门说明）。
-  // critic 的最终判定（result.criticIssues）作为第三类硬门并入：启发式分达标但 critic
-  // 标记 critical 的章节会被拦下，零额外 LLM 成本（critic 已在 pipeline 跑过）。
-  const gate = evaluateChapterGate(buildQualityWindow(priorChapters, chapterIndex, result, bible), bible, {
-    qualityFloor: run.quality_floor,
-    criticIssues: result.criticIssues,
-  });
-  if (!gate.pass) {
-    if (run.checkpoint_mode === "none") {
-      logWarn("generate_chapter.gate_failed_continue", { run_id: run.id, chapter_index: chapterIndex, reason: gate.reason });
-    } else {
-      await markNeedsReview(run.id, `第 ${chapterIndex} 章质量门未过：${gate.reason}`);
-      logWarn("generate_chapter.gate_failed_review", {
-        run_id: run.id,
-        chapter_index: chapterIndex,
-        score_pct: gate.scorePct,
-        reason: gate.reason,
-      });
+    const moderation = await moderateContent({ route: "/jobs/generate_chapter", text: result.content, userId, novelId: novel_id });
+    if (!moderation.allowed) {
+      if (run) await markNeedsReview(run.id, `第 ${chapter_index} 章触发内容审核：${moderation.reason ?? "MODERATION_BLOCKED"}`);
       return;
     }
-  }
-
-  if (chapterIndex >= run.total_chapters) {
-    await markCompleted(run.id);
-    return;
-  }
-
-  const latest = await getRun(run.id);
-  if (latest && (latest.status === "paused" || latest.status === "cancelled")) {
-    logInfo("generate_chapter.chain_halted", { run_id: run.id, status: latest.status, chapter_index: chapterIndex });
-    return;
-  }
-
-  await enqueueJob({
-    type: "generate_chapter",
-    payload: { novel_id: novelId, chapter_index: chapterIndex + 1, run_id: run.id },
-    novelId,
+    const gate = evaluateChapterGate(buildQualityWindow(novel.chapters, chapter_index, result, bible), bible, {
+      qualityFloor: run?.quality_floor, criticIssues: result.criticIssues,
+    });
+    // Failed output remains an editable draft; it never receives done status.
+    let state = gate.pass ? await chapterStateDiff(novel_id, recalledBible, result, policy.model, memory.state) : { reason: gate.reason };
+    const overdue = state.bible ? overduePayoffs(arc, state.bible.story_state, chapter_index) : [];
+    if (overdue.length) state = { reason: `本章已到线索回收期限：${overdue.join("、")}` };
+    const accepted = gate.pass && Boolean(state.bible);
+    try {
+      await prisma.$transaction(async tx => {
+        await execution?.assertActive(tx);
+        if (run) {
+          const locked = await tx.novelGenerationRun.updateMany({
+            where: { id: run.id, status: "running", current_chapter: run.current_chapter },
+            data: { updated_at: new Date() },
+          });
+          if (!locked.count) return; // pause, cancel or another execution won
+        }
+        const data = { title: result.title, content: result.content, status: accepted ? "done" : "draft",
+          summary_dirty: true, index_dirty: true };
+        const chapter = existing
+          ? await tx.chapterDraft.update({ where: { id: existing.id, version: existing.version, content: existing.content },
+              data: { ...data, version: { increment: 1 } } })
+          : await tx.chapterDraft.create({ data: { ...data, novel_id, chapter_index } });
+        if (existing) await tx.chapterVersion.create({ data: {
+          chapter_id: existing.id, title: existing.title, content: existing.content, status: existing.status, source: "ai",
+        } });
+        if (state.bible) {
+          const updated = await tx.bibleDraft.update({ where: { novel_id, updated_at: novel.bible!.updated_at }, data: { content: state.bible } });
+          await syncStoryMemory(tx, novel_id, state.bible, updated.updated_at, { kind: "generated_chapter", chapterIndex: chapter_index, chapterId: chapter.id, chapterVersion: chapter.version });
+        }
+        for (const type of ["summarize_chapter", "index_chapter"] as const) {
+          await tx.backgroundJob.create({ data: { type, novel_id, status: "pending",
+            payload: { novel_id, chapter_id: chapter.id, ...(run_id ? { run_id } : {}) } } });
+        }
+        if (run) {
+          const latest = await tx.novelGenerationRun.findUniqueOrThrow({ where: { id: run.id } });
+          const budgetPause = generationBudgetPause(latest);
+          const overBudget = Boolean(budgetPause);
+          const atVolumeEnd = getVolumes(bible).some(v => v.chapters.at(-1)?.index === chapter_index && (!policy.continuous || v.chapters.length >= 80));
+          const horizonReached = chapter_index >= run.total_chapters;
+          const completed = (!policy.continuous && (accepted || run.checkpoint_mode === "none") && horizonReached)
+            || (policy.continuous && accepted && policy.stop_after_chapter != null && chapter_index >= policy.stop_after_chapter);
+          const needsReview = !accepted && (policy.continuous || run.checkpoint_mode !== "none");
+          const paused = !completed && (overBudget || (run.checkpoint_mode === "per_volume" && atVolumeEnd));
+          const planning = policy.continuous && horizonReached && !paused && !needsReview;
+          const total = planning ? Math.min(policy.stop_after_chapter ?? 2_147_483_647, nextPlanningTarget(chapter_index, policy.planning_window)) : run.total_chapters;
+          const status = needsReview ? "needs_review" : completed ? "completed" : paused ? "paused" : planning ? "planning" : "running";
+          await tx.novelGenerationRun.update({ where: { id: run.id }, data: {
+            status, ...((accepted || (!policy.continuous && run.checkpoint_mode === "none")) ? { current_chapter: chapter_index } : {}),
+            ...(planning ? { total_chapters: total } : {}),
+            ...(accepted ? { last_progress_at: new Date() } : {}),
+            ...(status === "paused" ? { pause_reason: budgetPause?.pause_reason ?? "volume_review", resume_after: budgetPause?.resume_after ?? null } : {}),
+            last_error: needsReview ? `第 ${chapter_index} 章需要复核：${state.reason ?? gate.reason}`
+              : overBudget ? budgetPause!.last_error : paused ? "本卷已完成，请复核后继续" : null,
+          } });
+          if (status === "running" || status === "planning") await tx.backgroundJob.create({ data: {
+            type: planning ? "plan_outline" : "generate_chapter", novel_id, status: "pending",
+            payload: { novel_id, ...(planning ? { target_chapters: total } : { chapter_index: chapter_index + 1 }), run_id: run.id },
+          } });
+        }
+        execution?.signal.throwIfAborted();
+      });
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && ["P2002", "P2025"].includes(String(error.code))) {
+        if (run) await markNeedsReview(run.id, `第 ${chapter_index} 章或作品设定已被修改，生成结果未覆盖原文`);
+        return;
+      }
+      throw error;
+    }
   });
 }
 
-/**
- * Build the quality gate's scoring window: prior persisted chapters before this
- * index plus the one just written, capped to the last 3 so continuity is scored
- * on a local window rather than the whole book.
- */
 function buildQualityWindow(
   priorChapters: Array<{ chapter_index: number; title: string | null; content: string }>,
   chapterIndex: number,

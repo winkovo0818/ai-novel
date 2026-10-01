@@ -1,3 +1,5 @@
+import type { VolumeArc } from "./volumePlan";
+import { z } from "zod";
 import { assembleChapterContext } from "@/lib/agent/chapterContextAssembly";
 import type { ChapterDraftView } from "@/lib/agent/chapterContext";
 import type { CriticIssue } from "@/lib/agent/contracts";
@@ -28,12 +30,17 @@ const REVISE_TIMEOUT_MS = 240_000;
 
 export interface RunChapterPipelineInput {
   novelId: string;
+  userId?: string;
+  signal?: AbortSignal;
+  model?: string;
+  completion?: typeof chatCompletionWithRetry;
   bible: BibleDraft;
   profile: NovelProfile;
   chapters: Array<ChapterDraftView & { summary?: { summary: string } | null }>;
   chapterIndex: number;
   /** Max self-revision passes when the critic flags major/critical issues. Default 2. */
   revisionRounds?: number;
+  volumeArc?: VolumeArc;
   novelSummary?: string;
   volumeSummaries?: ReadonlyArray<{ volume_index: number; summary: string }>;
   /** Skip RAG retrieval (headless eval without pgvector). Default false. */
@@ -68,24 +75,28 @@ interface CostAccumulator {
  * (returning empty issues) let unreviewed chapters slip past the quality
  * gate whenever the critic model drifted out of JSON mode.
  */
+const CriticResultSchema = z.object({
+  consistent: z.boolean(),
+  issues: z.array(z.object({
+    type: z.enum(["character", "world_rule", "plot_thread", "timeline", "tone", "logic_chain", "prose_quality"]),
+    severity: z.enum(["critical", "major", "minor"]),
+    description: z.string().min(1),
+    suggestion: z.string().optional(),
+  })).default([]),
+});
 function parseCriticResult(raw: string): CriticResult | null {
-  const parsed = parseFirstJsonObject<Partial<CriticResult>>(raw);
-  if (!parsed) return null;
-  return {
-    consistent: Boolean(parsed.consistent),
-    issues: Array.isArray(parsed.issues) ? parsed.issues : [],
-  };
+  const parsed = CriticResultSchema.safeParse(parseFirstJsonObject(raw));
+  return parsed.success ? parsed.data : null;
 }
 
 /**
  * Synthetic issue injected when the critic output is unparseable twice in a
- * row. Severity `major` so it surfaces in `criticIssues` → quality gate /
- * needs_review, without auto-failing the whole run (tunable via CriticFloor).
+ * row. Severity `critical` keeps unreviewed output behind the quality gate.
  */
 function buildCriticUnparseableIssue(chapterIndex: number): CriticIssue {
   return {
     type: "logic_chain",
-    severity: "major",
+    severity: "critical",
     description: `第 ${chapterIndex} 章的 Critic 审校输出连续两次无法解析，本章未经一致性审校。`,
     suggestion: "人工复核本章与前文的一致性后再定稿。",
   };
@@ -104,6 +115,10 @@ function hasBlockingIssue(issues: CriticIssue[]): boolean {
  */
 export async function runChapterPipeline(input: RunChapterPipelineInput): Promise<ChapterPipelineResult> {
   const rounds = input.revisionRounds ?? DEFAULT_REVISION_ROUNDS;
+  if (!Number.isInteger(rounds) || rounds < 0 || rounds > 4) throw new Error("revisionRounds must be an integer from 0 to 4");
+  const complete = input.completion ?? chatCompletionWithRetry;
+  const attribution = { userId: input.userId, signal: input.signal, model: input.model };
+  input.signal?.throwIfAborted();
   const { context } = await assembleChapterContext({
     novelId: input.novelId,
     bible: input.bible,
@@ -111,6 +126,7 @@ export async function runChapterPipeline(input: RunChapterPipelineInput): Promis
     chapterIndex: input.chapterIndex,
     novelSummary: input.novelSummary,
     volumeSummaries: input.volumeSummaries,
+    volumeArc: input.volumeArc,
     skipRetrieval: input.skipRetrieval,
   });
 
@@ -124,7 +140,8 @@ export async function runChapterPipeline(input: RunChapterPipelineInput): Promis
   };
 
   // 1. Writer draft (non-streaming — the auto-pilot is a background job, not SSE).
-  const draft = await chatCompletionWithRetry({
+  const draft = await complete({
+    ...attribution,
     route: `${ROUTE_BASE}/draft`,
     agent: "writer",
     novelId: input.novelId,
@@ -152,9 +169,10 @@ export async function runChapterPipeline(input: RunChapterPipelineInput): Promis
   let revisedRounds = 0;
 
   // 2. Critic → revise loop. Stop as soon as no major/critical issues remain.
-  for (let round = 0; round < rounds; round += 1) {
+  for (let round = 0; round <= rounds; round += 1) {
     const runCritic = async () => {
-      const resp = await chatCompletionWithRetry({
+      const resp = await complete({
+    ...attribution,
         route: `${ROUTE_BASE}/critic`,
         agent: "critic",
         novelId: input.novelId,
@@ -174,7 +192,7 @@ export async function runChapterPipeline(input: RunChapterPipelineInput): Promis
     };
 
     // Fail-closed: unparseable critic output gets ONE immediate retry; if it
-    // still can't be parsed we record a synthetic major issue and stop —
+    // still can't be parsed we record a synthetic critical issue and stop —
     // revising is pointless without a concrete issue to fix, but the chapter
     // must NOT silently pass as "reviewed clean".
     let critic = await runCritic();
@@ -196,13 +214,17 @@ export async function runChapterPipeline(input: RunChapterPipelineInput): Promis
       break;
     }
 
-    criticIssues = critic.issues;
-    if (critic.consistent || !hasBlockingIssue(critic.issues)) {
+    criticIssues = !critic.consistent && critic.issues.length === 0
+      ? [buildCriticUnparseableIssue(input.chapterIndex)] : critic.issues;
+    if (!hasBlockingIssue(critic.issues) && critic.consistent) {
       passedClean = true;
       break;
     }
 
-    const revised = await chatCompletionWithRetry({
+    if (round === rounds) break;
+    input.signal?.throwIfAborted();
+    const revised = await complete({
+    ...attribution,
       route: `${ROUTE_BASE}/revise`,
       agent: "writer",
       novelId: input.novelId,
@@ -232,6 +254,15 @@ export async function runChapterPipeline(input: RunChapterPipelineInput): Promis
         final_ai_hits: finalAiHits,
       });
       text = bestText;
+      const finalCritic = await complete({
+        ...attribution, route: `${ROUTE_BASE}/critic`, agent: "critic", novelId: input.novelId,
+        messages: buildCriticPrompt({ context, chapterContent: text, chapterIndex: input.chapterIndex, isRevision: true, isMystery: policy.isMystery }),
+        responseFormat: "json_object", temperature: 0, timeoutMs: CRITIC_TIMEOUT_MS,
+      });
+      accrue(finalCritic);
+      const verdict = parseCriticResult(finalCritic.content);
+      criticIssues = !verdict || (!verdict.consistent && !verdict.issues.length)
+        ? [buildCriticUnparseableIssue(input.chapterIndex)] : verdict.issues;
     }
   }
 

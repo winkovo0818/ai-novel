@@ -1,3 +1,4 @@
+import type { VolumeArc } from "./volumePlan";
 import { buildChapterContext, type ChapterContext, type ChapterDraftView } from "@/lib/agent/chapterContext";
 import { retrieveMemories } from "@/lib/agent/retrieval";
 import type { BeatSheet, RetrievalResult, RetrievalStatus } from "@/lib/agent/contracts";
@@ -56,7 +57,7 @@ function collectPriorVolumeSummaries(
   if (!volumeSummaries || volumeSummaries.length === 0) return undefined;
   const currentIdx = findCurrentVolumeIndex(bible, chapterIndex);
   const prior = volumeSummaries
-    .filter((vs) => vs.volume_index !== currentIdx)
+    .filter((vs) => vs.volume_index < currentIdx)
     .sort((a, b) => a.volume_index - b.volume_index)
     .map((vs) => `【卷${vs.volume_index + 1}】${vs.summary}`)
     .join("\n");
@@ -68,6 +69,7 @@ export interface AssembleChapterContextInput {
   bible: BibleDraft;
   chapters: Array<ChapterDraftView & { summary?: { summary: string } | null }>;
   chapterIndex: number;
+  volumeArc?: VolumeArc;
   novelSummary?: string;
   volumeSummaries?: ReadonlyArray<{ volume_index: number; summary: string }>;
   beatSheet?: BeatSheet;
@@ -91,7 +93,10 @@ export interface AssembledChapterContext {
 export async function assembleChapterContext(
   input: AssembleChapterContextInput,
 ): Promise<AssembledChapterContext> {
-  const volumeSummary = findVolumeSummary(input.bible, input.chapterIndex, input.volumeSummaries);
+  // Aggregate summaries do not record their historical snapshot. When rewriting
+  // an earlier chapter, omit summaries that may already include later events.
+  const hasLaterContent = input.chapters.some(c => c.chapter_index >= input.chapterIndex && c.content.trim());
+  const volumeSummary = hasLaterContent ? undefined : findVolumeSummary(input.bible, input.chapterIndex, input.volumeSummaries);
   const priorVolumeSummaries = collectPriorVolumeSummaries(input.bible, input.chapterIndex, input.volumeSummaries);
 
   const retrieval = input.skipRetrieval
@@ -101,7 +106,8 @@ export async function assembleChapterContext(
       );
 
   const context = buildChapterContext(input.bible, input.chapters, input.chapterIndex, {
-    novelSummary: input.novelSummary,
+    volumeArc: input.volumeArc,
+    novelSummary: hasLaterContent ? undefined : input.novelSummary,
     volumeSummary,
     priorVolumeSummaries,
     retrievedMemories: retrieval.memories,

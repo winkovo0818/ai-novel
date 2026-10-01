@@ -1,3 +1,4 @@
+import type { JobExecution } from "@/lib/jobs/execution";
 import { prisma } from "@/lib/db";
 import { chatCompletionWithRetry } from "@/lib/llm/client";
 import { buildVolumeSummaryPrompt, buildNovelSummaryPrompt } from "@/lib/llm/prompts/tieredSummary";
@@ -18,7 +19,7 @@ export interface RefreshSummariesResult {
  * - If any volume summary was updated, regenerate the novel summary.
  * - A volume summary covers the chapters whose summaries exist at generation time.
  */
-export async function refreshSummaries(novelId: string): Promise<RefreshSummariesResult> {
+export async function refreshSummaries(novelId: string, execution?: JobExecution): Promise<RefreshSummariesResult> {
   const novel = await prisma.novel.findUnique({
     where: { id: novelId },
     include: {
@@ -79,6 +80,7 @@ export async function refreshSummaries(novelId: string): Promise<RefreshSummarie
     const result = await chatCompletionWithRetry(
       {
         route: "/api/novels/:id/summaries/refresh",
+        userId: novel.user_id ?? undefined, novelId, signal: execution?.signal,
         messages: buildVolumeSummaryPrompt({
           volumeIndex: volIdx + 1,
           volumeName: volume.name,
@@ -94,7 +96,9 @@ export async function refreshSummaries(novelId: string): Promise<RefreshSummarie
       .filter((ch) => chapterSummaryMap.has(ch.index))
       .map((ch) => String(ch.index));
 
-    await prisma.volumeSummary.upsert({
+    await prisma.$transaction(async tx => {
+    await execution?.assertActive(tx);
+    await tx.volumeSummary.upsert({
       where: { novel_id_volume_index: { novel_id: novelId, volume_index: volIdx } },
       create: {
         novel_id: novelId,
@@ -106,6 +110,9 @@ export async function refreshSummaries(novelId: string): Promise<RefreshSummarie
         summary: result.content.trim(),
         covered_chapters,
       },
+    });
+
+    execution?.signal.throwIfAborted();
     });
 
     refreshedVolumes.push(volIdx);
@@ -122,6 +129,7 @@ export async function refreshSummaries(novelId: string): Promise<RefreshSummarie
       const result = await chatCompletionWithRetry(
         {
           route: "/api/novels/:id/summaries/refresh",
+        userId: novel.user_id ?? undefined, novelId, signal: execution?.signal,
           messages: buildNovelSummaryPrompt({
             volumeSummaries: updatedVolumeSummaries.map((vs) => ({
               volumeIndex: vs.volume_index + 1,
@@ -135,7 +143,9 @@ export async function refreshSummaries(novelId: string): Promise<RefreshSummarie
         1,
       );
 
-      await prisma.novelSummary.upsert({
+      await prisma.$transaction(async tx => {
+      await execution?.assertActive(tx);
+      await tx.novelSummary.upsert({
         where: { novel_id: novelId },
         create: {
           novel_id: novelId,
@@ -144,6 +154,8 @@ export async function refreshSummaries(novelId: string): Promise<RefreshSummarie
         update: {
           summary: result.content.trim(),
         },
+      });
+      execution?.signal.throwIfAborted();
       });
     }
   }

@@ -1,5 +1,6 @@
 "use client";
 
+import GenerationAlerts from "@/components/GenerationAlerts";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -73,6 +74,8 @@ export default function NovelsPage() {
             </Link>
           }
         />
+
+        <GenerationAlerts />
 
         <div className="mt-16">
           {loading ? (

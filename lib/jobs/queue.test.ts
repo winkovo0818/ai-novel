@@ -10,6 +10,10 @@ const update = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      backgroundJob: { create, findUnique, findMany, findFirst, count, updateMany, update },
+    }),
     backgroundJob: {
       create,
       findUnique,
@@ -71,6 +75,7 @@ describe("runJob", () => {
       id: "job-1",
       type: "summarize_chapter",
       payload: { chapter_id: "c-1" },
+      status: "pending",
       attempts: 0,
     });
     update.mockResolvedValue({});
@@ -78,9 +83,9 @@ describe("runJob", () => {
     const status = await runJob("job-1");
 
     expect(status).toBe("done");
-    expect(handler).toHaveBeenCalledWith({ chapter_id: "c-1" });
-    expect(update).toHaveBeenCalledWith({
-      where: { id: "job-1" },
+    expect(handler).toHaveBeenCalledWith({ chapter_id: "c-1" }, expect.objectContaining({ signal: expect.any(AbortSignal), assertActive: expect.any(Function) }));
+    expect(updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: "job-1", status: "running", started_at: expect.any(Date) }),
       data: expect.objectContaining({
         status: "done",
         attempts: { increment: 1 },
@@ -100,6 +105,7 @@ describe("runJob", () => {
       id: "job-1",
       type: "summarize_chapter",
       payload: { chapter_id: "c-1" },
+      status: "pending",
       attempts: 0,
     });
     update.mockResolvedValue({});
@@ -107,11 +113,11 @@ describe("runJob", () => {
     const status = await runJob("job-1");
 
     expect(status).toBe("pending");
-    expect(update).toHaveBeenCalledWith({
-      where: { id: "job-1" },
+    expect(updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: "job-1", status: "running", started_at: expect.any(Date) }),
       data: expect.objectContaining({
         status: "pending",
-        attempts: 1,
+      attempts: 1,
         last_error: "boom",
       }),
     });
@@ -128,6 +134,7 @@ describe("runJob", () => {
       id: "job-1",
       type: "summarize_chapter",
       payload: { chapter_id: "c-1" },
+      status: "pending",
       attempts: 2,
     });
     update.mockResolvedValue({});
@@ -135,8 +142,8 @@ describe("runJob", () => {
     const status = await runJob("job-1");
 
     expect(status).toBe("failed");
-    expect(update).toHaveBeenCalledWith({
-      where: { id: "job-1" },
+    expect(updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: "job-1", status: "running", started_at: expect.any(Date) }),
       data: expect.objectContaining({
         status: "failed",
         attempts: 3,
@@ -156,6 +163,7 @@ describe("runJob", () => {
       id: "job-refresh",
       type: "refresh_summaries",
       payload: { novel_id: "n-1" },
+      status: "pending",
       attempts: 1,
     });
     update.mockResolvedValue({});
@@ -163,8 +171,8 @@ describe("runJob", () => {
     const status = await runJob("job-refresh");
 
     expect(status).toBe("failed");
-    expect(update).toHaveBeenCalledWith({
-      where: { id: "job-refresh" },
+    expect(updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: "job-refresh", status: "running", started_at: expect.any(Date) }),
       data: expect.objectContaining({
         status: "failed",
         attempts: 2,
@@ -187,7 +195,8 @@ describe("runJob", () => {
         id: "job-timeout",
         type: "index_chapter",
         payload: { novel_id: "n-1", chapter_id: "c-1" },
-        attempts: 0,
+        status: "pending",
+      attempts: 0,
       });
       update.mockResolvedValue({});
 
@@ -195,11 +204,11 @@ describe("runJob", () => {
       await vi.advanceTimersByTimeAsync(25);
 
       await expect(statusPromise).resolves.toBe("pending");
-      expect(update).toHaveBeenCalledWith({
-        where: { id: "job-timeout" },
+      expect(updateMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({ id: "job-timeout", status: "running", started_at: expect.any(Date) }),
         data: expect.objectContaining({
           status: "pending",
-          attempts: 1,
+      attempts: 1,
           last_error: 'Job "index_chapter" timed out after 25ms',
         }),
       });
@@ -229,6 +238,7 @@ describe("runJob", () => {
       id: "job-2",
       type: "unknown_type",
       payload: {},
+      status: "pending",
       attempts: 0,
     });
     update.mockResolvedValue({});
@@ -236,8 +246,8 @@ describe("runJob", () => {
     const status = await runJob("job-2");
 
     expect(status).toBe("failed");
-    expect(update).toHaveBeenCalledWith({
-      where: { id: "job-2" },
+    expect(updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: "job-2", status: "running", started_at: expect.any(Date) }),
       data: expect.objectContaining({
         status: "failed",
         last_error: expect.stringContaining("No handler"),
@@ -269,7 +279,7 @@ describe("claimNextJob", () => {
     const claimed = await claimNextJob();
 
     expect(findFirst).toHaveBeenCalledWith({
-      where: { status: { in: ["pending"] } },
+      where: { status: { in: ["pending"] }, available_at: { lte: expect.any(Date) } },
       orderBy: { created_at: "asc" },
     });
     expect(updateMany).toHaveBeenCalledWith({
@@ -301,7 +311,7 @@ describe("claimNextJob", () => {
     expect(claimed).toBeNull();
     expect(findFirst).toHaveBeenCalledWith({
       where: {
-        status: { in: ["pending", "failed"] },
+        status: { in: ["pending", "failed"] }, available_at: { lte: expect.any(Date) },
         novel_id: "n-2",
         type: { in: ["index_chapter", "refresh_summaries"] },
       },
@@ -347,7 +357,7 @@ describe("claimNextJob", () => {
 
       expect(findFirst).toHaveBeenCalledWith({
         where: {
-          status: { in: ["pending"] },
+          status: { in: ["pending"] }, available_at: { lte: expect.any(Date) },
           type: { notIn: ["refresh_summaries"] },
         },
         orderBy: { created_at: "asc" },
@@ -420,9 +430,9 @@ describe("runNextJob", () => {
     const status = await runNextJob({ novelId: "n-1", type: "refresh_summaries" });
 
     expect(status).toBe("done");
-    expect(handler).toHaveBeenCalledWith({ novel_id: "n-1" });
-    expect(update).toHaveBeenCalledWith({
-      where: { id: "job-3" },
+    expect(handler).toHaveBeenCalledWith({ novel_id: "n-1" }, expect.objectContaining({ signal: expect.any(AbortSignal), assertActive: expect.any(Function) }));
+    expect(updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: "job-3", status: "running", started_at: expect.any(Date) }),
       data: expect.objectContaining({
         status: "done",
         attempts: { increment: 1 },
@@ -448,15 +458,15 @@ describe("runPendingJobsForNovel", () => {
     findMany.mockResolvedValue([{ id: "j1" }, { id: "j2" }]);
     updateMany.mockResolvedValue({ count: 1 });
     findUnique
-      .mockResolvedValueOnce({ id: "j1", type: "index_chapter", payload: { novel_id: "n", chapter_id: "c1" }, attempts: 0 })
-      .mockResolvedValueOnce({ id: "j2", type: "index_chapter", payload: { novel_id: "n", chapter_id: "c2" }, attempts: 0 });
+      .mockResolvedValueOnce({ id: "j1", type: "index_chapter", payload: { novel_id: "n", chapter_id: "c1" }, status: "pending", attempts: 0 })
+      .mockResolvedValueOnce({ id: "j2", type: "index_chapter", payload: { novel_id: "n", chapter_id: "c2" }, status: "pending", attempts: 0 });
     update.mockResolvedValue({});
 
     const processed = await runPendingJobsForNovel("n");
 
     expect(processed).toBe(2);
     expect(findMany).toHaveBeenCalledWith({
-      where: { novel_id: "n", status: "pending" },
+      where: { novel_id: "n", status: "pending", type: { notIn: ["generate_chapter", "plan_outline"] } },
       orderBy: { created_at: "asc" },
       select: { id: true },
     });
@@ -476,8 +486,8 @@ describe("runPendingJobsForNovel", () => {
     const sweepCall = updateMany.mock.calls[0][0];
     expect(sweepCall.where.status).toBe("running");
     expect(sweepCall.where.novel_id).toBe("n-1");
-    expect(sweepCall.where.started_at).toHaveProperty("lt");
-    expect(sweepCall.where.started_at.lt).toBeInstanceOf(Date);
+    expect(sweepCall.where.updated_at).toHaveProperty("lt");
+    expect(sweepCall.where.updated_at.lt).toBeInstanceOf(Date);
     expect(sweepCall.data.status).toBe("pending");
     expect(sweepCall.data.last_error).toMatch(/stale running/i);
     expect("attempts" in sweepCall.data).toBe(false);
@@ -495,7 +505,7 @@ describe("sweepStaleRunningJobs", () => {
     const call = updateMany.mock.calls[0][0];
     expect(call.where.novel_id).toBe("n-7");
     expect(call.where.status).toBe("running");
-    expect(call.where.started_at.lt).toBeInstanceOf(Date);
+    expect(call.where.updated_at.lt).toBeInstanceOf(Date);
   });
 
   it("acts globally when no novel id is supplied (P0-6)", async () => {
@@ -518,7 +528,7 @@ describe("sweepStaleRunningJobs", () => {
       updateMany.mockResolvedValue({ count: 0 });
       const before = Date.now();
       await sweepStaleRunningJobs("n");
-      const cutoff: Date = updateMany.mock.calls[0][0].where.started_at.lt;
+      const cutoff: Date = updateMany.mock.calls[0][0].where.updated_at.lt;
       // cutoff should be ~1s before "now" rather than the default ~5min.
       expect(before - cutoff.getTime()).toBeGreaterThanOrEqual(900);
       expect(before - cutoff.getTime()).toBeLessThan(60_000);
@@ -527,5 +537,18 @@ describe("sweepStaleRunningJobs", () => {
       else process.env.JOB_STALE_RUNNING_MS = prev;
       vi.resetModules();
     }
+  });
+});
+
+describe("resource deferral", () => {
+  it("keeps retry attempts when a job waits for a resource reset", async () => {
+    const { registerHandler, runJob } = await import("./queue"); const { JobDeferredError } = await import("./deferred");
+    const retryAt = new Date(Date.now() + 3600_000); registerHandler("summarize_chapter", vi.fn().mockRejectedValue(new JobDeferredError(retryAt, "每日预算用尽")));
+    findUnique.mockResolvedValue({ id: "defer", type: "summarize_chapter", status: "pending", attempts: 1, payload: {} }); updateMany.mockResolvedValue({ count: 1 });
+    expect(await runJob("defer")).toBe("pending"); expect(updateMany.mock.calls.at(-1)![0].data).toEqual({ status: "pending", available_at: retryAt, last_error: "每日预算用尽", finished_at: null });
+  });
+  it.each([null, new Date(Date.now() + 3600_000)])("does not bypass a parked or future scheduled job %j", async available_at => {
+    const { registerHandler, runJob } = await import("./queue"); const handler = vi.fn(); registerHandler("summarize_chapter", handler);
+    findUnique.mockResolvedValue({ id: "park", type: "summarize_chapter", status: "pending", available_at }); await runJob("park"); expect(handler).not.toHaveBeenCalled();
   });
 });

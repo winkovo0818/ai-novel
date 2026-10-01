@@ -21,6 +21,7 @@
 | D-06 | 首字 / 总耗时目标 | 首字 P95 < 3s，Bible 总耗时 P95 < 10s | 与 README §14 验收口径统一（修正原文「8 秒首字」过紧） |
 | D-07 | 测试基线 | `lib/llm/client.ts`、`lib/stream/jsonStreamParser.ts`、`lib/validation/schemas.ts` 必须各有一组 vitest 单测 | 错误处理矩阵（Step 9）需要可回归 |
 | D-08 | logline 推荐回退 | 用户跳过 Step 2 时，调用本接口生成最常规的默认 logline，不再走 5.3 的"无 logline"分支 | 简化 Prompt 5.3 入参，避免双路径 |
+| D-09 | 2026-10-01 并发写入及自动生成 | 恢复必须带 expected_version；质量未通过保留草稿，按 checkpoint_mode 推进 | 防止旧客户端覆盖新正文，明确生成完成与定稿的区别；详见末尾补充及回归测试 |
 
 ---
 
@@ -346,3 +347,40 @@ Prompt 5.1（logline 推荐）与 Prompt 5.2（反向追问）的硬规则见 `d
 | 首字延迟 | 流式首字 < 2s | P95 < 3s（D-06） | 与 README 8s 验收对齐口径 |
 | 重摆计数 | 仅前端 store | 服务端 `regeneration_count`（D-04） | 防绕过 |
 | Step 2 跳过 logline 走 Prompt 5.3 | 直接走 5.3 无 logline 分支 | 先内部走 5.1 取首条作为默认 logline（D-08） | 简化 5.3 入参 |
+
+
+## 2026-10-01 补充：章节写入与自动生成
+
+章节 PATCH 和历史版本恢复 POST 均要求 `expected_version` 为非负整数。数据库写入条件包含该版本；冲突返回 HTTP 409 `CHAPTER_VERSION_CONFLICT`，客户端需重新加载或处理冲突。恢复会递增版本、保存回滚快照，并使摘要和索引失效。
+
+自动生成启动请求支持 `total_chapters`（1–80，默认 40）、`revision_rounds`（0–4，默认 2）、`quality_floor`（0–100，默认 85）、正数 `cost_cap_cny` 和 `checkpoint_mode`（`none` / `per_volume` / `on_fail`，默认 `on_fail`）。`checkpoint_mode` 写入任务专用字段；零轮修订仍执行审校。`model` 可选，仅覆盖逐章生成模型。
+
+启动和恢复在作品级数据库锁内检查状态并创建任务。已存在正文不会被自动覆盖；从连续已完成章节之后开始。恢复时，下一章非空草稿需人工复核并标记完成，或清空后重新生成；人工定稿时还需确认对应故事状态。费用达到上限时拒绝恢复。
+
+审校无法解析、严重或重要冲突，以及状态变更校验失败，均不能把章节自动标记为 `done`。未通过的生成正文保留为草稿。`none` 允许继续推进并留下未通过的草稿；其任务 `completed` 仅表示生成目标已遍历，不表示所有章节已经定稿。`per_volume` 在卷末暂停，`on_fail` 遇到未通过章节停止推进。
+
+成本为按模型报价及 token 用量计算的估计值；调用前检查已发生费用，单次调用和后处理可能超额。Web 与数据库 CLI 共用启动/恢复服务；本地文件 CLI 共用章节管线、质量门及状态校验，待复核正文保存在 `notes.json`，人工处理后将 `progress.json.status` 设为 `paused` 再恢复。
+# 持续连载契约（2026-10-01）
+
+自动生成支持 `continuous: true`，不预设完结章数。`total_chapters` 在此模式表示当前批次的规划终点；`planning_window` 为 1–20，默认 10。每批写完后进入 `planning`，结合最新剧情再规划下一批。开启持续连载必须设置正数 `cost_cap_cny` 或显式 `unlimited_budget:true`（两者互斥），且检查点不能为 `none`。费用上限是下一次调用前的停止阈值，单次调用及后处理可能造成超出，不能当作供应商硬限额。
+
+启动接口只持久化 run 和 `plan_outline` job，返回 `planning`。规划结果、状态切换及后续 job 在同一个事务提交。暂停/失败后恢复时重新检查大纲覆盖范围，选择规划或续写；已有非空正文必须先审核，自动生成不覆盖。预算达到上限后可通过 PATCH `{action:"budget", cost_cap_cny:N}` 提高当前任务的累计预算，再显式恢复。
+
+章节 index 为 PostgreSQL 正整数范围，不再限制为 1000；附加卷不再限制为 20 卷。首卷仍最多 80 章，滚动规划的新卷每卷最多 80 章，兼容旧数据中最多 200 章的附加卷。提示只注入最近 20 条大纲与有界剧情状态。后台 worker 定期修复缺失的后续 job，耗尽重试则标记 run 失败；数据库异常采用退避重试。
+# 长期记忆与卷规划契约（2026-10-01）
+
+新增 `StoryMemoryCheckpoint`、`StoryMemoryRecord`、`NovelOutlineChapter` 和 `NovelVolumePlan`。Bible JSON 保留兼容；独立表用于按章节读取事实、保留历史变更与查询大纲。旧作品按需回填或使用回填脚本。回填只能记录现存快照，不能恢复已经被旧 JSON 丢弃的时间线；早于快照的状态不得当成已知历史事实。
+
+记忆版本使用 `[valid_from_chapter, valid_to_chapter)`，当前版本的结束章为 NULL，同一作品/类别/事实键最多一个当前版本。记录来源 Bible 时间、章节 ID 与章节版本；生成正文、Bible、记忆和后续任务同一事务提交。自动更新不删除被最近窗口裁掉的旧事件；人工编辑后的快照可以使旧事实失效。读取为有界窗口，卷计划引用的线索与伏笔必须额外召回，不能被普通窗口丢掉。
+
+卷计划单独持久化目标、核心冲突、人物变化、高潮、阶段结果、下一卷钩子、避免重复的模式及线索目标。现有已写正文优先于计划。计划中的回收目标只能引用已知未解决线索，期限位于本卷且晚于已经完成的章节；计划注入规划、起草、审校和修订。到期未回收的目标保存为待审草稿，不推进任务。旧数据与本地文件 CLI 无计划时沿用原逻辑。
+
+`GET /api/novels/:id/story-memory?chapter_index=N` 为所有者读取第 N 章后的有界状态、事实来源、记忆覆盖范围与下一章所在卷计划。无 N 时以最后一章已完成正文为准。没有历史快照时返回 `historical_available:false`，不注入未来状态。
+
+## 2026-10-02 补充：资源等待与提醒
+
+`daily_cost_cap_cny` 为可选正数，按北京时间零点重置；`stop_after_chapter` 为可选正整数，仅指定本次任务结束位置。费用更新在 run 行锁内先累计，再重置/增加当日费用，迟到的旧日记录不能重置新日计数。
+
+日预算及账户日/月费用或调用数不足属于资源等待。run 保存暂停原因和到期时间；job 保存 `available_at`，不增加 `attempts`。累计预算没有自动恢复时间。worker 只恢复到期的资源暂停；遇到已有非空草稿转入复核，不自动覆盖。恢复使用更新版本及暂停原因/时间作为条件，保护并发人工操作。PATCH `{action:"daily_budget",daily_cost_cap_cny:N|null}` 仅允许暂停/复核/失败任务，保存后需要显式恢复；null 关闭每日上限。
+
+`GET /api/generation-alerts` 返回本人未删除作品的未读、未解决提醒；`PATCH` 接受最多 50 个 UUID，只确认本人的提醒。确认不会恢复生成。提醒按 run/kind 唯一；同一消息的重复扫描保留确认状态；任务恢复解决旧提醒。指标 `ai_novel_generation_alerts{kind}` 仅包含种类，无用户或作品 ID。

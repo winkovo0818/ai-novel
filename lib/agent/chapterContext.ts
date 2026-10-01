@@ -1,3 +1,4 @@
+import type { VolumeArc } from "./volumePlan";
 import type { BibleDraft, StoryStateV1 } from "@/lib/validation/schemas";
 import { getAllChapters } from "@/lib/validation/schemas";
 import type { RetrievalStatus, BeatSheet } from "@/lib/agent/contracts";
@@ -26,6 +27,7 @@ export interface ChapterContext {
     title: string;
     summary?: string;
   };
+  volumeArc?: VolumeArc;
   novelSummary?: string;
   volumeSummary?: string;
   /** 已完成的各卷摘要（排除当前卷），让长篇写作能看到前序卷的核心推进，防远端失锚。 */
@@ -41,6 +43,7 @@ export interface ChapterContext {
 }
 
 export interface BuildChapterContextOptions {
+  volumeArc?: VolumeArc;
   novelSummary?: string;
   volumeSummary?: string;
   priorVolumeSummaries?: string;
@@ -135,6 +138,7 @@ export function buildChapterContext(
   return {
     bible,
     storyState: bible.story_state,
+    volumeArc: opts?.volumeArc,
     outline: {
       chapterIndex,
       title: outlineChapter?.title ?? `第 ${chapterIndex} 章`,

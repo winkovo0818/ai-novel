@@ -76,9 +76,8 @@ jobs:
       # LLM_MOCK=1 skips real DeepSeek calls — the mock returns deterministic
       # bibles + chapter prose so specs can assert on exact text.
       LLM_MOCK: "1"
-      # Supabase isn't actually called during these flows (anonymous
-      # onboarding works without auth), but the helpers must construct
-      # a client. Placeholder URLs keep that lazy init from throwing.
+      # Legacy optional Supabase helpers can still construct their clients.
+      # Authentication below uses the real local Auth.js provider.
       NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder
       MODEL_KEY_ENCRYPTION_SECRET: this-is-a-test-only-secret-do-not-use-in-prod
@@ -86,8 +85,8 @@ jobs:
       # default to allow under mock mode.
       QUOTA_FAILURE_MODE: allow
       MODERATION_FAILURE_MODE: allow
-      E2E_AUTH_BYPASS: "1"
-      E2E_TEST_USER_ID: e2e-user
+      AUTH_SECRET: e2e-ci-only-local-auth-secret-replace-in-production
+      AUTH_TRUST_HOST: "true"
 
     steps:
       - uses: actions/checkout@v4

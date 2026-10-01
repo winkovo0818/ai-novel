@@ -1,3 +1,4 @@
+import { JobDeferredError } from "@/lib/jobs/deferred";
 // RAG memory retrieval with pgvector.
 //
 // Strategy:
@@ -79,6 +80,7 @@ async function singleSearch(
   embedding: number[],
   novelId: string,
   limit: number,
+  chapterIndex: number,
 ): Promise<ScoredChunk[]> {
   const embeddingStr = "[" + embedding.join(",") + "]";
   const rows = await prisma.$queryRaw<
@@ -98,6 +100,7 @@ async function singleSearch(
     FROM "MemoryChunk" mc
     LEFT JOIN "ChapterDraft" cd ON mc.chapter_id = cd.id
     WHERE mc.novel_id = ${novelId} AND mc.embedding IS NOT NULL
+      AND (mc.chapter_id IS NULL OR cd.chapter_index < ${chapterIndex})
     ORDER BY mc.embedding <=> ${embeddingStr}::vector
     LIMIT ${limit}
   `;
@@ -168,6 +171,7 @@ async function fetchFeedbackCounts(chunkIds: string[]): Promise<Map<string, Feed
       counts.set(row.memory_chunk_id, entry);
     }
   } catch (err) {
+    if (err instanceof JobDeferredError) throw err;
     logError("retrieval.feedback_lookup_failed", { error: errorMessage(err) });
   }
   return counts;
@@ -244,7 +248,7 @@ export async function retrieveMemories(
 
     // --- 3. Run searches in parallel, then merge ---
     const allHits = await Promise.all(
-      embeddings.map((emb) => singleSearch(emb, novelId, candidateLimit)),
+      embeddings.map((emb) => singleSearch(emb, novelId, candidateLimit, chapterIndex)),
     );
 
     // Merge: deduplicate by text prefix, sum scores
@@ -357,6 +361,7 @@ export async function retrieveMemories(
       explanation: retrievalExplanation,
     };
   } catch (err) {
+    if (err instanceof JobDeferredError) throw err;
     const message = errorMessage(err);
     logError("retrieval.failed", {
       novel_id: novelId,

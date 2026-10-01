@@ -53,6 +53,10 @@ model Novel {
   volume_summaries VolumeSummary[]
   novel_summary NovelSummary?
   memory_chunks MemoryChunk[]
+  memory_checkpoint StoryMemoryCheckpoint?
+  story_memories StoryMemoryRecord[]
+  outline_chapters NovelOutlineChapter[]
+  volume_plans NovelVolumePlan[]
 
   @@index([user_id])
   @@index([user_id, deleted_at])
@@ -77,8 +81,16 @@ model NovelGenerationRun {
   /// none | per_volume | on_fail — when the run pauses for human review.
   checkpoint_mode String    @default("on_fail")
   cost_cny_spent  Float     @default(0)
-  /// Optional hard cost cap; the run pauses when spend exceeds it.
+  /// Spend threshold checked before calls; in-flight calls can exceed it.
   cost_cap_cny    Float?
+  /// Calendar day and estimated spend for this run (Asia/Shanghai).
+  cost_day        String?
+  daily_cost_cny_spent Float @default(0)
+  /// manual | total_budget | daily_budget | quota | volume_review
+  pause_reason    String?
+  resume_after    DateTime?
+  last_progress_at DateTime @default(now())
+  alerts          NovelGenerationAlert[]
   /// Free-form run config: { model, target_words, ... }.
   config          Json
   last_error      String?
@@ -87,6 +99,22 @@ model NovelGenerationRun {
 
   @@index([novel_id])
   @@index([status])
+  @@index([status, resume_after])
+}
+
+model NovelGenerationAlert {
+  id String @id @default(uuid())
+  run_id String
+  run NovelGenerationRun @relation(fields: [run_id], references: [id], onDelete: Cascade)
+  kind String
+  message String
+  read_at DateTime?
+  resolved_at DateTime?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([run_id, kind])
+  @@index([resolved_at, created_at])
 }
 
 model BibleDraft {
@@ -96,6 +124,76 @@ model BibleDraft {
   content    Json
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+}
+
+/// Watermark for the compatibility Bible snapshot projected into memory tables.
+model StoryMemoryCheckpoint {
+  novel_id String @id
+  novel Novel @relation(fields: [novel_id], references: [id], onDelete: Cascade)
+  bible_updated_at DateTime
+  baseline_chapter Int
+  latest_chapter Int
+  revision Int @default(1)
+  snapshot_hash String
+  outline_hash String
+  updated_at DateTime @updatedAt
+}
+
+/// Versioned facts, including events that have left the short Bible window.
+/// A partial unique index in SQL enforces one open version per fact key.
+model StoryMemoryRecord {
+  id String @id @default(uuid())
+  novel_id String
+  novel Novel @relation(fields: [novel_id], references: [id], onDelete: Cascade)
+  category String
+  memory_key String
+  value Json
+  content_hash String
+  revision Int
+  valid_from_chapter Int
+  valid_to_chapter Int?
+  source_kind String
+  source_chapter_id String?
+  source_chapter_version Int?
+  source_bible_updated_at DateTime
+  created_at DateTime @default(now())
+
+  @@unique([novel_id, category, memory_key, revision])
+  @@index([novel_id, category, valid_to_chapter, valid_from_chapter], map: "StoryMemoryRecord_temporal_lookup")
+  @@index([source_chapter_id])
+}
+
+model NovelOutlineChapter {
+  id String @id @default(uuid())
+  novel_id String
+  novel Novel @relation(fields: [novel_id], references: [id], onDelete: Cascade)
+  chapter_index Int
+  volume_index Int
+  title String
+  summary String
+  content_hash String
+  source_kind String
+  updated_at DateTime @updatedAt
+
+  @@unique([novel_id, chapter_index])
+  @@index([novel_id, volume_index, chapter_index])
+}
+
+model NovelVolumePlan {
+  id String @id @default(uuid())
+  novel_id String
+  novel Novel @relation(fields: [novel_id], references: [id], onDelete: Cascade)
+  volume_index Int
+  start_chapter Int
+  end_chapter Int
+  planned_after_chapter Int
+  content Json
+  source_bible_updated_at DateTime
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([novel_id, volume_index])
+  @@index([novel_id, start_chapter, end_chapter])
 }
 
 model ChapterDraft {
@@ -429,10 +527,13 @@ model BackgroundJob {
   updated_at  DateTime  @updatedAt
   started_at  DateTime?
   finished_at DateTime?
+  /// NULL parks a job until an explicit budget change/resume.
+  available_at DateTime? @default(now())
 
   @@index([novel_id, status])
   @@index([status, created_at])
   @@index([type, status])
+  @@index([status, available_at, created_at])
 }
 
 /// Resumable chapter-draft SSE sessions.

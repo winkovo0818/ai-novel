@@ -107,4 +107,57 @@ describe("planOutline", () => {
     expect(result.bible.outline.volume_1.chapters).toHaveLength(12);
     expect(result.bible.outline.volume_1.chapters.some((c) => c.index === 13)).toBe(false);
   });
+  it("keeps existing volume boundaries while extending the final volume", async () => {
+    const { planOutline } = await import("./planOutline");
+    const second = { name: "第二卷", theme: "追凶", chapter_count_estimate: 4, chapters: bible.outline.volume_1.chapters.slice(4) };
+    const multi = { ...bible, outline: { volume_1: { ...bible.outline.volume_1, chapters: bible.outline.volume_1.chapters.slice(0, 4) }, volumes: [second] } };
+    chatCompletionWithRetry.mockResolvedValue(mockResult(chaptersJson([9, 10])));
+    const result = await planOutline({ ...seedInput, bible: multi, targetChapters: 10 });
+    expect(result.bible.outline.volume_1.chapters.at(-1)?.index).toBe(4);
+    expect(result.bible.outline.volumes?.[0].chapters.at(-1)?.index).toBe(10);
+  });
+  it("refuses an existing outline with gaps", async () => {
+    const { planOutline } = await import("./planOutline");
+    const broken = { ...bible, outline: { volume_1: { ...bible.outline.volume_1, chapters: bible.outline.volume_1.chapters.slice(1) } } };
+    await expect(planOutline({ ...seedInput, bible: broken, targetChapters: 8 })).rejects.toThrow("gaps");
+  });
+
+});
+
+describe("rolling and multi-volume planning", () => {
+  beforeEach(() => vi.clearAllMocks());
+  const expanded = (count: number) => ({ ...bible, outline: { volume_1: { ...bible.outline.volume_1,
+    chapters: Array.from({ length: Math.min(count, 80) }, (_, i) => ({ ...bible.outline.volume_1.chapters[0], index: i + 1 })),
+  }, volumes: Array.from({ length: Math.ceil(Math.max(0, count - 80) / 80) }, (_, v) => ({ name: `第${v + 2}卷`, theme: "继续推进", chapter_count_estimate: 80,
+    chapters: Array.from({ length: Math.min(80, count - 80 - v * 80) }, (_, i) => ({ ...bible.outline.volume_1.chapters[0], index: 81 + v * 80 + i })) })) } });
+  it("splits at chapter 80 without changing earlier outlines", async () => {
+    const { planOutline } = await import("./planOutline"); const seed = expanded(78);
+    chatCompletionWithRetry.mockResolvedValue(mockResult(chaptersJson(Array.from({ length: 10 }, (_, i) => i + 79))));
+    const result = await planOutline({ ...seedInput, bible: seed, targetChapters: 88, continuous: true });
+    expect(result.bible.outline.volume_1.chapters).toHaveLength(80);
+    expect(result.bible.outline.volumes![0].chapters.map(c => c.index)).toEqual([81, 82, 83, 84, 85, 86, 87, 88]);
+    expect(seed.outline.volume_1.chapters).toHaveLength(78); expect(BibleDraftSchema.safeParse(result.bible).success).toBe(true);
+  });
+  it("supports chapters past 1000 and more than 20 volumes", async () => {
+    const { planOutline } = await import("./planOutline");
+    chatCompletionWithRetry.mockResolvedValue(mockResult(chaptersJson([1681, 1682])));
+    const result = await planOutline({ ...seedInput, bible: expanded(1680), targetChapters: 1682, continuous: true });
+    expect(result.bible.outline.volumes).toHaveLength(21); expect(BibleDraftSchema.safeParse(result.bible).success).toBe(true);
+  });
+  it("refuses an oversized single model request", async () => {
+    const { planOutline } = await import("./planOutline");
+    await expect(planOutline({ ...seedInput, targetChapters: 40 })).rejects.toThrow("batch exceeds 20");
+    expect(chatCompletionWithRetry).not.toHaveBeenCalled();
+  });
+  it("uses bounded recent history and actual plot state for continuous planning", async () => {
+    const { planOutline } = await import("./planOutline");
+    const long = expanded(80); long.story_state = { plot_threads: [{ id: "p", title: "悬而未决的父母旧案", status: "open" }] };
+    long.outline.volume_1.chapters[0].title = "不应注入的首章旧标题";
+    long.outline.volume_1.chapters[79].title = "应注入的最新标题";
+    chatCompletionWithRetry.mockResolvedValue(mockResult(chaptersJson([81])));
+    await planOutline({ ...seedInput, bible: long, targetChapters: 81, continuous: true, model: "chosen" });
+    const opts = chatCompletionWithRetry.mock.calls[0][0]; const prompt = opts.messages.map((m: {content: string}) => m.content).join("\n");
+    expect(opts.model).toBe("chosen"); expect(prompt).not.toContain("不应注入的首章旧标题");
+    expect(prompt).toContain("应注入的最新标题"); expect(prompt).toContain("悬而未决的父母旧案"); expect(prompt).toContain("不是全书结局");
+  });
 });

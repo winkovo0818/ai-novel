@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const create = vi.fn();
 const findUnique = vi.fn();
 const update = vi.fn();
+const updateMany = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    novelGenerationRun: { create, findUnique, update },
+    $transaction: async (fn: (tx: unknown) => unknown) => fn({ novelGenerationRun: { update } }),
+    novelGenerationRun: { create, findUnique, update, updateMany, findUniqueOrThrow: findUnique },
   },
 }));
 
@@ -79,7 +81,7 @@ describe("generationRun lifecycle", () => {
   it("markRunning sets running and clears last_error", async () => {
     const { markRunning } = await import("./generationRun");
     await markRunning("run-1");
-    expect(update).toHaveBeenCalledWith({ where: { id: "run-1" }, data: { status: "running", last_error: null } });
+    expect(update).toHaveBeenCalledWith({ where: { id: "run-1" }, data: { status: "running", last_error: null, pause_reason: null, resume_after: null } });
   });
 
   it("advanceProgress sets current_chapter (not increment) for idempotent re-runs", async () => {
@@ -102,12 +104,12 @@ describe("generationRun lifecycle", () => {
     const { pause } = await import("./generationRun");
 
     await pause("run-1");
-    expect(update).toHaveBeenLastCalledWith({ where: { id: "run-1" }, data: { status: "paused" } });
+    expect(update).toHaveBeenLastCalledWith({ where: { id: "run-1" }, data: { status: "paused", pause_reason: "manual", resume_after: null } });
 
     await pause("run-1", "cost cap exceeded");
     expect(update).toHaveBeenLastCalledWith({
       where: { id: "run-1" },
-      data: { status: "paused", last_error: "cost cap exceeded" },
+      data: { status: "paused", pause_reason: "manual", resume_after: null, last_error: "cost cap exceeded" },
     });
   });
 
@@ -115,19 +117,17 @@ describe("generationRun lifecycle", () => {
     const mod = await import("./generationRun");
 
     await mod.resume("run-1");
-    expect(update).toHaveBeenLastCalledWith({ where: { id: "run-1" }, data: { status: "running", last_error: null } });
+    expect(update).toHaveBeenLastCalledWith({ where: { id: "run-1" }, data: { status: "running", last_error: null, pause_reason: null, resume_after: null } });
 
     await mod.cancel("run-1");
-    expect(update).toHaveBeenLastCalledWith({ where: { id: "run-1" }, data: { status: "cancelled" } });
+    expect(update).toHaveBeenLastCalledWith({ where: { id: "run-1" }, data: { status: "cancelled", pause_reason: null, resume_after: null } });
 
     await mod.markNeedsReview("run-1", "quality gate failed at ch7");
-    expect(update).toHaveBeenLastCalledWith({
-      where: { id: "run-1" },
-      data: { status: "needs_review", last_error: "quality gate failed at ch7" },
-    });
+    expect(updateMany).toHaveBeenCalledWith({ where: { id: "run-1", status: { in: ["running", "planning"] } },
+      data: { status: "needs_review", last_error: "quality gate failed at ch7", pause_reason: null, resume_after: null } });
 
     await mod.markCompleted("run-1");
-    expect(update).toHaveBeenLastCalledWith({ where: { id: "run-1" }, data: { status: "completed", last_error: null } });
+    expect(update).toHaveBeenLastCalledWith({ where: { id: "run-1" }, data: { status: "completed", last_error: null, pause_reason: null, resume_after: null } });
   });
 
   it("markFailed truncates the error to 1000 chars", async () => {
@@ -138,4 +138,23 @@ describe("generationRun lifecycle", () => {
     expect(call.data.status).toBe("failed");
     expect(call.data.last_error).toHaveLength(1000);
   });
+});
+
+describe("atomic daily accounting", () => {
+  it("increments the same day, resets a new day, and rejects invalid costs", async () => {
+    const { addCost } = await import("./generationRun");
+    update.mockResolvedValueOnce({ id: "r", cost_day: "2026-10-01" }).mockResolvedValueOnce({ id: "r" });
+    await addCost("r", 0.2, new Date("2026-10-01T15:59:59Z"));
+    expect(update.mock.calls.at(-1)![0].data).toEqual({ cost_day: "2026-10-01", daily_cost_cny_spent: { increment: 0.2 } });
+    update.mockResolvedValueOnce({ id: "r", cost_day: "2026-10-01" }).mockResolvedValueOnce({ id: "r" });
+    await addCost("r", 0.3, new Date("2026-10-01T16:00:00Z"));
+    expect(update.mock.calls.at(-1)![0].data).toEqual({ cost_day: "2026-10-02", daily_cost_cny_spent: 0.3 });
+    await expect(addCost("r", NaN)).rejects.toThrow("Invalid"); await expect(addCost("r", -1)).rejects.toThrow("Invalid");
+  });
+});
+
+it("late receipts only change cumulative spend", async () => {
+  vi.clearAllMocks(); update.mockResolvedValue({id: "r", cost_day: "2026-10-02"});
+  await (await import("./generationRun")).addCost("r", 0.2, new Date("2026-10-01T00:00:00Z"));
+  expect(update).toHaveBeenCalledTimes(1);
 });

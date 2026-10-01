@@ -13,7 +13,8 @@
 import { prisma } from "@/lib/db";
 import { decryptApiKey } from "@/lib/llm/encryption";
 import { errorMessage, logInfo, logError, logWarn } from "@/lib/observability/logger";
-import { logUsage } from "@/lib/llm/usage";
+import { logUsage, checkQuota } from "@/lib/llm/usage";
+import { getLlmCallContext } from "./callContext";
 
 const EXPECTED_DIM = 1024;
 
@@ -25,10 +26,11 @@ interface ResolvedEmbeddingConfig {
 }
 
 async function resolveConfig(): Promise<ResolvedEmbeddingConfig> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const row = await prisma.embeddingModel.findFirst({
+    const row = await Promise.race([prisma.embeddingModel.findFirst({
       where: { is_default: true, is_enabled: true },
-    });
+    }), new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), 500); })]);
     if (row) {
       return {
         baseUrl: row.base_url.replace(/\/$/, ""),
@@ -41,7 +43,7 @@ async function resolveConfig(): Promise<ResolvedEmbeddingConfig> {
     logWarn("embedding.config_db_fallback", { reason: errorMessage(err) });
     // DB unreachable / table missing — fall through to env. The env
     // fallback is the documented escape hatch (B-D-04), never hard-fail here.
-  }
+  } finally { if (timer) clearTimeout(timer); }
 
   const apiKey = process.env.EDGEFN_API_KEY;
   if (!apiKey) {
@@ -82,6 +84,19 @@ function extractEmbeddings(json: unknown): number[][] {
 }
 
 export async function createEmbeddings(texts: string[]): Promise<number[][]> {
+  const context = getLlmCallContext();
+  await context?.beforeCall?.();
+  context?.signal?.throwIfAborted();
+  if (context?.enforceQuota && context.userId) {
+    const quota = await checkQuota(context.userId);
+    if (!quota.allowed) {
+      await context.onQuotaBlocked?.(quota);
+      throw new Error(quota.reason ?? "QUOTA_EXCEEDED");
+    }
+  }
+  const signal = context?.signal
+    ? AbortSignal.any([context.signal, AbortSignal.timeout(30_000)])
+    : AbortSignal.timeout(30_000);
   const cfg = await resolveConfig();
   const startMs = Date.now();
 
@@ -97,6 +112,7 @@ export async function createEmbeddings(texts: string[]): Promise<number[][]> {
         model: cfg.model,
         input: texts,
       }),
+      signal,
     });
   } catch (err) {
     const tookMs = Date.now() - startMs;
@@ -164,17 +180,24 @@ export async function createEmbeddings(texts: string[]): Promise<number[][]> {
     status: "ok",
   });
 
-  logUsage({
-    userId: "system",
+  const usage = (json as { usage?: { prompt_tokens?: number; total_tokens?: number } }).usage;
+  const tokenIn = usage?.prompt_tokens ?? usage?.total_tokens ?? texts.reduce((sum, t) => sum + t.length, 0);
+  const price = Number(process.env.EMBEDDING_CNY_PER_MILLION_TOKENS ?? 0);
+  if (!Number.isFinite(price) || price < 0) throw new Error("Invalid embedding token price");
+  const costCny = tokenIn * price / 1_000_000;
+  await logUsage({
+    userId: context?.userId ?? "system",
+    novelId: context?.novelId,
     route: "/embedding",
     agent: "retrieval",
     model: cfg.model,
-    tokenIn: texts.reduce((sum, t) => sum + t.length, 0),
-    tokenOut: texts.length * EXPECTED_DIM,
-    costCny: 0,
+    tokenIn,
+    tokenOut: 0,
+    costCny,
     status: "ok",
     tookMs,
-  }).catch(() => {});
+  });
+  if (costCny > 0) await context?.onCost?.(costCny);
 
   return embeddings;
 }

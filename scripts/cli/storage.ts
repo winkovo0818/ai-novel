@@ -5,6 +5,7 @@ import {
   existsSync,
   readdirSync,
   unlinkSync,
+  renameSync,
 } from "fs";
 import { resolve, join } from "path";
 import type {
@@ -22,7 +23,8 @@ import type {
 /* ------------------------------------------------------------------ */
 
 export function projectDir(exportDir: string, title: string): string {
-  return resolve(exportDir, title);
+  const safeTitle = title.replace(/[\/\\<>:"|?*\x00-\x1f]/g, "-").replace(/^\.+$/, "untitled");
+  return resolve(exportDir, safeTitle || "untitled");
 }
 
 export function initProjectDir(exportDir: string, title: string): string {
@@ -37,7 +39,9 @@ export function initProjectDir(exportDir: string, title: string): string {
 /* ------------------------------------------------------------------ */
 
 function saveJson<T>(filePath: string, data: T): void {
-  writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+  const temporary = `${filePath}.${process.pid}.tmp`;
+  writeFileSync(temporary, JSON.stringify(data, null, 2), "utf-8");
+  renameSync(temporary, filePath);
 }
 
 function loadJson<T>(filePath: string, fallback: T): T {
@@ -150,7 +154,7 @@ export function loadNotes(dir: string): NotesData {
 export function saveChapter(dir: string, index: number, title: string, content: string): void {
   const safeTitle = title.replace(/[\/\\<>:"|?*]/g, "-");
   const filename = `${String(index).padStart(2, "0")}-${safeTitle}.md`;
-  writeFileSync(join(dir, "chapters", filename), `# 第${index}章 · ${title}\n\n${content}`, "utf-8");
+  writeFileSync(join(dir, "chapters", filename), `# 第${index}章 · ${title}\n\n${content}`, { encoding: "utf-8", flag: "wx" });
 }
 
 export function loadChapter(dir: string, index: number): { title: string; content: string } | null {
@@ -180,33 +184,34 @@ export function countChapters(dir: string): number {
 
 export function acquireLock(dir: string): boolean {
   const lockPath = join(dir, ".run.lock");
-  if (existsSync(lockPath)) {
-    const raw = readFileSync(lockPath, "utf-8");
-    try {
-      const { pid, timestamp } = JSON.parse(raw);
-      // Stale lock (>30 min)
-      if (Date.now() - timestamp > 30 * 60 * 1000) {
-        releaseLock(dir);
-        return acquireLock(dir);
-      }
-      // Check if process still running
-      try {
-        process.kill(pid, 0);
-        return false; // Lock held by live process
-      } catch {
-        releaseLock(dir);
-        return acquireLock(dir);
-      }
-    } catch {
-      releaseLock(dir);
-      return acquireLock(dir);
-    }
+  try {
+    writeFileSync(lockPath, JSON.stringify({ pid: process.pid, timestamp: Date.now() }), { encoding: "utf-8", flag: "wx" });
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
   }
-  writeFileSync(lockPath, JSON.stringify({ pid: process.pid, timestamp: Date.now() }), "utf-8");
-  return true;
+  // Serialize stale-lock recovery so a second recovery cannot remove a new owner.
+  const recoveryPath = join(dir, ".run.recover.lock");
+  try {
+    writeFileSync(recoveryPath, String(process.pid), { encoding: "utf-8", flag: "wx" });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw error;
+  }
+  try {
+    const { pid } = JSON.parse(readFileSync(lockPath, "utf-8"));
+    if (!Number.isInteger(pid) || pid <= 0) return false;
+    try { process.kill(pid, 0); return false; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") return false; }
+    unlinkSync(lockPath);
+    return acquireLock(dir);
+  } catch { return false; }
+  finally { unlinkSync(recoveryPath); }
 }
 
 export function releaseLock(dir: string): void {
   const lockPath = join(dir, ".run.lock");
-  if (existsSync(lockPath)) unlinkSync(lockPath);
+  if (!existsSync(lockPath)) return;
+  const { pid } = JSON.parse(readFileSync(lockPath, "utf-8"));
+  if (pid === process.pid) unlinkSync(lockPath);
 }

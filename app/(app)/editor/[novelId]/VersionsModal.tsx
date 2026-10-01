@@ -18,6 +18,7 @@ interface VersionsModalProps {
   currentContent: string;
   currentTitle: string;
   chapterId?: string;
+  chapterVersion: number;
   onClose(): void;
   /** Receives the freshly restored ChapterDraft so the editor can sync state without a full reload. */
   onRestored(chapter: ChapterDraftView): void;
@@ -34,6 +35,7 @@ export function VersionsModal({
   currentContent,
   currentTitle,
   chapterId,
+  chapterVersion,
   onClose,
   onRestored,
 }: VersionsModalProps) {
@@ -76,6 +78,8 @@ export function VersionsModal({
     try {
       const res = await fetch(`/api/chapters/${chapterId}/versions/${version.id}/restore`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expected_version: chapterVersion }),
       });
       const json = await res.json();
       if (!json.ok) throw new Error(json.error?.message ?? "恢复失败");

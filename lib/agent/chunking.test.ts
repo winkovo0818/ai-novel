@@ -7,6 +7,7 @@ const createEmbedding = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({ memoryChunk: { deleteMany }, $executeRawUnsafe: executeRawUnsafe }),
     memoryChunk: { deleteMany },
     $executeRawUnsafe: executeRawUnsafe,
   },
@@ -30,6 +31,14 @@ function embedding() {
 }
 
 describe("chunkChapterContent", () => {
+  it("retains short dialogue, the final paragraph, and all long paragraph characters", async () => {
+    const { chunkChapterContent } = await load();
+    const original = Array.from({ length: 90 }, (_, i) => `「第${i}句短对白。」`).join("\n\n") + "\n\n" + "长".repeat(1601) + "\n\n结尾";
+    const chunks = chunkChapterContent(original);
+    expect(chunks.map(c => c.text).join("").replace(/\s/g, "")).toBe(original.replace(/\s/g, ""));
+    expect(chunks.every(c => c.text.length <= 800)).toBe(true);
+  });
+
   it("splits content into typed chunks", async () => {
     const paragraph = `第1段。主角站在城门口，望着远处的山脉。风很大，吹得他的披风猎猎作响。他深吸一口气，迈出了坚定的步伐。前方是未知的旅程，但他已经做好了准备。这条路通往传说中的遗迹，据说那里藏着能够改变世界命运的力量。主角握紧了手中的剑，眼神坚定。他知道，从这一刻起，自己的人生将彻底改变。无论前方有多少艰难险阻，他都不会退缩。`;
     const content = Array.from({ length: 10 }, () => paragraph).join("\n\n");
@@ -129,4 +138,9 @@ describe("indexChapter", () => {
       "chapter",
     );
   });
+});
+
+it("clears old chunks atomically for an empty chapter", async () => {
+  const { indexChapter } = await load(); await indexChapter("n", "c", "");
+  expect(deleteMany).toHaveBeenCalledWith({ where: { chapter_id: "c" } });
 });

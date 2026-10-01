@@ -18,6 +18,36 @@
 
 ## 最近更新
 
+- **2026-10-02（预算调度与真实验收）** — 每日预算、日/月配额到期唤醒、队列资源等待及站内提醒落地。新增明确不限累计预算策略和验收停止章数；真实验收在第二章进入待审，尚未达到百章目标。
+
+- **2026-10-01（长期记忆与卷规划）** — 新增四张独立表及迁移、按需/批量回填、按章节读取与来源版本检查；章节大纲按变更同步。卷计划保存阶段目标、冲突、人物变化、高潮和线索期限，接入规划、起草、审校和修订；到期未回收或历史不可用时暂停待审。新增所有者记忆查询与详情页进度面板，备份检查纳入新表。
+
+- **2026-10-01（持续连载、可靠性修复与实测）** — 原子版本写入及恢复、自动生成与后处理提交前的执行权检查、事务内入队、类型级并发取任务锁、心跳和超时取消；完整响应体超时；审校失效与最终修订质量门修复；短段落与历史检索边界修复。后台持久化分批规划、持续连载、任务链修复和 worker 数据库异常退避；界面接通检查点、规划暂停和预算调整。CLI 使用统一 schema/管线并接通恢复和预算。生产 CSP nonce、详情导航加载边界及节拍起草按钮修复，Docker standalone 和 pgvector 本地环境实测。
+
+### 2026-10-02 验证证据与边界
+
+- Vitest：145 files / 1287 tests；覆盖率 lines/statements 83.01%、functions 94.91%、branches 85.41%，满足现有门禁。覆盖率配置仍排除 API `route.ts`、TSX 和 scripts，不能把该数字解释成全仓覆盖率。
+- Playwright 在生产构建下 13 条全绿（12 条产品用例 + 真实登录 setup），覆盖持续连载配置、规划暂停、预算调整、恢复与取消，以及卷目标/期限/校准提示展示、真实登录、新建作品、书架跳转、节拍起草、候选稿丢弃/追加/覆盖/差异预览、错误保护、未保存切章确认、自动保存、快捷键保存、恢复版本及刷新持久化、导出成功/失败。最后一轮显式传入专用的 `E2E_DATABASE_URL` / `E2E_DIRECT_URL`，使用本机 Chrome、单 worker，13 条用例通过并正常退出（约 1.1m），验证测试夹具和服务均使用同一隔离库；没有身份或限流绕过。Embedding 未配置，RAG 检索降级为空；本轮浏览器用例未验证真实向量召回。
+- `typecheck`、生产 `build` 通过；lint 0 errors、6 warnings，来自原有 BibleEditorPanel、signup、useModelAdmin、CLI Poller。
+- 隔离的本地 PostgreSQL 16 + pgvector 应用全部 33 条 migration。`scripts/reliability-smoke.ts` 使用独立 schema，验证真实并发保存只能成功一次、并行取任务受并发上限约束、长任务不被五分钟规则误回收、旧执行权失效及超时取消后无法提交；结束会删除该 schema。可复现命令：`RELIABILITY_DATABASE_URL=<专用本地测试库连接串> npx tsx scripts/reliability-smoke.ts`。
+- Docker 镜像构建成功；容器 `/api/healthz` 返回 DB、pgvector、auth 全部正常；镜像内 worker 所需 `tsx` 可运行。此处未部署到生产。
+- `eval:check` 通过，fixture 基线均分 87.5 → 92.5；这是固定样本规则评分，不是本轮真实模型小说生成效果。
+- Next.js 锁定到 15.5.27，Auth.js 到 5.0.0-beta.32 / @auth/core 0.41.3，移除未使用且 peer 冲突的 ink-text-input。生产依赖 audit 仍有 5 条（4 high、1 moderate）：Prisma/deepmerge-ts 与 Next 内置 PostCSS 的依赖链；没有 critical。尚未进行 Next/Prisma 大版本迁移。[Next 安全公告](https://github.com/vercel/next.js/security/advisories/GHSA-2xp9-vwfh-vxw4)，[Auth.js 安全公告](https://github.com/nextauthjs/next-auth/security/advisories/GHSA-8fpg-xm3f-6cx3)。
+- 删除 Playwright 配置内的远程数据库凭据，改为必须显式传入 `E2E_DATABASE_URL`，CI 使用真实身份登录。旧凭据仍在 Git 历史中，需要账户持有人轮换；本轮没有更改远程账号或数据库。
+- 成本依赖 `LLM_PRICING_JSON` 和 embedding 报价；未配置使用旧估价。调用前检查已经发生的费用，单次调用及异步后处理可能超额。根布局为动态渲染以匹配逐请求 CSP nonce，不能复用静态 HTML 缓存。
+- 自动连载接入按章版本化记忆；较早章节改写、旧作品回填前历史及手动编辑器的全局状态仍需人工校准。文件 CLI 的章节、Bible、进度分别原子写入，跨文件没有数据库式事务；进程异常后需核对状态。数据库模式 planning 由独立 worker 恢复；本地文件 CLI 仍需按文件进度核对恢复。
+
+- `scripts/continuous-generation-smoke.ts` 在真实隔离 schema 上验证 7 项：80 章后启动、第二卷规划及入队第 81 章、并发恢复和孤立任务修复只入队一次、真实章节管线将低质量 mock 草稿挂起、人工批准后扩展下一批、耗尽重试显式失败和恢复、并发启动只有一个 run。可复现：`RELIABILITY_DATABASE_URL=<专用本地测试库连接串> npx tsx scripts/continuous-generation-smoke.ts`。使用 mock 模型和未配置 embedding 的检索降级；未验证真实模型长篇品质或多日可用性。
+- 持续连载仍需常驻 worker 和稳定模型服务。Bible 大纲仍以一个 JSON 存储，会随连载增长；最近剧情提示有界并不等于所有存储与页面都有界。卷目标、高潮、人物变化及回收期限已保存并参与生成；跨卷重复检测和支线配额尚未实现。资源等待已持久化下次执行时间，并在配额重置后唤醒；站内提醒及 Prometheus/Grafana 告警规则已接入，未配置外部通知目的地。累计预算属于调用前的软停止阈值。
+- `scripts/story-memory-smoke.ts` 在独立 schema 上验证并发回填、25 条事件归档与有界读取、历史版本/旧目标召回、正文改动失效、事务回滚、唯一当前版本、并发卷计划保存与复用、旧快照历史边界。新迁移在本地 PostgreSQL 16 + pgvector 全部应用成功，未迁移或回填远程库。可复现：`RELIABILITY_DATABASE_URL=<专用本地测试库连接串> npx tsx scripts/story-memory-smoke.ts`。卷计划使用 mock；浏览器的计划内容展示使用 API 响应夹具，实际保存与复用另由数据库 smoke 验证。 批量回填 CLI 默认预览读取 12 份有效 Bible，未写入；本地 `BACKUP_CHECK_REQUIRE_BACKUP=0` 的连通性检查通过并包含新表，尚未进行真实备份恢复演练。
+
+- Playwright CLI 使用真实登录态额外验证不限累计预算、每日预算保存、模拟到期等待显示及停止自动唤醒、修改预算保持暂停、书架提醒确认。配置与确认结果由专用测试库核对，确认不恢复待审任务；提醒截图在 `output/playwright/generation-alerts.png`。等待状态使用数据库夹具，定时唤醒另由数据库 smoke 验证。
+- `scripts/generation-budget-smoke.ts` 在隔离 schema 验证并发每日费用更新、零点重置、迟到费用不重置当日计数、资源等待不计重试、并发唤醒只保留一个后继、人工暂停及提醒确认/消除。持续连载和记忆 smoke 在新迁移下再次通过。
+- 真实验收使用数据库默认 `deepseek-v4-flash` 和真实 `BAAI/bge-m3` embedding。第 1 章通过；第 2 章状态模型返回 16 条变更，超过单章 15 条约束，正文保存为草稿，任务 `needs_review`。估价约 0.202034 元，摘要与索引排空；未完成 100 章，不构成长篇质量结论。报告与正文保留于 `artifacts/serial-agent/0c60a65f-91c1-4f33-be70-0e233ce35d19/`；独立本地验收数据库保留，远程库仅只读读取模型配置。导出不含模型密钥。
+
+以下历史条目保留原日期；涉及当前质量门、冷启动、成本和测试基线时，以本节和当前代码为准。
+
+
 - **2026-05-30 (全自动整本生成 M3 · 质量门 + needs_review + 成本兜底)** — 续上次中断：`lib/jobs/generateChapterHandler.ts` 自链收尾从纯链 `chainNextChapter` 升级为 `finalizeRun`，接入 T12 质量门（末 3 章滑窗 `evaluateChapterGate`，折百阈值 + 维度硬门 `ai_voice≥6` / `logic≥7`，冷启动 <3 章跳过；未达标且 `checkpoint_mode≠none`→`markNeedsReview` 止链，`none` 仅记录续跑）与 T13 成本兜底（`cost_cny_spent>cost_cap_cny`→`pause` 可 resume；输出 `moderateContent` 命中→`markNeedsReview` 且不落违规正文）。`.env.example` 补 `JOB_GENERATE_CHAPTER_*` 与「`JOBS_WORKER_TYPES` 须含 `generate_chapter`」说明。handler 测试 10→14 例、qualityGate 6 例；Vitest 937 → **947 tests / 122 files** 全绿，typecheck + 改动文件 lint 干净。详见 `docs/IMPL_AUTO_NOVEL_GENERATION_M1-M3.md`。
 - **2026-05-29 (Sprint Day 2-10 · AI 质量可控可迭代收官)** — 10 天冲刺完成（详见 `docs/SPRINT_AI_QUALITY_2026-05-29.md`）。Day 2-4：critic 检查维度 5→7（加 `logic_chain` / `prose_quality`），chapter prompt 加悬疑分支，`generationPolicy` 暴露 topP/penalty 并对悬疑子题材 bump，真实 LLM 验证 urban-suspense 修订后 91.4/100。Day 5：玄幻 12 章长篇基线 67/70，`scripts/eval-novel-quality.ts` 加滑动窗口轨迹 + `analyzeDecay`（排除冷启动 partial 窗口、区分回撤回升 vs 真衰减），确认无明显衰减，归档 `docs/evals/long-form-baseline-2026-05-29.md`。Day 6-7：`MemoryFeedback` 真接入 `lib/agent/retrieval.ts`（feedbackFactor 乘数 + irrelevant≥2 过滤 + `RETRIEVAL_USE_FEEDBACK` flag），retrieval 单测 +3、eval-retrieval feedback 对照 case，实测 recall@3 0.5→1.0。Day 8-9：新增 `scripts/eval-critic-revise.ts`，critic 提示拆「主观克制 / 客观必报」两套尺度 + revise 针对性机制，critic recall 33%→100%、revise 命中 100%，归档 `docs/evals/critic-revise-hit-rate.md`。Day 10：`lib/llm/writerOutputCleanup.ts` 规则集化 + `cleanupWriterOutputWithReport`，`lib/evals/novelQuality.ts` 清洗前 AI 签名命中 ≥5 扣分，matrix / long-form 报告加「清洗前 AI 签名命中」表（仅真实生成有数据，fixture_fallback baseline 不变）。Vitest 888 → **907 tests / 115 files**；lint 0 error；`npm run verify` 通过；`eval:check` 87.5→87.5。
 - **2026-05-29 (Sprint Day 1 · eval baseline 入 CI verify)** — 新增 `lib/evals/novelQualityBaseline.ts` + 8 单元测试；`scripts/eval-novel-quality-matrix.ts` 加 `--baseline` / `--tolerance`；冻结 `docs/evals/baselines/novel-quality-matrix-fixture-fallback-2026-05-29.json` 作 baseline（fixture_fallback，4 cases，avg 87.5/100）；`package.json` 加 `eval:check` 并入 `verify` 链路；`.github/workflows/ci.yml` verify job 新增 Eval quality baseline check step；顺手修 `lib/jobs/handlers.test.ts` mock 失效（`chatCompletion` → `chatCompletionWithRetry` + retry 参数断言）；顺手补 STATUS.md / HEALTH.md 数字漂移。Vitest 117 files / 888 tests 全绿；docs:check 13/13 通过。
@@ -73,16 +103,16 @@
 | 命令 | 结果 | 备注 |
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
-| `npm run lint` | ✅ 通过（零 warning） | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **126 files / 1030 tests** 全绿,约 3s | auto-generate API 测试并入，清理残留 copy 文件 |
+| `npm run lint` | ✅ 0 errors，6 条已有 warning | eslint + next/core-web-vitals |
+| `npm run test` | ✅ **145 files / 1287 tests** 全绿,约 3s | 新增并发、取消、审校、恢复及 CLI 回归覆盖 |
 | `npm run build` | ✅ 通过 | |
-| Playwright E2E | ✅ 8 tests（onboarding / editor-failure / editor-candidate × 4 / version-restore / beat-to-draft）全绿；P0-1 后按钮文案对齐 M1.3 候选稿模式 | 本轮全量 `npx playwright test` 已通过 |
+| Playwright E2E | ✅ 13 条全绿，约 1.1m（12 条产品用例 + 登录 setup） | 独立测试 DB、真实登录，每例独立账号；LLM_MOCK=1 |
 | `npm run smoke:onboarding` | ✅ 通过 | 2026-05-15 本地生产服务 + `LLM_MOCK=1` |
 | `npm run backup:check` | 待生产配置后运行 | 需设置 `BACKUP_LAST_SUCCESS_AT` 或 `BACKUP_CHECK_LAST_SUCCESS_AT` |
-| Coverage（v8） | ✅ lines/statements 68 · functions 93 · branches 83 阈值入 CI；基线 70.04/94.24/85.50 | summaries / handlers / chapterStatus 100% |
-| Prisma migrations | 31 条 | 含 `20260515010000_add_authjs_tables`；部署前需 `prisma migrate deploy` |
+| Coverage（v8） | ✅ lines/statements 68 · functions 93 · branches 83 阈值入 CI；当前 lines/statements 82.8 / functions 94.23 / branches 85.18 | summaries / handlers / chapterStatus 100% |
+| Prisma migrations | 33 条 | 含 `20260515010000_add_authjs_tables`；部署前需 `prisma migrate deploy` |
 
-**规模**：业务源码 17,500+ LoC（136 ts/tsx）；测试 7,700+ LoC（126 个 .test.ts）；61 个 API route + 28 个 page.tsx；24 个 Prisma model。
+**规模**：145 个 .test.ts；63 个 API route + 28 个 page.tsx；33 条 Prisma migration；29 个 Prisma model。
 
 ---
 
@@ -181,8 +211,10 @@ F-01 多人实时协作 / F-02 分支创作 / F-03 平台直发 / F-04 角色关
 
 > 完成任意一件后回到本文档勾掉对应 §三 待办、刷新 §一 基线、并在 §最近更新 加一行摘要。
 
-1. **生产环境发布 smoke** — 部署后对生产地址跑 `/api/healthz`、登录、onboarding、起草、导出和 cron 鉴权检查，确认 env 与数据库迁移状态一致。
-2. **内容审核策略复盘** — review queue 跑一段真实样本后，按 false-positive / confirmed 比例调整关键词与 LLM 审核提示词。
+1. **真实长篇验收** — 冻结作品种子、模型与预算，先跑 100 章，检查跨卷衔接、人物状态、重复冲突和伏笔回收，再进行多日故障演练。
+2. **日预算与连载告警** — 实现配额重置唤醒、供应商故障退避与待审通知。
+3. **生产环境发布 smoke** — 部署后对生产地址跑 `/api/healthz`、登录、onboarding、起草、导出和 cron 鉴权检查，确认 env 与数据库迁移状态一致。
+4. **内容审核策略复盘** — review queue 跑一段真实样本后，按 false-positive / confirmed 比例调整关键词与 LLM 审核提示词。
 
 ---
 
@@ -200,7 +232,7 @@ npm run backup:check
 脚本检查项：
 
 - 数据库连接是否可用。
-- `User`、`Novel`、`BibleDraft`、`ChapterDraft`、`ChapterVersion`、`MemoryChunk`、`LlmUsage`、`ModerationAudit`、`BackgroundJob`、`DraftSession`、`ExportEvent` 等关键表是否可统计。
+- `User`、`Novel`、`BibleDraft`、`ChapterDraft`、`ChapterVersion`、`MemoryChunk`、`StoryMemoryCheckpoint`、`StoryMemoryRecord`、`NovelOutlineChapter`、`NovelVolumePlan`、`LlmUsage`、`ModerationAudit`、`BackgroundJob`、`DraftSession`、`ExportEvent` 等关键表是否可统计。
 - 最近一次应用写入时间，避免误连空库或旧库。
 - 最近一次外部备份成功时间。生产环境默认要求设置 `BACKUP_LAST_SUCCESS_AT` 或 `BACKUP_CHECK_LAST_SUCCESS_AT`，超过 `BACKUP_CHECK_MAX_BACKUP_AGE_HOURS` 会失败。
 - 如果检查提示 `relation "... " does not exist`，先确认目标数据库已执行 `npm run db:deploy`，再重跑检查。

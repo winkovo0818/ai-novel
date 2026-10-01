@@ -11,6 +11,9 @@ import {
 } from "../lib/jobs/queue";
 
 import "../lib/jobs/handlers";
+import { reconcileGenerationAlerts } from "../lib/agent/generationAlerts";
+import { wakeScheduledGenerationRuns } from "../lib/agent/generationWake";
+import { reconcileGenerationRuns } from "../lib/agent/generationScheduling";
 
 interface WorkerLogger {
   log(message: string): void;
@@ -42,38 +45,55 @@ export async function runJobsWorker(options: JobsWorkerOptions = {}): Promise<Jo
   let processed = 0;
   let swept = 0;
   let nextSweepAt = 0;
+  let consecutiveErrors = 0;
 
   logger.log("[jobs-worker] started");
 
   while (!options.signal?.aborted) {
-    const now = Date.now();
-    if (now >= nextSweepAt) {
-      const sweepCount = await sweepStaleRunningJobs(options.novelId);
-      swept += sweepCount;
-      if (sweepCount > 0) logger.warn(`[jobs-worker] requeued ${sweepCount} stale running job(s)`);
-      nextSweepAt = now + sweepIntervalMs;
-    }
-
-    const status = await runNextJob({
-      novelId: options.novelId,
-      type: options.type,
-      status: "pending",
-    });
-
-    if (status === null) {
-      if (options.once) {
-        logger.log(`[jobs-worker] queue idle; processed=${processed} swept=${swept}`);
-        return { processed, swept, stoppedReason: "idle" };
+    try {
+      const now = Date.now();
+      if (now >= nextSweepAt) {
+        const sweepCount = await sweepStaleRunningJobs(options.novelId);
+        swept += sweepCount;
+        if (sweepCount > 0) logger.warn(`[jobs-worker] requeued ${sweepCount} stale running job(s)`);
+        const types = options.type == null ? [] : typeof options.type === "string" ? [options.type] : options.type;
+        if (types.length === 0 || types.includes("generate_chapter") || types.includes("plan_outline")) {
+          const woken = await wakeScheduledGenerationRuns(options.novelId);
+          if (woken) logger.log(`[jobs-worker] woke ${woken} budget/quotas run(s)`);
+          const repaired = await reconcileGenerationRuns(options.novelId);
+          if (repaired) logger.warn(`[jobs-worker] reconciled ${repaired} generation run(s)`);
+          await reconcileGenerationAlerts(options.novelId);
+        }
+        nextSweepAt = now + sweepIntervalMs;
       }
-      await sleep(pollIntervalMs, options.signal);
-      continue;
-    }
 
-    processed += 1;
-    logger.log(`[jobs-worker] job finished with status=${status}`);
+      const status = await runNextJob({
+        novelId: options.novelId,
+        type: options.type,
+        status: "pending",
+      });
 
-    if (status === "pending") {
-      await sleep(pollIntervalMs, options.signal);
+      consecutiveErrors = 0;
+      if (status === null) {
+        if (options.once) {
+          logger.log(`[jobs-worker] queue idle; processed=${processed} swept=${swept}`);
+          return { processed, swept, stoppedReason: "idle" };
+        }
+        await sleep(pollIntervalMs, options.signal);
+        continue;
+      }
+
+      processed += 1;
+      logger.log(`[jobs-worker] job finished with status=${status}`);
+
+      if (status === "pending") {
+        await sleep(pollIntervalMs, options.signal);
+      }
+    } catch (error) {
+      if (options.once) throw error;
+      const retryMs = Math.min(30_000, 500 * 2 ** Math.min(consecutiveErrors++, 6));
+      logger.error(`[jobs-worker] queue unavailable; retry in ${retryMs}ms: ${error instanceof Error ? error.message : String(error)}`);
+      await sleep(retryMs, options.signal);
     }
   }
 
@@ -125,11 +145,13 @@ function numberFromEnv(name: string, fallback: number): number {
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (ms <= 0 || signal?.aborted) return Promise.resolve();
   return new Promise((resolveSleep) => {
-    const timer = setTimeout(resolveSleep, ms);
-    signal?.addEventListener("abort", () => {
+    const finish = () => {
       clearTimeout(timer);
+      signal?.removeEventListener("abort", finish);
       resolveSleep();
-    }, { once: true });
+    };
+    const timer = setTimeout(finish, ms);
+    signal?.addEventListener("abort", finish, { once: true });
   });
 }
 

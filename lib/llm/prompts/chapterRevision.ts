@@ -1,3 +1,4 @@
+import { formatVolumeArc } from "@/lib/agent/volumePlan";
 import type { ChapterContext } from "@/lib/agent/chapterContext";
 import type { CriticIssue } from "@/lib/agent/contracts";
 import type { ChatMessage } from "@/lib/llm/client";
@@ -73,7 +74,7 @@ ${HUMAN_STYLE_DIRECTIVE}
     },
     {
       role: "user",
-      content: `小说标题：${wrap(bible.meta.suggested_title, "outline_title")}
+      content: `${formatVolumeArc(context.volumeArc)}\n\n小说标题：${wrap(bible.meta.suggested_title, "outline_title")}
 章节：第 ${context.outline.chapterIndex} 章《${wrap(context.outline.title, "chapter_title")}》
 
 章节大纲：

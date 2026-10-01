@@ -1,6 +1,6 @@
 # 小说质量矩阵测评报告
 
-- 生成时间：2026-06-21T17:29:38.517Z
+- 生成时间：2026-10-01T17:21:03.461Z
 - 模式：fixture fallback
 - 题材样例：xuanhuan-seed、urban-suspense、scifi-hard、history-conservative
 - 模型：fixture-baseline

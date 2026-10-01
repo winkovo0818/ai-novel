@@ -64,19 +64,51 @@
 - **CSP Nonce** — 每请求 Content Security Policy
 - **SSRF 防护** — URL/协议/私网 IP 校验
 
-### 🤖 全自动整本生成 (Auto-Pilot)
+### 🤖 自动生成与持续连载 (Auto-Pilot)
 
-配置主题和质量偏好后，系统无人值守逐章生成整本小说——大纲规划、起草、自评自修、质量门控、落库全自动完成：
+支持固定章数与同一本小说持续连载。启动请求持久化任务，独立 worker 执行大纲规划、起草、审校、修订和质量检查：
 
-- **一键启动** — 小说详情页设置章数/质量阈值/成本上限，点击启动后后台自动跑完全本
-- **前置大纲补全** — 自动将种子大纲扩展到目标章数，每章获得真实标题与摘要（避免中后段失锚）
-- **逐章自修** — 每章起草后自动审校、修订，最多 N 轮，修不够不落库
+- **一键启动** — 小说详情页选择固定章数或持续连载，配置质量阈值、累计及每日预算，或显式选择不限累计预算
+- **后台分批规划** — 每次最多规划 20 章；连载写完当前批次后，结合最新剧情继续规划，新卷每卷最多 80 章
+- **逐章自修** — 每章起草后自动审校、修订，最多 N 轮，不合格正文保留为待审草稿
 - **质量门控** — 滑动窗口评分 + 维度硬门（AI 腔 ≥ 6 / 逻辑 ≥ 7），不达标自动挂起待人工介入
-- **成本兜底** — 累计花费超限自动暂停，可恢复
-- **断点续跑** — 中途关闭 worker 或崩溃后，`--resume` 从断点继续
-- **进度面板** — 详情页实时轮询进度条、当前章数、累计成本、状态标签
+- **预算与恢复** — 达到累计预算后暂停；暂停时可提高预算，再显式恢复。调用前检查，单次调用和后处理可能超出阈值
+- **自动唤醒** — 每日预算按北京时间零点重置，账户日/月配额到期恢复；资源等待不消耗重试次数，人工暂停和质量复核保持暂停
+- **运行提醒** — 书架显示待审、失败、累计预算和长时间无进展提醒；确认提醒不会恢复任务
+- **断点续跑** — worker 重启后回收失效执行权、修复缺失的后续任务；重试耗尽标记失败，可检查后恢复
+- **长期记忆** — 事实按章节保留历史版本，记录正文来源；按需召回旧线索，正文修改后提示校准
+- **卷级剧情规划** — 保存阶段目标、冲突、高潮、人物变化和伏笔期限；到期未回收时暂停待审
+- **进度面板** — 详情页显示章数、成本、任务状态、本卷目标及线索回收期限
 - **CLI 支持** — `npm run auto:generate -- --novel <id> --chapters 40` 脚本启动
-- **40 章验证** — 在真实 LLM 上跑完 40 章玄幻小说，长程一致性无衰减（平均 91.3/100）
+- **验证范围** — 历史真实模型样本覆盖有限长篇；本轮真实验收第一章通过，第二章因状态变更数量超限保留待审；百章和跨卷质量尚未验收
+
+持续连载使用数据库 CLI（本地文件 `auto:new` 仍为固定章数模式）：
+
+```bash
+npm run auto:generate -- --novel <id> --continuous --plan-ahead 10 --rounds 2 --floor 85 --cost-cap 5
+npm run jobs:worker
+```
+
+也可使用 `--unlimited-budget` 明确关闭任务累计上限，使用 `--daily-cost-cap N` 设置每日预算。账户级配额仍生效。独立真实样本验收：
+
+```bash
+# 默认预览，无模型调用；SERIAL_DATABASE_URL 必须是专用本地库
+SERIAL_DATABASE_URL=<local-database> npm run eval:serial -- --unlimited-budget
+# 执行后每步保留报告、正文和人工阅读记录；默认第 100 章停止
+SERIAL_DATABASE_URL=<local-database> npm run eval:serial -- --execute --unlimited-budget
+```
+
+两条命令需要相同的数据库配置。worker 应部署为常驻服务；关闭网页不会停止它，关闭本地机器则会停止本地 worker。
+
+升级时先应用迁移。旧作品会在首次读取时回填独立记忆与大纲表，也可先预览批量回填：
+
+```bash
+npm run db:deploy
+npm run memory:backfill                         # 只检查，不写入
+npm run memory:backfill -- --novel <id> --apply # 回填指定作品
+```
+
+回填从现存 Bible 快照开始，不能还原早已丢失的历史状态。Bible JSON 仍用于兼容编辑器，完整大纲的存储增长尚未消除。真实长篇质量、多日运行和每日预算自动唤醒仍需后续验收与实现。
 
 ---
 
@@ -241,6 +273,10 @@ ai-novel/
 | 模型 | CRUD `/llm-models` · `/embedding-models`（仅管理员）|
 | 可观测 | `GET /healthz` · `GET /healthz/llm` · `GET /metrics` |
 | 定时 | `GET /cron/draft-sessions/cleanup` · `GET /cron/moderation-audits/cleanup` |
+
+章节 PATCH 与版本恢复 POST 必须传 `expected_version`；冲突返回 409。自动生成的检查点、草稿复核与预算行为见 [接口契约补充](docs/contracts.md#2026-10-01-补充章节写入与自动生成)。
+
+浏览器验收必须设置指向独立测试库的 `E2E_DATABASE_URL`；`playwright.config.ts` 同时将服务和 Prisma 测试夹具指向该库。示例：`E2E_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_novel_e2e npm run test:e2e`。
 
 ---
 

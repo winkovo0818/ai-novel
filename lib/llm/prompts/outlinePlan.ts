@@ -1,6 +1,8 @@
 import type { ChatMessage } from "@/lib/llm/client";
-import { getAllChapters, type BibleDraft, type NovelProfile } from "@/lib/validation/schemas";
+import { getAllChapters, type BibleDraft, type NovelProfile, type StoryStateV1 } from "@/lib/validation/schemas";
 import { PROMPT_SAFETY_PREAMBLE, wrap, wrapOr } from "@/lib/llm/promptSafety";
+
+import { formatVolumeArc, type VolumeArc } from "@/lib/agent/volumePlan";
 
 export interface OutlinePlanPromptInput {
   profile: NovelProfile;
@@ -9,6 +11,12 @@ export interface OutlinePlanPromptInput {
   fromIndex: number;
   /** Last chapter index to plan (inclusive). */
   toIndex: number;
+  continuous?: boolean;
+  storyState?: StoryStateV1;
+  recentOutline?: Array<{chapter_index: number; title: string; summary: string}>;
+  volumePlans?: VolumeArc[];
+  recentProgress?: Array<{chapter_index: number; title: string; excerpt: string}>;
+  finalChapter?: number;
 }
 
 /**
@@ -33,9 +41,10 @@ export function buildOutlinePlanPrompt(input: OutlinePlanPromptInput): ChatMessa
     .map((f) => `- ${wrap(f.name, "faction")}（${f.alignment}）：${f.role}`)
     .join("\n");
 
-  const existing = getAllChapters(bible)
+  const state = input.storyState ?? bible.story_state;
+  const existing = (input.recentOutline?.map(c => ({ ...c, index: c.chapter_index })) ?? getAllChapters(bible))
     .filter((c) => c.index < fromIndex)
-    .sort((a, b) => a.index - b.index);
+    .sort((a, b) => a.index - b.index).slice(-20);
   const existingList = existing.length
     ? existing
         .map((c) => `- 第 ${c.index} 章《${wrap(c.title, "chapter_title")}》：${wrap(c.summary, "outline_summary")}`)
@@ -45,7 +54,8 @@ export function buildOutlinePlanPrompt(input: OutlinePlanPromptInput): ChatMessa
   return [
     {
       role: "system",
-      content: `你是资深网文大纲规划师。任务：在与已有设定、已规划章节保持连贯的前提下，为指定区间补全每一章的标题与一句话梗概，使整本书具备清晰的起承转合与节奏。
+      content: `你是资深网文大纲规划师。任务：在与已有设定、最新剧情状态、已规划章节保持连贯的前提下，为指定区间补全每一章的标题与一句话梗概。
+${input.continuous ? "这是长期连载。本次终点只是规划窗口，不是全书结局。推进并回收旧线索，形成阶段性成果，为下一阶段留下具体冲突；不要重复升级套路或强行完结。" : `全书目标为第 ${input.finalChapter ?? toIndex} 章；只有到全书目标时才安排结局，当前批次应承接整体节奏。`}
 
 ${PROMPT_SAFETY_PREAMBLE}
 
@@ -81,6 +91,21 @@ ${characters}
 
 ## 已规划章节（请承接，不要重复）
 ${existingList}
+
+## 最新剧情状态（已发生事实优先于早期计划）
+${wrap(JSON.stringify({
+  characters: state?.characters?.slice(0, 20),
+  timeline: state?.timeline?.slice(-20),
+  plot_threads: state?.plot_threads?.filter(t => t.status !== "resolved").slice(-20),
+  foreshadowing: state?.foreshadowing?.filter(t => t.status !== "resolved").slice(-20),
+  active_constraints: state?.active_constraints?.slice(-30),
+}).slice(0, 12000), "story_state")}
+
+## 最近已完成正文（事实优先于大纲计划）
+${wrap(JSON.stringify(input.recentProgress ?? []), "chapter_content")}
+
+## 本卷目标与线索期限
+${input.volumePlans?.map(formatVolumeArc).join("\n\n") ?? "（暂无独立卷规划）"}
 
 ## 本次任务
 请补全第 ${fromIndex} 到第 ${toIndex} 章（共 ${count} 章）的标题与梗概，输出 JSON。`,

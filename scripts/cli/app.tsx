@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Box, Text, useInput, useApp } from "ink";
 // TextInput replaced with direct useInput
 import Spinner from "ink-spinner";
@@ -9,8 +9,8 @@ import { CharactersPanel } from "./panels/CharactersPanel";
 import { UsagePanel } from "./panels/UsagePanel";
 import { bootstrapNovel } from "./bootstrap";
 import { runAutoGeneration } from "./generator";
-import { initProjectDir, saveNovelMeta, saveBible, saveOutline, saveProgress } from "./storage";
-import type { CliConfig,  } from "./types";
+import { initProjectDir, saveNovelMeta, saveBible, saveOutline, saveProgress, loadBible, loadOutline, loadNovelMeta, loadProgress, appendUsage } from "./storage";
+import type { CliConfig, UsageRecord } from "./types";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -196,15 +196,11 @@ export default function App({ config, prefillTheme, prefillLogline, prefillChapt
     intervalMs: 2000,
   });
 
-  // Sync chapter from progress
-  if (data?.progress.current) {
-    if (data.progress.current !== currentChapter) {
-      setCurrentChapter(data.progress.current);
-    }
-    if (data.progress.status === "completed" && screen === "generating") {
-      setScreen("done");
-    }
-  }
+  useEffect(() => {
+    if (!data) return;
+    if (data.progress.current) setCurrentChapter(data.progress.current);
+    if (data.progress.status === "completed") setScreen("done");
+  }, [data]);
 
   const handleSetupSubmit = useCallback(
     async (state: { theme: string; logline: string; chapters: number }) => {
@@ -212,14 +208,17 @@ export default function App({ config, prefillTheme, prefillLogline, prefillChapt
       setScreen("bootstrapping");
 
       try {
+        const bootstrapUsage: UsageRecord[] = [];
         const { bible, outline } = await bootstrapNovel(
           config, state.theme, state.logline, state.chapters,
           (label, text) => { setBootstrapLabel(label); setBootstrapText(text); },
+          record => bootstrapUsage.push(record),
         );
         const title = bible.meta.suggested_title;
         const dir = initProjectDir(config.output.export_dir, title);
         const novelId = `cli-${Date.now()}`;
 
+        for (const record of bootstrapUsage) appendUsage(dir, record);
         saveNovelMeta(dir, { title, theme: state.theme, logline: state.logline, created_at: new Date().toISOString() });
         saveBible(dir, bible);
         saveOutline(dir, outline.slice(0, state.chapters));
@@ -227,7 +226,7 @@ export default function App({ config, prefillTheme, prefillLogline, prefillChapt
           total: state.chapters,
           current: 0,
           status: "running",
-          cost: 0,
+          cost: bootstrapUsage.reduce((sum, record) => sum + record.total_cost, 0),
           cost_cap: config.generation.cost_cap_cny,
           model: config.llm.model,
           started_at: new Date().toISOString(),
@@ -244,6 +243,7 @@ export default function App({ config, prefillTheme, prefillLogline, prefillChapt
           outline,
           totalChapters: state.chapters,
           model: config.llm.model,
+          meta: { title, theme: state.theme, logline: state.logline, created_at: new Date().toISOString() },
         }).catch((err) => {
           setErrorMsg(err instanceof Error ? err.message : "Generation failed");
           setScreen("error");
@@ -257,6 +257,29 @@ export default function App({ config, prefillTheme, prefillLogline, prefillChapt
     },
     [config],
   );
+
+  const launched = useRef(false);
+  useEffect(() => {
+    if (launched.current) return;
+    launched.current = true;
+    if (resumeDir) {
+      const bible = loadBible(resumeDir);
+      const outline = loadOutline(resumeDir);
+      const meta = loadNovelMeta(resumeDir);
+      const progress = loadProgress(resumeDir);
+      if (!bible || !meta || !progress || !outline.length) {
+        setErrorMsg("恢复目录缺少有效的 Bible、大纲或进度文件"); setScreen("error"); return;
+      }
+      setTotalChapters(progress.total); setScreen("generating");
+      void runAutoGeneration({ config, dir: resumeDir, novelId: `cli-${resumeDir}`, bible, outline,
+        totalChapters: progress.total, model: config.llm.model, meta }).catch(error => {
+        setErrorMsg(error instanceof Error ? error.message : String(error)); setScreen("error");
+      });
+    } else if (prefillTheme && prefillLogline) {
+      void handleSetupSubmit({ theme: prefillTheme, logline: prefillLogline,
+        chapters: prefillChapters ?? config.generation.default_chapters });
+    }
+  }, [config, resumeDir, prefillTheme, prefillLogline, prefillChapters, handleSetupSubmit]);
 
   // Keyboard handler for generation mode
   const [genPanel, setGenPanel] = useState<1 | 2 | 3 | 4>(1);
