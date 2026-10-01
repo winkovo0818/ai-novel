@@ -61,3 +61,10 @@ cli-config.toml
 
 # Real evaluation novels and provider usage reports
 artifacts/serial-agent/
+
+# 宣传片渲染产物与本地 TTS 环境（源码入库，媒体与虚拟环境不入库）
+ai-novel-promo/.venv-tts/
+ai-novel-promo/renders/
+ai-novel-promo/.waveform-cache/
+ai-novel-promo/assets/*
+!ai-novel-promo/assets/narration-script.txt

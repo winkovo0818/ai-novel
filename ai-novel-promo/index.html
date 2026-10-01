@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #080706;
+      }
+
+      body {
+        color: #f3ead9;
+        font-family: sans-serif;
+      }
+
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #080706;
+      }
+
+      .scene {
+        position: absolute;
+        inset: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background-color: #080706;
+      }
+
+      #scene1 {
+        z-index: 1;
+      }
+
+      #scene2,
+      #scene3,
+      #scene4,
+      #scene5 {
+        opacity: 0;
+      }
+
+      .scene-bg {
+        position: absolute;
+        inset: -36px;
+        background-position: center;
+        background-size: cover;
+        will-change: transform, filter;
+      }
+
+      .shade {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(circle at 72% 22%, rgba(201, 149, 71, 0.2), rgba(201, 149, 71, 0) 28%),
+          linear-gradient(90deg, rgba(8, 7, 6, 0.92) 0%, rgba(8, 7, 6, 0.7) 34%, rgba(8, 7, 6, 0.18) 74%),
+          linear-gradient(0deg, rgba(8, 7, 6, 0.54), rgba(8, 7, 6, 0.08));
+      }
+
+      .shade.reverse {
+        background:
+          radial-gradient(circle at 28% 30%, rgba(131, 167, 140, 0.18), rgba(131, 167, 140, 0) 26%),
+          linear-gradient(270deg, rgba(8, 7, 6, 0.9) 0%, rgba(8, 7, 6, 0.62) 35%, rgba(8, 7, 6, 0.12) 76%),
+          linear-gradient(0deg, rgba(8, 7, 6, 0.44), rgba(8, 7, 6, 0.08));
+      }
+
+      .texture {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.28;
+        background-image:
+          linear-gradient(rgba(243, 234, 217, 0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(243, 234, 217, 0.035) 1px, transparent 1px);
+        background-size: 86px 86px;
+        mask-image: radial-gradient(circle at 50% 50%, black 0%, transparent 78%);
+      }
+
+      .grain {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.18;
+        background:
+          repeating-radial-gradient(circle at 18% 24%, rgba(243, 234, 217, 0.08) 0 1px, rgba(243, 234, 217, 0) 1px 4px),
+          repeating-linear-gradient(115deg, rgba(243, 234, 217, 0.04) 0 1px, rgba(243, 234, 217, 0) 1px 7px);
+        mix-blend-mode: screen;
+      }
+
+      .scene-content {
+        position: relative;
+        z-index: 3;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        padding: 108px 132px;
+        gap: 28px;
+      }
+
+      .scene-content.right {
+        align-items: flex-end;
+        text-align: right;
+      }
+
+      .scene-content.center {
+        align-items: center;
+        text-align: center;
+      }
+
+      .kicker {
+        width: max-content;
+        max-width: 760px;
+        border: 1px solid rgba(201, 149, 71, 0.54);
+        border-radius: 999px;
+        padding: 12px 18px;
+        color: #e4c891;
+        font-family: monospace;
+        font-size: 22px;
+        letter-spacing: 0.08em;
+        line-height: 1.2;
+        text-transform: uppercase;
+        background: rgba(21, 18, 14, 0.58);
+      }
+
+      .title {
+        max-width: 1040px;
+        color: #f3ead9;
+        font-family: serif;
+        font-size: 118px;
+        font-weight: 850;
+        line-height: 0.98;
+        letter-spacing: 0;
+        text-wrap: balance;
+        text-shadow: 0 18px 70px rgba(0, 0, 0, 0.66);
+      }
+
+      .title.compact {
+        max-width: 920px;
+        font-size: 88px;
+        line-height: 1.04;
+      }
+
+      .subtitle {
+        max-width: 760px;
+        color: #e7dcc9;
+        font-size: 34px;
+        font-weight: 350;
+        line-height: 1.46;
+        text-shadow: 0 12px 42px rgba(0, 0, 0, 0.72);
+      }
+
+      .feature-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        max-width: 760px;
+        margin-top: 18px;
+      }
+
+      .scene-content.right .feature-row {
+        justify-content: flex-end;
+      }
+
+      .feature-pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 54px;
+        border: 1px solid rgba(243, 234, 217, 0.18);
+        border-radius: 999px;
+        padding: 12px 18px;
+        color: #f3ead9;
+        font-family: monospace;
+        font-size: 21px;
+        line-height: 1.2;
+        background: rgba(21, 18, 14, 0.62);
+        backdrop-filter: blur(12px);
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(190px, 1fr));
+        gap: 18px;
+        width: 760px;
+        margin-top: 24px;
+      }
+
+      .stat {
+        min-height: 150px;
+        border: 1px solid rgba(201, 149, 71, 0.26);
+        border-radius: 8px;
+        padding: 24px 24px 20px;
+        background: rgba(12, 10, 8, 0.68);
+        box-shadow: inset 0 1px 0 rgba(243, 234, 217, 0.08);
+      }
+
+      .stat strong {
+        display: block;
+        color: #f3ead9;
+        font-family: monospace;
+        font-size: 50px;
+        font-weight: 600;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .stat span {
+        display: block;
+        margin-top: 14px;
+        color: #b8aa92;
+        font-size: 20px;
+        line-height: 1.34;
+      }
+
+      .rule {
+        width: 520px;
+        height: 2px;
+        background: linear-gradient(90deg, #c99547, rgba(201, 149, 71, 0));
+        transform-origin: left center;
+      }
+
+      .scene-content.right .rule {
+        background: linear-gradient(270deg, #c99547, rgba(201, 149, 71, 0));
+        transform-origin: right center;
+      }
+
+      .product-panel {
+        position: absolute;
+        right: 112px;
+        bottom: 98px;
+        z-index: 4;
+        display: grid;
+        grid-template-columns: 1fr;
+        width: 520px;
+        border: 1px solid rgba(243, 234, 217, 0.14);
+        border-radius: 8px;
+        padding: 22px;
+        background: rgba(8, 7, 6, 0.7);
+        backdrop-filter: blur(16px);
+      }
+
+      .panel-line {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 44px;
+        border-bottom: 1px solid rgba(243, 234, 217, 0.1);
+        color: #e7dcc9;
+        font-family: monospace;
+        font-size: 19px;
+      }
+
+      .panel-line:last-child {
+        border-bottom: 0;
+      }
+
+      .panel-line b {
+        color: #d1e5cf;
+        font-weight: 600;
+      }
+
+      .chapter-stack {
+        position: absolute;
+        right: 116px;
+        top: 118px;
+        z-index: 4;
+        display: grid;
+        gap: 12px;
+        width: 520px;
+      }
+
+      .chapter-card {
+        border: 1px solid rgba(243, 234, 217, 0.14);
+        border-radius: 8px;
+        padding: 18px 20px;
+        background: rgba(15, 13, 10, 0.7);
+        box-shadow: 0 18px 80px rgba(0, 0, 0, 0.28);
+      }
+
+      .chapter-card .line-a {
+        width: 84%;
+        height: 13px;
+        margin-bottom: 12px;
+        border-radius: 99px;
+        background: rgba(243, 234, 217, 0.7);
+      }
+
+      .chapter-card .line-b {
+        width: 62%;
+        height: 10px;
+        border-radius: 99px;
+        background: rgba(131, 167, 140, 0.72);
+      }
+
+      .chapter-card:nth-child(2) {
+        margin-left: 38px;
+      }
+
+      .chapter-card:nth-child(3) {
+        margin-left: 76px;
+      }
+
+      .timeline-markers {
+        position: absolute;
+        left: 142px;
+        bottom: 112px;
+        z-index: 4;
+        display: flex;
+        gap: 18px;
+        align-items: end;
+      }
+
+      .marker {
+        width: 22px;
+        border-radius: 999px 999px 4px 4px;
+        background: #c99547;
+        box-shadow: 0 0 28px rgba(201, 149, 71, 0.38);
+        transform-origin: bottom center;
+      }
+
+      .marker:nth-child(1) {
+        height: 94px;
+      }
+
+      .marker:nth-child(2) {
+        height: 144px;
+        background: #83a78c;
+      }
+
+      .marker:nth-child(3) {
+        height: 118px;
+      }
+
+      .marker:nth-child(4) {
+        height: 176px;
+        background: #83a78c;
+      }
+
+      .marker:nth-child(5) {
+        height: 136px;
+      }
+
+      .wipe {
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        pointer-events: none;
+      }
+
+      .wipe span {
+        display: block;
+        height: 100%;
+        transform: scaleY(0);
+        transform-origin: bottom center;
+        background: #c99547;
+      }
+
+      .closing-mark {
+        display: grid;
+        place-items: center;
+        width: 132px;
+        height: 132px;
+        border: 1px solid rgba(201, 149, 71, 0.48);
+        border-radius: 50%;
+        color: #c99547;
+        font-family: serif;
+        font-size: 64px;
+        font-weight: 850;
+        background: rgba(8, 7, 6, 0.36);
+      }
+
+      .cta {
+        color: #e4c891;
+        font-family: monospace;
+        font-size: 30px;
+        line-height: 1.3;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-dxb8" id="root" data-composition-id="main" data-start="0" data-duration="24" data-width="1920" data-height="1080">
+      <audio data-hf-id="hf-audio-bed" id="douyin-audio" data-start="0" data-duration="24" data-track-index="10" src="assets/douyin-promo-audio.wav" data-volume="1"></audio>
+      <section data-hf-id="hf-4u6f" id="scene1" class="scene">
+        <div data-hf-id="hf-hlfo" class="scene-bg" data-layout-allow-overflow="" style="background-image: url('assets/hero-workspace.png')"></div>
+        <div data-hf-id="hf-q0n7" class="shade"></div>
+        <div data-hf-id="hf-cw84" class="texture" data-layout-allow-overflow=""></div>
+        <div data-hf-id="hf-h60x" class="grain"></div>
+        <div data-hf-id="hf-cn5c" class="scene-content">
+          <div data-hf-id="hf-ow7n" class="kicker">AI NOVEL STUDIO</div>
+          <h1 data-hf-id="hf-9cbx" class="title">墨境</h1>
+          <div data-hf-id="hf-a46i" class="rule"></div>
+          <p data-hf-id="hf-o9kg" class="subtitle">把一句灵感，推进成一部长篇小说。</p>
+          <div data-hf-id="hf-a651" class="feature-row">
+            <span data-hf-id="hf-hjqr" class="feature-pill">设定</span>
+            <span data-hf-id="hf-q6hi" class="feature-pill">大纲</span>
+            <span data-hf-id="hf-kvj9" class="feature-pill">章节</span>
+            <span data-hf-id="hf-ewsu" class="feature-pill">记忆库</span>
+          </div>
+        </div>
+      </section>
+
+      <section data-hf-id="hf-tyos" id="scene2" class="scene">
+        <div data-hf-id="hf-w1id" class="scene-bg" data-layout-allow-overflow="" style="background-image: url('assets/bible-generation.png')"></div>
+        <div data-hf-id="hf-8uxp" class="shade reverse"></div>
+        <div data-hf-id="hf-47a4" class="texture" data-layout-allow-overflow=""></div>
+        <div data-hf-id="hf-3l5h" class="grain"></div>
+        <div data-hf-id="hf-vt52" class="scene-content right">
+          <div data-hf-id="hf-8e0h" class="kicker">FROM IDEA TO BIBLE</div>
+          <h2 data-hf-id="hf-9dr9" class="title compact">五步创作向导</h2>
+          <div data-hf-id="hf-ya9a" class="rule"></div>
+          <p data-hf-id="hf-mhlq" class="subtitle">类型、灵感、追问、设定、微调，一次梳理角色、世界观和章节骨架。</p>
+          <div data-hf-id="hf-rhep" class="stats">
+            <div data-hf-id="hf-xa0m" class="stat"><strong data-hf-id="hf-dsbl">05</strong><span data-hf-id="hf-exxn">步完成作品设定</span></div>
+            <div data-hf-id="hf-tx7e" class="stat"><strong data-hf-id="hf-czpj">03</strong><span data-hf-id="hf-zlh1">次重新合成机会</span></div>
+            <div data-hf-id="hf-ubif" class="stat"><strong data-hf-id="hf-nopc">1:1</strong><span data-hf-id="hf-0sip">设定绑定作品</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section data-hf-id="hf-uqcl" id="scene3" class="scene">
+        <div data-hf-id="hf-58n0" class="scene-bg" data-layout-allow-overflow="" style="background-image: url('assets/hero-workspace.png')"></div>
+        <div data-hf-id="hf-iber" class="shade"></div>
+        <div data-hf-id="hf-30d1" class="texture" data-layout-allow-overflow=""></div>
+        <div data-hf-id="hf-4s2k" class="grain"></div>
+        <div data-hf-id="hf-ek08" class="chapter-stack">
+          <div data-hf-id="hf-5vm2" class="chapter-card"><div data-hf-id="hf-vncs" class="line-a"></div><div data-hf-id="hf-6iuf" class="line-b"></div></div>
+          <div data-hf-id="hf-9z4e" class="chapter-card"><div data-hf-id="hf-nqlw" class="line-a"></div><div data-hf-id="hf-ork7" class="line-b"></div></div>
+          <div data-hf-id="hf-adff" class="chapter-card"><div data-hf-id="hf-mjot" class="line-a"></div><div data-hf-id="hf-od96" class="line-b"></div></div>
+        </div>
+        <div data-hf-id="hf-4eek" class="product-panel">
+          <div data-hf-id="hf-555t" class="panel-line"><span data-hf-id="hf-6y5s">候选稿模式</span><b data-hf-id="hf-u1v8">追加 / 插入 / 替换</b></div>
+          <div data-hf-id="hf-04fp" class="panel-line"><span data-hf-id="hf-3sdx">一致性检查</span><b data-hf-id="hf-ivq5">Critic</b></div>
+          <div data-hf-id="hf-1bcs" class="panel-line"><span data-hf-id="hf-ftha">自动保存</span><b data-hf-id="hf-96bn">3s</b></div>
+          <div data-hf-id="hf-0x1r" class="panel-line"><span data-hf-id="hf-udm9">版本历史</span><b data-hf-id="hf-eee2">Diff</b></div>
+        </div>
+        <div data-hf-id="hf-o0eg" class="scene-content">
+          <div data-hf-id="hf-93cv" class="kicker">WRITE WITH CONTROL</div>
+          <h2 data-hf-id="hf-40o2" class="title compact">AI 起草，作者定稿</h2>
+          <div data-hf-id="hf-yokb" class="rule"></div>
+          <p data-hf-id="hf-x6kc" class="subtitle">草稿不会覆盖正文。每一次生成，都可以被比较、保留、修订和追溯。</p>
+        </div>
+      </section>
+
+      <section data-hf-id="hf-di2a" id="scene4" class="scene">
+        <div data-hf-id="hf-rwno" class="scene-bg" data-layout-allow-overflow="" style="background-image: url('assets/memory-network.png')"></div>
+        <div data-hf-id="hf-b8hd" class="shade reverse"></div>
+        <div data-hf-id="hf-3eo2" class="texture" data-layout-allow-overflow=""></div>
+        <div data-hf-id="hf-4drj" class="grain"></div>
+        <div data-hf-id="hf-qs2b" class="timeline-markers">
+          <span data-hf-id="hf-k0wf" class="marker"></span>
+          <span data-hf-id="hf-cii7" class="marker"></span>
+          <span data-hf-id="hf-c476" class="marker"></span>
+          <span data-hf-id="hf-bpw5" class="marker"></span>
+          <span data-hf-id="hf-ei1c" class="marker"></span>
+        </div>
+        <div data-hf-id="hf-tgsq" class="scene-content right">
+          <div data-hf-id="hf-l4ti" class="kicker">LONGFORM MEMORY</div>
+          <h2 data-hf-id="hf-bitu" class="title compact">长篇不失锚</h2>
+          <div data-hf-id="hf-z2vc" class="rule"></div>
+          <p data-hf-id="hf-w3fl" class="subtitle">章节摘要、记忆块、检索来源和质量门控，让远端设定也能被召回。</p>
+          <div data-hf-id="hf-18ll" class="feature-row">
+            <span data-hf-id="hf-5mag" class="feature-pill">RAG 记忆库</span>
+            <span data-hf-id="hf-giz4" class="feature-pill">质量评分</span>
+            <span data-hf-id="hf-yk8g" class="feature-pill">成本兜底</span>
+          </div>
+        </div>
+      </section>
+
+      <section data-hf-id="hf-hg6b" id="scene5" class="scene">
+        <div data-hf-id="hf-7qkg" class="scene-bg" data-layout-allow-overflow="" style="background-image: url('assets/export-finish.png')"></div>
+        <div data-hf-id="hf-hx3q" class="shade"></div>
+        <div data-hf-id="hf-5e77" class="texture" data-layout-allow-overflow=""></div>
+        <div data-hf-id="hf-5kom" class="grain"></div>
+        <div data-hf-id="hf-viw3" class="scene-content center">
+          <div data-hf-id="hf-n45j" class="closing-mark">墨</div>
+          <div data-hf-id="hf-c388" class="kicker">FINISH THE BOOK</div>
+          <h2 data-hf-id="hf-j4vr" class="title compact">从灵感到成稿</h2>
+          <p data-hf-id="hf-3ny5" class="subtitle">Markdown、纯文本、Word、EPUB。把作品写完，也把作品带走。</p>
+          <div data-hf-id="hf-atbs" class="cta">墨境 · AI Novel Studio</div>
+        </div>
+      </section>
+
+      <div data-hf-id="hf-o0k0" class="wipe" aria-hidden="true">
+        <span data-hf-id="hf-uckh"></span><span data-hf-id="hf-l73p"></span><span data-hf-id="hf-me0s"></span><span data-hf-id="hf-lzpr"></span>
+        <span data-hf-id="hf-n6mu"></span><span data-hf-id="hf-msbt"></span><span data-hf-id="hf-nz8w"></span><span data-hf-id="hf-nkxv"></span>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      function addFrom(selector, vars, at) {
+        if (document.querySelector(selector)) {
+          tl.from(selector, vars, at);
+        }
+      }
+
+      function addTo(selector, vars, at) {
+        if (document.querySelector(selector)) {
+          tl.to(selector, vars, at);
+        }
+      }
+
+      function enterScene(selector, at, side) {
+        var x = side === "right" ? 56 : side === "center" ? 0 : -56;
+        addFrom(selector + " .kicker", { y: -18, opacity: 0, duration: 0.46, ease: "power3.out" }, at + 0.18);
+        addFrom(selector + " .title", { x: x, opacity: 0, duration: 0.72, ease: "expo.out" }, at + 0.28);
+        addFrom(selector + " .rule", { scaleX: 0, opacity: 0, duration: 0.54, ease: "circ.out" }, at + 0.48);
+        addFrom(selector + " .subtitle", { y: 34, opacity: 0, duration: 0.58, ease: "power2.out" }, at + 0.62);
+        addFrom(selector + " .feature-pill", { y: 22, opacity: 0, scale: 0.94, duration: 0.38, ease: "back.out(1.4)", stagger: 0.07 }, at + 0.9);
+        addFrom(selector + " .stat", { y: 28, opacity: 0, scale: 0.96, duration: 0.45, ease: "power4.out", stagger: 0.09 }, at + 0.9);
+      }
+
+      function transitionTo(oldScene, nextScene, at, mode) {
+        var bars = ".wipe span";
+        if (mode === "wipe") {
+          tl.set(bars, { transformOrigin: "bottom center", scaleY: 0 }, at);
+          tl.to(bars, { scaleY: 1, duration: 0.22, ease: "power3.in", stagger: { amount: 0.18, from: "start" } }, at);
+          tl.set(nextScene, { opacity: 1 }, at + 0.25);
+          tl.set(oldScene, { opacity: 0 }, at + 0.31);
+          tl.to(bars, { scaleY: 0, duration: 0.24, ease: "power3.out", stagger: { amount: 0.18, from: "end" } }, at + 0.34);
+        } else {
+          tl.set(nextScene, { opacity: 1, filter: "blur(18px)" }, at);
+          tl.to(nextScene, { filter: "blur(0px)", duration: 0.64, ease: "sine.inOut" }, at);
+          tl.set(oldScene, { opacity: 0 }, at + 0.64);
+        }
+      }
+
+      tl.from("#scene1 .scene-bg", { scale: 1.08, duration: 5.2, ease: "sine.inOut" }, 0);
+      enterScene("#scene1", 0, "left");
+      tl.to("#scene1 .texture", { x: 22, y: -16, duration: 4.7, ease: "sine.inOut" }, 0.2);
+
+      transitionTo("#scene1", "#scene2", 4.45, "blur");
+      tl.from("#scene2 .scene-bg", { scale: 1.1, x: -28, duration: 5.1, ease: "sine.inOut" }, 4.45);
+      enterScene("#scene2", 4.55, "right");
+      tl.from("#scene2 .stat strong", { y: 14, opacity: 0, scale: 0.92, duration: 0.42, ease: "back.out(1.35)", stagger: 0.08 }, 5.9);
+
+      transitionTo("#scene2", "#scene3", 9.05, "wipe");
+      tl.from("#scene3 .scene-bg", { scale: 1.06, duration: 5.1, ease: "sine.inOut" }, 9.05);
+      enterScene("#scene3", 9.18, "left");
+      tl.from("#scene3 .chapter-card", { x: 92, opacity: 0, rotation: -1.6, duration: 0.58, ease: "back.out(1.25)", stagger: 0.11 }, 9.8);
+      tl.from("#scene3 .product-panel", { y: 42, opacity: 0, scale: 0.97, duration: 0.52, ease: "power4.out" }, 10.28);
+      tl.from("#scene3 .panel-line", { x: 26, opacity: 0, duration: 0.32, ease: "circ.out", stagger: 0.07 }, 10.48);
+
+      transitionTo("#scene3", "#scene4", 13.7, "blur");
+      tl.from("#scene4 .scene-bg", { scale: 1.08, x: 34, duration: 5.2, ease: "sine.inOut" }, 13.7);
+      enterScene("#scene4", 13.84, "right");
+      tl.from("#scene4 .marker", { scaleY: 0, opacity: 0, duration: 0.52, ease: "expo.out", stagger: 0.08 }, 14.5);
+      tl.to("#scene4 .marker", { y: -10, duration: 1.2, ease: "sine.inOut", yoyo: true, repeat: 3, stagger: 0.08 }, 15.05);
+
+      transitionTo("#scene4", "#scene5", 18.4, "wipe");
+      tl.from("#scene5 .scene-bg", { scale: 1.06, duration: 5.1, ease: "sine.inOut" }, 18.4);
+      enterScene("#scene5", 18.55, "center");
+      tl.from("#scene5 .closing-mark", { scale: 0.62, opacity: 0, rotation: -8, duration: 0.72, ease: "back.out(1.35)" }, 18.62);
+      tl.from("#scene5 .cta", { y: 28, opacity: 0, duration: 0.48, ease: "power3.out" }, 20.1);
+      tl.to("#scene5 .scene-content", { opacity: 0, y: -22, duration: 0.7, ease: "power2.in" }, 23.1);
+      tl.to("#scene5 .scene-bg", { filter: "brightness(0.48)", duration: 0.7, ease: "sine.inOut" }, 23.1);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
