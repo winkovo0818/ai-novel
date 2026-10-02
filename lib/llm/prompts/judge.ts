@@ -15,6 +15,12 @@ import { PROMPT_SAFETY_PREAMBLE, wrap } from "@/lib/llm/promptSafety";
 export interface JudgePromptInput {
   window: QualityChapterInput[];
   bible: BibleDraft;
+  /**
+   * 悬置期待账本（2026-10-03 裁决结论：单窗口看不见延宕循环，judge 高估腻章的
+   * 根因）。列出当前章仍未回收的伏笔/线索及其已悬置章数，让 judge 把「又推开了
+   * 一个答案」放在账本上下文里评分。
+   */
+  openExpectations?: ReadonlyArray<{ title: string; kind: "伏笔" | "线索"; ageChapters: number; status: string }>;
 }
 
 const SHARED_DIMENSIONS: Array<[string, string, string, string]> = [
@@ -29,9 +35,11 @@ const SHARED_DIMENSIONS: Array<[string, string, string, string]> = [
 ];
 
 const MACRO_DIMENSIONS: Array<[string, string, string, string]> = [
-  ["clue_payoff", "线索兑现：读者拿到答案时是否『明白了一件重要的事』，还是只得到下一件要找的东西", "解谜只引出新道具/新地点，期待被无限递延", "每个答案都兑现理解，旧期待被关闭"],
-  ["situation_change", "局面改变：发现秘密/冒险之后，力量关系或行动条件是否真正变化", "『大家知道他有问题，但暂时照旧』", "每次发现都不可逆地改变处境"],
-  ["arc_progress", "阶段推进：铺垫在通向不可逆转折，还是在重复同类试探/验证/等待节拍", "连续多章同节拍循环", "明确朝一次有代价的转折推进"],
+  // 锚点文案来自 2026-10-03 人工裁决 7 个分歧章的定性：「腻的不是词汇重复，而是
+  // 『再探一次—得到半个答案—回去收好—大事再说』的结构循环」。
+  ["clue_payoff", "线索兑现：读者拿到答案时是否『明白了一件重要的事』，还是只得到下一件要找的东西", "逼近答案又推开（『到时候你就知道』式延宕）；搭起行动期待却只交付新疑问；反复确认读者已理解的事", "答案兑现理解、旧期待被关闭；准备终于转化为释放"],
+  ["situation_change", "局面改变：发现秘密/冒险之后，力量关系或行动条件是否真正变化", "『大家知道他有问题，但暂时照旧』；新知识只被收好备用，处境未变", "当场身体危险有明确空间与代价；真实不可逆的代价落地；敌方控制实际收紧、威胁落成事实"],
+  ["arc_progress", "阶段推进：铺垫在通向不可逆转折，还是在重复同类试探/验证/等待节拍", "『再探一次—半个答案—收好—大事再说』结构循环；准备工作层层加码而高潮不释放", "明确朝一次有代价的转折推进，节奏收紧"],
 ];
 
 export const JUDGE_DIMENSION_KEYS = [
@@ -74,7 +82,7 @@ scores 必须恰好包含全部 ${JUDGE_DIMENSION_KEYS.length} 个维度。`,
 ${wrap(input.bible.world.setting_summary, "world_setting")}
 主角：${wrap(input.bible.characters.find((c) => c.role === "protagonist")?.name ?? "未知", "character_name")}
 
-## 评审窗口（共 ${input.window.length} 章）
+${(input.openExpectations ?? []).length > 0 ? `## 悬置期待账本（截至上一章仍未回收，ageChapters=已悬置章数）\n评分线索兑现与阶段推进时必须对照此账本：答案又被推开的章，即便单章语义完整也应压低 clue_payoff/arc_progress。\n${input.openExpectations!.map((e) => `- [${e.kind}]「${e.title}」悬置 ${e.ageChapters} 章（${e.status}）`).join("\n")}\n\n` : ""}## 评审窗口（共 ${input.window.length} 章）
 ${windowText}
 
 请按锚定量表输出 JSON。`,

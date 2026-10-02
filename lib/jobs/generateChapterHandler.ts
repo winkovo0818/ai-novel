@@ -62,11 +62,12 @@ async function chapterStateDiff(novelId: string, bible: BibleDraft, result: Chap
 }
 
 /** P2 Judge 窗口评审。解析失败或调用异常返回 null（fail-closed，不影响门控）。 */
-async function judgeWindow(window: Parameters<typeof buildJudgePrompt>[0]["window"], bible: BibleDraft, novelId: string, chapterIndex: number, model?: string) {
+async function judgeWindow(window: Parameters<typeof buildJudgePrompt>[0]["window"], bible: BibleDraft, novelId: string, chapterIndex: number, model?: string,
+  openExpectations?: Parameters<typeof buildJudgePrompt>[0]["openExpectations"]) {
   try {
     const response = await chatCompletionWithRetry({
       route: "/agent/quality-gate/judge", agent: "judge", novelId, model,
-      messages: buildJudgePrompt({ window, bible }),
+      messages: buildJudgePrompt({ window, bible, openExpectations }),
       responseFormat: "json_object", temperature: 0, timeoutMs: 120_000,
     });
     return parseJudgeVerdict(response.content);
@@ -129,7 +130,16 @@ export async function handleGenerateChapter(payload: Prisma.JsonValue, execution
     // enforce 在宏观结构均分 < 5（连续重复节拍/线索无限递延/局面不变）时止链。
     let judgeBlockReason: string | null = null;
     if (policy.judge_mode !== "off") {
-      const verdict = await judgeWindow(qualityWindow, bible, novel_id, chapter_index, policy.model);
+      // 悬置期待账本（2026-10-03 裁决）：judge 需要看见跨章延宕循环才能识别
+      // 「再探一次—半个答案—收好—大事再说」的腻章模式。
+      const state = memory.state;
+      const openExpectations = [
+        ...(state?.foreshadowing ?? []).filter(f => f.status === "planted" || f.status === "reinforced")
+          .map(f => ({ title: f.clue, kind: "伏笔" as const, ageChapters: chapter_index - (f.introduced_in ?? chapter_index), status: f.status })),
+        ...(state?.plot_threads ?? []).filter(t => t.status !== "resolved")
+          .map(t => ({ title: t.title, kind: "线索" as const, ageChapters: chapter_index - (t.introduced_in ?? chapter_index), status: t.status })),
+      ].filter(e => e.ageChapters >= 2).sort((a, b) => b.ageChapters - a.ageChapters).slice(0, 12);
+      const verdict = await judgeWindow(qualityWindow, bible, novel_id, chapter_index, policy.model, openExpectations);
       if (verdict) {
         const comparable = judgeComparablePercent(verdict);
         const macro = judgeMacroAverage(verdict);

@@ -53,3 +53,22 @@ describe("buildJudgePrompt", () => {
     expect(user).toContain("第一章");
   });
 });
+
+describe("judge v2 (2026-10-03 裁决锚点与账本)", () => {
+  it("anchors the deferral-loop signatures from the human verdict", () => {
+    const system = buildJudgePrompt({ window: [], bible })[0].content;
+    expect(system).toContain("再探一次—半个答案—收好—大事再说");
+    expect(system).toContain("逼近答案又推开");
+    expect(system).toContain("敌方控制实际收紧");
+    expect(system).toContain("准备工作层层加码");
+  });
+  it("renders the open-expectations ledger and instructs score suppression against it", () => {
+    const user = buildJudgePrompt({
+      window: [{ chapterIndex: 9, title: "t", content: "正文。" }], bible,
+      openExpectations: [{ title: "井底钥匙", kind: "伏笔", ageChapters: 7, status: "reinforced" }],
+    })[1].content;
+    expect(user).toContain("悬置期待账本");
+    expect(user).toContain("井底钥匙");
+    expect(user).toContain("悬置 7 章");
+  });
+});

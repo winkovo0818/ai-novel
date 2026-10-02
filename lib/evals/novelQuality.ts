@@ -593,9 +593,9 @@ function evaluateAiVoice(chapters: QualityChapterInput[], aiTraceHits: AiWriting
   if (overusedPhrases.length === 0) {
     findings.push("跨章惯用表达未超标。");
   } else {
-    const penalty = Math.min(2, overusedPhrases.length);
-    score -= penalty;
-    warnings.push(`跨章惯用表达 ${overusedPhrases.length} 条（如「${overusedPhrases[0].phrase}」出现于 ${overusedPhrases[0].count}/${chapters.length} 章），扣 ${penalty} 分；意象重复必须对应实质变化。`);
+    // 2026-10-03 人工裁决（7 分歧章）：词汇重复对好章/腻章无区分度（好章同样命中），
+    // 真正的疲劳源是结构循环（judge 账本负责）。降为仅告警观测，不再扣分。
+    warnings.push(`[shadow] 跨章惯用表达 ${overusedPhrases.length} 条（如「${overusedPhrases[0].phrase}」出现于 ${overusedPhrases[0].count}/${chapters.length} 章）；仅记录不扣分，疲劳判定归 judge 账本。`);
   }
 
   const ttr = typeTokenRatio(text);
