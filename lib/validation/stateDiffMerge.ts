@@ -190,6 +190,25 @@ function nameCandidates(value: string): string[] {
   return [...new Set(candidates)];
 }
 
+/** 剥离空白与中英文标点后比较事实文本，防近似重述重复入库（G3）。 */
+function normalizeFactText(value: string): string {
+  return value.replace(/[\s\u3000，。；：、！？·,.…;:!?"'「」『』（）()【】\[\]—\-]/g, "");
+}
+
+/** 易逝类（scene/deal/other）只保留最近这么多条；恒定类与无标签不裁剪。 */
+const TRANSIENT_CONSTRAINT_CAP = 30;
+function trimTransientConstraints<T extends { category?: string }>(constraints: T[]): T[] {
+  const kept: T[] = [];
+  let transientKept = 0;
+  for (let i = constraints.length - 1; i >= 0; i--) {
+    const transient = constraints[i].category === "scene" || constraints[i].category === "deal" || constraints[i].category === "other";
+    if (transient && transientKept >= TRANSIENT_CONSTRAINT_CAP) continue;
+    if (transient) transientKept++;
+    kept.unshift(constraints[i]);
+  }
+  return kept;
+}
+
 // ---------------------------------------------------------------------------
 // M0.2 — pre-merge validation (auto-pilot path).
 //
@@ -462,19 +481,26 @@ export function applyStateDiff(
     ? timeline.slice(-TIMELINE_KEEP_RECENT)
     : timeline;
 
-  // P3-4.1 活跃约束清单：合并 state-diff 产出的 constraint_updates（去重 by fact）。
+  // P3-4.1 活跃约束清单：合并 state-diff 产出的 constraint_updates。
   // established_in 记录确立章号，供 writer/critic 追溯；本章注入 prompt 防跨章违背。
+  // G3（2026-10 真实跑批教训）：30 章堆积 244 条（含「考牌随身携带」与「考牌已
+  // 裂开装包袱」等陈旧版本并存），critic 注意力被稀释，年限/身份/知识边界三类
+  // 真实矛盾全部漏检。两层治理：归一化近似去重（标点/空白差异不重复入库）+
+  // 易逝类（scene/deal/other）只留最近 TRANSIENT_CONSTRAINT_CAP 条。恒定类与
+  // 无标签（旧数据）不裁剪——早期身份事实被裁掉的代价比臃肿更高。
   const activeConstraints = prev.active_constraints ? [...prev.active_constraints] : [];
   for (const update of (diff.constraint_updates ?? [])) {
-    if (!activeConstraints.some((c) => c.fact === update.fact)) {
+    if (!activeConstraints.some((c) => normalizeFactText(c.fact) === normalizeFactText(update.fact))) {
       activeConstraints.push({
         fact: update.fact,
         established_in: chapterIndex,
         validity: update.validity,
-        notes: update.notes,
+        ...(update.category != null ? { category: update.category } : {}),
+        ...(update.notes != null ? { notes: update.notes } : {}),
       });
     }
   }
+  const trimmedConstraints = trimTransientConstraints(activeConstraints);
 
   const nextState: StoryStateV1 = {
     ...(characters.length > 0 ? { characters } : {}),
@@ -484,7 +510,7 @@ export function applyStateDiff(
     ...(prev.relationships && prev.relationships.length > 0 ? { relationships: prev.relationships } : {}),
     ...(plotThreads.length > 0 ? { plot_threads: plotThreads } : {}),
     ...(foreshadowing.length > 0 ? { foreshadowing } : {}),
-    ...(activeConstraints.length > 0 ? { active_constraints: activeConstraints } : {}),
+    ...(trimmedConstraints.length > 0 ? { active_constraints: trimmedConstraints } : {}),
   };
 
   return {

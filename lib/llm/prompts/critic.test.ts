@@ -167,3 +167,32 @@ describe("buildCriticPrompt", () => {
     expect(system.content).toContain("本章节已经按审校意见修订过一次");
   });
 });
+
+describe("buildCriticPrompt fact-consistency scanning (G3)", () => {
+  it("instructs targeted scanning for number, identity and knowledge-boundary contradictions", () => {
+    const messages = buildCriticPrompt({ context: baseContext, chapterContent: "正文。", chapterIndex: 3 });
+    const system = messages[0].content;
+    expect(system).toContain("年限/数字矛盾");
+    expect(system).toContain("身份倒退");
+    expect(system).toContain("知识边界违反");
+    expect(system).toContain("逐类主动扫描");
+  });
+  it("groups tagged constraints under category headers and keeps untagged flat", () => {
+    const context: ChapterContext = {
+      ...baseContext,
+      storyState: {
+        active_constraints: [
+          { fact: "沈言在火房当差三年零两个月", established_in: 1, validity: "permanent", category: "career" },
+          { fact: "沈言自第6章起为外门弟子，住丙舍", established_in: 6, validity: "permanent", category: "identity" },
+          { fact: "沈言自第11章知道天代宗住西院三间屋", established_in: 11, validity: "permanent", category: "knowledge" },
+          { fact: "无标签旧约束", established_in: 2, validity: "permanent" },
+        ],
+      },
+    };
+    const user = buildCriticPrompt({ context, chapterContent: "正文。", chapterIndex: 12 })[1].content;
+    expect(user).toContain("[履历关键数字（career）]");
+    expect(user).toContain("[身份与存亡（identity）]");
+    expect(user).toContain("[角色已知信息（knowledge）]");
+    expect(user).toContain("无标签旧约束"); // 无标签不丢
+  });
+});

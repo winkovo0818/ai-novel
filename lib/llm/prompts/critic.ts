@@ -84,11 +84,36 @@ export function buildCriticPrompt(input: BuildCriticPromptInput): ChatMessage[] 
       }
     }
     // P3-4.1 活跃约束清单：注入给 critic 校验，本章违反任一即 critical 连贯性硬伤。
+    // G3：按类别分组渲染——身份/履历/已知信息/物品是高频违反类，分组标题给
+    // 定向扫描（维度 1c）提供导航锚点；无标签旧数据保持平铺。
     if (context.storyState.active_constraints && context.storyState.active_constraints.length > 0) {
-      lines.push("\n既定事实（本章不得违反；违反即 critical 连贯性硬伤）：");
+      lines.push("\n既定事实（本章不得违反；违反即 critical 连贯性硬伤。按维度 1c 逐类主动扫描年限数字、身份倒退、知识边界）：");
+      const constraintLines = (items: typeof context.storyState.active_constraints) =>
+        items.map((c) => `- ${wrap(c.fact, "story_state")}（第 ${c.established_in} 章确立）`).join("\n");
+      const grouped = new Map<string, typeof context.storyState.active_constraints>();
+      const untagged: typeof context.storyState.active_constraints = [];
+      const groupLabels: Array<[string, string]> = [
+        ["identity", "身份与存亡（identity）"],
+        ["career", "履历关键数字（career）"],
+        ["knowledge", "角色已知信息（knowledge）"],
+        ["item", "关键物品固定属性（item）"],
+        ["scene", "场景现状（scene，随剧情演变）"],
+        ["deal", "时效约定（deal）"],
+        ["other", "其他硬事实（other）"],
+      ];
       for (const c of context.storyState.active_constraints) {
-        lines.push(`- ${wrap(c.fact, "story_state")}（第 ${c.established_in} 章确立）`);
+        if (c.category == null) untagged.push(c);
+        else {
+          const list = grouped.get(c.category) ?? [];
+          list.push(c);
+          grouped.set(c.category, list);
+        }
       }
+      for (const [key, label] of groupLabels) {
+        const items = grouped.get(key);
+        if (items && items.length > 0) lines.push(`\n[${label}]\n${constraintLines(items)}`);
+      }
+      if (untagged.length > 0) lines.push(`\n${constraintLines(untagged)}`);
     }
     stateSection = lines.join("\n");
   }
@@ -103,6 +128,10 @@ ${PROMPT_SAFETY_PREAMBLE}
 检查维度：
 1. 角色行为：角色是否做出了与其性格/动机/当前状态矛盾的行为。
 1b. **实体属性一致性**：同一头衔/称谓（如"门主""掌门""宗主"）是否始终指向同一角色？是否存在把头衔用于不同角色（如"门主"既指已死的前任又指现任）、或已死角色被当作活着、或同一角色前后称谓不一致？**关键物品（断剑、木牌、信物）的外观/颜色/材质/刻字是否前后一致**（如黑色剑鞘不能变成木纹色）？active_constraints 里记录了角色身份/存亡/物品固定属性——本章描述必须与之吻合，否则记为 character 类 major/critical（连贯性硬伤，读者会察觉矛盾）。
+1c. **事实与知识边界一致性**（对照「既定事实」清单**逐类主动扫描**，不要被动浏览；以下三类是真实长跑中反复发生的漏检模式，命中即报）：
+  - **年限/数字矛盾**：角色口述或旁白给出的时长、名次、数量等数字与既定事实不符。例：既定「在火房当差三年零两个月」，本章角色却答「七年」且无任何铺垫 → critical。
+  - **身份倒退**：已完成的身份/地位/归属转变被当作尚未发生或再次发生。例：既定「第6章起已是外门弟子、住丙舍」，本章把「让你入外门、领牌分舍」当作新的身份变化且正文未区分预备与正式身份 → critical。
+  - **知识边界违反**：角色对既定「已知信息」（knowledge 类约束，谁从哪章起知道什么）表示不知道、需要重新打听。例：既定「自第11章知道天代宗住西院」，本章该角色问「西院在哪、归谁管」→ major；**除非本章正文明确交代是故意装作不知**（有装傻的正文依据则不报）。
 2. 世界规则：是否违反了 Bible 中定义的世界规则。
 3. 线索推进：活跃线索的状态是否被正确推进或保持。
 4. 时间线：事件顺序是否与 timeline 矛盾。

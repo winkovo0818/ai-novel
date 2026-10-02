@@ -654,3 +654,50 @@ describe("validateStateDiff (M0.2 pre-merge validation)", () => {
     expect(issues[0].message).toContain("超过单章上限 10 条");
   });
 });
+
+describe("constraint hygiene (G3)", () => {
+  const emptyDiff: StateDiff = { character_updates: [], timeline_events: [], plot_thread_updates: [], new_entities: [] };
+  it("normalizes near-duplicate facts (punctuation/whitespace) and passes category through", () => {
+    const bible: BibleDraft = {
+      ...baseBible,
+      story_state: {
+        active_constraints: [
+          { fact: "沈言在火房当差，三年零两个月。", established_in: 1, validity: "permanent", category: "career" },
+        ],
+      },
+    };
+    const diff: StateDiff = {
+      ...emptyDiff,
+      constraint_updates: [
+        // 标点/空白变体的重述：归一化后视为同一条，不重复入库
+        { fact: "沈言在火房当差 三年零两个月", validity: "permanent", category: "career" },
+        // 新事实带类别
+        { fact: "沈言自第6章起为外门弟子，住丙舍", validity: "permanent", category: "identity" },
+      ],
+    };
+    const constraints = applyStateDiff(bible, diff, 7).story_state?.active_constraints ?? [];
+    expect(constraints).toHaveLength(2);
+    expect(constraints.find((c) => c.category === "identity")?.established_in).toBe(7);
+  });
+
+  it("caps transient categories to the most recent 30 while keeping permanent-class and untagged facts", () => {
+    const sceneFacts = Array.from({ length: 35 }, (_, i) =>
+      ({ fact: `场景现状${i + 1}`, established_in: i + 1, validity: "permanent" as const, category: "scene" as const }));
+    const bible: BibleDraft = {
+      ...baseBible,
+      story_state: {
+        active_constraints: [
+          { fact: "沈言在火房当差三年零两个月", established_in: 1, validity: "permanent", category: "career" },
+          { fact: "无标签旧约束（不裁剪）", established_in: 1, validity: "permanent" },
+          ...sceneFacts,
+        ],
+      },
+    };
+    const constraints = applyStateDiff(bible, { ...emptyDiff }, 36).story_state?.active_constraints ?? [];
+    const scene = constraints.filter((c) => c.category === "scene");
+    expect(scene).toHaveLength(30);
+    expect(scene[0].fact).toBe("场景现状6"); // 最早的 5 条被裁，保留最近 30
+    expect(constraints.some((c) => c.category === "career")).toBe(true); // 恒定类不限
+    expect(constraints.some((c) => c.category == null)).toBe(true); // 无标签旧数据不裁
+  });
+});

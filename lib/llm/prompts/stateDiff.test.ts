@@ -130,3 +130,17 @@ describe("buildStateDiffPrompt", () => {
     expect(user.content.match(/字/g)?.length).toBe(6000);
   });
 });
+
+describe("buildStateDiffPrompt constraint guidance (G3)", () => {
+  it("declares categories and the fact classes that guard against continuity errors", () => {
+    const prompt = buildStateDiffPrompt({ bible, chapterIndex: 5, chapterTitle: "t", chapterContent: "正文。" })
+      .map((m) => m.content).join("\n");
+    expect(prompt).toContain("identity|career|knowledge|item|scene|deal|other");
+    expect(prompt).toContain("履历关键数字");
+    expect(prompt).toContain("身份变更事件");
+    expect(prompt).toContain("已知信息");
+    expect(prompt).toContain("三要素");
+    expect(prompt).toContain("承担剧情功能的固定物");
+    expect(prompt).toContain("旧的会被自动清掉");
+  });
+});

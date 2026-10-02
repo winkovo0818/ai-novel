@@ -147,6 +147,12 @@ export const VolumeSchema = z.object({
 export type Volume = z.infer<typeof VolumeSchema>;
 
 /**
+ * 既定事实的分类（G3）。恒定类（identity/career/knowledge/item）合并时不设限；
+ * 易逝类（scene/deal/other）只保留最近 TRANSIENT_CONSTRAINT_CAP 条。
+ */
+export const CONSTRAINT_CATEGORIES = ["identity", "career", "knowledge", "item", "scene", "deal", "other"] as const;
+
+/**
  * StoryStateV1 — runtime state tracked on top of the static Bible.
  * Kept inside BibleDraft.content as an optional field (short-term);
  * may be extracted to dedicated tables in later milestones.
@@ -207,11 +213,17 @@ export const StoryStateV1Schema = z.object({
    * 活跃约束清单（P3-4.1）：跨章必须遵守的既定事实/硬约束。每章注入 writer prompt 并由
    * critic 校验，是长程连贯性的根本手段——防"第 30 章违背第 5 章设定"。
    * 如「林砚在第 5 章已知密信内容」「木牌归沈言所有」。
+   *
+   * category（G3，2026-10）：真实跑批 30 章堆积 244 条约束导致 critic 注意力稀释，
+   * 年限/身份/知识边界三类真实矛盾全部漏检。恒定类（identity/career/knowledge/item）
+   * 不设限；易逝类（scene/deal/other）在合并时只保留最近若干条。optional 向后兼容
+   * 旧状态；无标签按恒定处理（宁可臃肿不可误删早期身份事实）。
    */
   active_constraints: z.array(z.object({
     fact: z.string().min(1),
     established_in: z.number().int().min(1),
     validity: z.enum(["permanent", "until_revealed"]).default("permanent"),
+    category: z.enum(CONSTRAINT_CATEGORIES).optional(),
     notes: z.string().optional(),
   })).optional(),
 });
@@ -273,6 +285,7 @@ export const StateDiffSchema = z.object({
     z.object({
       fact: z.string().min(1),
       validity: z.enum(["permanent", "until_revealed"]).catch("permanent"),
+      category: z.enum(CONSTRAINT_CATEGORIES).optional(),
       notes: z.string().optional(),
     }),
   ).optional(),
