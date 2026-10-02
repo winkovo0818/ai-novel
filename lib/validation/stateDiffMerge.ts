@@ -296,6 +296,21 @@ export function validateStateDiff(
     const mainName = candidates[1] ?? candidates[0];
     if (mainName && chapterContent.includes(mainName)) continue;
     if (candidates[0] && chapterContent.includes(candidates[0])) continue;
+    // 描述性泛称宽容（2026-10 验证跑批实测）：state-diff 偶尔把无名过场角色按
+    // 描述性称呼记入 character_updates（正文「高个弟子」→ 记「高个内门弟子」），
+    // 逐字与包含匹配都命不中。取候选的 2 字滑窗片段，≥2 个出现在正文中即视为
+    // 真实指代而非幻觉——纯编造的名字（如「陆文渊」）几乎不会有片段命中。
+    const normalizedContent = normalizeName(chapterContent);
+    if (candidates.some((c) => {
+      const n = normalizeName(c);
+      if (n.length < 4) return false;
+      let hits = 0;
+      for (let i = 0; i + 2 <= n.length; i++) {
+        if (normalizedContent.includes(n.slice(i, i + 2))) hits++;
+        if (hits >= 2) return true;
+      }
+      return false;
+    })) continue;
     issues.push({
       code: "unknown_character",
       message: `角色「${update.name}」不存在于 Bible/Story State,也未出现在本章正文,疑似幻觉实体。`,

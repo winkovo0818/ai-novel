@@ -701,3 +701,18 @@ describe("constraint hygiene (G3)", () => {
     expect(constraints.some((c) => c.category == null)).toBe(true); // 无标签旧数据不裁
   });
 });
+
+describe("descriptive-reference leniency (2026-10 验证跑批)", () => {
+  const empty: StateDiff = { character_updates: [], timeline_events: [], plot_thread_updates: [], new_entities: [] };
+  it("accepts descriptive generic references whose fragments appear in the chapter", () => {
+    // 正文写「高个弟子退了」，state-diff 记「高个内门弟子」——片段 高个/弟子 均在正文
+    const diff: StateDiff = { ...empty, character_updates: [{ name: "高个内门弟子", changes: { emotional_state: "恼怒" }, confidence: "low" }] };
+    expect(validateStateDiff(baseBible, diff, "蒋阶让他去。高个弟子退了，嘴角拧了一下。")).toEqual([]);
+  });
+  it("still rejects fully hallucinated names with no fragment overlap", () => {
+    const diff: StateDiff = { ...empty, character_updates: [{ name: "陆文渊", changes: { emotional_state: "平静" }, confidence: "high" }] };
+    const issues = validateStateDiff(baseBible, diff, "沈言在火房里码柴。");
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe("unknown_character");
+  });
+});

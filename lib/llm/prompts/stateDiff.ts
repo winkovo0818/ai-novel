@@ -52,6 +52,7 @@ ${PROMPT_SAFETY_PREAMBLE}
 
 规则：
 - 只输出实际在本章中发生变化的内容，不要臆测。
+- character_updates 的 name 必须是有名字的角色（或已在 new_entities 引入的角色）。无名过场人物——以外观、身份或职位指代的（如「高个弟子」「执事」「灰袍客」）——不要放入 character_updates，其行为记入 timeline_events 的事件描述即可。
 - 优先抽取可验证状态变化：新线索、关系变化、位置变化、道具归属、敌人反应、伤势/能力变化、世界规则确认。
 - timeline_events 至少记录本章最核心的“行动 -> 结果”，除非正文真的没有任何事件推进。
 - plot_thread_updates 只记录被推进、强化、揭示或解决的线索；不要把纯氛围描写当线索。
