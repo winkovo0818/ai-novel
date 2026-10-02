@@ -98,3 +98,22 @@ describe("snapshot refresh and temporal retrieval", () => {
     const progress = await readRecentStoryProgress("n", 2); expect(progress[0].excerpt.endsWith("结尾")).toBe(true); expect(progress[0].excerpt.length).toBeLessThan(1900); expect(progress[1].excerpt).toBe("短正文");
   });
 });
+
+describe("duplicate entity entries (2026-10 第三轮跑批)", () => {
+  it("dedups story-state entries sharing a memory key instead of tripping the unique constraint", async () => {
+    const dupState = { ...bible, story_state: {
+      characters: [
+        { name: "沈言", current_location: "火房" },
+        { name: "沈言", current_location: "剑庐" }, // 同名两条：应只落最后一条
+      ],
+    } } as Parameters<typeof syncStoryMemory>[2];
+    const created: Array<{ category: string; memory_key: string }> = [];
+    tx.storyMemoryRecord.createMany.mockImplementationOnce(async ({ data }: { data: Array<{ category: string; memory_key: string }> }) => {
+      created.push(...data);
+      return { count: data.length };
+    });
+    await sync(dupState);
+    const characterRows = created.filter((r) => r.category === "characters");
+    expect(characterRows).toHaveLength(1);
+  });
+});

@@ -41,7 +41,10 @@ export async function syncStoryMemory(tx: Prisma.TransactionClient, novelId: str
   const revision = (checkpoint?.revision ?? 0) + 1;
   if (source.kind === "generated_chapter" && source.chapterIndex < (checkpoint?.latest_chapter ?? 0)) throw new Error("现有记忆包含后续章节，请先校准历史改写后的剧情状态");
   const index = Math.max(source.chapterIndex, checkpoint?.latest_chapter ?? 0);
-  const entries = memoryEntries(bible.story_state);
+  // 2026-10 第三轮跑批实测：state-diff 偶尔对同一实体产出两条更新，story_state
+  // 数组出现同名条目，createMany 以相同 (novel_id, category, memory_key, revision)
+  // 撞唯一约束、整章事务回滚。按 key 去重（保留最后一条，即最新状态）。
+  const entries = [...new Map(memoryEntries(bible.story_state).map(e => [`${e.category}:${e.memory_key}`, e])).values()];
   const automatic = source.kind === "generated_chapter" || source.kind === "outline_planner";
   const existing = await tx.storyMemoryRecord.findMany({ where: { novel_id: novelId, valid_to_chapter: null,
     ...(automatic ? { OR: entries.map(e => ({ category: e.category, memory_key: e.memory_key })) } : {}) } });
