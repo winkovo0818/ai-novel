@@ -69,6 +69,8 @@ describe("durable outline planning", () => {
       await context.beforeCall!(); await context.onCost!(0.1); return { bible: planned(), addedChapters: 10 };
     });
     await handlePlanOutline(payload); expect(mocks.cost).toHaveBeenCalledWith("r", 0.1);
+    // G4：规划读取 current+1（seed 线索 introduced_in=1 在 current=0 时不可见的 off-by-one）
+    expect(mocks.memory).toHaveBeenCalledWith(expect.anything(), expect.anything(), 1);
   });
   it.each(["paused", "cap", "changed"])("stops a call when the run becomes %s", async change => {
     mocks.plan.mockImplementation(async () => {

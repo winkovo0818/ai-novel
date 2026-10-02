@@ -33,7 +33,11 @@ export async function handlePlanOutline(payload: Prisma.JsonValue, execution?: J
   const policy = generationPolicy(run.config);
   const covered = getAllChapters(bible).length;
   const batchTarget = Math.min(target_chapters, covered + policy.planning_window);
-  const memory = await loadStoryMemory(novel_id, novel.bible, run.current_chapter);
+  // 规划读取 current+1：readStoryMemory 按 valid_from <= atChapter 过滤，规划的是
+  // 「第 current+1 章起」的范围，按 current 读会把恰在 current+1 确立的事实（如
+  // seed 线索 introduced_in=1，首轮规划 current=0）全部滤掉——规划器看不到任何
+  // 可引用线索，thread_targets 恒为空、期限机制整卷空转（2026-10 验证跑批实测）。
+  const memory = await loadStoryMemory(novel_id, novel.bible, run.current_chapter + 1);
   if (memory.stale_records || memory.historical_available === false) {
     await markNeedsReview(run_id, "历史记忆不可用或正文已修改，请校准剧情状态后再规划");
     return;
