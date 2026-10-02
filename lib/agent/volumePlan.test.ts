@@ -22,7 +22,9 @@ describe("volume planning", () => {
     expect(volumeBounds(multi, 8, true, 30).end_chapter).toBe(8); expect(volumeBounds(multi, 9, true, 30)).toMatchObject({ volume_index: 1, start_chapter: 9 });
   });
   it("returns a validated plan and passes the chosen model", async () => {
-    chat.mockResolvedValue({ content: JSON.stringify(plan) }); expect(await planVolume({ ...input, model: "chosen" })).toEqual(plan);
+    chat.mockResolvedValue({ content: JSON.stringify(plan) });
+    // seed 状态有 open 线索而计划零目标：G1 合成兜底注入 advance@卷末
+    expect(await planVolume({ ...input, model: "chosen" })).toMatchObject({ ...plan, thread_targets: [{ kind: "plot_threads", title: "上古剑魂来源", action: "advance", deadline_chapter: 80 }] });
     expect(chat.mock.calls[0][0].model).toBe("chosen");
   });
   it("accepts only existing unresolved thread targets", async () => {
@@ -30,19 +32,22 @@ describe("volume planning", () => {
     chat.mockResolvedValue({ content: JSON.stringify({ ...plan, thread_targets: [{ kind: "plot_threads", title: "旧案", action: "resolve", deadline_chapter: 20 }, { kind: "foreshadowing", title: "木牌", action: "advance", deadline_chapter: 30 }] }) });
     expect((await planVolume({ ...input, bible: known })).thread_targets).toHaveLength(2);
   });
-  it.each([8, 81])("drops targets with invalid payoff deadline %d instead of failing the plan", async deadline_chapter => {
+  it.each([8, 81])("replaces an invalid payoff deadline %d with a synthesized advance target instead of failing the plan", async deadline_chapter => {
     const known = { ...bible, story_state: { plot_threads: [{ id: "p", title: "旧案", status: "open" as const }] } };
     chat.mockResolvedValue({ content: JSON.stringify({ ...plan, thread_targets: [{ kind: "plot_threads", title: "旧案", action: "resolve", deadline_chapter }] }) });
     const result = await planVolume({ ...input, bible: known });
-    expect(result.thread_targets).toHaveLength(0); expect(result.goal).toBe(plan.goal);
+    expect(result.thread_targets).toEqual([{ kind: "plot_threads", title: "旧案", action: "advance", deadline_chapter: 80 }]);
+    expect(result.goal).toBe(plan.goal);
   });
   it("drops hallucinated, resolved and duplicate targets instead of failing the plan", async () => {
     const target = { kind: "plot_threads" as const, title: "旧案", action: "resolve" as const, deadline_chapter: 20 };
     const known = { ...bible, story_state: { plot_threads: [{ id: "p", title: "旧案", status: "open" as const }] } };
     chat.mockResolvedValue({ content: JSON.stringify({ ...plan, thread_targets: [{ ...target, title: "查无此案" }] }) });
-    expect((await planVolume({ ...input, bible: known })).thread_targets).toHaveLength(0);
+    // 幻觉目标被丢弃后，G1 合成兜底保证 open 线索仍被跟踪（advance@卷末）
+    expect((await planVolume({ ...input, bible: known })).thread_targets).toEqual([{ kind: "plot_threads", title: "旧案", action: "advance", deadline_chapter: 80 }]);
     const resolved = { ...bible, story_state: { plot_threads: [{ id: "p", title: "旧案", status: "resolved" as const }] } };
     chat.mockResolvedValue({ content: JSON.stringify({ ...plan, thread_targets: [target] }) });
+    // 全部线索已解决：合法空场景，无合成
     expect((await planVolume({ ...input, bible: resolved })).thread_targets).toHaveLength(0);
     chat.mockResolvedValue({ content: JSON.stringify({ ...plan, thread_targets: [target, target] }) });
     expect((await planVolume({ ...input, bible: known })).thread_targets).toEqual([target]);
@@ -63,17 +68,31 @@ describe("volume planning", () => {
     const known = { ...bible, story_state: { plot_threads: [{ id: "p", title: "上古剑魂来源", status: "open" as const }], foreshadowing: [{ id: "f", clue: "神秘木牌", status: "planted" as const }] } };
     const prompt = buildVolumePlanPrompt({ ...input, bible: known }).map(m => m.content).join("\n");
     expect(prompt).toContain("逐字复制"); expect(prompt).toContain("上古剑魂来源"); expect(prompt).toContain("神秘木牌");
+    expect(prompt).toContain("不可逆转折"); expect(prompt).toContain("转折发生后");
     const noThreads = { ...bible, story_state: { plot_threads: [], foreshadowing: [] } };
     expect(buildVolumePlanPrompt({ ...input, bible: noThreads })[0].content).toContain("thread_targets 必须是空数组");
   });
-  it("warns when eligible threads exist but the plan sets no thread targets (F4)", async () => {
-    const known = { ...bible, story_state: { plot_threads: [{ id: "p", title: "旧案", status: "open" as const }] } };
-    chat.mockResolvedValue({ content: JSON.stringify(plan) }); // thread_targets: []
-    await planVolume({ ...input, bible: known });
-    expect(warn).toHaveBeenCalledWith("volume_plan.no_thread_targets", expect.objectContaining({ eligible_threads: 1 }));
+  it("synthesizes advance targets when eligible threads exist but the plan sets none, and warns on the missing turning point (G1)", async () => {
+    const known = { ...bible, story_state: { plot_threads: [{ id: "p", title: "旧案", status: "open" as const }], foreshadowing: [{ id: "f", clue: "木牌", status: "planted" as const }] } };
+    chat.mockResolvedValue({ content: JSON.stringify(plan) }); // thread_targets: [] 且无 turning_point
+    const result = await planVolume({ ...input, bible: known });
+    expect(result.thread_targets).toEqual([
+      { kind: "plot_threads", title: "旧案", action: "advance", deadline_chapter: 80 },
+      { kind: "foreshadowing", title: "木牌", action: "advance", deadline_chapter: 80 },
+    ]);
+    expect(warn).toHaveBeenCalledWith("volume_plan.targets_synthesized", expect.objectContaining({ count: 2 }));
+    expect(warn).toHaveBeenCalledWith("volume_plan.no_turning_point", expect.anything());
     warn.mockClear();
     await planVolume({ ...input, bible: { ...bible, story_state: { plot_threads: [], foreshadowing: [] } } });
-    expect(warn).not.toHaveBeenCalled(); // 真正无线索的合法空场景不告警
+    expect(warn).not.toHaveBeenCalledWith("volume_plan.targets_synthesized", expect.anything()); // 无线索的合法空场景不合成
+  });
+  it("injects the declared turning point into the arc prompt with anti-stasis pressure (G1)", async () => {
+    const withTurning = { ...plan, turning_point: "沈言主动揭穿孙奉作假，蒋阶失去内应，代价是沈言失去藏身三年的火房" };
+    expect(formatVolumeArc({ ...arc, plan: withTurning })).toContain("不可逆转折：");
+    expect(formatVolumeArc({ ...arc, plan: withTurning })).toContain("不要用重复的试探");
+    chat.mockResolvedValue({ content: JSON.stringify(withTurning) });
+    await planVolume({ ...input, bible: { ...bible, story_state: { plot_threads: [], foreshadowing: [] } } });
+    expect(warn).not.toHaveBeenCalledWith("volume_plan.no_turning_point", expect.anything()); // 已声明转折则不告警
   });
   it("includes real progress, prior arcs, and the finite ending policy in its prompt", () => {
     const prompt = buildVolumePlanPrompt({ ...input, continuous: false, recentProgress: [{ chapter_index: 8, title: "证人出现", excerpt: "证人已经获救" }], previousPlans: [plan] }).map(m => m.content).join("\n");
