@@ -14,9 +14,10 @@ const options = new Command().option("--execute", "Call real providers")
   .option("--model <name>", "Use an enabled configured model")
   .option("--cost-cap <cny>", "Cumulative task budget")
   .option("--unlimited-budget", "Explicitly disable the cumulative task cap")
-  .option("--max-state-changes <count>", "Per-chapter state-diff item cap (5-40, default 15)")
+  .option("--max-state-changes <count>", "Per-chapter state-diff item cap (5-40, default 30)")
+  .option("--floor <pct>", "Run quality floor (default 85; the heuristic ceiling for the house prose style is measured at ~83, and misjudgment-prone stalls often occur at >=80)")
   .option("--output <directory>", "Export directory", "artifacts/serial-agent")
-  .parse().opts<{execute?: boolean;resume?: string;chapters: string;model?: string;costCap?: string;unlimitedBudget?: boolean;maxStateChanges?: string;output: string}>();
+  .parse().opts<{execute?: boolean;resume?: string;chapters: string;model?: string;costCap?: string;unlimitedBudget?: boolean;maxStateChanges?: string;floor?: string;output: string}>();
 const raw = process.env.SERIAL_DATABASE_URL;
 if (!raw || !["localhost", "127.0.0.1"].includes(new URL(raw).hostname)) {
   throw new Error("SERIAL_DATABASE_URL must name a dedicated local database; production is read only");
@@ -30,7 +31,8 @@ const requested = StartRequestSchema.parse({ continuous: true, planning_window: 
   unlimited_budget: options.unlimitedBudget === true,
   cost_cap_cny: options.costCap == null ? undefined : Number(options.costCap),
   max_state_changes: options.maxStateChanges == null ? undefined : Number(options.maxStateChanges),
-  checkpoint_mode: "on_fail", revision_rounds: 2, quality_floor: 85 });
+  checkpoint_mode: "on_fail", revision_rounds: 2,
+  quality_floor: options.floor == null ? 85 : Number(options.floor) });
 if (!options.execute) {
   console.log(JSON.stringify({preflight: true, provider_calls: 0, config: requested,
     target_database_host: new URL(raw).hostname, next: "Add --execute to create an independent real evaluation novel"}, null, 2));

@@ -7,6 +7,7 @@ import { refreshSummaries } from "@/lib/agent/summaries";
 import { registerHandler } from "./queue";
 import { handleGenerateChapter } from "./generateChapterHandler";
 import { handlePlanOutline } from "./planOutlineHandler";
+import { handleBackfillState } from "./backfillStateHandler";
 import { withLlmCallContext } from "@/lib/llm/callContext";
 
 interface SummarizeChapterPayload {
@@ -94,6 +95,7 @@ export function registerJobHandlers(): void {
   });
 
   registerHandler("generate_chapter", handleGenerateChapter);
+  registerHandler("backfill_state", handleBackfillState);
   registerHandler("plan_outline", handlePlanOutline);
 }
 

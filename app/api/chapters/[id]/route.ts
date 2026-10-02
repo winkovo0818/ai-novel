@@ -170,6 +170,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       return updated;
     });
 
+    if (isPublishing) {
+      // F1（2026-10 真实跑批发现）：批准（draft→done）可能意味着该章曾被质量门
+      // 拦下而未应用 state-diff，状态层滞后会级联放大。入队回填任务；无 checkpoint
+      // 或无滞后时任务静默空转，best-effort 入队失败不影响批准本身。
+      await prisma.backgroundJob.create({ data: {
+        type: "backfill_state", novel_id: existing.novel_id, status: "pending",
+        payload: { novel_id: existing.novel_id },
+      } }).catch(() => {});
+    }
+
     if ((contentChanged && source === "manual") || isPublishing) {
       void runPendingJobsForNovel(existing.novel_id).catch(() => {});
     }

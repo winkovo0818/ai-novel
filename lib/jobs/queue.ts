@@ -4,8 +4,8 @@ import type { BackgroundJob } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { type JobExecution, createJobExecution } from "./execution";
 
-export type JobType = "summarize_chapter" | "index_chapter" | "refresh_summaries" | "generate_chapter" | "plan_outline";
-export const JOB_TYPES: readonly JobType[] = ["summarize_chapter", "index_chapter", "refresh_summaries", "generate_chapter", "plan_outline"] as const;
+export type JobType = "summarize_chapter" | "index_chapter" | "refresh_summaries" | "generate_chapter" | "plan_outline" | "backfill_state";
+export const JOB_TYPES: readonly JobType[] = ["summarize_chapter", "index_chapter", "refresh_summaries", "generate_chapter", "plan_outline", "backfill_state"] as const;
 
 export type JobStatus = "pending" | "running" | "done" | "failed";
 
@@ -90,6 +90,13 @@ const JOB_TYPE_CONFIG: Record<JobType, JobTypeConfig> = {
   // exceed draft + rounds×(critic + revise): too small and a slow model both
   // exhausts its deadline. Cancellation and write leases prevent timed out
   // handlers from committing after a retry has begun.
+  // F1: 补跑批准章节的 state-diff。每个间隙章节一次 90s LLM 调用，滞后最多
+  // 数章；15min 覆盖 8+ 章的最坏情况。串行执行避免与 generate_chapter 竞争 Bible。
+  backfill_state: {
+    timeoutMs: numberFromEnv("JOB_BACKFILL_STATE_TIMEOUT_MS", 900_000),
+    maxAttempts: numberFromEnv("JOB_BACKFILL_STATE_MAX_ATTEMPTS", 2),
+    maxConcurrent: 1,
+  },
   // 20min covers the worst case (240s draft + 2×(120s critic + 240s revise)).
   generate_chapter: {
     timeoutMs: numberFromEnv("JOB_GENERATE_CHAPTER_TIMEOUT_MS", 1_200_000),
@@ -300,7 +307,7 @@ export async function runPendingJobsForNovel(novelId: string): Promise<number> {
   await sweepStaleRunningJobs(novelId);
 
   const pending = await prisma.backgroundJob.findMany({
-    where: { novel_id: novelId, status: "pending", type: { notIn: ["generate_chapter", "plan_outline"] } },
+    where: { novel_id: novelId, status: "pending", type: { notIn: ["generate_chapter", "plan_outline", "backfill_state"] } },
     orderBy: { created_at: "asc" },
     select: { id: true },
   });

@@ -466,7 +466,7 @@ describe("runPendingJobsForNovel", () => {
 
     expect(processed).toBe(2);
     expect(findMany).toHaveBeenCalledWith({
-      where: { novel_id: "n", status: "pending", type: { notIn: ["generate_chapter", "plan_outline"] } },
+      where: { novel_id: "n", status: "pending", type: { notIn: ["generate_chapter", "plan_outline", "backfill_state"] } },
       orderBy: { created_at: "asc" },
       select: { id: true },
     });

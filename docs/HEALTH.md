@@ -18,6 +18,8 @@
 
 ## 最近更新
 
+- **2026-10-02（G2 + F1 收尾，通读行动项全部落地）** — G2：writer 硬规则新增导师型角色约束（指路必须不完整/有偏差/带代价，禁止逐步即时指令式解局）与主角自主解局（基于已建立的经验与资源判断、试错，辅助角色只是有噪声输入）。F1 批准回填产品化：新增 `backfill_state` 任务类型（15min 超时/串行/不入 inline drain），为 checkpoint 之后的已定稿章节按序补跑 state-diff（含 F7 两连重试）；章节 PATCH draft→done 时 best-effort 入队，无 checkpoint/无滞后时静默空转——第 8 章式的「批准滞后→diff 超限止链」级联从根上消除。eval:serial 新增 `--floor`（验证跑批可显式设阈值）。Vitest 1303 → 1310（新增 backfillStateHandler 5 例 + 路由入队断言 + G2 prompt 断言）。
+
 - **2026-10-02（G3 critic 事实一致性落地，数据驱动定位）** — 先查 run 库定位缺口：提取侧近乎完美（244 条约束中，被通读抓出的年限/外门身份/西院三条被违反事实**全部已提取**），失败全在 critic 面对 244 条平铺清单的注意力稀释，且清单含陈旧版本并存（append-only + 精确去重所致）。三层修复：① 约束加 category 七分类（恒定类 identity/career/knowledge/item 不设限，易逝类 scene/deal/other 合并时只留最近 30 条；无标签旧数据不裁剪）；合并改为归一化近似去重。② state-diff 提取 prompt 补四类必抽（履历关键数字、身份变更事件、已知信息三要素「谁+从哪章+知道什么」、场景固定物材质）。③ critic 新增维度 1c 定向扫描：年限/数字矛盾、身份倒退、知识边界违反（以本轮三个真实案例做 few-shot），既定事实按类别分组渲染提供导航锚点。四处通读错误全部转化为回归用例。Vitest 1298 → 1303。
 
 - **2026-10-02（G1 阶段转折强制落地）** — 直击通读结论「悬念累积而局面不变」：`VolumePlanSchema` 新增 `turning_point`（不可逆转折声明，缺失告警 `volume_plan.no_turning_point` 但不止链）；prompt 要求转折必须真正改变力量关系（控制权/关系/目标/秘密/退路）且转折后禁止回到同类试探节拍；`formatVolumeArc` 把转折声明连反停滞指令注入每章 prompt。thread_targets 空转从告警升级为**合成兜底**：有未解决线索而计划零目标（或全部被丢弃）时，为每条线索合成 advance@卷末目标（`volume_plan.targets_synthesized`），线索不因调度失误丢失跟踪；不合成 resolve——哪个线索本卷回收是叙事决定。设计上吸取本 run 教训：所有新增校验均为降级而非拒绝，避免重演规划止链。Vitest 1297 → 1298。
@@ -42,7 +44,7 @@
 
 ### 2026-10-02 验证证据与边界
 
-- Vitest：145 files / 1303 tests；覆盖率 lines/statements 83.01%、functions 94.91%、branches 85.41%，满足现有门禁。覆盖率配置仍排除 API `route.ts`、TSX 和 scripts，不能把该数字解释成全仓覆盖率。
+- Vitest：146 files / 1310 tests；覆盖率 lines/statements 83.01%、functions 94.91%、branches 85.41%，满足现有门禁。覆盖率配置仍排除 API `route.ts`、TSX 和 scripts，不能把该数字解释成全仓覆盖率。
 - Playwright 在生产构建下 13 条全绿（12 条产品用例 + 真实登录 setup），覆盖持续连载配置、规划暂停、预算调整、恢复与取消，以及卷目标/期限/校准提示展示、真实登录、新建作品、书架跳转、节拍起草、候选稿丢弃/追加/覆盖/差异预览、错误保护、未保存切章确认、自动保存、快捷键保存、恢复版本及刷新持久化、导出成功/失败。最后一轮显式传入专用的 `E2E_DATABASE_URL` / `E2E_DIRECT_URL`，使用本机 Chrome、单 worker，13 条用例通过并正常退出（约 1.1m），验证测试夹具和服务均使用同一隔离库；没有身份或限流绕过。Embedding 未配置，RAG 检索降级为空；本轮浏览器用例未验证真实向量召回。
 - `typecheck`、生产 `build` 通过；lint 0 errors、6 warnings，来自原有 BibleEditorPanel、signup、useModelAdmin、CLI Poller。
 - 隔离的本地 PostgreSQL 16 + pgvector 应用全部 33 条 migration。`scripts/reliability-smoke.ts` 使用独立 schema，验证真实并发保存只能成功一次、并行取任务受并发上限约束、长任务不被五分钟规则误回收、旧执行权失效及超时取消后无法提交；结束会删除该 schema。可复现命令：`RELIABILITY_DATABASE_URL=<专用本地测试库连接串> npx tsx scripts/reliability-smoke.ts`。
@@ -120,7 +122,7 @@
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
 | `npm run lint` | ✅ 0 errors，6 条已有 warning | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **145 files / 1303 tests** 全绿,约 3s | 新增并发、取消、审校、恢复及 CLI 回归覆盖 |
+| `npm run test` | ✅ **146 files / 1310 tests** 全绿,约 3s | 新增并发、取消、审校、恢复及 CLI 回归覆盖 |
 | `npm run build` | ✅ 通过 | |
 | Playwright E2E | ✅ 13 条全绿，约 1.1m（12 条产品用例 + 登录 setup） | 独立测试 DB、真实登录，每例独立账号；LLM_MOCK=1 |
 | `npm run smoke:onboarding` | ✅ 通过 | 2026-05-15 本地生产服务 + `LLM_MOCK=1` |

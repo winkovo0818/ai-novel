@@ -32,6 +32,7 @@ const $transaction = vi.fn(async (cb: (tx: typeof txClient) => unknown) => cb(tx
 vi.mock("@/lib/db", () => ({
   prisma: {
     chapterDraft: { findUnique, update, delete: deleteFn },
+    backgroundJob: { create: enqueueJob }, // F1：路由批准后 best-effort 入队 backfill_state
     chapterVersion: {
       create: createVersion,
       findFirst: findFirstVersion,
@@ -87,6 +88,19 @@ describe("PATCH /api/chapters/[id]", () => {
         data: expect.objectContaining({ chapter_id: "chapter-1", source: "status_change" }),
       }),
     );
+  });
+
+  it("enqueues a backfill_state job when approving a draft chapter (F1)", async () => {
+    const { PATCH } = await import("./route");
+    findUnique.mockResolvedValue({ id: "chapter-1", title: "t", content: "old", status: "draft", version: 0, novel_id: "novel-1", novel: { user_id: "user-1" } });
+    update.mockResolvedValue({ id: "chapter-1", status: "done" });
+
+    const response = await PATCH(request({ status: "done" }), {
+      params: Promise.resolve({ id: "chapter-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(enqueueJob).toHaveBeenCalledWith({ data: expect.objectContaining({ type: "backfill_state", novel_id: "novel-1" }) });
   });
 
   it("does NOT create a version on default (autosave) content-only PATCH", async () => {

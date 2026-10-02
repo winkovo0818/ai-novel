@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { NovelProfileSchema } from "../../validation/schemas";
 import { buildChapterPrompt } from "./chapter";
 import type { BibleDraft, NovelProfile } from "../../validation/schemas";
 import type { ChapterContext } from "../../agent/chapterContext";
@@ -530,5 +531,16 @@ describe("buildChapterPrompt", () => {
       expect(userContent).not.toContain(BEL);
       expect(userContent).toContain('九州碎裂片段');
     });
+  });
+});
+
+describe("buildChapterPrompt mentor and protagonist constraints (G2)", () => {
+  it("requires mentor guidance to be incomplete and protagonist-driven problem solving", () => {
+    const messages = buildChapterPrompt({ context: makeContext(), profile: NovelProfileSchema.parse({ genre_main: "web", genre_sub: "玄幻", audience: "general", length: "long", tone: "cool", pace: "fast", pov: "third_limited" }) });
+    const system = messages[0].content;
+    expect(system).toContain("不完整、有偏差或带代价");
+    expect(system).toContain("禁止逐步即时指令式解局");
+    expect(system).toContain("已建立的经验与资源");
+    expect(system).toContain("主角的成功必须体现其自身判断");
   });
 });
