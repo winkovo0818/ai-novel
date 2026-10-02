@@ -9,6 +9,7 @@ import { getGenerationPolicy } from "@/lib/llm/generationPolicy";
 import { buildChapterPrompt } from "@/lib/llm/prompts/chapter";
 import { buildChapterRevisionPrompt } from "@/lib/llm/prompts/chapterRevision";
 import { buildCriticPrompt, type CriticResult } from "@/lib/llm/prompts/critic";
+import { findOverusedPhrases } from "@/lib/agent/phraseRepetition";
 import { cleanupWriterOutputWithReport, aiSignatureHitTotal, type CleanupHit } from "@/lib/llm/writerOutputCleanup";
 import { logWarn } from "@/lib/observability/logger";
 import type { BibleDraft, NovelProfile } from "@/lib/validation/schemas";
@@ -139,6 +140,12 @@ export async function runChapterPipeline(input: RunChapterPipelineInput): Promis
     cost.model = r.model;
   };
 
+  // G4：近 10 章惯用表达注入禁令（第二次通读实测「三下一停」30 章 43 次）。
+  const overusedPhrases = findOverusedPhrases(
+    input.chapters.slice(-10).map((c) => ({ chapter_index: c.chapter_index, content: c.content ?? "" })),
+    { minCount: 3 },
+  );
+
   // 1. Writer draft (non-streaming — the auto-pilot is a background job, not SSE).
   const draft = await complete({
     ...attribution,
@@ -149,6 +156,7 @@ export async function runChapterPipeline(input: RunChapterPipelineInput): Promis
       context,
       profile: input.profile,
       generationPolicy: { ...policy, targetWordCount: Math.min(policy.targetWordCount, MAX_TARGET_WORDS) },
+      overusedPhrases,
     }),
     temperature: policy.temperature,
     topP: policy.topP,

@@ -17,6 +17,9 @@ import { readVolumeArc } from "@/lib/agent/volumePlanStore";
 import { overduePayoffs } from "@/lib/agent/volumePlan";
 import { generationCallContext } from "@/lib/agent/generationExecution";
 import { generationBudgetPause } from "@/lib/agent/generationBudget";
+import { buildJudgePrompt } from "@/lib/llm/prompts/judge";
+import { parseJudgeVerdict, judgeComparablePercent, judgeMacroAverage } from "@/lib/evals/llmJudge";
+import { logInfo, logWarn, errorMessage } from "@/lib/observability/logger";
 import { JobDeferredError } from "./deferred";
 import type { JobExecution } from "./execution";
 
@@ -55,6 +58,22 @@ async function chapterStateDiff(novelId: string, bible: BibleDraft, result: Chap
   } catch (error) {
     if (error instanceof JobDeferredError) throw error;
     return { reason: error instanceof Error ? error.message : "状态更新失败" };
+  }
+}
+
+/** P2 Judge 窗口评审。解析失败或调用异常返回 null（fail-closed，不影响门控）。 */
+async function judgeWindow(window: Parameters<typeof buildJudgePrompt>[0]["window"], bible: BibleDraft, novelId: string, chapterIndex: number, model?: string) {
+  try {
+    const response = await chatCompletionWithRetry({
+      route: "/agent/quality-gate/judge", agent: "judge", novelId, model,
+      messages: buildJudgePrompt({ window, bible }),
+      responseFormat: "json_object", temperature: 0, timeoutMs: 120_000,
+    });
+    return parseJudgeVerdict(response.content);
+  } catch (error) {
+    if (error instanceof JobDeferredError) throw error;
+    logWarn("gate.judge.call_failed", { novel_id: novelId, chapter_index: chapterIndex, error: errorMessage(error) });
+    return null;
   }
 }
 
@@ -102,11 +121,28 @@ export async function handleGenerateChapter(payload: Prisma.JsonValue, execution
       if (run) await markNeedsReview(run.id, `第 ${chapter_index} 章触发内容审核：${moderation.reason ?? "MODERATION_BLOCKED"}`);
       return;
     }
-    const gate = evaluateChapterGate(buildQualityWindow(novel.chapters, chapter_index, result, bible), bible, {
+    const qualityWindow = buildQualityWindow(novel.chapters, chapter_index, result, bible);
+    const gate = evaluateChapterGate(qualityWindow, bible, {
       qualityFloor: run?.quality_floor, criticIssues: result.criticIssues,
     });
+    // P2 LLM Judge：窗口级语义与宏观结构评分。shadow 只记录（标定前不判定）；
+    // enforce 在宏观结构均分 < 5（连续重复节拍/线索无限递延/局面不变）时止链。
+    let judgeBlockReason: string | null = null;
+    if (policy.judge_mode !== "off") {
+      const verdict = await judgeWindow(qualityWindow, bible, novel_id, chapter_index, policy.model);
+      if (verdict) {
+        const comparable = judgeComparablePercent(verdict);
+        const macro = judgeMacroAverage(verdict);
+        if (policy.judge_mode === "shadow") {
+          logInfo("gate.judge.shadow", { novel_id, chapter_index, heuristic_pct: gate.scorePct,
+            judge_comparable: comparable, judge_macro: macro, summary: verdict.summary, confidence: verdict.confidence });
+        } else if (macro != null && macro < 5) {
+          judgeBlockReason = `LLM Judge 宏观结构评分 ${macro}/10 < 5：${verdict.summary}`;
+        }
+      }
+    }
     // Failed output remains an editable draft; it never receives done status.
-    let state = gate.pass ? await chapterStateDiff(novel_id, recalledBible, result, policy.model, memory.state, policy.max_state_changes) : { reason: gate.reason };
+    let state = (gate.pass && !judgeBlockReason) ? await chapterStateDiff(novel_id, recalledBible, result, policy.model, memory.state, policy.max_state_changes) : { reason: judgeBlockReason ?? gate.reason };
     const overdue = state.bible ? overduePayoffs(arc, state.bible.story_state, chapter_index) : [];
     if (overdue.length) state = { reason: `本章已到线索回收期限：${overdue.join("、")}` };
     const accepted = gate.pass && Boolean(state.bible);

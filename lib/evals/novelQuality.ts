@@ -1,6 +1,7 @@
 import type { BibleDraft } from "@/lib/validation/schemas";
 import { collectAiWritingTraceHits, type AiWritingTraceHit } from "@/lib/llm/prompts/humanStyle";
 import { AI_SIGNATURE_CATEGORIES, type CleanupHit } from "@/lib/llm/writerOutputCleanup";
+import { findOverusedPhrases } from "@/lib/agent/phraseRepetition";
 
 function isAiSignatureHit(hit: CleanupHit): boolean {
   return AI_SIGNATURE_CATEGORIES.includes(hit.category);
@@ -583,6 +584,20 @@ function evaluateAiVoice(chapters: QualityChapterInput[], aiTraceHits: AiWriting
   // 单调，是机械/AI 文本的常见信号；它不依赖固定词表，换题材/换模型都成立，可在词表
   // 失效时兜底。当前以「仅记录、不扣分」的 shadow 模式接入——阈值需用第四章人工黄金集
   // 校准后再决定是否参与扣分，避免现在拍脑袋设阈值破坏既有评分基线。
+  // G4（第二次通读实证「三下一停」30 章 43 次）：窗口内跨章惯用表达。出现在多章的
+  // 标志性短语是节奏趋同信号；单章内句首重复由上面的检查负责，这里只看跨章惯性。
+  const overusedPhrases = findOverusedPhrases(
+    chapters.map((c) => ({ chapter_index: c.chapterIndex, content: c.content })),
+    { minCount: Math.max(2, chapters.length - 1), minChapters: 2, limit: 3 },
+  );
+  if (overusedPhrases.length === 0) {
+    findings.push("跨章惯用表达未超标。");
+  } else {
+    const penalty = Math.min(2, overusedPhrases.length);
+    score -= penalty;
+    warnings.push(`跨章惯用表达 ${overusedPhrases.length} 条（如「${overusedPhrases[0].phrase}」出现于 ${overusedPhrases[0].count}/${chapters.length} 章），扣 ${penalty} 分；意象重复必须对应实质变化。`);
+  }
+
   const ttr = typeTokenRatio(text);
   findings.push(`[shadow] 词汇丰富度 TTR ${ttr.toFixed(3)}（越低越单调；暂不计分，待黄金集校准）。`);
 

@@ -101,7 +101,7 @@ export function buildVolumePlanPrompt(input: PlanVolumeInput) {
 ${PROMPT_SAFETY_PREAMBLE}
 输出且只输出 JSON：{"name":"卷名","theme":"主题","goal":"可检验的阶段目标","central_conflict":"核心冲突","character_change":"人物改变及代价","climax":"高潮的行动与结果","resolution":"本卷解决什么","next_hook":"后续新冲突","turning_point":"本卷必须发生的一次不可逆转折：谁失去或获得什么、为什么无法回头、代价是什么","avoid_patterns":["避免的重复套路"],"thread_targets":[{"kind":"plot_threads|foreshadowing","title":"已有线索名","action":"advance|resolve","deadline_chapter":${input.end_chapter}}]}。
 各目标描述 10–500 字。${threadRule}
-转折要求：turning_point 必须是一次真正改变力量关系的不可逆事件（控制权转移、关系破裂或重建、目标改变、秘密暴露、退路消失，任取其一以上），不能只是「更接近真相」「新的怀疑」这类可撤回的推进；转折发生后，本卷余下章节必须应对转折造成的新局面，禁止回到转折前的同类试探、验证与藏匿节拍。
+转折要求：turning_point 必须是一次真正改变力量关系的不可逆事件（控制权转移、关系破裂或重建、目标改变、秘密暴露、退路消失，任取其一以上），不能只是「更接近真相」「新的怀疑」这类可撤回的推进；转折发生后，本卷余下章节必须应对转折造成的新局面，禁止回到转折前的同类试探、验证与藏匿节拍。转折不止 turning_point 这一次：每 15-20 章都应发生一次不可逆的阶段性改变（规模可以小于 turning_point），turning_point 是本卷最大的一次；连续 15 章以上只有铺垫、试探与等待而没有不可逆改变，即为节奏失败。
 近期正文与状态是已经发生的事实，计划不能改写它们。
 ${input.continuous ? "本卷结束不是全书完结。回收旧线索，并用本卷结果自然引出下一阶段；避免重复前卷的冲突与高潮套路。" : "这是固定章数作品。若该卷终点就是作品终点，安排主要冲突收束。"}` },
   { role: "user" as const, content: `作品：${wrap(input.bible.meta.suggested_title, "outline_title")}

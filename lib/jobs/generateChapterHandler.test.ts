@@ -103,7 +103,7 @@ describe("generation write protection", () => {
   it("invalid state updates prevent automatic acceptance", async () => {
     chatCompletionWithRetry.mockResolvedValue({ content: "invalid" }); await invoke();
     expect(createChapter.mock.calls[0][0].data.status).toBe("draft"); expect(updateBible).not.toHaveBeenCalled();
-    expect(chatCompletionWithRetry).toHaveBeenCalledTimes(2); // F7：解析失败重试第二个样本后才放弃
+    expect(chatCompletionWithRetry).toHaveBeenCalledTimes(3); // judge shadow 1 次 + F7 两次 state-diff
   });
   it("recovers when the state-diff JSON parses on the second sample (F7)", async () => {
     chatCompletionWithRetry.mockResolvedValueOnce({ content: "invalid" }).mockResolvedValueOnce({ content: "{}" });
@@ -158,7 +158,7 @@ describe("generation write protection", () => {
       return { chapterIndex: 1, title: "第一章", content: "正文", criticIssues: [] };
     });
     chatCompletionWithRetry.mockImplementation(async () => { await getLlmCallContext()?.onCost?.(0.01); return { content: "invalid" }; });
-    await invoke(); expect(addCost.mock.calls).toEqual([["run-1", 0.02], ["run-1", 0.01], ["run-1", 0.01]]); // 两次为 F7 重试
+    await invoke(); expect(addCost.mock.calls).toEqual([["run-1", 0.02], ["run-1", 0.01], ["run-1", 0.01], ["run-1", 0.01]]); // judge shadow + F7 两次重试
   });
   it("pauses when the budget was reached during the chapter", async () => {
     runLatest.mockResolvedValue(makeRun({ cost_cap_cny: 0.1, cost_cny_spent: 0.11 })); await invoke();
@@ -209,7 +209,7 @@ describe("long-term memory and payoff gates", () => {
     const state = { characters: [{ name: "沈言", current_location: "旧井" }] }; memoryLoad.mockResolvedValue({ state, stale_records: 0 });
     arcRead.mockResolvedValue({ plan: { thread_targets: [] } }); await invoke();
     expect(runChapterPipeline.mock.calls[0][0]).toMatchObject({ bible: { story_state: state }, volumeArc: { plan: { thread_targets: [] } } });
-    expect(chatCompletionWithRetry.mock.calls[0][0].messages.map((m: {content: string}) => m.content).join("\n")).toContain("旧井");
+    expect(chatCompletionWithRetry.mock.calls[1][0].messages.map((m: {content: string}) => m.content).join("\n")).toContain("旧井"); // [0] 为 judge shadow 调用
   });
   it("holds a due but unresolved payoff for review without committing state or progress", async () => {
     arcRead.mockResolvedValue({ plan: { thread_targets: [{ kind: "plot_threads", title: "旧案", action: "resolve", deadline_chapter: 1 }] } }); await invoke();
@@ -241,5 +241,31 @@ describe("evaluation stop and resource deferral", () => {
     chatCompletionWithRetry.mockRejectedValue(wait);
     await expect(invoke()).rejects.toBe(wait);
     expect(createChapter).not.toHaveBeenCalled(); expect(markNeedsReview).not.toHaveBeenCalled();
+  });
+});
+
+describe("LLM judge gating (P2)", () => {
+  const verdict = (macro: number) => JSON.stringify({
+    scores: ["continuity", "logic", "character_consistency", "plot_progress", "world_rules", "ai_voice", "prose_readability",
+      "clue_payoff", "situation_change", "arc_progress"].map((key) => ({ key, score: macro, evidence: "原文摘录" })),
+    summary: "宏观评估", confidence: "medium",
+  });
+  it("shadow mode records the verdict without blocking acceptance", async () => {
+    chatCompletionWithRetry.mockResolvedValueOnce({ content: verdict(3) }).mockResolvedValue({ content: "{}" });
+    await invoke();
+    expect(createChapter.mock.calls[0][0].data.status).toBe("done");
+  });
+  it("enforce mode blocks when the macro average is below 5", async () => {
+    getRun.mockResolvedValue(makeRun({ config: { judge_mode: "enforce" } }));
+    chatCompletionWithRetry.mockResolvedValueOnce({ content: verdict(3) }).mockResolvedValue({ content: "{}" });
+    await invoke();
+    expect(createChapter.mock.calls[0][0].data.status).toBe("draft");
+    expect(runUpdate.mock.calls[0][0].data.last_error).toContain("宏观结构");
+  });
+  it("enforce mode accepts when the macro average clears the floor", async () => {
+    getRun.mockResolvedValue(makeRun({ config: { judge_mode: "enforce" } }));
+    chatCompletionWithRetry.mockResolvedValueOnce({ content: verdict(7) }).mockResolvedValue({ content: "{}" });
+    await invoke();
+    expect(createChapter.mock.calls[0][0].data.status).toBe("done");
   });
 });

@@ -11,6 +11,8 @@ export interface ChapterPromptInput {
   profile: NovelProfile;
   existingContent?: string;
   generationPolicy?: GenerationPolicy;
+  /** G4：近期章节过度重复的表达，注入写手 prompt 禁止原样复用。 */
+  overusedPhrases?: Array<{ phrase: string; count: number; chapters: number }>;
 }
 
 function buildStoryStateSection(context: ChapterContext): string {
@@ -126,7 +128,7 @@ function buildContinuityTargetSection(context: ChapterContext, isMystery: boolea
 const STYLE_REFERENCE = `文风参照片段（只学叙事密度与句式，勿抄情节/角色/地名）：\n灶火暗了。柴烟顺着破瓦缝钻出去，像一条灰蛇。\n他没抬头。湿柴塞进火膛的动作很慢，慢到能听见执事在门外的脚步。\n“又在磨蹭。”\n脚步近了。门板被一脚踹开，冷雨卷进来，火苗伏低。\n孙奉把黑牌摔到脚边。考核的事，三天后。\n那道符线是回屋后才敢看的。泥水渗进牌纹，亮了半息，朝后山裂井的方向爬。`;
 
 export function buildChapterPrompt(input: ChapterPromptInput): ChatMessage[] {
-  const { context, profile, existingContent, generationPolicy } = input;
+  const { context, profile, existingContent, generationPolicy, overusedPhrases } = input;
   const bible = context.bible;
   const protagonist = bible.characters.find((c) => c.role === "protagonist");
   const chapterIndex = context.outline.chapterIndex;
@@ -201,6 +203,7 @@ ${WRITER_SELF_REVISION_DIRECTIVE}
 - 正文至少保留两个清晰因果钩：用角色目标、外部阻碍、选择代价或上一章结果解释关键行动；不要堆“因为所以”，要写成角色当场判断。
 - 每章必须留下一个可被 Story State 记录的状态变化：新线索、关系变化、位置变化、道具归属、敌人反应、伤势/能力变化或世界规则确认。
 - 若存在导师型/辅助型角色（器灵、剑魂、系统、老者等）：其指路必须不完整、有偏差或带代价，禁止逐步即时指令式解局。关键关口由主角基于自己**已建立的经验与资源**（多年生活技能、对场地/物资/人际的了解）判断、试错并解决；辅助角色的话只是有噪声的输入之一，可以有保留、可以说错、可以只给一半。主角的成功必须体现其自身判断，不能是听话照做的结果。
+${(overusedPhrases ?? []).length > 0 ? `- 以下表达在近期章节已过度重复，本章禁止原样使用（写出它的变化，或完全绕开）：${(overusedPhrases ?? []).map((p) => `「${p.phrase}」（${p.count}章）`).join("、")}。同一意象可以有辨识度，但每次出现必须对应实质变化（指路/误导/暴露/损伤），不能只是紧张提示。` : ""}
 - 输出前在内部按 humanizer SKILL 的 5 类 29 种 AI 写作痕迹和“输出前自检并改稿”清单自查一次；发现套话、解释腔、聊天痕迹、Markdown 粗体/标题/列表、教程路标、旁白破折号、AI 高频词或工整排比就改掉，但不要输出检查过程。
 - 减少模板化结尾和抽象情绪词；增加短句、打断式对白、具体身体动作和物件动作。
 ${styleDirectives.length > 0 ? `- ${styleDirectives.join("\n- ")}` : ""}

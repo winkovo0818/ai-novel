@@ -18,6 +18,8 @@
 
 ## 最近更新
 
+- **2026-10-02（G4 跨章查重 + G1二期转折周期化 + P2 Judge 骨架 shadow 接入）** — 按二次通读行动项交付三件：① G4：`phraseRepetition` 模块（4-6 字 n-gram 跨章统计，功能短语白名单，子串去重）——写手 prompt 注入近 10 章惯用表达禁令（「三下一停」30 章 43 次的实证回应），ai_voice 维度加跨章重复扣分并重冻结基线（fixture 89.6/100，旧 87.5）；② G1二期：大纲规划硬性要求每批至少一章「阶段性转折章」（写明改变与代价），卷规划明确每 15-20 章一次不可逆改变、turning_point 为本卷最大一次；③ P2 Judge 骨架：`judge.ts` 锚定量表（7 个可比维度 + 3 个宏观结构维度——线索兑现/局面改变/阶段推进，直接来自两次通读的编辑判断），`llmJudge.ts` fail-closed 解析（维度不全即拒），handler 以 `judge_mode: shadow`（默认）接入只记录不判定，enforce 需标定达标后手动启用（宏观均分 <5 止链）。标定门槛维持 Spearman ≥ 0.6 / MAE ≤ 2.0。Vitest 1310 → 1321。
+
 - **2026-10-02（第二次人工通读 + 残余缺口诊断）** — 作者读完验证跑批 30 章：G2 生效（杂役经验解谜获认可）、主线更集中，但整体不优于上一版——4+1 类新连续性错误 + 节奏换形态重复。数据库诊断显示提取侧基本命中（断剑归属甚至留下「需甄别」注记），缺口全在「提取到了没人管」：矛盾裁决缺失、缺席事实不提取、1c 扫描类别不含关系史/阵营知识/时间算术。战略结论：逐类补丁边际递减，P2 LLM Judge 升为必须；新增三期行动项（G3二期/G1二期转折周期化/G4 跨章查重 43× 实证）。见 `docs/evals/serial-valid2-2026-10.md` §五。
 
 - **2026-10-02（修复验证跑批 30/30 完成，全链路复验通过）** — 第二轮真实连载验收：30 章全通过（5.67 元，299 ok/1 err），对照首轮中断 7→3（2 次误报已根治、1 次为 G3 真阳性正确拦截）。验证期又交付两项增量修复：G4 规划读状态 off-by-one（thread_targets 恒空的真正根因，修正 F4 归因）、描述性泛称宽容（无名过场角色不再触发幻觉误判）。五层机制全部 armed：约束 173 条（↓29%）、记忆水位自动追平（F1 产品路径 2 次成功）、期限目标首次非零、转折声明注入、critic 事实一致性首个真阳性（镇魂钉数量矛盾，首轮同类 4 漏）。启发式总分门天花板问题两轮复现，P2 Judge 必要性再获实证。详见 `docs/evals/serial-valid2-2026-10.md`。
@@ -48,7 +50,7 @@
 
 ### 2026-10-02 验证证据与边界
 
-- Vitest：146 files / 1310 tests；覆盖率 lines/statements 83.01%、functions 94.91%、branches 85.41%，满足现有门禁。覆盖率配置仍排除 API `route.ts`、TSX 和 scripts，不能把该数字解释成全仓覆盖率。
+- Vitest：147 files / 1321 tests；覆盖率 lines/statements 83.01%、functions 94.91%、branches 85.41%，满足现有门禁。覆盖率配置仍排除 API `route.ts`、TSX 和 scripts，不能把该数字解释成全仓覆盖率。
 - Playwright 在生产构建下 13 条全绿（12 条产品用例 + 真实登录 setup），覆盖持续连载配置、规划暂停、预算调整、恢复与取消，以及卷目标/期限/校准提示展示、真实登录、新建作品、书架跳转、节拍起草、候选稿丢弃/追加/覆盖/差异预览、错误保护、未保存切章确认、自动保存、快捷键保存、恢复版本及刷新持久化、导出成功/失败。最后一轮显式传入专用的 `E2E_DATABASE_URL` / `E2E_DIRECT_URL`，使用本机 Chrome、单 worker，13 条用例通过并正常退出（约 1.1m），验证测试夹具和服务均使用同一隔离库；没有身份或限流绕过。Embedding 未配置，RAG 检索降级为空；本轮浏览器用例未验证真实向量召回。
 - `typecheck`、生产 `build` 通过；lint 0 errors、6 warnings，来自原有 BibleEditorPanel、signup、useModelAdmin、CLI Poller。
 - 隔离的本地 PostgreSQL 16 + pgvector 应用全部 33 条 migration。`scripts/reliability-smoke.ts` 使用独立 schema，验证真实并发保存只能成功一次、并行取任务受并发上限约束、长任务不被五分钟规则误回收、旧执行权失效及超时取消后无法提交；结束会删除该 schema。可复现命令：`RELIABILITY_DATABASE_URL=<专用本地测试库连接串> npx tsx scripts/reliability-smoke.ts`。
@@ -126,7 +128,7 @@
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
 | `npm run lint` | ✅ 0 errors，6 条已有 warning | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **146 files / 1310 tests** 全绿,约 3s | 新增并发、取消、审校、恢复及 CLI 回归覆盖 |
+| `npm run test` | ✅ **147 files / 1321 tests** 全绿,约 3s | 新增并发、取消、审校、恢复及 CLI 回归覆盖 |
 | `npm run build` | ✅ 通过 | |
 | Playwright E2E | ✅ 13 条全绿，约 1.1m（12 条产品用例 + 登录 setup） | 独立测试 DB、真实登录，每例独立账号；LLM_MOCK=1 |
 | `npm run smoke:onboarding` | ✅ 通过 | 2026-05-15 本地生产服务 + `LLM_MOCK=1` |

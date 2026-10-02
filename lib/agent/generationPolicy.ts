@@ -14,6 +14,12 @@ export const GenerationPolicySchema = z.object({
    * still bounding full-state regurgitation. Hard range 5–40.
    */
   max_state_changes: z.number().int().min(5).max(40).default(30),
+  /**
+   * P2 LLM Judge：shadow（默认）只记录评分不判定——接入门槛为与人工标注的
+   * Spearman ≥ 0.6 / 维度 MAE ≤ 2.0（见 OPTIMIZATION_PLAN_2026-10 P2.3），标定
+   * 通过前禁止 enforce。enforce 在宏观结构均分 < 5 时并入质量门理由。
+   */
+  judge_mode: z.enum(["off", "shadow", "enforce"]).default("shadow"),
 });
 
 /** Legacy runs did not persist a policy. Malformed policies fail closed. */
