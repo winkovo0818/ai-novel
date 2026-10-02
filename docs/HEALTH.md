@@ -18,6 +18,8 @@
 
 ## 最近更新
 
+- **2026-10-02（快修批 F3/F4/F7 + 时间炸弹测试修复）** — 按 P1.2 验收报告快修清单交付：F3 默认状态上限 15 → 30（六样本实测单章 17–24 条，原默认几乎章章误拦）；F4 卷规划有空闲线索却零 thread_targets 时记 `volume_plan.no_thread_targets` 告警（伏笔期限机制空转可见化）+ prompt 要求为每条线索安排目标；F7 state-diff 解析失败二次重试（镜像 Critic 两连失败模式，消除第 26/29 章类中断）。顺带修复 generationAlerts 测试时间炸弹（夹具日期固定为当天 00:00Z 且未传 now，真实时钟过 00:30Z 后必败——今晨绿、午后红的原因）。Vitest 1295 → 1297。
+
 - **2026-10-02（真实连载验收 P1.2 定稿，30/30 章完成）** — 真实模型连载验收达成目标：30 章全部通过落库，run `completed`，总费用 4.84 元（0.161 元/章，方案预估 3–5 元内）。全程 7 次中断、18 章零干预通过；产出 7 项发现（批准路径不回填状态的级联缺口、启发式门词汇代理构念失效×2、默认 15 条状态上限系统性过低、卷规划 thread_targets 静默空转、服务商超时窗口恢复策略、state-diff 解析失败无重试）与 LLM Judge 标定黄金样本集。期间交付代码修复 `6a6f5d6`（卷规划规范名映射）、`c3fc2e3`（logic 降软信号）与 `scripts/backfill-state-diff.ts` 回填工具。详见 `docs/evals/serial-real-2026-10.md`。
 
 - **2026-10-02（logic 维度降软信号，P1.2 系统性发现）** — 真实跑批第 5、6 两章被质量门以**完全相同的判定**（总分 82.9% < 85%；logic 3/10 < 硬门 7）连续拦截，而两章 Critic 均无阻断问题、continuity/character/plot/world 全部 10/10、人工阅读因果链完整（白描文风下因果隐含于动作序列）。根因：logic 分项是因果连接词密度等**词汇代理**，与管线自身的文风优化（去 AI 腔、删模板句）直接对冲，对目标文风通过率为 0。处置：沿用 ai_voice（std 23.6）降软信号的先例，`logic` 移入 SOFT_SIGNAL_DIMENSIONS（阈值 7 仅告警），默认硬门集合为空；自定义硬门仍可通过 dimensionFloors 注入。第 5/6 章留作 LLM Judge 标定黄金样本（P2）。同批发现：gate 拦下的章节批准后不回填 state-diff，后续章节上下文缺失本章事实（产品设计缺口，记入问题清单）。
@@ -34,7 +36,7 @@
 
 ### 2026-10-02 验证证据与边界
 
-- Vitest：145 files / 1295 tests；覆盖率 lines/statements 83.01%、functions 94.91%、branches 85.41%，满足现有门禁。覆盖率配置仍排除 API `route.ts`、TSX 和 scripts，不能把该数字解释成全仓覆盖率。
+- Vitest：145 files / 1297 tests；覆盖率 lines/statements 83.01%、functions 94.91%、branches 85.41%，满足现有门禁。覆盖率配置仍排除 API `route.ts`、TSX 和 scripts，不能把该数字解释成全仓覆盖率。
 - Playwright 在生产构建下 13 条全绿（12 条产品用例 + 真实登录 setup），覆盖持续连载配置、规划暂停、预算调整、恢复与取消，以及卷目标/期限/校准提示展示、真实登录、新建作品、书架跳转、节拍起草、候选稿丢弃/追加/覆盖/差异预览、错误保护、未保存切章确认、自动保存、快捷键保存、恢复版本及刷新持久化、导出成功/失败。最后一轮显式传入专用的 `E2E_DATABASE_URL` / `E2E_DIRECT_URL`，使用本机 Chrome、单 worker，13 条用例通过并正常退出（约 1.1m），验证测试夹具和服务均使用同一隔离库；没有身份或限流绕过。Embedding 未配置，RAG 检索降级为空；本轮浏览器用例未验证真实向量召回。
 - `typecheck`、生产 `build` 通过；lint 0 errors、6 warnings，来自原有 BibleEditorPanel、signup、useModelAdmin、CLI Poller。
 - 隔离的本地 PostgreSQL 16 + pgvector 应用全部 33 条 migration。`scripts/reliability-smoke.ts` 使用独立 schema，验证真实并发保存只能成功一次、并行取任务受并发上限约束、长任务不被五分钟规则误回收、旧执行权失效及超时取消后无法提交；结束会删除该 schema。可复现命令：`RELIABILITY_DATABASE_URL=<专用本地测试库连接串> npx tsx scripts/reliability-smoke.ts`。
@@ -112,7 +114,7 @@
 |---|---|---|
 | `npm run typecheck` | ✅ 通过（无输出） | TypeScript strict |
 | `npm run lint` | ✅ 0 errors，6 条已有 warning | eslint + next/core-web-vitals |
-| `npm run test` | ✅ **145 files / 1295 tests** 全绿,约 3s | 新增并发、取消、审校、恢复及 CLI 回归覆盖 |
+| `npm run test` | ✅ **145 files / 1297 tests** 全绿,约 3s | 新增并发、取消、审校、恢复及 CLI 回归覆盖 |
 | `npm run build` | ✅ 通过 | |
 | Playwright E2E | ✅ 13 条全绿，约 1.1m（12 条产品用例 + 登录 setup） | 独立测试 DB、真实登录，每例独立账号；LLM_MOCK=1 |
 | `npm run smoke:onboarding` | ✅ 通过 | 2026-05-15 本地生产服务 + `LLM_MOCK=1` |

@@ -35,15 +35,20 @@ export function isGenerateChapterPayload(p: unknown): p is GenerateChapterPayloa
 /** No state is written until the chapter, verdict, and state update are ready. */
 async function chapterStateDiff(novelId: string, bible: BibleDraft, result: ChapterPipelineResult, model?: string, storyState = bible.story_state, maxStateChanges?: number) {
   try {
-    const response = await chatCompletionWithRetry({
+    const request = {
       route: "/jobs/generate_chapter/state-diff", agent: "state_updater", novelId,
       model,
       messages: buildStateDiffPrompt({ bible, storyState,
         chapterIndex: result.chapterIndex, chapterTitle: result.title, chapterContent: result.content }),
-      responseFormat: "json_object", temperature: 0, timeoutMs: 90_000,
-    });
-    const diff = StateDiffSchema.safeParse(parseFirstJsonObject(response.content));
-    if (!diff.success) return { reason: "状态变更 JSON 无法解析" };
+      responseFormat: "json_object" as const, temperature: 0, timeoutMs: 90_000,
+    };
+    let diff = StateDiffSchema.safeParse(parseFirstJsonObject((await chatCompletionWithRetry(request)).content));
+    if (!diff.success) {
+      // F7（2026-10 真实跑批第 26/29 章两实例）：模型偶发输出劣化 JSON，重试第二个
+      // 样本即可解析。镜像 Critic 的两连失败模式——单次解析失败不再挂起整章。
+      diff = StateDiffSchema.safeParse(parseFirstJsonObject((await chatCompletionWithRetry(request)).content));
+      if (!diff.success) return { reason: "状态变更 JSON 无法解析" };
+    }
     const issues = validateStateDiff(bible, diff.data, result.content, maxStateChanges != null ? { maxStateChanges } : undefined);
     if (issues.length) return { reason: issues.map(i => i.message).join("；") };
     return { bible: applyStateDiff(bible, diff.data, result.chapterIndex) };

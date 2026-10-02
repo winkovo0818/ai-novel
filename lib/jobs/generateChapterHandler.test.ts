@@ -103,15 +103,21 @@ describe("generation write protection", () => {
   it("invalid state updates prevent automatic acceptance", async () => {
     chatCompletionWithRetry.mockResolvedValue({ content: "invalid" }); await invoke();
     expect(createChapter.mock.calls[0][0].data.status).toBe("draft"); expect(updateBible).not.toHaveBeenCalled();
+    expect(chatCompletionWithRetry).toHaveBeenCalledTimes(2); // F7：解析失败重试第二个样本后才放弃
+  });
+  it("recovers when the state-diff JSON parses on the second sample (F7)", async () => {
+    chatCompletionWithRetry.mockResolvedValueOnce({ content: "invalid" }).mockResolvedValueOnce({ content: "{}" });
+    await invoke();
+    expect(createChapter.mock.calls[0][0].data.status).toBe("done"); expect(updateBible).toHaveBeenCalled();
   });
   it("honors the run's max_state_changes cap on state diffs", async () => {
-    // 16 timeline events: over the default cap 15, admitted when the run config raises it to 25.
-    const sixteen = { character_updates: [], timeline_events: Array.from({ length: 16 }, (_, i) => ({ event: `事件${i + 1}` })), plot_thread_updates: [], new_entities: [] };
-    chatCompletionWithRetry.mockResolvedValue({ content: JSON.stringify(sixteen) });
+    // 35 timeline events: over the default cap 30, admitted when the run config raises it to 40.
+    const thirtyFive = { character_updates: [], timeline_events: Array.from({ length: 35 }, (_, i) => ({ event: `事件${i + 1}` })), plot_thread_updates: [], new_entities: [] };
+    chatCompletionWithRetry.mockResolvedValue({ content: JSON.stringify(thirtyFive) });
     await invoke();
     expect(createChapter.mock.calls[0][0].data.status).toBe("draft"); expect(updateBible).not.toHaveBeenCalled();
 
-    getRun.mockResolvedValue(makeRun({ config: { max_state_changes: 25 } }));
+    getRun.mockResolvedValue(makeRun({ config: { max_state_changes: 40 } }));
     await invoke();
     expect(createChapter.mock.calls[1][0].data.status).toBe("done"); expect(updateBible).toHaveBeenCalled();
   });
@@ -152,7 +158,7 @@ describe("generation write protection", () => {
       return { chapterIndex: 1, title: "第一章", content: "正文", criticIssues: [] };
     });
     chatCompletionWithRetry.mockImplementation(async () => { await getLlmCallContext()?.onCost?.(0.01); return { content: "invalid" }; });
-    await invoke(); expect(addCost.mock.calls).toEqual([["run-1", 0.02], ["run-1", 0.01]]);
+    await invoke(); expect(addCost.mock.calls).toEqual([["run-1", 0.02], ["run-1", 0.01], ["run-1", 0.01]]); // 两次为 F7 重试
   });
   it("pauses when the budget was reached during the chapter", async () => {
     runLatest.mockResolvedValue(makeRun({ cost_cap_cny: 0.1, cost_cny_spent: 0.11 })); await invoke();

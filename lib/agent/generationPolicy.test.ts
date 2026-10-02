@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { generationPolicy, nextPlanningTarget } from "./generationPolicy";
 describe("rolling generation policy", () => {
-  it("keeps legacy runs finite", () => { expect(generationPolicy(undefined)).toEqual({ continuous: false, planning_window: 10, max_state_changes: 15 }); });
+  it("keeps legacy runs finite", () => { expect(generationPolicy(undefined)).toEqual({ continuous: false, planning_window: 10, max_state_changes: 30 }); });
   it("does not accept a malformed policy", () => { expect(() => generationPolicy({ continuous: "true" })).toThrow(); });
-  it("bounds the per-chapter state-change cap at 5..40 and defaults it to 15", () => {
-    expect(generationPolicy({}).max_state_changes).toBe(15);
+  it("bounds the per-chapter state-change cap at 5..40 and defaults it to 30", () => {
+    expect(generationPolicy({}).max_state_changes).toBe(30);
     expect(generationPolicy({ max_state_changes: 5 }).max_state_changes).toBe(5);
     expect(generationPolicy({ max_state_changes: 40 }).max_state_changes).toBe(40);
     expect(() => generationPolicy({ max_state_changes: 4 })).toThrow();

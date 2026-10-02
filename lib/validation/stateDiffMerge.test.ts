@@ -622,7 +622,7 @@ describe("validateStateDiff (M0.2 pre-merge validation)", () => {
   it("rejects an oversized diff wholesale without running per-item checks", () => {
     const diff: StateDiff = {
       ...emptyDiff,
-      timeline_events: Array.from({ length: 16 }, (_, i) => ({ event: `事件${i + 1}` })),
+      timeline_events: Array.from({ length: 31 }, (_, i) => ({ event: `事件${i + 1}` })),
     };
 
     const issues = validateStateDiff(baseBible, diff, "正文。");
@@ -631,13 +631,14 @@ describe("validateStateDiff (M0.2 pre-merge validation)", () => {
     expect(issues[0].code).toBe("diff_too_large");
   });
 
-  it("admits the same 16-event diff under a raised options.maxStateChanges cap", () => {
+  it("admits a 35-event diff under a raised options.maxStateChanges cap that the default 30 rejects", () => {
     const diff: StateDiff = {
       ...emptyDiff,
-      timeline_events: Array.from({ length: 16 }, (_, i) => ({ event: `事件${i + 1}` })),
+      timeline_events: Array.from({ length: 35 }, (_, i) => ({ event: `事件${i + 1}` })),
     };
 
-    expect(validateStateDiff(baseBible, diff, "正文。", { maxStateChanges: 25 })).toEqual([]);
+    expect(validateStateDiff(baseBible, diff, "正文。")).toHaveLength(1);
+    expect(validateStateDiff(baseBible, diff, "正文。", { maxStateChanges: 40 })).toEqual([]);
   });
 
   it("reports the configured cap when a custom limit rejects", () => {

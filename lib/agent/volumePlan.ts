@@ -87,7 +87,7 @@ export function buildVolumePlanPrompt(input: PlanVolumeInput) {
     ...eligible.foreshadowing.map(t => `foreshadowing ${wrap(t, "plot_thread")}`),
   ];
   const threadRule = eligibleList.length > 0
-    ? `线索目标最多 10 项，只能引用下列未解决线索，title 必须逐字复制线索名（禁止改写、缩写或合并）：${eligibleList.join("；")}。期限必须晚于第 ${input.current_chapter} 章且在本卷范围内。`
+    ? `线索目标最多 10 项，只能引用下列未解决线索，title 必须逐字复制线索名（禁止改写、缩写或合并）：${eligibleList.join("；")}。应为每条未解决线索安排 advance 或 resolve 目标（可多章共用一个期限）。期限必须晚于第 ${input.current_chapter} 章且在本卷范围内。`
     : "当前没有未解决线索，thread_targets 必须是空数组 []。";
   return [{ role: "system" as const, content: `你是长篇小说卷级剧情规划师。为第 ${input.start_chapter} 至 ${input.end_chapter} 章设计一个有成果、有代价的故事阶段。
 ${PROMPT_SAFETY_PREAMBLE}
@@ -120,6 +120,14 @@ export async function planVolume(input: PlanVolumeInput): Promise<VolumePlan> {
     canonical.push({ ...target, title: mapped.title });
   }
   if (dropped.length > 0) logWarn("volume_plan.target_dropped", { novel_id: input.novelId, dropped: dropped.join("；") });
+  // F4（2026-10 真实跑批）：规划器面对少量线索时会静默输出空 thread_targets，
+  // 伏笔期限机制整轮空转（overduePayoffs 无事跟踪）。有空闲线索却一个目标都
+  // 没设时告警；真正无线索的合法空场景不告警。
+  const eligible = eligibleThreadTitles(input.bible.story_state);
+  const eligibleCount = eligible.plot_threads.length + eligible.foreshadowing.length;
+  if (eligibleCount > 0 && canonical.length === 0) {
+    logWarn("volume_plan.no_thread_targets", { novel_id: input.novelId, eligible_threads: eligibleCount });
+  }
   return { ...plan, thread_targets: canonical };
 }
 

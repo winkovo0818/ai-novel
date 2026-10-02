@@ -66,6 +66,15 @@ describe("volume planning", () => {
     const noThreads = { ...bible, story_state: { plot_threads: [], foreshadowing: [] } };
     expect(buildVolumePlanPrompt({ ...input, bible: noThreads })[0].content).toContain("thread_targets 必须是空数组");
   });
+  it("warns when eligible threads exist but the plan sets no thread targets (F4)", async () => {
+    const known = { ...bible, story_state: { plot_threads: [{ id: "p", title: "旧案", status: "open" as const }] } };
+    chat.mockResolvedValue({ content: JSON.stringify(plan) }); // thread_targets: []
+    await planVolume({ ...input, bible: known });
+    expect(warn).toHaveBeenCalledWith("volume_plan.no_thread_targets", expect.objectContaining({ eligible_threads: 1 }));
+    warn.mockClear();
+    await planVolume({ ...input, bible: { ...bible, story_state: { plot_threads: [], foreshadowing: [] } } });
+    expect(warn).not.toHaveBeenCalled(); // 真正无线索的合法空场景不告警
+  });
   it("includes real progress, prior arcs, and the finite ending policy in its prompt", () => {
     const prompt = buildVolumePlanPrompt({ ...input, continuous: false, recentProgress: [{ chapter_index: 8, title: "证人出现", excerpt: "证人已经获救" }], previousPlans: [plan] }).map(m => m.content).join("\n");
     expect(prompt).toContain("证人已经获救"); expect(prompt).toContain("不要重复"); expect(prompt).toContain("固定章数");

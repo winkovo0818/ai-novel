@@ -19,7 +19,7 @@ const DEFAULT_CONFIG: CliConfig = {
     revision_rounds: 2,
     cost_cap_cny: 5.0,
     target_words_per_chapter: 3000,
-    max_state_changes: 15,
+    max_state_changes: 30,
   },
   output: {
     export_dir: "./output",

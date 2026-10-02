@@ -215,11 +215,12 @@ export interface StateDiffValidationIssue {
  * changes a handful of states; a diff this large usually means the model
  * dumped the whole story state back (or hallucinated), and merging it would
  * amplify noise. The cap is per-run configurable via `max_state_changes`
- * (see GenerationPolicySchema) — the 2026-10 real acceptance run stalled at
- * chapter 2 with 16 legitimate changes vs this default, so acceptance runs
- * can raise it instead of hand-reviewing near-misses.
+ * (see GenerationPolicySchema). 2026-10 real-run calibration: deepseek-v4-flash
+ * produces 17–24 items for a NORMAL chapter (six samples: 24/17/23/22/21/19),
+ * so the old default of 15 rejected almost every chapter; 30 clears the
+ * observed range with headroom while still catching full-state regurgitation.
  */
-export const DEFAULT_MAX_STATE_CHANGES = 15;
+export const DEFAULT_MAX_STATE_CHANGES = 30;
 
 export interface ValidateStateDiffOptions {
   /** Per-chapter cap on total diff items. Defaults to {@link DEFAULT_MAX_STATE_CHANGES}. */

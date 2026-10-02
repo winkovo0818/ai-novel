@@ -29,9 +29,9 @@ quality_floor = 85
 revision_rounds = 2
 cost_cap_cny = 5.0
 target_words_per_chapter = 3000
-# 单章 state-diff 状态变更条数上限（5-40，默认 15）。
+# 单章 state-diff 状态变更条数上限（5-40，默认 30）。
 # 章节确实触及大量事实时可放宽；防「模型回灌全量状态」的兜底上限仍然保留。
-max_state_changes = 15
+max_state_changes = 30
 
 [output]
 export_dir = "./output"
